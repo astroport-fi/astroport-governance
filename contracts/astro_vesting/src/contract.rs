@@ -16,7 +16,7 @@ use astroport_governance::astro_vesting::{AllocationParams, AllocationStatus, Co
 use crate::state::{CONFIG, PARAMS, STATUS};
 
 // version info for migration info
-const CONTRACT_NAME: &str = "astroport-token";
+const CONTRACT_NAME: &str = "astro-vesting";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 //----------------------------------------------------------------------------------------
