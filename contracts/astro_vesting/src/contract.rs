@@ -259,7 +259,7 @@ fn execute_propose_new_receiver(
             )));
         }
         None => {
-            alloc_params.proposed_receiver = Some(deps.api.addr_validate(&new_receiver.clone())?);
+            alloc_params.proposed_receiver = Some(deps.api.addr_validate(&new_receiver)?);
             PARAMS.save(deps.storage, &info.sender, &alloc_params)?;
         }
     }
@@ -303,8 +303,8 @@ fn execute_claim_receiver(
 
     match alloc_params.proposed_receiver {
         Some(proposed_receiver) => {
-            if proposed_receiver == info.sender.to_string() {
-                // Transfers Allocation Paramters ::
+            if proposed_receiver == info.sender {
+                // Transfers Allocation Parameters ::
                 // 1. Save the allocation against the new receiver
                 alloc_params.proposed_receiver = None;
                 PARAMS.save(deps.storage, &info.sender, &alloc_params)?;
