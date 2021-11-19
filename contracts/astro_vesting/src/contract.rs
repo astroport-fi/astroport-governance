@@ -2,9 +2,10 @@
 use cosmwasm_std::entry_point;
 
 use cosmwasm_std::{
-    from_binary, to_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdError,
-    StdResult, Uint128, WasmMsg,
+    from_binary, to_binary, Addr, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response,
+    StdError, StdResult, Uint128, WasmMsg,
 };
+use cw2::set_contract_version;
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 
 use astroport_governance::astro_vesting::msg::{
@@ -13,6 +14,10 @@ use astroport_governance::astro_vesting::msg::{
 use astroport_governance::astro_vesting::{AllocationParams, AllocationStatus, Config};
 
 use crate::state::{CONFIG, PARAMS, STATUS};
+
+// version info for migration info
+const CONTRACT_NAME: &str = "astro-vesting";
+const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 //----------------------------------------------------------------------------------------
 // Entry Points
@@ -25,6 +30,7 @@ pub fn instantiate(
     _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> StdResult<Response> {
+    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
     CONFIG.save(
         deps.storage,
         &Config {
@@ -258,7 +264,7 @@ fn execute_propose_new_receiver(
             )));
         }
         None => {
-            alloc_params.proposed_receiver = Some(deps.api.addr_validate(&new_receiver.clone())?);
+            alloc_params.proposed_receiver = Some(deps.api.addr_validate(&new_receiver)?);
             PARAMS.save(deps.storage, &info.sender, &alloc_params)?;
         }
     }
@@ -302,8 +308,8 @@ fn execute_claim_receiver(
 
     match alloc_params.proposed_receiver {
         Some(proposed_receiver) => {
-            if proposed_receiver == info.sender.to_string() {
-                // Transfers Allocation Paramters ::
+            if proposed_receiver == info.sender {
+                // Transfers Allocation Parameters ::
                 // 1. Save the allocation against the new receiver
                 alloc_params.proposed_receiver = None;
                 PARAMS.save(deps.storage, &info.sender, &alloc_params)?;
@@ -364,6 +370,11 @@ fn query_simulate_withdraw(
         &mut status,
         config.default_unlock_schedule,
     ))
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(_deps: DepsMut, _env: Env, _msg: Empty) -> StdResult<Response> {
+    Ok(Response::default())
 }
 
 //----------------------------------------------------------------------------------------
