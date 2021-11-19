@@ -1,18 +1,18 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 
-use cosmwasm_std::{
-    from_binary, to_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdError,
-    StdResult, Uint128, WasmMsg,
-};
+use cosmwasm_std::{from_binary, to_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult, Uint128, WasmMsg, Empty};
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
+use cw2::set_contract_version;
 
-use astroport_governance::astro_vesting::msg::{
-    AllocationResponse, ExecuteMsg, InstantiateMsg, QueryMsg, ReceiveMsg, SimulateWithdrawResponse,
-};
+use astroport_governance::astro_vesting::msg::{AllocationResponse, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg, ReceiveMsg, SimulateWithdrawResponse};
 use astroport_governance::astro_vesting::{AllocationParams, AllocationStatus, Config};
 
 use crate::state::{CONFIG, PARAMS, STATUS};
+
+// version info for migration info
+const CONTRACT_NAME: &str = "astroport-token";
+const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 //----------------------------------------------------------------------------------------
 // Entry Points
@@ -25,6 +25,7 @@ pub fn instantiate(
     _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> StdResult<Response> {
+    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
     CONFIG.save(
         deps.storage,
         &Config {
@@ -364,6 +365,11 @@ fn query_simulate_withdraw(
         &mut status,
         config.default_unlock_schedule,
     ))
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(_deps: DepsMut, _env: Env, _msg: Empty) -> StdResult<Response> {
+    Ok(Response::default())
 }
 
 //----------------------------------------------------------------------------------------
