@@ -426,8 +426,7 @@ mod helpers {
         let astro_free = cmp::min(astro_vested, astro_unlocked);
 
         // Withdrawable amount is unlocked amount minus the amount already withdrawn
-        let astro_withdrawn = status.astro_withdrawn + status.astro_withdrawn;
-        let astro_withdrawable = astro_free - astro_withdrawn;
+        let astro_withdrawable = astro_free - status.astro_withdrawn;
 
         status.astro_withdrawn += astro_withdrawable;
 
