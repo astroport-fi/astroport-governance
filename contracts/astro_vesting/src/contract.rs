@@ -191,19 +191,15 @@ fn execute_withdraw(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Res
     // Update status
     STATUS.save(deps.storage, &info.sender, &status)?;
 
-    let mut msgs: Vec<WasmMsg> = vec![];
-
-    msgs.push(WasmMsg::Execute {
-        contract_addr: config.astro_token.to_string(),
-        msg: to_binary(&Cw20ExecuteMsg::Transfer {
-            recipient: info.sender.to_string(),
-            amount: astro_to_withdraw,
-        })?,
-        funds: vec![],
-    });
-
     Ok(Response::new()
-        .add_messages(msgs)
+        .add_message(WasmMsg::Execute {
+            contract_addr: config.astro_token.to_string(),
+            msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                recipient: info.sender.to_string(),
+                amount: astro_to_withdraw,
+            })?,
+            funds: vec![],
+        })
         .add_attribute("astro_withdrawn", astro_to_withdraw))
 }
 
