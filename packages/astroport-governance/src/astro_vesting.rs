@@ -51,10 +51,32 @@ pub struct AllocationParams {
     pub proposed_receiver: Option<Addr>,
 }
 
+impl Default for AllocationParams {
+    fn default() -> Self {
+        AllocationParams {
+            amount: Uint128::zero(),
+            vest_schedule: Schedule {
+                start_time: 0u64,
+                cliff: 0u64,
+                duration: 0u64,
+            },
+            proposed_receiver: None,
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct AllocationStatus {
     /// Amount of ASTRO already withdrawn
     pub astro_withdrawn: Uint128,
+}
+
+impl Default for AllocationStatus {
+    fn default() -> Self {
+        AllocationStatus {
+            astro_withdrawn: Uint128::zero(),
+        }
+    }
 }
 
 impl AllocationStatus {
@@ -66,7 +88,7 @@ impl AllocationStatus {
 }
 
 pub mod msg {
-    use cosmwasm_std::{Addr, Uint128};
+    use cosmwasm_std::Uint128;
     use cw20::Cw20ReceiveMsg;
     use schemars::JsonSchema;
     use serde::{Deserialize, Serialize};

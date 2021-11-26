@@ -1,5 +1,5 @@
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
-use astroport_governance::astro_vesting::{AllocationParams, AllocationStatus, Config, Schedule};
+use astroport_governance::astro_vesting::{AllocationParams, Schedule};
 
 use astroport_governance::astro_vesting::msg::{
     AllocationResponse, ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg, ReceiveMsg,
@@ -7,6 +7,7 @@ use astroport_governance::astro_vesting::msg::{
 };
 use cosmwasm_std::testing::{mock_env, MockApi, MockQuerier, MockStorage};
 use cosmwasm_std::{attr, to_binary, Addr, Timestamp, Uint128};
+use cw20::BalanceResponse;
 use terra_multi_test::{App, BankKeeper, ContractWrapper, Executor, TerraMockQuerier};
 
 const OWNER: &str = "OWNER";
@@ -109,7 +110,7 @@ fn mint_some_astro(
 #[test]
 fn proper_initialization() {
     let mut app = mock_app();
-    let (vesting_instance, astro_instance, init_msg) = init_contracts(&mut app);
+    let (vesting_instance, _astro_instance, init_msg) = init_contracts(&mut app);
 
     let resp: ConfigResponse = app
         .wrap()
@@ -399,11 +400,6 @@ fn test_create_allocations() {
         Uint128::from(15_000_000_000000u64)
     );
 
-    let resp: StateResponse = app
-        .wrap()
-        .query_wasm_smart(&vesting_instance, &QueryMsg::State {})
-        .unwrap();
-
     // Check allocation #1
     let resp: AllocationResponse = app
         .wrap()
@@ -569,7 +565,7 @@ fn test_withdraw() {
         .unwrap_err();
     assert_eq!(
         err.to_string(),
-        "white_astro::vesting::AllocationParams not found"
+        "astroport_governance::astro_vesting::AllocationParams not found"
     );
 
     // ######   SUCCESSFULLY WITHDRAWS ASTRO #1   ######
@@ -579,6 +575,16 @@ fn test_withdraw() {
         b.time = Timestamp::from_seconds(1642402275)
     });
 
+    let astro_bal_before: BalanceResponse = app
+        .wrap()
+        .query_wasm_smart(
+            &astro_instance,
+            &cw20::Cw20QueryMsg::Balance {
+                address: "investor_1".to_string(),
+            },
+        )
+        .unwrap();
+
     app.execute_contract(
         Addr::unchecked("investor_1".clone()),
         vesting_instance.clone(),
@@ -587,8 +593,22 @@ fn test_withdraw() {
     )
     .unwrap();
 
+    // Check state
+    let state_resp: StateResponse = app
+        .wrap()
+        .query_wasm_smart(&vesting_instance, &QueryMsg::State {})
+        .unwrap();
+    assert_eq!(
+        state_resp.total_astro_deposited,
+        Uint128::from(15_000_000_000000u64)
+    );
+    assert_eq!(
+        state_resp.remaining_astro_tokens,
+        Uint128::from(14_999_999_841452u64)
+    );
+
     // Check allocation #1
-    let resp: AllocationResponse = app
+    let alloc_resp: AllocationResponse = app
         .wrap()
         .query_wasm_smart(
             &vesting_instance,
@@ -597,8 +617,35 @@ fn test_withdraw() {
             },
         )
         .unwrap();
-    assert_eq!(resp.params.amount, Uint128::from(5_000_000_000000u64));
-    assert_eq!(resp.status.astro_withdrawn, Uint128::from(158548u64));
+    assert_eq!(alloc_resp.params.amount, Uint128::from(5_000_000_000000u64));
+    assert_eq!(alloc_resp.status.astro_withdrawn, Uint128::from(158548u64));
+
+    let astro_bal_after: BalanceResponse = app
+        .wrap()
+        .query_wasm_smart(
+            &astro_instance,
+            &cw20::Cw20QueryMsg::Balance {
+                address: "investor_1".to_string(),
+            },
+        )
+        .unwrap();
+
+    assert_eq!(
+        astro_bal_after.balance - astro_bal_before.balance,
+        alloc_resp.status.astro_withdrawn
+    );
+
+    // Check Number of vested tokens
+    let mut vest_resp: Uint128 = app
+        .wrap()
+        .query_wasm_smart(
+            &vesting_instance,
+            &QueryMsg::VestedTokens {
+                account: "investor_1".to_string(),
+            },
+        )
+        .unwrap();
+    assert_eq!(vest_resp, Uint128::from(158548u64));
 
     // ######    ERROR :: No vested ASTRO to be withdrawn   ######
 
@@ -617,29 +664,39 @@ fn test_withdraw() {
 
     // ######   SUCCESSFULLY WITHDRAWS ASTRO #2   ######
 
-    let resp: SimulateWithdrawResponse = app
+    app.update_block(|b| {
+        b.height += 17280;
+        b.time = Timestamp::from_seconds(1642402285)
+    });
+
+    // Check Number of vested tokens
+    vest_resp = app
+        .wrap()
+        .query_wasm_smart(
+            &vesting_instance,
+            &QueryMsg::VestedTokens {
+                account: "investor_1".to_string(),
+            },
+        )
+        .unwrap();
+    assert_eq!(vest_resp, Uint128::from(1744038u64));
+
+    // Check Number of tokens that can be withdrawn
+    let mut sim_withdraw_resp: SimulateWithdrawResponse = app
         .wrap()
         .query_wasm_smart(
             &vesting_instance,
             &QueryMsg::SimulateWithdraw {
                 account: "investor_1".to_string(),
-                timestamp: Some(1642402285u64),
+                timestamp: None,
             },
         )
         .unwrap();
-    assert_eq!(resp.total_astro_locked, Uint128::from(5_000_000_000000u64));
-    assert_eq!(
-        resp.total_astro_unlocked,
-        Uint128::from(5_000_000_000000u64)
-    );
-    assert_eq!(resp.total_astro_vested, Uint128::from(1744038u64));
-    assert_eq!(resp.status.astro_withdrawn, Uint128::from(158548u64));
-    assert_eq!(resp.withdrawable_amount, Uint128::from(1585490u64));
 
-    app.update_block(|b| {
-        b.height += 17280;
-        b.time = Timestamp::from_seconds(1642402285)
-    });
+    assert_eq!(
+        sim_withdraw_resp.astro_to_withdraw,
+        vest_resp - alloc_resp.status.astro_withdrawn
+    );
 
     app.execute_contract(
         Addr::unchecked("investor_1".clone()),
@@ -659,9 +716,9 @@ fn test_withdraw() {
         )
         .unwrap();
     assert_eq!(resp.params.amount, Uint128::from(5_000_000_000000u64));
-    assert_eq!(resp.status.astro_withdrawn, Uint128::from(1744038u64));
+    assert_eq!(resp.status.astro_withdrawn, vest_resp);
 
-    // ######    ERROR :: No unlocked ASTRO to be withdrawn   ######
+    // ######    ERROR :: No vested ASTRO to be withdrawn   ######
 
     let err = app
         .execute_contract(
@@ -673,17 +730,31 @@ fn test_withdraw() {
         .unwrap_err();
     assert_eq!(
         err.to_string(),
-        "Generic error: No unlocked ASTRO to be withdrawn"
+        "Generic error: No vested ASTRO to be withdrawn"
     );
 
     // ######   SUCCESSFULLY WITHDRAWS ASTRO #3   ######
 
+    // ***** Check that tokens that can be withdrawn before cliff is 0 *****
     app.update_block(|b| {
         b.height += 17280;
-        b.time = Timestamp::from_seconds(1650170001)
+        b.time = Timestamp::from_seconds(1650178273)
     });
 
-    let resp: SimulateWithdrawResponse = app
+    // Check Number of vested tokens
+    vest_resp = app
+        .wrap()
+        .query_wasm_smart(
+            &vesting_instance,
+            &QueryMsg::VestedTokens {
+                account: "team_1".to_string(),
+            },
+        )
+        .unwrap();
+    assert_eq!(vest_resp, Uint128::from(1232876553779u64));
+
+    // Check Number of tokens that can be withdrawn
+    sim_withdraw_resp = app
         .wrap()
         .query_wasm_smart(
             &vesting_instance,
@@ -693,18 +764,28 @@ fn test_withdraw() {
             },
         )
         .unwrap();
-    assert_eq!(resp.total_astro_locked, Uint128::from(5_000_000_000000u64));
-    assert_eq!(resp.total_astro_unlocked, Uint128::from(1231925577118u64));
-    assert_eq!(resp.total_astro_vested, Uint128::from(1231565036783u64));
-    assert_eq!(resp.status.astro_withdrawn, Uint128::from(0u64));
-    assert_eq!(resp.withdrawable_amount, Uint128::from(0u64));
+
+    assert_eq!(sim_withdraw_resp.astro_to_withdraw, Uint128::zero());
 
     app.update_block(|b| {
         b.height += 17280;
-        b.time = Timestamp::from_seconds(1650178275)
+        b.time = Timestamp::from_seconds(1650178279)
     });
 
-    let resp: SimulateWithdrawResponse = app
+    // Check Number of vested tokens
+    vest_resp = app
+        .wrap()
+        .query_wasm_smart(
+            &vesting_instance,
+            &QueryMsg::VestedTokens {
+                account: "team_1".to_string(),
+            },
+        )
+        .unwrap();
+    assert_eq!(vest_resp, Uint128::from(1232877505073u64));
+
+    // Check Number of tokens that can be withdrawn
+    sim_withdraw_resp = app
         .wrap()
         .query_wasm_smart(
             &vesting_instance,
@@ -714,9 +795,11 @@ fn test_withdraw() {
             },
         )
         .unwrap();
-    assert_eq!(resp.total_astro_locked, Uint128::from(5_000_000_000000u64));
-    assert_eq!(resp.total_astro_vested, Uint128::from(1232876870877u64));
-    assert_eq!(resp.withdrawable_amount, Uint128::from(1232876870877u64));
+
+    assert_eq!(
+        sim_withdraw_resp.astro_to_withdraw,
+        Uint128::from(1232877505073u64)
+    );
 
     app.execute_contract(
         Addr::unchecked("team_1".clone()),
@@ -735,6 +818,514 @@ fn test_withdraw() {
             },
         )
         .unwrap();
-    assert_eq!(resp.params.amount, Uint128::from(5_000_000_000000u64));
-    assert_eq!(resp.status.astro_withdrawn, Uint128::from(1232876870877u64));
+    assert_eq!(
+        resp.status.astro_withdrawn,
+        sim_withdraw_resp.astro_to_withdraw
+    );
+
+    // Check Number of tokens that can be withdrawn
+    sim_withdraw_resp = app
+        .wrap()
+        .query_wasm_smart(
+            &vesting_instance,
+            &QueryMsg::SimulateWithdraw {
+                account: "team_1".to_string(),
+                timestamp: None,
+            },
+        )
+        .unwrap();
+
+    assert_eq!(sim_withdraw_resp.astro_to_withdraw, Uint128::zero());
+}
+
+#[test]
+fn test_propose_new_receiver() {
+    let mut app = mock_app();
+    let (vesting_instance, astro_instance, _) = init_contracts(&mut app);
+
+    mint_some_astro(
+        &mut app,
+        Addr::unchecked(OWNER.clone()),
+        astro_instance.clone(),
+        Uint128::new(1_000_000_000_000000),
+        OWNER.to_string(),
+    );
+
+    let mut allocations: Vec<(String, AllocationParams)> = vec![];
+    allocations.push((
+        "investor_1".to_string(),
+        AllocationParams {
+            amount: Uint128::from(5_000_000_000000u64),
+            vest_schedule: Schedule {
+                start_time: 1642402274u64,
+                cliff: 0u64,
+                duration: 31536000u64,
+            },
+            proposed_receiver: None,
+        },
+    ));
+    allocations.push((
+        "advisor_1".to_string(),
+        AllocationParams {
+            amount: Uint128::from(5_000_000_000000u64),
+            vest_schedule: Schedule {
+                start_time: 1642402274u64,
+                cliff: 7776000u64,
+                duration: 31536000u64,
+            },
+            proposed_receiver: None,
+        },
+    ));
+    allocations.push((
+        "team_1".to_string(),
+        AllocationParams {
+            amount: Uint128::from(5_000_000_000000u64),
+            vest_schedule: Schedule {
+                start_time: 1642402274u64,
+                cliff: 7776000u64,
+                duration: 31536000u64,
+            },
+            proposed_receiver: None,
+        },
+    ));
+
+    // SUCCESSFULLY CREATES ALLOCATIONS
+    app.execute_contract(
+        Addr::unchecked(OWNER.clone()),
+        astro_instance.clone(),
+        &cw20::Cw20ExecuteMsg::Send {
+            contract: vesting_instance.clone().to_string(),
+            amount: Uint128::from(15_000_000_000000u64),
+            msg: to_binary(&ReceiveMsg::CreateAllocations {
+                allocations: allocations.clone(),
+            })
+            .unwrap(),
+        },
+        &[],
+    )
+    .unwrap();
+
+    // ######    ERROR :: Allocation doesn't exist    ######
+
+    let err = app
+        .execute_contract(
+            Addr::unchecked(OWNER.clone()),
+            vesting_instance.clone(),
+            &ExecuteMsg::ProposeNewReceiver {
+                new_receiver: "investor_1_new".to_string(),
+            },
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.to_string(),
+        "astroport_governance::astro_vesting::AllocationParams not found"
+    );
+
+    // ######   SUCCESSFULLY PROPOSES NEW RECEIVER   ######
+
+    app.execute_contract(
+        Addr::unchecked("investor_1".clone()),
+        vesting_instance.clone(),
+        &ExecuteMsg::ProposeNewReceiver {
+            new_receiver: "investor_1_new".to_string(),
+        },
+        &[],
+    )
+    .unwrap();
+
+    let resp: AllocationResponse = app
+        .wrap()
+        .query_wasm_smart(
+            &vesting_instance,
+            &QueryMsg::Allocation {
+                account: "investor_1".to_string(),
+            },
+        )
+        .unwrap();
+    assert_eq!(
+        resp.params.proposed_receiver,
+        Some(Addr::unchecked("investor_1_new".to_string()))
+    );
+
+    // ######    ERROR ::"Proposed receiver already set"   ######
+
+    let err = app
+        .execute_contract(
+            Addr::unchecked("investor_1".clone()),
+            vesting_instance.clone(),
+            &ExecuteMsg::ProposeNewReceiver {
+                new_receiver: "investor_1_new_".to_string(),
+            },
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.to_string(),
+        "Generic error: Proposed receiver already set to investor_1_new"
+    );
+}
+
+#[test]
+fn test_drop_new_receiver() {
+    let mut app = mock_app();
+    let (vesting_instance, astro_instance, _) = init_contracts(&mut app);
+
+    mint_some_astro(
+        &mut app,
+        Addr::unchecked(OWNER.clone()),
+        astro_instance.clone(),
+        Uint128::new(1_000_000_000_000000),
+        OWNER.to_string(),
+    );
+
+    let mut allocations: Vec<(String, AllocationParams)> = vec![];
+    allocations.push((
+        "investor_1".to_string(),
+        AllocationParams {
+            amount: Uint128::from(5_000_000_000000u64),
+            vest_schedule: Schedule {
+                start_time: 1642402274u64,
+                cliff: 0u64,
+                duration: 31536000u64,
+            },
+            proposed_receiver: None,
+        },
+    ));
+    allocations.push((
+        "advisor_1".to_string(),
+        AllocationParams {
+            amount: Uint128::from(5_000_000_000000u64),
+            vest_schedule: Schedule {
+                start_time: 1642402274u64,
+                cliff: 7776000u64,
+                duration: 31536000u64,
+            },
+            proposed_receiver: None,
+        },
+    ));
+    allocations.push((
+        "team_1".to_string(),
+        AllocationParams {
+            amount: Uint128::from(5_000_000_000000u64),
+            vest_schedule: Schedule {
+                start_time: 1642402274u64,
+                cliff: 7776000u64,
+                duration: 31536000u64,
+            },
+            proposed_receiver: None,
+        },
+    ));
+
+    // SUCCESSFULLY CREATES ALLOCATIONS
+    app.execute_contract(
+        Addr::unchecked(OWNER.clone()),
+        astro_instance.clone(),
+        &cw20::Cw20ExecuteMsg::Send {
+            contract: vesting_instance.clone().to_string(),
+            amount: Uint128::from(15_000_000_000000u64),
+            msg: to_binary(&ReceiveMsg::CreateAllocations {
+                allocations: allocations.clone(),
+            })
+            .unwrap(),
+        },
+        &[],
+    )
+    .unwrap();
+
+    // ######    ERROR :: Allocation doesn't exist    ######
+
+    let err = app
+        .execute_contract(
+            Addr::unchecked(OWNER.clone()),
+            vesting_instance.clone(),
+            &ExecuteMsg::DropNewReceiver {},
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.to_string(),
+        "astroport_governance::astro_vesting::AllocationParams not found"
+    );
+
+    // ######    ERROR ::"Proposed receiver not set"   ######
+
+    let err = app
+        .execute_contract(
+            Addr::unchecked("investor_1".clone()),
+            vesting_instance.clone(),
+            &ExecuteMsg::DropNewReceiver {},
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(err.to_string(), "Generic error: Proposed receiver not set");
+
+    // ######   SUCCESSFULLY DROP NEW RECEIVER   ######
+
+    // SUCCESSFULLY PROPOSES NEW RECEIVER
+    app.execute_contract(
+        Addr::unchecked("investor_1".clone()),
+        vesting_instance.clone(),
+        &ExecuteMsg::ProposeNewReceiver {
+            new_receiver: "investor_1_new".to_string(),
+        },
+        &[],
+    )
+    .unwrap();
+
+    let mut resp: AllocationResponse = app
+        .wrap()
+        .query_wasm_smart(
+            &vesting_instance,
+            &QueryMsg::Allocation {
+                account: "investor_1".to_string(),
+            },
+        )
+        .unwrap();
+    assert_eq!(
+        resp.params.proposed_receiver,
+        Some(Addr::unchecked("investor_1_new".to_string()))
+    );
+
+    app.execute_contract(
+        Addr::unchecked("investor_1".clone()),
+        vesting_instance.clone(),
+        &ExecuteMsg::DropNewReceiver {},
+        &[],
+    )
+    .unwrap();
+
+    resp = app
+        .wrap()
+        .query_wasm_smart(
+            &vesting_instance,
+            &QueryMsg::Allocation {
+                account: "investor_1".to_string(),
+            },
+        )
+        .unwrap();
+    assert_eq!(resp.params.proposed_receiver, None);
+}
+
+#[test]
+fn test_claim_receiver() {
+    let mut app = mock_app();
+    let (vesting_instance, astro_instance, _) = init_contracts(&mut app);
+
+    mint_some_astro(
+        &mut app,
+        Addr::unchecked(OWNER.clone()),
+        astro_instance.clone(),
+        Uint128::new(1_000_000_000_000000),
+        OWNER.to_string(),
+    );
+
+    let mut allocations: Vec<(String, AllocationParams)> = vec![];
+    allocations.push((
+        "investor_1".to_string(),
+        AllocationParams {
+            amount: Uint128::from(5_000_000_000000u64),
+            vest_schedule: Schedule {
+                start_time: 1642402274u64,
+                cliff: 0u64,
+                duration: 31536000u64,
+            },
+            proposed_receiver: None,
+        },
+    ));
+    allocations.push((
+        "advisor_1".to_string(),
+        AllocationParams {
+            amount: Uint128::from(5_000_000_000000u64),
+            vest_schedule: Schedule {
+                start_time: 1642402274u64,
+                cliff: 7776000u64,
+                duration: 31536000u64,
+            },
+            proposed_receiver: None,
+        },
+    ));
+    allocations.push((
+        "team_1".to_string(),
+        AllocationParams {
+            amount: Uint128::from(5_000_000_000000u64),
+            vest_schedule: Schedule {
+                start_time: 1642402274u64,
+                cliff: 7776000u64,
+                duration: 31536000u64,
+            },
+            proposed_receiver: None,
+        },
+    ));
+
+    // SUCCESSFULLY CREATES ALLOCATIONS
+    app.execute_contract(
+        Addr::unchecked(OWNER.clone()),
+        astro_instance.clone(),
+        &cw20::Cw20ExecuteMsg::Send {
+            contract: vesting_instance.clone().to_string(),
+            amount: Uint128::from(15_000_000_000000u64),
+            msg: to_binary(&ReceiveMsg::CreateAllocations {
+                allocations: allocations.clone(),
+            })
+            .unwrap(),
+        },
+        &[],
+    )
+    .unwrap();
+
+    // ######    ERROR :: Allocation doesn't exist    ######
+
+    let err = app
+        .execute_contract(
+            Addr::unchecked(OWNER.clone()),
+            vesting_instance.clone(),
+            &ExecuteMsg::Withdraw {},
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.to_string(),
+        "astroport_governance::astro_vesting::AllocationParams not found"
+    );
+
+    // ######    ERROR ::"Proposed receiver not set"   ######
+
+    let err = app
+        .execute_contract(
+            Addr::unchecked("investor_1_new".clone()),
+            vesting_instance.clone(),
+            &ExecuteMsg::ClaimReceiver {
+                prev_receiver: "investor_1".to_string(),
+            },
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(err.to_string(), "Generic error: Proposed receiver not set");
+
+    // ######   SUCCESSFULLY CLAIMED BY NEW RECEIVER   ######
+
+    // SUCCESSFULLY PROPOSES NEW RECEIVER
+    app.execute_contract(
+        Addr::unchecked("investor_1".clone()),
+        vesting_instance.clone(),
+        &ExecuteMsg::ProposeNewReceiver {
+            new_receiver: "investor_1_new".to_string(),
+        },
+        &[],
+    )
+    .unwrap();
+
+    let alloc_resp_before: AllocationResponse = app
+        .wrap()
+        .query_wasm_smart(
+            &vesting_instance,
+            &QueryMsg::Allocation {
+                account: "investor_1".to_string(),
+            },
+        )
+        .unwrap();
+
+    // Check Number of tokens that can be withdrawn
+    let sim_withdraw_resp_before: SimulateWithdrawResponse = app
+        .wrap()
+        .query_wasm_smart(
+            &vesting_instance,
+            &QueryMsg::SimulateWithdraw {
+                account: "investor_1".to_string(),
+                timestamp: None,
+            },
+        )
+        .unwrap();
+
+    // Claimed by new receiver
+    app.execute_contract(
+        Addr::unchecked("investor_1_new".clone()),
+        vesting_instance.clone(),
+        &ExecuteMsg::ClaimReceiver {
+            prev_receiver: "investor_1".to_string(),
+        },
+        &[],
+    )
+    .unwrap();
+
+    // Check allocation state of previous beneficiary
+    let alloc_resp_after: AllocationResponse = app
+        .wrap()
+        .query_wasm_smart(
+            &vesting_instance,
+            &QueryMsg::Allocation {
+                account: "investor_1".to_string(),
+            },
+        )
+        .unwrap();
+    assert_eq!(
+        AllocationParams {
+            amount: Uint128::zero(),
+            vest_schedule: Schedule {
+                start_time: 0u64,
+                cliff: 0u64,
+                duration: 0u64,
+            },
+            proposed_receiver: None,
+        },
+        alloc_resp_after.params
+    );
+    assert_eq!(alloc_resp_before.status, alloc_resp_after.status);
+
+    // Check allocation state of new beneficiary
+    let alloc_resp_after: AllocationResponse = app
+        .wrap()
+        .query_wasm_smart(
+            &vesting_instance,
+            &QueryMsg::Allocation {
+                account: "investor_1_new".to_string(),
+            },
+        )
+        .unwrap();
+    assert_eq!(
+        AllocationParams {
+            amount: alloc_resp_before.params.amount,
+            vest_schedule: Schedule {
+                start_time: alloc_resp_before.params.vest_schedule.start_time,
+                cliff: alloc_resp_before.params.vest_schedule.cliff,
+                duration: alloc_resp_before.params.vest_schedule.duration,
+            },
+            proposed_receiver: None,
+        },
+        alloc_resp_after.params
+    );
+    assert_eq!(alloc_resp_before.status, alloc_resp_after.status);
+
+    // Check Number of tokens that can be withdrawn
+    let sim_withdraw_resp_after_prev_inv: SimulateWithdrawResponse = app
+        .wrap()
+        .query_wasm_smart(
+            &vesting_instance,
+            &QueryMsg::SimulateWithdraw {
+                account: "investor_1_new".to_string(),
+                timestamp: None,
+            },
+        )
+        .unwrap();
+    assert_eq!(
+        sim_withdraw_resp_after_prev_inv.astro_to_withdraw,
+        Uint128::zero()
+    );
+
+    // Check Number of tokens that can be withdrawn
+    let sim_withdraw_resp_after_new_inv: SimulateWithdrawResponse = app
+        .wrap()
+        .query_wasm_smart(
+            &vesting_instance,
+            &QueryMsg::SimulateWithdraw {
+                account: "investor_1_new".to_string(),
+                timestamp: None,
+            },
+        )
+        .unwrap();
+    assert_eq!(
+        sim_withdraw_resp_after_new_inv.astro_to_withdraw,
+        sim_withdraw_resp_before.astro_to_withdraw,
+    );
 }

@@ -261,9 +261,11 @@ fn execute_propose_new_receiver(
 /// @dev Facilitates a user to drop the initially proposed receiver for his allocation
 fn execute_drope_new_receiver(deps: DepsMut, _env: Env, info: MessageInfo) -> StdResult<Response> {
     let mut alloc_params = PARAMS.load(deps.storage, &info.sender)?;
+    let prev_proposed_receiver: Addr;
 
     match alloc_params.proposed_receiver {
-        Some(_) => {
+        Some(proposed_receiver) => {
+            prev_proposed_receiver = proposed_receiver;
             alloc_params.proposed_receiver = None;
             PARAMS.save(deps.storage, &info.sender, &alloc_params)?;
         }
@@ -274,10 +276,7 @@ fn execute_drope_new_receiver(deps: DepsMut, _env: Env, info: MessageInfo) -> St
 
     Ok(Response::new()
         .add_attribute("action", "DropNewReceiver")
-        .add_attribute(
-            "dropped_proposed_receiver",
-            alloc_params.proposed_receiver.unwrap(),
-        ))
+        .add_attribute("dropped_proposed_receiver", prev_proposed_receiver))
 }
 
 /// @dev Allows a proposed receiver of an auction to claim the ownership of that auction
@@ -343,8 +342,12 @@ fn query_allocation(deps: Deps, _env: Env, account: String) -> StdResult<Allocat
     let account_checked = deps.api.addr_validate(&account)?;
 
     Ok(AllocationResponse {
-        params: PARAMS.load(deps.storage, &account_checked)?,
-        status: STATUS.load(deps.storage, &account_checked)?,
+        params: PARAMS
+            .may_load(deps.storage, &account_checked)?
+            .unwrap_or_default(),
+        status: STATUS
+            .may_load(deps.storage, &account_checked)?
+            .unwrap_or_default(),
     })
 }
 
