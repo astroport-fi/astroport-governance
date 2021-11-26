@@ -6,7 +6,7 @@
     "astro_token",
     "default_unlock_schedule",
     "owner",
-    "refund_recipient"
+    "refund_recepient"
   ],
   "properties": {
     "astro_token": {
@@ -25,7 +25,7 @@
       "description": "Account who can create new allocations",
       "type": "string"
     },
-    "refund_recipient": {
+    "refund_recepient": {
       "description": "Account to receive the refund of unvested tokens if a user terminates allocation",
       "type": "string"
     }
