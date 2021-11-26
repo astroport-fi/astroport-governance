@@ -1111,6 +1111,23 @@ fn test_propose_new_receiver() {
         "astroport_governance::astro_vesting::AllocationParams not found"
     );
 
+    // ######    ERROR ::Invalid new_receiver.   ######
+
+    let err = app
+        .execute_contract(
+            Addr::unchecked("investor_1".clone()),
+            vesting_instance.clone(),
+            &ExecuteMsg::ProposeNewReceiver {
+                new_receiver: "team_1".to_string(),
+            },
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.to_string(),
+        "Generic error: Invalid new_receiver. Proposed receiver already has an ASTRO allocation of 5000000000000 ASTRO"
+    );
+
     // ######   SUCCESSFULLY PROPOSES NEW RECEIVER   ######
 
     app.execute_contract(
