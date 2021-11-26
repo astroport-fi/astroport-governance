@@ -143,19 +143,9 @@ fn execute_create_allocations(
                     user
                 )));
             }
-            Err(..) => match params.clone().unlock_schedule {
-                Some(unlock_schedule) => {
-                    if unlock_schedule.start_time + unlock_schedule.cliff
-                        > params.vest_schedule.start_time + params.vest_schedule.cliff
-                    {
-                        return Err(StdError::generic_err(format!("Invalid Allocation for {}. Unlock schedule needs to begin before vest schedule",user)));
-                    }
-                    PARAMS.save(deps.storage, &user, &params)?;
-                }
-                None => {
-                    PARAMS.save(deps.storage, &user, &params)?;
-                }
-            },
+            Err(..) => {
+                PARAMS.save(deps.storage, &user, &params)?;
+            }
         }
 
         match STATUS.load(deps.storage, &user) {
@@ -220,6 +210,8 @@ fn execute_withdraw(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Res
 /// @dev Allows allocation receivers to terminate their ASTRO allocation
 fn execute_terminate(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Response> {
     let config = CONFIG.load(deps.storage)?;
+    let mut state = STATE.may_load(deps.storage)?.unwrap_or_default();
+
     let mut params = PARAMS.load(deps.storage, &info.sender)?;
 
     let timestamp = env.block.time.seconds();
@@ -229,10 +221,17 @@ fn execute_terminate(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Re
     // Refund the unvested ASTRO tokens to owner
     let astro_to_refund = params.amount - astro_vested;
 
+    if astro_to_refund.is_zero() {
+        return Err(StdError::generic_err("No ASTRO available to refund."));
+    }
     // Set the total allocation amount to the current vested amount, and vesting end time
     // to now. This will effectively end vesting and prevent more tokens to be vested
     params.amount = astro_vested;
     params.vest_schedule.duration = timestamp - params.vest_schedule.start_time;
+
+    // Update state
+    state.total_astro_deposited -= astro_to_refund;
+    state.remaining_astro_tokens -= astro_to_refund;
 
     PARAMS.save(deps.storage, &info.sender, &params)?;
 
