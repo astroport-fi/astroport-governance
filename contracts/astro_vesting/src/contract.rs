@@ -122,11 +122,11 @@ fn execute_create_allocations(
     }
 
     if deposit_token != config.astro_token {
-        return Err(StdError::generic_err("Only Astro token can be deposited"));
+        return Err(StdError::generic_err("Only ASTRO token can be deposited"));
     }
 
     if deposit_amount != allocations.iter().map(|params| params.1.amount).sum() {
-        return Err(StdError::generic_err("Deposit amount mismatch"));
+        return Err(StdError::generic_err("ASTRO deposit amount mismatch"));
     }
 
     state.total_astro_deposited += deposit_amount;
@@ -134,21 +134,36 @@ fn execute_create_allocations(
 
     for allocation in allocations {
         let (user_unchecked, params) = allocation;
-
         let user = deps.api.addr_validate(&user_unchecked)?;
 
         match PARAMS.load(deps.storage, &user) {
             Ok(..) => {
-                return Err(StdError::generic_err("Allocation already exists for user"));
+                return Err(StdError::generic_err(format!(
+                    "Allocation (params) already exists for {}",
+                    user
+                )));
             }
-            Err(..) => {
-                PARAMS.save(deps.storage, &user, &params)?;
-            }
+            Err(..) => match params.clone().unlock_schedule {
+                Some(unlock_schedule) => {
+                    if unlock_schedule.start_time + unlock_schedule.cliff
+                        > params.vest_schedule.start_time + params.vest_schedule.cliff
+                    {
+                        return Err(StdError::generic_err(format!("Invalid Allocation for {}. Unlock schedule needs to begin before vest schedule",user)));
+                    }
+                    PARAMS.save(deps.storage, &user, &params)?;
+                }
+                None => {
+                    PARAMS.save(deps.storage, &user, &params)?;
+                }
+            },
         }
 
         match STATUS.load(deps.storage, &user) {
             Ok(..) => {
-                return Err(StdError::generic_err("Allocation already exists for user"));
+                return Err(StdError::generic_err(format!(
+                    "Allocation (status) already exists for {}",
+                    user
+                )));
             }
             Err(..) => {
                 STATUS.save(deps.storage, &user, &AllocationStatus::new())?;
@@ -390,8 +405,12 @@ fn query_allocation(deps: Deps, _env: Env, account: String) -> StdResult<Allocat
     let account_checked = deps.api.addr_validate(&account)?;
 
     Ok(AllocationResponse {
-        params: PARAMS.load(deps.storage, &account_checked)?,
-        status: STATUS.load(deps.storage, &account_checked)?,
+        params: PARAMS
+            .may_load(deps.storage, &account_checked)?
+            .unwrap_or_default(),
+        status: STATUS
+            .may_load(deps.storage, &account_checked)?
+            .unwrap_or_default(),
     })
 }
 
