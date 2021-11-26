@@ -248,6 +248,15 @@ fn execute_propose_new_receiver(
             )));
         }
         None => {
+            let alloc_params_new_receiver = PARAMS
+                .may_load(deps.storage, &deps.api.addr_validate(&new_receiver)?)?
+                .unwrap_or_default();
+            if !alloc_params_new_receiver.amount.is_zero() {
+                return Err(StdError::generic_err(format!(
+                "Invalid new_receiver. Proposed receiver already has an ASTRO allocation of {} ASTRO",alloc_params_new_receiver.amount
+            )));
+            }
+
             alloc_params.proposed_receiver = Some(deps.api.addr_validate(&new_receiver)?);
             PARAMS.save(deps.storage, &info.sender, &alloc_params)?;
         }
