@@ -26,17 +26,6 @@
         }
       ]
     },
-    "unlock_schedule": {
-      "description": "Parameters controlling the unlocking process If not provided, use `config.default_unlock_schedule`",
-      "anyOf": [
-        {
-          "$ref": "#/definitions/Schedule"
-        },
-        {
-          "type": "null"
-        }
-      ]
-    },
     "vest_schedule": {
       "description": "Parameters controlling the vesting process",
       "allOf": [

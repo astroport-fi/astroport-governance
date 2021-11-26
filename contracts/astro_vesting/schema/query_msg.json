@@ -17,10 +17,42 @@
     {
       "type": "object",
       "required": [
+        "state"
+      ],
+      "properties": {
+        "state": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
         "allocation"
       ],
       "properties": {
         "allocation": {
+          "type": "object",
+          "required": [
+            "account"
+          ],
+          "properties": {
+            "account": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "vested_tokens"
+      ],
+      "properties": {
+        "vested_tokens": {
           "type": "object",
           "required": [
             "account"
@@ -48,6 +80,14 @@
           "properties": {
             "account": {
               "type": "string"
+            },
+            "timestamp": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint64",
+              "minimum": 0.0
             }
           }
         }
