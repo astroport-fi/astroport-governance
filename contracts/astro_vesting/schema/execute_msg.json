@@ -52,13 +52,13 @@
           "type": "object",
           "required": [
             "new_owner",
-            "new_refund_recipient"
+            "new_refund_recepient"
           ],
           "properties": {
             "new_owner": {
               "type": "string"
             },
-            "new_refund_recipient": {
+            "new_refund_recepient": {
               "type": "string"
             }
           }
