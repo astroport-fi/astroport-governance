@@ -50,16 +50,18 @@
       "properties": {
         "transfer_ownership": {
           "type": "object",
-          "required": [
-            "new_owner",
-            "new_refund_recepient"
-          ],
           "properties": {
             "new_owner": {
-              "type": "string"
+              "type": [
+                "string",
+                "null"
+              ]
             },
             "new_refund_recepient": {
-              "type": "string"
+              "type": [
+                "string",
+                "null"
+              ]
             }
           }
         }
