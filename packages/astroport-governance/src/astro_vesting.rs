@@ -7,8 +7,6 @@ use serde::{Deserialize, Serialize};
 pub struct Config {
     /// Account who can create new allocations
     pub owner: Addr,
-    /// Account to receive the refund of unvested tokens if a user terminates allocation
-    pub refund_recepient: Addr,
     /// Address of ASTRO token
     pub astro_token: Addr,
 }
@@ -30,14 +28,14 @@ impl Default for State {
     }
 }
 
-// Parameters describing a typical vesting/unlocking schedule
+// Parameters describing a typical unlocking schedule
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Schedule {
-    /// Timestamp of when vesting/unlocking is to be started (in seconds)
+    /// Timestamp of when unlocking is to be started (in seconds)
     pub start_time: u64,
-    /// Number of seconds starting UST during which no token will be vested/unlocked
+    /// Number of seconds starting UST during which no token will be unlocked
     pub cliff: u64,
-    /// Number of seconds taken since UST for tokens to be fully vested/unlocked
+    /// Number of seconds taken since UST for tokens to be fully unlocked
     pub duration: u64,
 }
 
@@ -45,8 +43,8 @@ pub struct Schedule {
 pub struct AllocationParams {
     /// Total amount of ASTRO token allocated to this account
     pub amount: Uint128,
-    /// Parameters controlling the vesting process
-    pub vest_schedule: Schedule,
+    /// Parameters controlling the unlocking process
+    pub unlock_schedule: Schedule,
     /// proposed new_receiver who will get the allocation
     pub proposed_receiver: Option<Addr>,
 }
@@ -55,7 +53,7 @@ impl Default for AllocationParams {
     fn default() -> Self {
         AllocationParams {
             amount: Uint128::zero(),
-            vest_schedule: Schedule {
+            unlock_schedule: Schedule {
                 start_time: 0u64,
                 cliff: 0u64,
                 duration: 0u64,
@@ -99,8 +97,6 @@ pub mod msg {
     pub struct InstantiateMsg {
         /// Account who can create new allocations
         pub owner: String,
-        /// Account to receive the refund of unvested tokens if a user terminates allocation
-        pub refund_recepient: String,
         /// Address of ASTRO token
         pub astro_token: String,
     }
@@ -112,11 +108,8 @@ pub mod msg {
         Receive(Cw20ReceiveMsg),
         /// Claim withdrawable ASTRO
         Withdraw {},
-        /// Update addresses of owner and fallback_recipient
-        TransferOwnership {
-            new_owner: Option<String>,
-            new_refund_recepient: Option<String>,
-        },
+        /// Update addresses of owner
+        TransferOwnership { new_owner: Option<String> },
         /// Allows users to change the receiver address of their allocations etc
         ProposeNewReceiver { new_receiver: String },
         /// Allows users to remove the previously proposed new receiver for their allocations
@@ -145,8 +138,8 @@ pub mod msg {
         Allocation {
             account: String,
         },
-        // Tokens vested for an allocation
-        VestedTokens {
+        // Tokens unlocked for an allocation (may not be withdrawable because of cliff)
+        UnlockedTokens {
             account: String,
         },
         // Simulate how many ASTRO will be released if a withdrawal is attempted

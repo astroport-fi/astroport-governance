@@ -29,7 +29,7 @@
       "additionalProperties": false
     },
     {
-      "description": "Update addresses of owner and fallback_recipient",
+      "description": "Update addresses of owner",
       "type": "object",
       "required": [
         "transfer_ownership"
@@ -39,12 +39,6 @@
           "type": "object",
           "properties": {
             "new_owner": {
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "new_refund_recepient": {
               "type": [
                 "string",
                 "null"

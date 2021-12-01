@@ -65,7 +65,6 @@ fn init_contracts(app: &mut App) -> (Addr, Addr, InstantiateMsg) {
 
     let vesting_instantiate_msg = InstantiateMsg {
         owner: OWNER.clone().to_string(),
-        refund_recepient: "refund_recepient".to_string(),
         astro_token: astro_token_instance.to_string(),
     };
 
@@ -119,7 +118,6 @@ fn proper_initialization() {
 
     // Check config
     assert_eq!(init_msg.owner, resp.owner);
-    assert_eq!(init_msg.refund_recepient, resp.refund_recepient);
     assert_eq!(init_msg.astro_token, resp.astro_token);
 
     // Check state
@@ -145,7 +143,6 @@ fn test_transfer_ownership() {
             vesting_instance.clone(),
             &ExecuteMsg::TransferOwnership {
                 new_owner: Some("new_owner".to_string()),
-                new_refund_recepient: Some("new_refund_recepient".to_string()),
             },
             &[],
         )
@@ -162,7 +159,6 @@ fn test_transfer_ownership() {
         vesting_instance.clone(),
         &ExecuteMsg::TransferOwnership {
             new_owner: Some("new_owner".to_string()),
-            new_refund_recepient: None,
         },
         &[],
     )
@@ -175,7 +171,6 @@ fn test_transfer_ownership() {
 
     // Check config
     assert_eq!("new_owner".to_string(), resp.owner);
-    assert_eq!(init_msg.refund_recepient, resp.refund_recepient);
     assert_eq!(init_msg.astro_token, resp.astro_token);
 
     // ######    SUCCESSFULLY TRANSFERS OWNERSHIP :: UPDATES REFUND RECEPIENT    ######
@@ -183,10 +178,7 @@ fn test_transfer_ownership() {
     app.execute_contract(
         Addr::unchecked("new_owner".to_string()),
         vesting_instance.clone(),
-        &ExecuteMsg::TransferOwnership {
-            new_owner: None,
-            new_refund_recepient: Some("new_refund_recepient".to_string()),
-        },
+        &ExecuteMsg::TransferOwnership { new_owner: None },
         &[],
     )
     .unwrap();
@@ -198,7 +190,6 @@ fn test_transfer_ownership() {
 
     // Check config
     assert_eq!("new_owner".to_string(), resp.owner);
-    assert_eq!("new_refund_recepient".to_string(), resp.refund_recepient);
     assert_eq!(init_msg.astro_token, resp.astro_token);
 }
 
@@ -220,7 +211,7 @@ fn test_create_allocations() {
         "investor_1".to_string(),
         AllocationParams {
             amount: Uint128::from(5_000_000_000000u64),
-            vest_schedule: Schedule {
+            unlock_schedule: Schedule {
                 start_time: 1642402274u64,
                 cliff: 0u64,
                 duration: 31536000u64,
@@ -232,7 +223,7 @@ fn test_create_allocations() {
         "advisor_1".to_string(),
         AllocationParams {
             amount: Uint128::from(5_000_000_000000u64),
-            vest_schedule: Schedule {
+            unlock_schedule: Schedule {
                 start_time: 1642402274u64,
                 cliff: 7776000u64,
                 duration: 31536000u64,
@@ -244,7 +235,7 @@ fn test_create_allocations() {
         "team_1".to_string(),
         AllocationParams {
             amount: Uint128::from(5_000_000_000000u64),
-            vest_schedule: Schedule {
+            unlock_schedule: Schedule {
                 start_time: 1642402274u64,
                 cliff: 7776000u64,
                 duration: 31536000u64,
@@ -413,7 +404,7 @@ fn test_create_allocations() {
     assert_eq!(resp.params.amount, Uint128::from(5_000_000_000000u64));
     assert_eq!(resp.status.astro_withdrawn, Uint128::from(0u64));
     assert_eq!(
-        resp.params.vest_schedule,
+        resp.params.unlock_schedule,
         Schedule {
             start_time: 1642402274u64,
             cliff: 0u64,
@@ -434,7 +425,7 @@ fn test_create_allocations() {
     assert_eq!(resp.params.amount, Uint128::from(5_000_000_000000u64));
     assert_eq!(resp.status.astro_withdrawn, Uint128::from(0u64));
     assert_eq!(
-        resp.params.vest_schedule,
+        resp.params.unlock_schedule,
         Schedule {
             start_time: 1642402274u64,
             cliff: 7776000u64,
@@ -455,7 +446,7 @@ fn test_create_allocations() {
     assert_eq!(resp.params.amount, Uint128::from(5_000_000_000000u64));
     assert_eq!(resp.status.astro_withdrawn, Uint128::from(0u64));
     assert_eq!(
-        resp.params.vest_schedule,
+        resp.params.unlock_schedule,
         Schedule {
             start_time: 1642402274u64,
             cliff: 7776000u64,
@@ -504,7 +495,7 @@ fn test_withdraw() {
         "investor_1".to_string(),
         AllocationParams {
             amount: Uint128::from(5_000_000_000000u64),
-            vest_schedule: Schedule {
+            unlock_schedule: Schedule {
                 start_time: 1642402274u64,
                 cliff: 0u64,
                 duration: 31536000u64,
@@ -516,7 +507,7 @@ fn test_withdraw() {
         "advisor_1".to_string(),
         AllocationParams {
             amount: Uint128::from(5_000_000_000000u64),
-            vest_schedule: Schedule {
+            unlock_schedule: Schedule {
                 start_time: 1642402274u64,
                 cliff: 7776000u64,
                 duration: 31536000u64,
@@ -528,7 +519,7 @@ fn test_withdraw() {
         "team_1".to_string(),
         AllocationParams {
             amount: Uint128::from(5_000_000_000000u64),
-            vest_schedule: Schedule {
+            unlock_schedule: Schedule {
                 start_time: 1642402274u64,
                 cliff: 7776000u64,
                 duration: 31536000u64,
@@ -640,14 +631,14 @@ fn test_withdraw() {
         .wrap()
         .query_wasm_smart(
             &vesting_instance,
-            &QueryMsg::VestedTokens {
+            &QueryMsg::UnlockedTokens {
                 account: "investor_1".to_string(),
             },
         )
         .unwrap();
     assert_eq!(vest_resp, Uint128::from(158548u64));
 
-    // ######    ERROR :: No vested ASTRO to be withdrawn   ######
+    // ######    ERROR :: No unlocked ASTRO to be withdrawn   ######
 
     let err = app
         .execute_contract(
@@ -659,7 +650,7 @@ fn test_withdraw() {
         .unwrap_err();
     assert_eq!(
         err.to_string(),
-        "Generic error: No vested ASTRO to be withdrawn"
+        "Generic error: No unlocked ASTRO to be withdrawn"
     );
 
     // ######   SUCCESSFULLY WITHDRAWS ASTRO #2   ######
@@ -674,7 +665,7 @@ fn test_withdraw() {
         .wrap()
         .query_wasm_smart(
             &vesting_instance,
-            &QueryMsg::VestedTokens {
+            &QueryMsg::UnlockedTokens {
                 account: "investor_1".to_string(),
             },
         )
@@ -718,7 +709,7 @@ fn test_withdraw() {
     assert_eq!(resp.params.amount, Uint128::from(5_000_000_000000u64));
     assert_eq!(resp.status.astro_withdrawn, vest_resp);
 
-    // ######    ERROR :: No vested ASTRO to be withdrawn   ######
+    // ######    ERROR :: No unlocked ASTRO to be withdrawn   ######
 
     let err = app
         .execute_contract(
@@ -730,7 +721,7 @@ fn test_withdraw() {
         .unwrap_err();
     assert_eq!(
         err.to_string(),
-        "Generic error: No vested ASTRO to be withdrawn"
+        "Generic error: No unlocked ASTRO to be withdrawn"
     );
 
     // ######   SUCCESSFULLY WITHDRAWS ASTRO #3   ######
@@ -746,7 +737,7 @@ fn test_withdraw() {
         .wrap()
         .query_wasm_smart(
             &vesting_instance,
-            &QueryMsg::VestedTokens {
+            &QueryMsg::UnlockedTokens {
                 account: "team_1".to_string(),
             },
         )
@@ -777,7 +768,7 @@ fn test_withdraw() {
         .wrap()
         .query_wasm_smart(
             &vesting_instance,
-            &QueryMsg::VestedTokens {
+            &QueryMsg::UnlockedTokens {
                 account: "team_1".to_string(),
             },
         )
@@ -856,7 +847,7 @@ fn test_propose_new_receiver() {
         "investor_1".to_string(),
         AllocationParams {
             amount: Uint128::from(5_000_000_000000u64),
-            vest_schedule: Schedule {
+            unlock_schedule: Schedule {
                 start_time: 1642402274u64,
                 cliff: 0u64,
                 duration: 31536000u64,
@@ -868,7 +859,7 @@ fn test_propose_new_receiver() {
         "advisor_1".to_string(),
         AllocationParams {
             amount: Uint128::from(5_000_000_000000u64),
-            vest_schedule: Schedule {
+            unlock_schedule: Schedule {
                 start_time: 1642402274u64,
                 cliff: 7776000u64,
                 duration: 31536000u64,
@@ -880,7 +871,7 @@ fn test_propose_new_receiver() {
         "team_1".to_string(),
         AllocationParams {
             amount: Uint128::from(5_000_000_000000u64),
-            vest_schedule: Schedule {
+            unlock_schedule: Schedule {
                 start_time: 1642402274u64,
                 cliff: 7776000u64,
                 duration: 31536000u64,
@@ -1001,7 +992,7 @@ fn test_drop_new_receiver() {
         "investor_1".to_string(),
         AllocationParams {
             amount: Uint128::from(5_000_000_000000u64),
-            vest_schedule: Schedule {
+            unlock_schedule: Schedule {
                 start_time: 1642402274u64,
                 cliff: 0u64,
                 duration: 31536000u64,
@@ -1013,7 +1004,7 @@ fn test_drop_new_receiver() {
         "advisor_1".to_string(),
         AllocationParams {
             amount: Uint128::from(5_000_000_000000u64),
-            vest_schedule: Schedule {
+            unlock_schedule: Schedule {
                 start_time: 1642402274u64,
                 cliff: 7776000u64,
                 duration: 31536000u64,
@@ -1025,7 +1016,7 @@ fn test_drop_new_receiver() {
         "team_1".to_string(),
         AllocationParams {
             amount: Uint128::from(5_000_000_000000u64),
-            vest_schedule: Schedule {
+            unlock_schedule: Schedule {
                 start_time: 1642402274u64,
                 cliff: 7776000u64,
                 duration: 31536000u64,
@@ -1142,7 +1133,7 @@ fn test_claim_receiver() {
         "investor_1".to_string(),
         AllocationParams {
             amount: Uint128::from(5_000_000_000000u64),
-            vest_schedule: Schedule {
+            unlock_schedule: Schedule {
                 start_time: 1642402274u64,
                 cliff: 0u64,
                 duration: 31536000u64,
@@ -1154,7 +1145,7 @@ fn test_claim_receiver() {
         "advisor_1".to_string(),
         AllocationParams {
             amount: Uint128::from(5_000_000_000000u64),
-            vest_schedule: Schedule {
+            unlock_schedule: Schedule {
                 start_time: 1642402274u64,
                 cliff: 7776000u64,
                 duration: 31536000u64,
@@ -1166,7 +1157,7 @@ fn test_claim_receiver() {
         "team_1".to_string(),
         AllocationParams {
             amount: Uint128::from(5_000_000_000000u64),
-            vest_schedule: Schedule {
+            unlock_schedule: Schedule {
                 start_time: 1642402274u64,
                 cliff: 7776000u64,
                 duration: 31536000u64,
@@ -1279,7 +1270,7 @@ fn test_claim_receiver() {
     assert_eq!(
         AllocationParams {
             amount: Uint128::zero(),
-            vest_schedule: Schedule {
+            unlock_schedule: Schedule {
                 start_time: 0u64,
                 cliff: 0u64,
                 duration: 0u64,
@@ -1303,10 +1294,10 @@ fn test_claim_receiver() {
     assert_eq!(
         AllocationParams {
             amount: alloc_resp_before.params.amount,
-            vest_schedule: Schedule {
-                start_time: alloc_resp_before.params.vest_schedule.start_time,
-                cliff: alloc_resp_before.params.vest_schedule.cliff,
-                duration: alloc_resp_before.params.vest_schedule.duration,
+            unlock_schedule: Schedule {
+                start_time: alloc_resp_before.params.unlock_schedule.start_time,
+                cliff: alloc_resp_before.params.unlock_schedule.cliff,
+                duration: alloc_resp_before.params.unlock_schedule.duration,
             },
             proposed_receiver: None,
         },

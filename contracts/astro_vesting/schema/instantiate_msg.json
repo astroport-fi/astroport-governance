@@ -4,8 +4,7 @@
   "type": "object",
   "required": [
     "astro_token",
-    "owner",
-    "refund_recepient"
+    "owner"
   ],
   "properties": {
     "astro_token": {
@@ -14,10 +13,6 @@
     },
     "owner": {
       "description": "Account who can create new allocations",
-      "type": "string"
-    },
-    "refund_recepient": {
-      "description": "Account to receive the refund of unvested tokens if a user terminates allocation",
       "type": "string"
     }
   }

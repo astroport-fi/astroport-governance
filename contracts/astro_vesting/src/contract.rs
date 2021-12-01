@@ -36,7 +36,6 @@ pub fn instantiate(
         deps.storage,
         &Config {
             owner: deps.api.addr_validate(&msg.owner)?,
-            refund_recepient: deps.api.addr_validate(&msg.refund_recepient)?,
             astro_token: deps.api.addr_validate(&msg.astro_token)?,
         },
     )?;
@@ -48,14 +47,13 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
     match msg {
         ExecuteMsg::Receive(cw20_msg) => execute_receive_cw20(deps, env, info, cw20_msg),
         ExecuteMsg::Withdraw {} => execute_withdraw(deps, env, info),
-        ExecuteMsg::TransferOwnership {
-            new_owner,
-            new_refund_recepient,
-        } => execute_transfer_ownership(deps, env, info, new_owner, new_refund_recepient),
+        ExecuteMsg::TransferOwnership { new_owner } => {
+            execute_transfer_ownership(deps, env, info, new_owner)
+        }
         ExecuteMsg::ProposeNewReceiver { new_receiver } => {
             execute_propose_new_receiver(deps, env, info, new_receiver)
         }
-        ExecuteMsg::DropNewReceiver {} => execute_drope_new_receiver(deps, env, info),
+        ExecuteMsg::DropNewReceiver {} => execute_drop_new_receiver(deps, env, info),
         ExecuteMsg::ClaimReceiver { prev_receiver } => {
             execute_claim_receiver(deps, env, info, prev_receiver)
         }
@@ -87,7 +85,9 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::Config {} => to_binary(&query_config(deps, env)?),
         QueryMsg::State {} => to_binary(&query_state(deps)?),
         QueryMsg::Allocation { account } => to_binary(&query_allocation(deps, env, account)?),
-        QueryMsg::VestedTokens { account } => to_binary(&query_tokens_vested(deps, env, account)?),
+        QueryMsg::UnlockedTokens { account } => {
+            to_binary(&query_tokens_unlocked(deps, env, account)?)
+        }
         QueryMsg::SimulateWithdraw { account, timestamp } => {
             to_binary(&query_simulate_withdraw(deps, env, account, timestamp)?)
         }
@@ -186,7 +186,7 @@ fn execute_withdraw(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Res
     let mut msgs: Vec<WasmMsg> = vec![];
 
     if astro_to_withdraw.is_zero() {
-        return Err(StdError::generic_err("No vested ASTRO to be withdrawn"));
+        return Err(StdError::generic_err("No unlocked ASTRO to be withdrawn"));
     }
 
     msgs.push(WasmMsg::Execute {
@@ -203,13 +203,12 @@ fn execute_withdraw(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Res
         .add_attribute("astro_withdrawn", astro_to_withdraw))
 }
 
-/// @dev Admin function to update the owner / refund_recepient addresses
+/// @dev Admin function to update the owner / refund_recipient addresses
 fn execute_transfer_ownership(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
     new_owner: Option<String>,
-    new_refund_recepient: Option<String>,
 ) -> StdResult<Response> {
     let mut config = CONFIG.load(deps.storage)?;
 
@@ -219,10 +218,6 @@ fn execute_transfer_ownership(
 
     if new_owner.is_some() {
         config.owner = deps.api.addr_validate(&new_owner.unwrap())?;
-    }
-
-    if new_refund_recepient.is_some() {
-        config.refund_recepient = deps.api.addr_validate(&new_refund_recepient.unwrap())?;
     }
 
     CONFIG.save(deps.storage, &config)?;
@@ -268,7 +263,7 @@ fn execute_propose_new_receiver(
 }
 
 /// @dev Facilitates a user to drop the initially proposed receiver for his allocation
-fn execute_drope_new_receiver(deps: DepsMut, _env: Env, info: MessageInfo) -> StdResult<Response> {
+fn execute_drop_new_receiver(deps: DepsMut, _env: Env, info: MessageInfo) -> StdResult<Response> {
     let mut alloc_params = PARAMS.load(deps.storage, &info.sender)?;
     let prev_proposed_receiver: Addr;
 
@@ -288,7 +283,7 @@ fn execute_drope_new_receiver(deps: DepsMut, _env: Env, info: MessageInfo) -> St
         .add_attribute("dropped_proposed_receiver", prev_proposed_receiver))
 }
 
-/// @dev Allows a proposed receiver of an auction to claim the ownership of that auction
+/// @dev Allows a proposed receiver of an allocation to claim the ownership of that allocation
 /// @params prev_receiver : User who proposed the info.sender as the proposed terra address to which the ownership of his allocation is to be transferred
 fn execute_claim_receiver(
     deps: DepsMut,
@@ -360,15 +355,15 @@ fn query_allocation(deps: Deps, _env: Env, account: String) -> StdResult<Allocat
     })
 }
 
-fn query_tokens_vested(deps: Deps, env: Env, account: String) -> StdResult<Uint128> {
+fn query_tokens_unlocked(deps: Deps, env: Env, account: String) -> StdResult<Uint128> {
     let account_checked = deps.api.addr_validate(&account)?;
 
     let params = PARAMS.load(deps.storage, &account_checked)?;
 
-    Ok(helpers::compute_vested_amount(
+    Ok(helpers::compute_unlocked_amount(
         env.block.time.seconds(),
         params.amount,
-        &params.vest_schedule,
+        &params.unlock_schedule,
     ))
 }
 
@@ -413,16 +408,20 @@ mod helpers {
     use astroport_governance::astro_vesting::msg::SimulateWithdrawResponse;
     use astroport_governance::astro_vesting::{AllocationParams, AllocationStatus, Schedule};
 
-    pub fn compute_vested_amount(timestamp: u64, amount: Uint128, schedule: &Schedule) -> Uint128 {
-        // Tokens haven't begin vesting
+    pub fn compute_unlocked_amount(
+        timestamp: u64,
+        amount: Uint128,
+        schedule: &Schedule,
+    ) -> Uint128 {
+        // Tokens haven't begun unlocking
         if timestamp < schedule.start_time {
             Uint128::zero()
         }
-        // Tokens vest linearly between start time and end time
+        // Tokens unlock linearly between start time and end time
         else if timestamp < schedule.start_time + schedule.duration {
             amount.multiply_ratio(timestamp - schedule.start_time, schedule.duration)
         }
-        // After end time, all tokens are fully vested/unlocked
+        // After end time, all tokens are fully unlocked
         else {
             amount
         }
@@ -434,17 +433,17 @@ mod helpers {
         status: &mut AllocationStatus,
     ) -> SimulateWithdrawResponse {
         // Before the end of cliff period, no token can be withdrawn
-        if timestamp < (params.vest_schedule.start_time + params.vest_schedule.cliff) {
+        if timestamp < (params.unlock_schedule.start_time + params.unlock_schedule.cliff) {
             SimulateWithdrawResponse {
                 astro_to_withdraw: Uint128::zero(),
             }
         } else {
-            // "Vested" amount
-            let astro_vested =
-                compute_vested_amount(timestamp, params.amount, &params.vest_schedule);
+            // "Unlocked" amount
+            let astro_unlocked =
+                compute_unlocked_amount(timestamp, params.amount, &params.unlock_schedule);
 
             // Withdrawable amount is unlocked amount minus the amount already withdrawn
-            let astro_withdrawable = astro_vested - status.astro_withdrawn;
+            let astro_withdrawable = astro_unlocked - status.astro_withdrawn;
             status.astro_withdrawn += astro_withdrawable;
 
             SimulateWithdrawResponse {
