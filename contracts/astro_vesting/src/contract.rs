@@ -36,7 +36,7 @@ pub fn instantiate(
         deps.storage,
         &Config {
             owner: deps.api.addr_validate(&msg.owner)?,
-            refund_recepient: deps.api.addr_validate(&msg.refund_recepient)?,
+            refund_recipient: deps.api.addr_validate(&msg.refund_recipient)?,
             astro_token: deps.api.addr_validate(&msg.astro_token)?,
             default_unlock_schedule: msg.default_unlock_schedule,
         },
@@ -52,12 +52,12 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
         ExecuteMsg::Terminate {} => execute_terminate(deps, env, info),
         ExecuteMsg::TransferOwnership {
             new_owner,
-            new_refund_recepient,
-        } => execute_transfer_ownership(deps, env, info, new_owner, new_refund_recepient),
+            new_refund_recipient,
+        } => execute_transfer_ownership(deps, env, info, new_owner, new_refund_recipient),
         ExecuteMsg::ProposeNewReceiver { new_receiver } => {
             execute_propose_new_receiver(deps, env, info, new_receiver)
         }
-        ExecuteMsg::DropNewReceiver {} => execute_drope_new_receiver(deps, env, info),
+        ExecuteMsg::DropNewReceiver {} => execute_drop_new_receiver(deps, env, info),
         ExecuteMsg::ClaimReceiver { prev_receiver } => {
             execute_claim_receiver(deps, env, info, prev_receiver)
         }
@@ -103,7 +103,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 /// @dev Admin function facilitating creation of new Allocations
 /// @params creator: Function caller address. Needs to be the admin
 /// @params deposit_token: Token being deposited, should be ASTRO
-/// @params deposit_amount: Number of tokens sent along-with the call, should equal the sum of allocation amount
+/// @params deposit_amount: Number of tokens sent along with the call, should equal the sum of allocation amount
 /// @params allocations: New Allocations being created
 fn execute_create_allocations(
     deps: DepsMut,
@@ -229,12 +229,13 @@ fn execute_terminate(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Re
     state.total_astro_deposited -= astro_to_refund;
     state.remaining_astro_tokens -= astro_to_refund;
 
+    STATE.save(deps.storage, &state)?;
     PARAMS.save(deps.storage, &info.sender, &params)?;
 
     let msg = WasmMsg::Execute {
         contract_addr: config.astro_token.to_string(),
         msg: to_binary(&Cw20ExecuteMsg::Transfer {
-            recipient: config.refund_recepient.to_string(),
+            recipient: config.refund_recipient.to_string(),
             amount: astro_to_refund,
         })?,
         funds: vec![],
@@ -250,13 +251,13 @@ fn execute_terminate(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Re
         ))
 }
 
-/// @dev Admin function to update the owner / refund_recepient addresses
+/// @dev Admin function to update the owner / refund_recipient addresses
 fn execute_transfer_ownership(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
     new_owner: Option<String>,
-    new_refund_recepient: Option<String>,
+    new_refund_recipient: Option<String>,
 ) -> StdResult<Response> {
     let mut config = CONFIG.load(deps.storage)?;
 
@@ -268,8 +269,8 @@ fn execute_transfer_ownership(
         config.owner = deps.api.addr_validate(&new_owner.unwrap())?;
     }
 
-    if new_refund_recepient.is_some() {
-        config.refund_recepient = deps.api.addr_validate(&new_refund_recepient.unwrap())?;
+    if new_refund_recipient.is_some() {
+        config.refund_recipient = deps.api.addr_validate(&new_refund_recipient.unwrap())?;
     }
 
     CONFIG.save(deps.storage, &config)?;
@@ -315,7 +316,7 @@ fn execute_propose_new_receiver(
 }
 
 /// @dev Facilitates a user to drop the initially proposed receiver for his allocation
-fn execute_drope_new_receiver(deps: DepsMut, _env: Env, info: MessageInfo) -> StdResult<Response> {
+fn execute_drop_new_receiver(deps: DepsMut, _env: Env, info: MessageInfo) -> StdResult<Response> {
     let mut alloc_params = PARAMS.load(deps.storage, &info.sender)?;
     let prev_proposed_receiver: Addr;
 
@@ -335,7 +336,7 @@ fn execute_drope_new_receiver(deps: DepsMut, _env: Env, info: MessageInfo) -> St
         .add_attribute("dropped_proposed_receiver", prev_proposed_receiver))
 }
 
-/// @dev Allows a proposed receiver of an auction to claim the ownership of that auction
+/// @dev Allows a proposed receiver of an allocation to claim the ownership of that allocation
 /// @params prev_receiver : User who proposed the info.sender as the proposed terra address to which the ownership of his allocation is to be transferred
 fn execute_claim_receiver(
     deps: DepsMut,
@@ -474,7 +475,7 @@ mod helpers {
         // After the end of cliff, tokens vest/unlock linearly between start time and end time
         } else if timestamp < schedule.start_time + schedule.duration {
             amount.multiply_ratio(timestamp - schedule.start_time, schedule.duration)
-        // After end time, all tokens are fully vested/unlocked
+        // After end time, all tokens are fully vested
         } else {
             amount
         }

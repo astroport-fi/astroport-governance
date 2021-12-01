@@ -7,7 +7,7 @@ pub struct Config {
     /// Account who can create new allocations
     pub owner: Addr,
     /// Account to receive the refund of unvested tokens if a user terminates allocation
-    pub refund_recepient: Addr,
+    pub refund_recipient: Addr,
     /// Address of ASTRO token
     pub astro_token: Addr,
     /// By default, unlocking starts at Astroport launch, with a cliff of 6 months and a duration of 36 months.
@@ -106,7 +106,7 @@ pub mod msg {
         /// Account who can create new allocations
         pub owner: String,
         /// Account to receive the refund of unvested tokens if a user terminates allocation
-        pub refund_recepient: String,
+        pub refund_recipient: String,
         /// Address of ASTRO token
         pub astro_token: String,
         /// By default, unlocking starts at Astroport launch, with a cliff of 6 months and a duration of 36 months.
@@ -126,7 +126,7 @@ pub mod msg {
         /// Update addresses of owner and fallback_recipient
         TransferOwnership {
             new_owner: Option<String>,
-            new_refund_recepient: Option<String>,
+            new_refund_recipient: Option<String>,
         },
         /// Allows users to change the receiver address of their allocations etc
         ProposeNewReceiver { new_receiver: String },

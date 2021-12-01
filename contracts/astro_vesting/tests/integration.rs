@@ -65,7 +65,7 @@ fn init_contracts(app: &mut App) -> (Addr, Addr, InstantiateMsg) {
 
     let vesting_instantiate_msg = InstantiateMsg {
         owner: OWNER.clone().to_string(),
-        refund_recepient: "refund_recepient".to_string(),
+        refund_recipient: "refund_recipient".to_string(),
         astro_token: astro_token_instance.to_string(),
         default_unlock_schedule: Schedule {
             start_time: 0u64,
@@ -124,7 +124,7 @@ fn proper_initialization() {
 
     // Check config
     assert_eq!(init_msg.owner, resp.owner);
-    assert_eq!(init_msg.refund_recepient, resp.refund_recepient);
+    assert_eq!(init_msg.refund_recipient, resp.refund_recipient);
     assert_eq!(init_msg.astro_token, resp.astro_token);
     assert_eq!(
         init_msg.default_unlock_schedule,
@@ -154,7 +154,7 @@ fn test_transfer_ownership() {
             vesting_instance.clone(),
             &ExecuteMsg::TransferOwnership {
                 new_owner: Some("new_owner".to_string()),
-                new_refund_recepient: Some("new_refund_recepient".to_string()),
+                new_refund_recipient: Some("new_refund_recipient".to_string()),
             },
             &[],
         )
@@ -171,7 +171,7 @@ fn test_transfer_ownership() {
         vesting_instance.clone(),
         &ExecuteMsg::TransferOwnership {
             new_owner: Some("new_owner".to_string()),
-            new_refund_recepient: None,
+            new_refund_recipient: None,
         },
         &[],
     )
@@ -184,7 +184,7 @@ fn test_transfer_ownership() {
 
     // Check config
     assert_eq!("new_owner".to_string(), resp.owner);
-    assert_eq!(init_msg.refund_recepient, resp.refund_recepient);
+    assert_eq!(init_msg.refund_recipient, resp.refund_recipient);
     assert_eq!(init_msg.astro_token, resp.astro_token);
 
     // ######    SUCCESSFULLY TRANSFERS OWNERSHIP :: UPDATES REFUND RECEPIENT    ######
@@ -194,7 +194,7 @@ fn test_transfer_ownership() {
         vesting_instance.clone(),
         &ExecuteMsg::TransferOwnership {
             new_owner: None,
-            new_refund_recepient: Some("new_refund_recepient".to_string()),
+            new_refund_recipient: Some("new_refund_recipient".to_string()),
         },
         &[],
     )
@@ -207,7 +207,7 @@ fn test_transfer_ownership() {
 
     // Check config
     assert_eq!("new_owner".to_string(), resp.owner);
-    assert_eq!("new_refund_recepient".to_string(), resp.refund_recepient);
+    assert_eq!("new_refund_recipient".to_string(), resp.refund_recipient);
     assert_eq!(init_msg.astro_token, resp.astro_token);
 }
 
@@ -972,14 +972,9 @@ fn test_terminate() {
         b.time = Timestamp::from_seconds(1673030279u64)
     });
 
-    let investor_alloc_before: AllocationResponse = app
+    let state_resp_before: StateResponse = app
         .wrap()
-        .query_wasm_smart(
-            &vesting_instance,
-            &QueryMsg::Allocation {
-                account: "team_1".to_string(),
-            },
-        )
+        .query_wasm_smart(&vesting_instance, &QueryMsg::State {})
         .unwrap();
 
     let investor_vested_before: Uint128 = app
@@ -1022,6 +1017,19 @@ fn test_terminate() {
 
     assert_eq!(investor_vested_before, investor_vested_after);
     assert_eq!(investor_vested_before, investor_alloc_after.params.amount);
+
+    let state_resp_after: StateResponse = app
+        .wrap()
+        .query_wasm_smart(&vesting_instance, &QueryMsg::State {})
+        .unwrap();
+    assert_eq!(
+        state_resp_before.total_astro_deposited,
+        state_resp_after.total_astro_deposited + Uint128::from(143961662862u64)
+    );
+    assert_eq!(
+        state_resp_before.remaining_astro_tokens,
+        state_resp_after.remaining_astro_tokens + Uint128::from(143961662862u64)
+    );
 }
 
 #[test]

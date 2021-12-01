@@ -57,7 +57,7 @@
                 "null"
               ]
             },
-            "new_refund_recepient": {
+            "new_refund_recipient": {
               "type": [
                 "string",
                 "null"
