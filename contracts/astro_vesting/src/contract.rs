@@ -203,7 +203,7 @@ fn execute_withdraw(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Res
         .add_attribute("astro_withdrawn", astro_to_withdraw))
 }
 
-/// @dev Admin function to update the owner / refund_recipient addresses
+/// @dev Admin function to update the owner
 fn execute_transfer_ownership(
     deps: DepsMut,
     _env: Env,
@@ -408,6 +408,7 @@ mod helpers {
     use astroport_governance::astro_vesting::msg::SimulateWithdrawResponse;
     use astroport_governance::astro_vesting::{AllocationParams, AllocationStatus, Schedule};
 
+    // Computes number of tokens that are now unlocked for a given allocation
     pub fn compute_unlocked_amount(
         timestamp: u64,
         amount: Uint128,
@@ -427,6 +428,7 @@ mod helpers {
         }
     }
 
+    // Computes number of tokens that are withdrawable for a given allocation
     pub fn compute_withdraw_amount(
         timestamp: u64,
         params: &AllocationParams,

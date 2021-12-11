@@ -33,9 +33,9 @@ impl Default for State {
 pub struct Schedule {
     /// Timestamp of when unlocking is to be started (in seconds)
     pub start_time: u64,
-    /// Number of seconds starting UST during which no token will be unlocked
+    /// Number of seconds starting unlocking during which no tokens can be withdrawn
     pub cliff: u64,
-    /// Number of seconds taken since UST for tokens to be fully unlocked
+    /// Number of seconds taken since unlocking beginning for tokens to be fully unlocked
     pub duration: u64,
 }
 
