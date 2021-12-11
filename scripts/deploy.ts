@@ -23,9 +23,9 @@ import { writeFileSync } from "fs";
 
 const ARTIFACTS_PATH = "../artifacts";
 
-const START_TIME = parseInt((Date.now() / 1000).toFixed(0)) + 180; // 1639440000;
-const CLIFF = 60 * 3; // 31536000;
-const UNLOCK_DURATION = 60 * 30; // 94608000;
+const START_TIME = 1639440000;
+const CLIFF = 31536000;
+const UNLOCK_DURATION = 94608000;
 
 async function main() {
   // terra, wallet
@@ -48,53 +48,53 @@ async function main() {
 
   /*************************************** VESTING ::: DEPOYMENT AND INITIALIZATION  *****************************************/
 
-  if (terra.config.chainID == "bombay-12") {
+  if (terra.config.chainID == "columbus-5") {
     // Multisig details:
-    const MULTI_SIG_ADDRESS = "";
+    const MULTI_SIG_ADDRESS = "terra1c7m6j8ya58a2fkkptn8fgudx8sqjqvc8azq0ex";
 
     // Deploy dummy ASTRO token for testing on bombay-12
-    if (terra.config.chainID == "bombay-12" && !network.astro_token_address) {
-      // CW20 TOKEN CODE ID
-      if (!network.cw20_token_code_id) {
-        network.cw20_token_code_id = await uploadContract(
-          terra,
-          wallet,
-          join(ARTIFACTS_PATH, "cw20_token.wasm")
-        );
-        console.log(`Cw20 Code id = ${network.cw20_token_code_id}`);
-        writeArtifact(network, terra.config.chainID);
-      }
-      // ASTRO Token for testing
-      network.astro_token_address = await instantiateContract(
-        terra,
-        wallet,
-        network.cw20_token_code_id,
-        {
-          name: "Astroport",
-          symbol: "ASTRO",
-          decimals: 6,
-          initial_balances: [
-            {
-              address: wallet.key.accAddress,
-              amount: String(1_000_000_000_000000),
-            },
-          ],
-          mint: {
-            minter: wallet.key.accAddress,
-            cap: String(1_000_000_000_000000),
-          },
-        },
-        "ASTRO Token for testing"
-      );
-      console.log(
-        `ASTRO Token deployed successfully, address : ${network.astro_token_address}`
-      );
-      writeArtifact(network, terra.config.chainID);
-    }
+    // if (terra.config.chainID == "bombay-12" && !network.astro_token_address) {
+    //   // CW20 TOKEN CODE ID
+    //   if (!network.cw20_token_code_id) {
+    //     network.cw20_token_code_id = await uploadContract(
+    //       terra,
+    //       wallet,
+    //       join(ARTIFACTS_PATH, "cw20_token.wasm")
+    //     );
+    //     console.log(`Cw20 Code id = ${network.cw20_token_code_id}`);
+    //     writeArtifact(network, terra.config.chainID);
+    //   }
+    //   // ASTRO Token for testing
+    //   network.astro_token_address = await instantiateContract(
+    //     terra,
+    //     wallet,
+    //     network.cw20_token_code_id,
+    //     {
+    //       name: "Astroport",
+    //       symbol: "ASTRO",
+    //       decimals: 6,
+    //       initial_balances: [
+    //         {
+    //           address: wallet.key.accAddress,
+    //           amount: String(1_000_000_000_000000),
+    //         },
+    //       ],
+    //       mint: {
+    //         minter: wallet.key.accAddress,
+    //         cap: String(1_000_000_000_000000),
+    //       },
+    //     },
+    //     "ASTRO Token for testing"
+    //   );
+    //   console.log(
+    //     `ASTRO Token deployed successfully, address : ${network.astro_token_address}`
+    //   );
+    //   writeArtifact(network, terra.config.chainID);
+    // }
 
     // VESTING CONTRACT ::: DEPLOYMENT
     if (!network.vesting_address) {
-      console.log(`${terra.config.chainID} :: Deploying Vesting Contract`);
+      console.log(`${terra.config.chainID} :: Deploying Unlocking Contract`);
       let instantiate_msg = {
         owner: wallet.key.accAddress,
         astro_token: network.astro_token_address,
@@ -106,11 +106,11 @@ async function main() {
         wallet,
         join(ARTIFACTS_PATH, "astro_vesting.wasm"),
         instantiate_msg,
-        "ASTROPORT -::- Vesting Contract"
+        "ASTROPORT -::- Unlocking Contract"
       );
       writeArtifact(network, terra.config.chainID);
       console.log(
-        `${terra.config.chainID} :: Vesting Contract Address : ${network.vesting_address} \n`
+        `${terra.config.chainID} :: Unlocking Contract Address : ${network.vesting_address} \n`
       );
     }
 
@@ -540,11 +540,32 @@ async function main() {
           },
         },
         [],
-        `ASTRO Vesting :: Update Owner`
+        `ASTRO Unlocking :: Update Owner`
       );
 
       console.log(
-        `Updated owner of ASTRO Vesting contract, \n Tx hash --> ${tx.txhash} \n`
+        `Updated owner of ASTRO Unlocking contract, \n Tx hash --> ${tx.txhash} \n`
+      );
+    }
+
+    // Update Contract admin to multiSig
+    if (MULTI_SIG_ADDRESS) {
+      // TransferOwnership : TX
+      let tx = await executeContract(
+        terra,
+        wallet,
+        network.vesting_address,
+        {
+          transfer_ownership: {
+            new_owner: MULTI_SIG_ADDRESS,
+          },
+        },
+        [],
+        `ASTRO Unlocking :: Update Owner`
+      );
+
+      console.log(
+        `Updated owner of ASTRO Unlocking contract, \n Tx hash --> ${tx.txhash} \n`
       );
     }
 
@@ -588,11 +609,11 @@ async function main() {
         },
       },
       [],
-      `Setting ASTRO Vesting schedules`
+      `Setting ASTRO Unlocking schedules`
     );
 
     console.log(
-      `Creating ASTRO Vesting schedules ::: ${from} - ${till}, ASTRO sent : ${
+      `Creating ASTRO Unlocking schedules ::: ${from} - ${till}, ASTRO sent : ${
         astro_to_transfer / 1000000
       }, \n Tx hash --> ${tx.txhash} \n`
     );
