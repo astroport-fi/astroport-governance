@@ -52,7 +52,7 @@ async function main() {
 
   if (terra.config.chainID == "columbus-5") {
     // Multisig details:
-    const MULTI_SIG_ADDRESS = "terra1c7m6j8ya58a2fkkptn8fgudx8sqjqvc8azq0ex";
+    const MULTI_SIG_ADDRESS = "";
 
     // Deploy dummy ASTRO token for testing on bombay-12
     // if (terra.config.chainID == "bombay-12" && !network.astro_token_address) {
