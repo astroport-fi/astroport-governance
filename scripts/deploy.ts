@@ -5,6 +5,7 @@ import {
   MsgExecuteContract,
   SimplePublicKey,
   LCDClient,
+  MsgUpdateContractAdmin,
   LocalTerra,
   Wallet,
 } from "@terra-money/terra.js";
@@ -15,6 +16,7 @@ import {
   readArtifact,
   writeArtifact,
   uploadContract,
+  performTransaction,
   instantiateContract,
   Client,
 } from "./helpers.js";
@@ -550,22 +552,16 @@ async function main() {
 
     // Update Contract admin to multiSig
     if (MULTI_SIG_ADDRESS) {
-      // TransferOwnership : TX
-      let tx = await executeContract(
-        terra,
-        wallet,
-        network.vesting_address,
-        {
-          transfer_ownership: {
-            new_owner: MULTI_SIG_ADDRESS,
-          },
-        },
-        [],
-        `ASTRO Unlocking :: Update Owner`
+      let update_admin = new MsgUpdateContractAdmin(
+        wallet.key.accAddress,
+        MULTI_SIG_ADDRESS,
+        network.vesting_address
       );
+      // TransferOwnership : TX
+      let tx = await performTransaction(terra, wallet, update_admin);
 
       console.log(
-        `Updated owner of ASTRO Unlocking contract, \n Tx hash --> ${tx.txhash} \n`
+        `Updated ownership of ASTRO Unlocking contract, \n Tx hash --> ${tx.txhash} \n`
       );
     }
 
