@@ -23,4 +23,5 @@ docker run --rm -v "$(pwd)":/code \
 
 The optimized contracts are generated in the artifacts/ directory.
 
-### Col-5 Address : terra1fh27l8h4s0tfx9ykqxq5efq4xx88f06x6clwmr
+#### Contract Address
+- Columbus-5  : terra1fh27l8h4s0tfx9ykqxq5efq4xx88f06x6clwmr
