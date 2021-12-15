@@ -5,6 +5,7 @@ use cosmwasm_schema::{export_schema, remove_schemas, schema_for};
 
 use astroport_governance::astro_vesting::msg::{
     AllocationResponse, ExecuteMsg, InstantiateMsg, QueryMsg, ReceiveMsg, SimulateWithdrawResponse,
+    StateResponse,
 };
 use astroport_governance::astro_vesting::{AllocationParams, AllocationStatus, Schedule};
 
@@ -21,6 +22,7 @@ fn main() {
     export_schema(&schema_for!(SimulateWithdrawResponse), &out_dir);
     export_schema(&schema_for!(AllocationResponse), &out_dir);
     export_schema(&schema_for!(Schedule), &out_dir);
+    export_schema(&schema_for!(StateResponse), &out_dir);
     export_schema(&schema_for!(AllocationParams), &out_dir);
     export_schema(&schema_for!(AllocationStatus), &out_dir);
 }

@@ -29,20 +29,7 @@
       "additionalProperties": false
     },
     {
-      "description": "Give up allocation, refund all unvested tokens to `config.fallback_recipient`",
-      "type": "object",
-      "required": [
-        "terminate"
-      ],
-      "properties": {
-        "terminate": {
-          "type": "object"
-        }
-      },
-      "additionalProperties": false
-    },
-    {
-      "description": "Update addresses of owner and fallback_recipient",
+      "description": "Update addresses of owner",
       "type": "object",
       "required": [
         "transfer_ownership"
@@ -50,16 +37,12 @@
       "properties": {
         "transfer_ownership": {
           "type": "object",
-          "required": [
-            "new_owner",
-            "new_refund_recipient"
-          ],
           "properties": {
             "new_owner": {
-              "type": "string"
-            },
-            "new_refund_recipient": {
-              "type": "string"
+              "type": [
+                "string",
+                "null"
+              ]
             }
           }
         }

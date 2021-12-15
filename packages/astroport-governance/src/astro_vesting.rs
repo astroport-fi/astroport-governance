@@ -4,26 +4,38 @@ use serde::{Deserialize, Serialize};
 
 // T = String (unchecked) or Addr (checked)
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct Config<T> {
+pub struct Config {
     /// Account who can create new allocations
-    pub owner: T,
-    /// Account to receive the refund of unvested tokens if a user terminates allocation
-    pub refund_recipient: T,
+    pub owner: Addr,
     /// Address of ASTRO token
-    pub astro_token: T,
-    /// By default, unlocking starts at Astroport launch, with a cliff of 6 months and a duration of 36 months.
-    /// If not specified, all allocations use this default schedule
-    pub default_unlock_schedule: Schedule,
+    pub astro_token: Addr,
 }
 
-// Parameters describing a typical vesting/unlocking schedule
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct State {
+    /// ASTRO Tokens deposited into the contract
+    pub total_astro_deposited: Uint128,
+    /// Currently available ASTRO Tokens
+    pub remaining_astro_tokens: Uint128,
+}
+
+impl Default for State {
+    fn default() -> Self {
+        State {
+            total_astro_deposited: Uint128::zero(),
+            remaining_astro_tokens: Uint128::zero(),
+        }
+    }
+}
+
+// Parameters describing a typical unlocking schedule
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Schedule {
-    /// Timestamp of when vesting/unlocking is to be started (in seconds)
+    /// Timestamp of when unlocking is to be started (in seconds)
     pub start_time: u64,
-    /// Number of seconds starting UST during which no token will be vested/unlocked
+    /// Number of seconds starting unlocking during which no tokens can be withdrawn
     pub cliff: u64,
-    /// Number of seconds taken since UST for tokens to be fully vested/unlocked
+    /// Number of seconds taken since unlocking beginning for tokens to be fully unlocked
     pub duration: u64,
 }
 
@@ -31,19 +43,38 @@ pub struct Schedule {
 pub struct AllocationParams {
     /// Total amount of ASTRO token allocated to this account
     pub amount: Uint128,
-    /// Parameters controlling the vesting process
-    pub vest_schedule: Schedule,
     /// Parameters controlling the unlocking process
-    /// If not provided, use `config.default_unlock_schedule`
-    pub unlock_schedule: Option<Schedule>,
+    pub unlock_schedule: Schedule,
     /// proposed new_receiver who will get the allocation
     pub proposed_receiver: Option<Addr>,
+}
+
+impl Default for AllocationParams {
+    fn default() -> Self {
+        AllocationParams {
+            amount: Uint128::zero(),
+            unlock_schedule: Schedule {
+                start_time: 0u64,
+                cliff: 0u64,
+                duration: 0u64,
+            },
+            proposed_receiver: None,
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct AllocationStatus {
     /// Amount of ASTRO already withdrawn
     pub astro_withdrawn: Uint128,
+}
+
+impl Default for AllocationStatus {
+    fn default() -> Self {
+        AllocationStatus {
+            astro_withdrawn: Uint128::zero(),
+        }
+    }
 }
 
 impl AllocationStatus {
@@ -55,14 +86,20 @@ impl AllocationStatus {
 }
 
 pub mod msg {
-    use cosmwasm_std::{Addr, Uint128};
+    use cosmwasm_std::Uint128;
     use cw20::Cw20ReceiveMsg;
     use schemars::JsonSchema;
     use serde::{Deserialize, Serialize};
 
     use super::{AllocationParams, AllocationStatus, Config};
 
-    pub type InstantiateMsg = Config<String>;
+    #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+    pub struct InstantiateMsg {
+        /// Account who can create new allocations
+        pub owner: String,
+        /// Address of ASTRO token
+        pub astro_token: String,
+    }
 
     #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
     #[serde(rename_all = "snake_case")]
@@ -71,13 +108,8 @@ pub mod msg {
         Receive(Cw20ReceiveMsg),
         /// Claim withdrawable ASTRO
         Withdraw {},
-        /// Give up allocation, refund all unvested tokens to `config.fallback_recipient`
-        Terminate {},
-        /// Update addresses of owner and fallback_recipient
-        TransferOwnership {
-            new_owner: String,
-            new_refund_recipient: String,
-        },
+        /// Update addresses of owner
+        TransferOwnership { new_owner: Option<String> },
         /// Allows users to change the receiver address of their allocations etc
         ProposeNewReceiver { new_receiver: String },
         /// Allows users to remove the previously proposed new receiver for their allocations
@@ -100,13 +132,25 @@ pub mod msg {
     pub enum QueryMsg {
         // Config of this contract
         Config {},
+        // State of this contract
+        State {},
         // Parameters and current status of an allocation
-        Allocation { account: String },
+        Allocation {
+            account: String,
+        },
+        // Tokens unlocked for an allocation (may not be withdrawable because of cliff)
+        UnlockedTokens {
+            account: String,
+        },
         // Simulate how many ASTRO will be released if a withdrawal is attempted
-        SimulateWithdraw { account: String },
+        SimulateWithdraw {
+            account: String,
+            timestamp: Option<u64>,
+        },
     }
 
-    pub type ConfigResponse = Config<Addr>;
+    pub type ConfigResponse = Config;
+
     #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
     pub struct AllocationResponse {
         pub params: AllocationParams,
@@ -117,5 +161,13 @@ pub mod msg {
     pub struct SimulateWithdrawResponse {
         /// Amount of ASTRO to receive
         pub astro_to_withdraw: Uint128,
+    }
+
+    #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+    pub struct StateResponse {
+        /// ASTRO Tokens deposited into the contract
+        pub total_astro_deposited: Uint128,
+        /// Currently available ASTRO Tokens
+        pub remaining_astro_tokens: Uint128,
     }
 }

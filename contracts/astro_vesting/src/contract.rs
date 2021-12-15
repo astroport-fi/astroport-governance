@@ -10,10 +10,11 @@ use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 
 use astroport_governance::astro_vesting::msg::{
     AllocationResponse, ExecuteMsg, InstantiateMsg, QueryMsg, ReceiveMsg, SimulateWithdrawResponse,
+    StateResponse,
 };
 use astroport_governance::astro_vesting::{AllocationParams, AllocationStatus, Config};
 
-use crate::state::{CONFIG, PARAMS, STATUS};
+use crate::state::{CONFIG, PARAMS, STATE, STATUS};
 
 // version info for migration info
 const CONTRACT_NAME: &str = "astro-vesting";
@@ -35,9 +36,7 @@ pub fn instantiate(
         deps.storage,
         &Config {
             owner: deps.api.addr_validate(&msg.owner)?,
-            refund_recipient: deps.api.addr_validate(&msg.refund_recipient)?,
             astro_token: deps.api.addr_validate(&msg.astro_token)?,
-            default_unlock_schedule: msg.default_unlock_schedule,
         },
     )?;
     Ok(Response::default())
@@ -48,15 +47,13 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
     match msg {
         ExecuteMsg::Receive(cw20_msg) => execute_receive_cw20(deps, env, info, cw20_msg),
         ExecuteMsg::Withdraw {} => execute_withdraw(deps, env, info),
-        ExecuteMsg::Terminate {} => execute_terminate(deps, env, info),
-        ExecuteMsg::TransferOwnership {
-            new_owner,
-            new_refund_recipient,
-        } => execute_transfer_ownership(deps, env, info, new_owner, new_refund_recipient),
+        ExecuteMsg::TransferOwnership { new_owner } => {
+            execute_transfer_ownership(deps, env, info, new_owner)
+        }
         ExecuteMsg::ProposeNewReceiver { new_receiver } => {
             execute_propose_new_receiver(deps, env, info, new_receiver)
         }
-        ExecuteMsg::DropNewReceiver {} => execute_drope_new_receiver(deps, env, info),
+        ExecuteMsg::DropNewReceiver {} => execute_drop_new_receiver(deps, env, info),
         ExecuteMsg::ClaimReceiver { prev_receiver } => {
             execute_claim_receiver(deps, env, info, prev_receiver)
         }
@@ -86,9 +83,13 @@ fn execute_receive_cw20(
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Config {} => to_binary(&query_config(deps, env)?),
+        QueryMsg::State {} => to_binary(&query_state(deps)?),
         QueryMsg::Allocation { account } => to_binary(&query_allocation(deps, env, account)?),
-        QueryMsg::SimulateWithdraw { account } => {
-            to_binary(&query_simulate_withdraw(deps, env, account)?)
+        QueryMsg::UnlockedTokens { account } => {
+            to_binary(&query_tokens_unlocked(deps, env, account)?)
+        }
+        QueryMsg::SimulateWithdraw { account, timestamp } => {
+            to_binary(&query_simulate_withdraw(deps, env, account, timestamp)?)
         }
     }
 }
@@ -112,18 +113,22 @@ fn execute_create_allocations(
     allocations: Vec<(String, AllocationParams)>,
 ) -> StdResult<Response> {
     let config = CONFIG.load(deps.storage)?;
+    let mut state = STATE.may_load(deps.storage)?.unwrap_or_default();
 
     if deps.api.addr_validate(&creator)? != config.owner {
         return Err(StdError::generic_err("Only owner can create allocations"));
     }
 
     if deposit_token != config.astro_token {
-        return Err(StdError::generic_err("Only Astro token can be deposited"));
+        return Err(StdError::generic_err("Only ASTRO token can be deposited"));
     }
 
     if deposit_amount != allocations.iter().map(|params| params.1.amount).sum() {
-        return Err(StdError::generic_err("Deposit amount mismatch"));
+        return Err(StdError::generic_err("ASTRO deposit amount mismatch"));
     }
+
+    state.total_astro_deposited += deposit_amount;
+    state.remaining_astro_tokens += deposit_amount;
 
     for allocation in allocations {
         let (user_unchecked, params) = allocation;
@@ -132,7 +137,10 @@ fn execute_create_allocations(
 
         match PARAMS.load(deps.storage, &user) {
             Ok(..) => {
-                return Err(StdError::generic_err("Allocation already exists for user"));
+                return Err(StdError::generic_err(format!(
+                    "Allocation (params) already exists for {}",
+                    user
+                )));
             }
             Err(..) => {
                 PARAMS.save(deps.storage, &user, &params)?;
@@ -141,7 +149,10 @@ fn execute_create_allocations(
 
         match STATUS.load(deps.storage, &user) {
             Ok(..) => {
-                return Err(StdError::generic_err("Allocation already exists for user"));
+                return Err(StdError::generic_err(format!(
+                    "Allocation (status) already exists for {}",
+                    user
+                )));
             }
             Err(..) => {
                 STATUS.save(deps.storage, &user, &AllocationStatus::new())?;
@@ -149,88 +160,55 @@ fn execute_create_allocations(
         }
     }
 
+    STATE.save(deps.storage, &state)?;
     Ok(Response::default())
 }
 
 /// @dev Allows allocation receivers to claim their ASTRO tokens that can be withdrawn
 fn execute_withdraw(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Response> {
     let config = CONFIG.load(deps.storage)?;
+    let mut state = STATE.may_load(deps.storage)?.unwrap_or_default();
+
     let params = PARAMS.load(deps.storage, &info.sender)?;
     let mut status = STATUS.load(deps.storage, &info.sender)?;
 
-    let SimulateWithdrawResponse { astro_to_withdraw } = helpers::compute_withdraw_amounts(
-        env.block.time.seconds(),
-        &params,
-        &mut status,
-        config.default_unlock_schedule,
-    );
+    let SimulateWithdrawResponse { astro_to_withdraw } =
+        helpers::compute_withdraw_amount(env.block.time.seconds(), &params, &mut status);
+
+    state.remaining_astro_tokens -= astro_to_withdraw;
+
+    // SAVE :: state & allocation
+    STATE.save(deps.storage, &state)?;
 
     // Update status
     STATUS.save(deps.storage, &info.sender, &status)?;
 
     let mut msgs: Vec<WasmMsg> = vec![];
 
-    if !astro_to_withdraw.is_zero() {
-        msgs.push(WasmMsg::Execute {
-            contract_addr: config.astro_token.to_string(),
-            msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                recipient: info.sender.to_string(),
-                amount: astro_to_withdraw,
-            })?,
-            funds: vec![],
-        });
+    if astro_to_withdraw.is_zero() {
+        return Err(StdError::generic_err("No unlocked ASTRO to be withdrawn"));
     }
+
+    msgs.push(WasmMsg::Execute {
+        contract_addr: config.astro_token.to_string(),
+        msg: to_binary(&Cw20ExecuteMsg::Transfer {
+            recipient: info.sender.to_string(),
+            amount: astro_to_withdraw,
+        })?,
+        funds: vec![],
+    });
 
     Ok(Response::new()
         .add_messages(msgs)
         .add_attribute("astro_withdrawn", astro_to_withdraw))
 }
 
-/// @dev Allows allocation receivers to terminate their ASTRO allocation
-fn execute_terminate(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Response> {
-    let config = CONFIG.load(deps.storage)?;
-    let mut params = PARAMS.load(deps.storage, &info.sender)?;
-
-    let timestamp = env.block.time.seconds();
-    let astro_vested =
-        helpers::compute_vested_or_unlocked_amount(timestamp, params.amount, &params.vest_schedule);
-
-    // Refund the unvested ASTRO tokens to owner
-    let astro_to_refund = params.amount - astro_vested;
-
-    // Set the total allocation amount to the current vested amount, and vesting end time
-    // to now. This will effectively end vesting and prevent more tokens to be vested
-    params.amount = astro_vested;
-    params.vest_schedule.duration = timestamp - params.vest_schedule.start_time;
-
-    PARAMS.save(deps.storage, &info.sender, &params)?;
-
-    let msg = WasmMsg::Execute {
-        contract_addr: config.astro_token.to_string(),
-        msg: to_binary(&Cw20ExecuteMsg::Transfer {
-            recipient: config.refund_recipient.to_string(),
-            amount: astro_to_refund,
-        })?,
-        funds: vec![],
-    };
-
-    Ok(Response::new()
-        .add_message(msg)
-        .add_attribute("astro_refunded", astro_to_refund)
-        .add_attribute("new_amount", params.amount)
-        .add_attribute(
-            "new_vest_duration",
-            format!("{}", params.vest_schedule.duration),
-        ))
-}
-
-/// @dev Admin function to update the owner / refund_recepient addresses
+/// @dev Admin function to update the owner
 fn execute_transfer_ownership(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    new_owner: String,
-    new_refund_recipient: String,
+    new_owner: Option<String>,
 ) -> StdResult<Response> {
     let mut config = CONFIG.load(deps.storage)?;
 
@@ -238,8 +216,9 @@ fn execute_transfer_ownership(
         return Err(StdError::generic_err("Only owner can transfer ownership"));
     }
 
-    config.owner = deps.api.addr_validate(&new_owner)?;
-    config.refund_recipient = deps.api.addr_validate(&new_refund_recipient)?;
+    if new_owner.is_some() {
+        config.owner = deps.api.addr_validate(&new_owner.unwrap())?;
+    }
 
     CONFIG.save(deps.storage, &config)?;
 
@@ -264,6 +243,15 @@ fn execute_propose_new_receiver(
             )));
         }
         None => {
+            let alloc_params_new_receiver = PARAMS
+                .may_load(deps.storage, &deps.api.addr_validate(&new_receiver)?)?
+                .unwrap_or_default();
+            if !alloc_params_new_receiver.amount.is_zero() {
+                return Err(StdError::generic_err(format!(
+                "Invalid new_receiver. Proposed receiver already has an ASTRO allocation of {} ASTRO",alloc_params_new_receiver.amount
+            )));
+            }
+
             alloc_params.proposed_receiver = Some(deps.api.addr_validate(&new_receiver)?);
             PARAMS.save(deps.storage, &info.sender, &alloc_params)?;
         }
@@ -275,11 +263,13 @@ fn execute_propose_new_receiver(
 }
 
 /// @dev Facilitates a user to drop the initially proposed receiver for his allocation
-fn execute_drope_new_receiver(deps: DepsMut, _env: Env, info: MessageInfo) -> StdResult<Response> {
+fn execute_drop_new_receiver(deps: DepsMut, _env: Env, info: MessageInfo) -> StdResult<Response> {
     let mut alloc_params = PARAMS.load(deps.storage, &info.sender)?;
+    let prev_proposed_receiver: Addr;
 
     match alloc_params.proposed_receiver {
-        Some(_) => {
+        Some(proposed_receiver) => {
+            prev_proposed_receiver = proposed_receiver;
             alloc_params.proposed_receiver = None;
             PARAMS.save(deps.storage, &info.sender, &alloc_params)?;
         }
@@ -290,13 +280,10 @@ fn execute_drope_new_receiver(deps: DepsMut, _env: Env, info: MessageInfo) -> St
 
     Ok(Response::new()
         .add_attribute("action", "DropNewReceiver")
-        .add_attribute(
-            "dropped_proposed_receiver",
-            alloc_params.proposed_receiver.unwrap(),
-        ))
+        .add_attribute("dropped_proposed_receiver", prev_proposed_receiver))
 }
 
-/// @dev Allows a proposed receiver of an auction to claim the ownership of that auction
+/// @dev Allows a proposed receiver of an allocation to claim the ownership of that allocation
 /// @params prev_receiver : User who proposed the info.sender as the proposed terra address to which the ownership of his allocation is to be transferred
 fn execute_claim_receiver(
     deps: DepsMut,
@@ -340,35 +327,69 @@ fn execute_claim_receiver(
 // Query Functions
 //----------------------------------------------------------------------------------------
 
-fn query_config(deps: Deps, _env: Env) -> StdResult<Config<Addr>> {
+/// @dev Config Query
+fn query_config(deps: Deps, _env: Env) -> StdResult<Config> {
     CONFIG.load(deps.storage)
 }
 
+/// @dev State Query
+pub fn query_state(deps: Deps) -> StdResult<StateResponse> {
+    let state = STATE.may_load(deps.storage)?.unwrap_or_default();
+    Ok(StateResponse {
+        total_astro_deposited: state.total_astro_deposited,
+        remaining_astro_tokens: state.remaining_astro_tokens,
+    })
+}
+
+/// @dev Allocation Query
 fn query_allocation(deps: Deps, _env: Env, account: String) -> StdResult<AllocationResponse> {
     let account_checked = deps.api.addr_validate(&account)?;
 
     Ok(AllocationResponse {
-        params: PARAMS.load(deps.storage, &account_checked)?,
-        status: STATUS.load(deps.storage, &account_checked)?,
+        params: PARAMS
+            .may_load(deps.storage, &account_checked)?
+            .unwrap_or_default(),
+        status: STATUS
+            .may_load(deps.storage, &account_checked)?
+            .unwrap_or_default(),
     })
 }
 
+fn query_tokens_unlocked(deps: Deps, env: Env, account: String) -> StdResult<Uint128> {
+    let account_checked = deps.api.addr_validate(&account)?;
+
+    let params = PARAMS.load(deps.storage, &account_checked)?;
+
+    Ok(helpers::compute_unlocked_amount(
+        env.block.time.seconds(),
+        params.amount,
+        &params.unlock_schedule,
+    ))
+}
+
+/// @dev Query function to fetch allocation state at any future timestamp
+/// @params account : Account address whose allocation state is to be calculated
+/// @params timestamp : Timestamp at which allocation state is to be calculated
 fn query_simulate_withdraw(
     deps: Deps,
     env: Env,
     account: String,
+    timestamp: Option<u64>,
 ) -> StdResult<SimulateWithdrawResponse> {
     let account_checked = deps.api.addr_validate(&account)?;
 
-    let config = CONFIG.load(deps.storage)?;
     let params = PARAMS.load(deps.storage, &account_checked)?;
     let mut status = STATUS.load(deps.storage, &account_checked)?;
 
-    Ok(helpers::compute_withdraw_amounts(
-        env.block.time.seconds(),
+    let timestamp_ = match timestamp {
+        Some(timestamp) => timestamp,
+        None => env.block.time.seconds(),
+    };
+
+    Ok(helpers::compute_withdraw_amount(
+        timestamp_,
         &params,
         &mut status,
-        config.default_unlock_schedule,
     ))
 }
 
@@ -387,51 +408,49 @@ mod helpers {
     use astroport_governance::astro_vesting::msg::SimulateWithdrawResponse;
     use astroport_governance::astro_vesting::{AllocationParams, AllocationStatus, Schedule};
 
-    use std::cmp;
-
-    pub fn compute_vested_or_unlocked_amount(
+    // Computes number of tokens that are now unlocked for a given allocation
+    pub fn compute_unlocked_amount(
         timestamp: u64,
         amount: Uint128,
         schedule: &Schedule,
     ) -> Uint128 {
-        // Before the end of cliff period, no token will be vested/unlocked
-        if timestamp < schedule.start_time + schedule.cliff {
+        // Tokens haven't begun unlocking
+        if timestamp < schedule.start_time {
             Uint128::zero()
-        // After the end of cliff, tokens vest/unlock linearly between start time and end time
-        } else if timestamp < schedule.start_time + schedule.duration {
+        }
+        // Tokens unlock linearly between start time and end time
+        else if timestamp < schedule.start_time + schedule.duration {
             amount.multiply_ratio(timestamp - schedule.start_time, schedule.duration)
-        // After end time, all tokens are fully vested/unlocked
-        } else {
+        }
+        // After end time, all tokens are fully unlocked
+        else {
             amount
         }
     }
 
-    pub fn compute_withdraw_amounts(
+    // Computes number of tokens that are withdrawable for a given allocation
+    pub fn compute_withdraw_amount(
         timestamp: u64,
         params: &AllocationParams,
         status: &mut AllocationStatus,
-        default_unlock_schedule: Schedule,
     ) -> SimulateWithdrawResponse {
-        let unlock_schedule = match &params.unlock_schedule {
-            Some(schedule) => schedule,
-            None => &default_unlock_schedule,
-        };
+        // Before the end of cliff period, no token can be withdrawn
+        if timestamp < (params.unlock_schedule.start_time + params.unlock_schedule.cliff) {
+            SimulateWithdrawResponse {
+                astro_to_withdraw: Uint128::zero(),
+            }
+        } else {
+            // "Unlocked" amount
+            let astro_unlocked =
+                compute_unlocked_amount(timestamp, params.amount, &params.unlock_schedule);
 
-        // "Free" amount is the smaller between vested amount and unlocked amount
-        let astro_vested =
-            compute_vested_or_unlocked_amount(timestamp, params.amount, &params.vest_schedule);
-        let astro_unlocked =
-            compute_vested_or_unlocked_amount(timestamp, params.amount, unlock_schedule);
+            // Withdrawable amount is unlocked amount minus the amount already withdrawn
+            let astro_withdrawable = astro_unlocked - status.astro_withdrawn;
+            status.astro_withdrawn += astro_withdrawable;
 
-        let astro_free = cmp::min(astro_vested, astro_unlocked);
-
-        // Withdrawable amount is unlocked amount minus the amount already withdrawn
-        let astro_withdrawable = astro_free - status.astro_withdrawn;
-
-        status.astro_withdrawn += astro_withdrawable;
-
-        SimulateWithdrawResponse {
-            astro_to_withdraw: astro_withdrawable,
+            SimulateWithdrawResponse {
+                astro_to_withdraw: astro_withdrawable,
+            }
         }
     }
 }

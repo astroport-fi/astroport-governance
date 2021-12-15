@@ -23,7 +23,7 @@
       "type": "object",
       "required": [
         "amount",
-        "vest_schedule"
+        "unlock_schedule"
       ],
       "properties": {
         "amount": {
@@ -46,18 +46,7 @@
           ]
         },
         "unlock_schedule": {
-          "description": "Parameters controlling the unlocking process If not provided, use `config.default_unlock_schedule`",
-          "anyOf": [
-            {
-              "$ref": "#/definitions/Schedule"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "vest_schedule": {
-          "description": "Parameters controlling the vesting process",
+          "description": "Parameters controlling the unlocking process",
           "allOf": [
             {
               "$ref": "#/definitions/Schedule"
@@ -91,19 +80,19 @@
       ],
       "properties": {
         "cliff": {
-          "description": "Number of seconds starting UST during which no token will be vested/unlocked",
+          "description": "Number of seconds starting UST during which no token will be unlocked",
           "type": "integer",
           "format": "uint64",
           "minimum": 0.0
         },
         "duration": {
-          "description": "Number of seconds taken since UST for tokens to be fully vested/unlocked",
+          "description": "Number of seconds taken since UST for tokens to be fully unlocked",
           "type": "integer",
           "format": "uint64",
           "minimum": 0.0
         },
         "start_time": {
-          "description": "Timestamp of when vesting/unlocking is to be started (in seconds)",
+          "description": "Timestamp of when unlocking is to be started (in seconds)",
           "type": "integer",
           "format": "uint64",
           "minimum": 0.0

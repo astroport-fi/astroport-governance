@@ -1,0 +1,19 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "InstantiateMsg",
+  "type": "object",
+  "required": [
+    "astro_token",
+    "owner"
+  ],
+  "properties": {
+    "astro_token": {
+      "description": "Address of ASTRO token",
+      "type": "string"
+    },
+    "owner": {
+      "description": "Account who can create new allocations",
+      "type": "string"
+    }
+  }
+}
