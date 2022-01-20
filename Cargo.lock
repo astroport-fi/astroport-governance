@@ -117,6 +117,7 @@ dependencies = [
 name = "astroport-voting-escrow"
 version = "1.0.0"
 dependencies = [
+ "anyhow",
  "astroport 1.1.0 (git+https://github.com/astroport-fi/astroport.git)",
  "astroport-governance",
  "astroport-staking",

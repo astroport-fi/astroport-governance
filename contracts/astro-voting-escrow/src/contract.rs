@@ -1,13 +1,12 @@
 use astroport::asset::addr_validate_to_lower;
-use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     from_binary, to_binary, Addr, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo,
-    Reply, ReplyOn, Response, StdError, StdResult, Storage, SubMsg, Timestamp, Uint128, WasmMsg,
+    Response, StdResult, Timestamp, WasmMsg,
 };
 use cw2::set_contract_version;
-use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg, MinterResponse};
+use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 
 use astroport_governance::astro_voting_escrow::{
     Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg, VotingPowerResponse,
@@ -15,7 +14,7 @@ use astroport_governance::astro_voting_escrow::{
 
 use crate::error::ContractError;
 use crate::state::{Config, History, Lock, Point, CONFIG, HISTORY, LOCKED};
-use crate::utils::{change_balance, time_limits_check, ChangeBalanceOp};
+use crate::utils::{get_current_period, get_total_deposit, get_unlock_period, xastro_token_check};
 
 /// Contract name that is used for migration.
 const CONTRACT_NAME: &str = "astro-voting-escrow";
@@ -57,7 +56,6 @@ pub fn instantiate(
     let config = Config {
         period: 0,
         xastro_token_addr: addr_validate_to_lower(deps.api, &msg.deposit_token_addr)?,
-        balance: Uint128::zero(),
     };
     CONFIG.save(deps.storage, &config)?;
 
@@ -90,8 +88,9 @@ pub fn execute(
             let user_addr = addr_validate_to_lower(deps.api, &user)?;
             checkpoint(Some(user_addr))
         }
-        ExecuteMsg::ExtendLockTime { time } => extend_lock_time(deps, info, time),
+        ExecuteMsg::ExtendLockTime { time } => extend_lock_time(deps, env, info, time),
         ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
+        ExecuteMsg::Withdraw {} => withdraw(deps, env, info),
     }
 }
 
@@ -114,30 +113,35 @@ fn receive_cw20(
     cw20_msg: Cw20ReceiveMsg,
 ) -> Result<Response, ContractError> {
     match from_binary(&cw20_msg.msg)? {
-        Cw20HookMsg::CreateLock { time } => create_lock(deps, info, cw20_msg.amount, time),
-        Cw20HookMsg::ExtendLockAmount {} => extend_lock_amount(deps, info, cw20_msg.amount),
-        Cw20HookMsg::Withdraw {} => withdraw(deps, env, info),
+        Cw20HookMsg::CreateLock { time } => create_lock(deps, env, info, cw20_msg, time),
+        Cw20HookMsg::ExtendLockAmount {} => extend_lock_amount(deps, info, cw20_msg),
     }
 }
 
-fn checkpoint(user: Option<Addr>) -> Result<Response, ContractError> {
+fn checkpoint(_user: Option<Addr>) -> Result<Response, ContractError> {
     todo!()
 }
 
 fn create_lock(
     deps: DepsMut,
+    env: Env,
     info: MessageInfo,
-    amount: Uint128,
+    cw20_msg: Cw20ReceiveMsg,
     time: Timestamp,
 ) -> Result<Response, ContractError> {
-    time_limits_check(&time)?;
-    LOCKED.update(deps.storage, info.sender, |lock_opt| {
+    xastro_token_check(deps.as_ref(), info.sender)?;
+    let period = get_unlock_period(env, &time)?;
+    let amount = cw20_msg.amount;
+    let user = addr_validate_to_lower(deps.as_ref().api, &cw20_msg.sender)?;
+    LOCKED.update(deps.storage, user, |lock_opt| {
         if lock_opt.is_some() {
             return Err(ContractError::LockAlreadyExists {});
         }
-        Ok(Lock { amount, time })
+        Ok(Lock {
+            amount,
+            final_period: period,
+        })
     })?;
-    change_balance(deps, ChangeBalanceOp::Add, amount)?;
 
     Ok(Response::default().add_attribute("action", "create_lock"))
 }
@@ -145,9 +149,12 @@ fn create_lock(
 fn extend_lock_amount(
     deps: DepsMut,
     info: MessageInfo,
-    amount: Uint128,
+    cw20_msg: Cw20ReceiveMsg,
 ) -> Result<Response, ContractError> {
-    LOCKED.update(deps.storage, info.sender, |lock_opt| {
+    xastro_token_check(deps.as_ref(), info.sender)?;
+    let amount = cw20_msg.amount;
+    let user = addr_validate_to_lower(deps.as_ref().api, &cw20_msg.sender)?;
+    LOCKED.update(deps.storage, user, |lock_opt| {
         if let Some(mut lock) = lock_opt {
             lock.amount += amount;
             Ok(lock)
@@ -155,7 +162,6 @@ fn extend_lock_amount(
             Err(ContractError::LockDoesntExist {})
         }
     })?;
-    change_balance(deps, ChangeBalanceOp::Add, amount)?;
 
     Ok(Response::default().add_attribute("action", "extend_lock_amount"))
 }
@@ -164,10 +170,11 @@ fn withdraw(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, Cont
     let sender = info.sender;
     let lock = LOCKED
         .may_load(deps.storage, sender.clone())?
-        .ok_or_else(|| ContractError::LockDoesntExist {})?;
+        .ok_or(ContractError::LockDoesntExist {})?;
 
-    if lock.time < env.block.time {
-        Err(ContractError::LockWasNotExpired {})
+    let cur_period = get_current_period(env);
+    if lock.final_period > cur_period {
+        Err(ContractError::LockHasNotExpired {})
     } else {
         let config = CONFIG.load(deps.storage)?;
         let transfer_msg = CosmosMsg::Wasm(WasmMsg::Execute {
@@ -179,7 +186,6 @@ fn withdraw(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, Cont
             funds: vec![],
         });
         LOCKED.remove(deps.storage, sender);
-        change_balance(deps, ChangeBalanceOp::Sub, lock.amount)?;
 
         Ok(Response::default()
             .add_message(transfer_msg)
@@ -189,14 +195,15 @@ fn withdraw(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, Cont
 
 fn extend_lock_time(
     deps: DepsMut,
+    env: Env,
     info: MessageInfo,
     time: Timestamp,
 ) -> Result<Response, ContractError> {
-    time_limits_check(&time)?;
+    let period = get_unlock_period(env, &time)?;
     LOCKED.update(deps.storage, info.sender, |lock_opt| {
         if let Some(mut lock) = lock_opt {
-            if lock.time < time {
-                lock.time = time;
+            if lock.final_period < period {
+                lock.final_period = period;
                 Ok(lock)
             } else {
                 Err(ContractError::LockTimeDecreaseError {})
@@ -227,9 +234,9 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     }
 }
 
-fn get_total_voting_power(deps: Deps, _env: Env) -> StdResult<VotingPowerResponse> {
-    let config = CONFIG.load(deps.storage)?;
-    let voting_power = Decimal::from_ratio(config.balance, MAX_LOCK_TIME);
+fn get_total_voting_power(deps: Deps, env: Env) -> StdResult<VotingPowerResponse> {
+    let total_deposit = get_total_deposit(deps, env)?;
+    let voting_power = Decimal::from_ratio(total_deposit, MAX_LOCK_TIME);
     Ok(VotingPowerResponse { voting_power })
 }
 

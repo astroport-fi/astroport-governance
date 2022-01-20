@@ -23,6 +23,6 @@ pub enum ContractError {
     #[error("Lock time cannot be reduced")]
     LockTimeDecreaseError {},
 
-    #[error("Lock time was not expired yet")]
-    LockWasNotExpired {},
+    #[error("The lock time has not yet expired")]
+    LockHasNotExpired {},
 }

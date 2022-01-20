@@ -39,3 +39,4 @@ cosmwasm-schema = { version = "0.16.0" }
 terra-multi-test = { git = "https://github.com/astroport-fi/terra-plus.git" }
 astroport-token = { git = "https://github.com/astroport-fi/astroport.git", package = "astroport-token" }
 astroport-staking = { git = "https://github.com/astroport-fi/astroport.git", package = "astroport-staking" }
+anyhow = "1"

@@ -1,14 +1,17 @@
 use astroport::{staking as xastro, token as astro};
 use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
 use cosmwasm_std::{attr, to_binary, Addr, QueryRequest, Timestamp, Uint128, WasmQuery};
-use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg, MinterResponse};
-use terra_multi_test::{AppBuilder, BankKeeper, ContractWrapper, Executor, TerraApp, TerraMock};
+use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
+use terra_multi_test::{
+    next_block, AppBuilder, AppResponse, BankKeeper, ContractWrapper, Executor, TerraApp, TerraMock,
+};
 
+use anyhow::Result;
 use astroport_governance::astro_voting_escrow::{
     Cw20HookMsg, ExecuteMsg, InstantiateMsg, QueryMsg, VotingPowerResponse,
 };
-use astroport_voting_escrow;
-use astroport_voting_escrow::contract::WEEK;
+
+use astroport_voting_escrow::contract::{MAX_LOCK_TIME, WEEK};
 
 fn mock_app() -> TerraApp {
     let env = mock_env();
@@ -26,106 +29,111 @@ fn mock_app() -> TerraApp {
         .build()
 }
 
-fn instantiate_contracts(router: &mut TerraApp, owner: Addr) -> (Addr, Addr, Addr) {
-    let astro_token_contract = Box::new(ContractWrapper::new_with_empty(
-        astroport_token::contract::execute,
-        astroport_token::contract::instantiate,
-        astroport_token::contract::query,
-    ));
+struct Helper {
+    pub owner: Addr,
+    pub astro_token: Addr,
+    pub staking_instance: Addr,
+    pub xastro_token: Addr,
+    pub voting_instance: Addr,
+}
 
-    let astro_token_code_id = router.store_code(astro_token_contract);
+impl Helper {
+    pub fn init(router: &mut TerraApp, owner: Addr) -> Self {
+        let astro_token_contract = Box::new(ContractWrapper::new_with_empty(
+            astroport_token::contract::execute,
+            astroport_token::contract::instantiate,
+            astroport_token::contract::query,
+        ));
 
-    let msg = astro::InstantiateMsg {
-        name: String::from("Astro token"),
-        symbol: String::from("ASTRO"),
-        decimals: 6,
-        initial_balances: vec![],
-        mint: Some(MinterResponse {
-            minter: owner.to_string(),
-            cap: None,
-        }),
-    };
+        let astro_token_code_id = router.store_code(astro_token_contract);
 
-    let astro_token_instance = router
-        .instantiate_contract(
-            astro_token_code_id,
-            owner.clone(),
-            &msg,
-            &[],
-            String::from("ASTRO"),
-            None,
-        )
-        .unwrap();
+        let msg = astro::InstantiateMsg {
+            name: String::from("Astro token"),
+            symbol: String::from("ASTRO"),
+            decimals: 6,
+            initial_balances: vec![],
+            mint: Some(MinterResponse {
+                minter: owner.to_string(),
+                cap: None,
+            }),
+        };
 
-    let staking_contract = Box::new(
-        ContractWrapper::new_with_empty(
-            astroport_staking::contract::execute,
-            astroport_staking::contract::instantiate,
-            astroport_staking::contract::query,
-        )
-        .with_reply_empty(astroport_staking::contract::reply),
-    );
+        let astro_token = router
+            .instantiate_contract(
+                astro_token_code_id,
+                owner.clone(),
+                &msg,
+                &[],
+                String::from("ASTRO"),
+                None,
+            )
+            .unwrap();
 
-    let staking_code_id = router.store_code(staking_contract);
+        let staking_contract = Box::new(
+            ContractWrapper::new_with_empty(
+                astroport_staking::contract::execute,
+                astroport_staking::contract::instantiate,
+                astroport_staking::contract::query,
+            )
+            .with_reply_empty(astroport_staking::contract::reply),
+        );
 
-    let msg = xastro::InstantiateMsg {
-        token_code_id: astro_token_code_id,
-        deposit_token_addr: astro_token_instance.to_string(),
-    };
-    let staking_instance = router
-        .instantiate_contract(
-            staking_code_id,
-            owner.clone(),
-            &msg,
-            &[],
-            String::from("xASTRO"),
-            None,
-        )
-        .unwrap();
+        let staking_code_id = router.store_code(staking_contract);
 
-    let res = router
-        .wrap()
-        .query::<xastro::ConfigResponse>(&QueryRequest::Wasm(WasmQuery::Smart {
-            contract_addr: staking_instance.to_string(),
-            msg: to_binary(&xastro::QueryMsg::Config {}).unwrap(),
-        }))
-        .unwrap();
+        let msg = xastro::InstantiateMsg {
+            token_code_id: astro_token_code_id,
+            deposit_token_addr: astro_token.to_string(),
+        };
+        let staking_instance = router
+            .instantiate_contract(
+                staking_code_id,
+                owner.clone(),
+                &msg,
+                &[],
+                String::from("xASTRO"),
+                None,
+            )
+            .unwrap();
 
-    let voting_contract = Box::new(
-        ContractWrapper::new_with_empty(
+        let res = router
+            .wrap()
+            .query::<xastro::ConfigResponse>(&QueryRequest::Wasm(WasmQuery::Smart {
+                contract_addr: staking_instance.to_string(),
+                msg: to_binary(&xastro::QueryMsg::Config {}).unwrap(),
+            }))
+            .unwrap();
+
+        let voting_contract = Box::new(ContractWrapper::new_with_empty(
             astroport_voting_escrow::contract::execute,
             astroport_voting_escrow::contract::instantiate,
             astroport_voting_escrow::contract::query,
-        )
-        .with_reply_empty(astroport_staking::contract::reply),
-    );
+        ));
 
-    let voting_code_id = router.store_code(voting_contract);
+        let voting_code_id = router.store_code(voting_contract);
 
-    let msg = InstantiateMsg {
-        deposit_token_addr: res.share_token_addr.to_string(),
-    };
-    let voting_instance = router
-        .instantiate_contract(
-            voting_code_id,
+        let msg = InstantiateMsg {
+            deposit_token_addr: res.share_token_addr.to_string(),
+        };
+        let voting_instance = router
+            .instantiate_contract(
+                voting_code_id,
+                owner.clone(),
+                &msg,
+                &[],
+                String::from("vxASTRO"),
+                None,
+            )
+            .unwrap();
+
+        Self {
             owner,
-            &msg,
-            &[],
-            String::from("vxASTRO"),
-            None,
-        )
-        .unwrap();
+            xastro_token: res.share_token_addr,
+            astro_token,
+            staking_instance,
+            voting_instance,
+        }
+    }
 
-    (voting_instance, astro_token_instance, staking_instance)
-}
-
-struct Minter {
-    owner: Addr,
-    astro_token: Addr,
-    staking_instance: Addr,
-}
-
-impl Minter {
     pub fn mint_xastro(&self, router: &mut TerraApp, to: &str, amount: u64) {
         let msg = cw20::Cw20ExecuteMsg::Mint {
             recipient: String::from(to),
@@ -151,44 +159,209 @@ impl Minter {
             .execute_contract(to_addr, self.astro_token.clone(), &msg, &[])
             .unwrap();
     }
+
+    pub fn check_xastro_balance(&self, router: &mut TerraApp, user: &str, amount: u64) {
+        let res: BalanceResponse = router
+            .wrap()
+            .query_wasm_smart(
+                self.xastro_token.clone(),
+                &Cw20QueryMsg::Balance {
+                    address: user.to_string(),
+                },
+            )
+            .unwrap();
+        assert_eq!(res.balance.u128(), amount as u128);
+    }
+
+    pub fn create_lock(
+        &self,
+        router: &mut TerraApp,
+        user: &str,
+        time: u64,
+        amount: u128,
+    ) -> Result<AppResponse> {
+        let cw20msg = Cw20ExecuteMsg::Send {
+            contract: self.voting_instance.to_string(),
+            amount: Uint128::from(amount),
+            msg: to_binary(&Cw20HookMsg::CreateLock {
+                time: Timestamp::from_seconds(time),
+            })
+            .unwrap(),
+        };
+        router.execute_contract(
+            Addr::unchecked(user),
+            self.xastro_token.clone(),
+            &cw20msg,
+            &[],
+        )
+    }
+
+    pub fn extend_lock_amount(
+        &self,
+        router: &mut TerraApp,
+        user: &str,
+        amount: u128,
+    ) -> Result<AppResponse> {
+        let cw20msg = Cw20ExecuteMsg::Send {
+            contract: self.voting_instance.to_string(),
+            amount: Uint128::from(amount),
+            msg: to_binary(&Cw20HookMsg::ExtendLockAmount {}).unwrap(),
+        };
+        router.execute_contract(
+            Addr::unchecked(user),
+            self.xastro_token.clone(),
+            &cw20msg,
+            &[],
+        )
+    }
+
+    pub fn extend_lock_time(
+        &self,
+        router: &mut TerraApp,
+        user: &str,
+        time: u64,
+    ) -> Result<AppResponse> {
+        router.execute_contract(
+            Addr::unchecked(user),
+            self.voting_instance.clone(),
+            &ExecuteMsg::ExtendLockTime {
+                time: Timestamp::from_seconds(time),
+            },
+            &[],
+        )
+    }
+
+    pub fn withdraw(&self, router: &mut TerraApp, user: &str) -> Result<AppResponse> {
+        router.execute_contract(
+            Addr::unchecked(user),
+            self.voting_instance.clone(),
+            &ExecuteMsg::Withdraw {},
+            &[],
+        )
+    }
 }
 
 #[test]
-fn proper_initialization() {
+fn lock_unlock_logic() {
     let mut router = mock_app();
+    let router_ref = &mut router;
     let owner = Addr::unchecked("owner");
-    let user = Addr::unchecked("user");
-    let (voting_instance, astro_token, staking_instance) =
-        instantiate_contracts(&mut router, owner.clone());
+    let helper = Helper::init(router_ref, owner);
 
-    let minter = Minter {
-        owner: owner.clone(),
-        astro_token,
-        staking_instance,
-    };
+    // mint ASTRO, stake it and mint xASTRO
+    helper.mint_xastro(router_ref, "user", 100);
+    helper.check_xastro_balance(router_ref, "user", 100);
 
-    minter.mint_xastro(&mut router, "user", 100);
+    // creating invalid voting escrow lock
+    let res = helper
+        .create_lock(router_ref, "user", WEEK - 1, 1)
+        .unwrap_err();
+    assert_eq!(
+        res.to_string(),
+        "Lock time must be within the limits (week <= lock time < 2 years)"
+    );
+    let res = helper
+        .create_lock(router_ref, "user", MAX_LOCK_TIME + 1, 1)
+        .unwrap_err();
+    assert_eq!(
+        res.to_string(),
+        "Lock time must be within the limits (week <= lock time < 2 years)"
+    );
+    let res = helper
+        .create_lock(router_ref, "user", WEEK, 101)
+        .unwrap_err();
+    assert_eq!(res.to_string(), "Overflow: Cannot Sub with 100 and 101");
 
-    let cw20msg = Cw20ReceiveMsg {
-        sender: "user".to_string(),
-        amount: Uint128::from(100_u128),
-        msg: to_binary(&Cw20HookMsg::CreateLock {
-            time: Timestamp::from_seconds(WEEK * 3),
-        })
-        .unwrap(),
-    };
-    router
-        .execute_contract(
-            user.clone(),
-            voting_instance.clone(),
-            &ExecuteMsg::Receive(cw20msg),
-            &[],
-        )
+    // trying to increase lock's time which does not exist
+    let res = helper
+        .extend_lock_time(router_ref, "user", MAX_LOCK_TIME)
+        .unwrap_err();
+    assert_eq!(res.to_string(), "Lock does not exist");
+
+    // trying to withdraw from non-existent lock
+    let res = helper.withdraw(router_ref, "user").unwrap_err();
+    assert_eq!(res.to_string(), "Lock does not exist");
+
+    // trying to extend lock amount which does not exist
+    let res = helper
+        .extend_lock_amount(router_ref, "user", 1)
+        .unwrap_err();
+    assert_eq!(res.to_string(), "Lock does not exist");
+
+    // creating valid voting escrow lock
+    helper
+        .create_lock(router_ref, "user", WEEK * 2, 90)
         .unwrap();
+    // check that 90 xASTRO were actually debited
+    helper.check_xastro_balance(router_ref, "user", 10);
+    helper.check_xastro_balance(router_ref, helper.voting_instance.as_str(), 90);
+
+    // a user can have only one position in vxASTRO
+    let res = helper
+        .create_lock(router_ref, "user", MAX_LOCK_TIME, 1)
+        .unwrap_err();
+    assert_eq!(res.to_string(), "Lock already exists");
+
+    // adding more xASTRO to existing lock
+    helper.extend_lock_amount(router_ref, "user", 10).unwrap();
+    helper.check_xastro_balance(router_ref, "user", 0);
+    helper.check_xastro_balance(router_ref, helper.voting_instance.as_str(), 100);
+
+    // trying to reduce lock's time
+    let res = helper
+        .extend_lock_time(router_ref, "user", WEEK)
+        .unwrap_err();
+    assert_eq!(res.to_string(), "Lock time cannot be reduced");
+
+    // trying to withdraw from non-expired lock
+    let res = helper.withdraw(router_ref, "user").unwrap_err();
+    assert_eq!(res.to_string(), "The lock time has not yet expired");
+
+    // going to the future
+    router_ref.update_block(next_block);
+    router_ref.update_block(|block| block.time = block.time.plus_seconds(WEEK));
+
+    // but still lock has not yet expired since we locked for 2 weeks
+    let res = helper.withdraw(router_ref, "user").unwrap_err();
+    assert_eq!(res.to_string(), "The lock time has not yet expired");
+
+    // going to the future again
+    router_ref.update_block(next_block);
+    router_ref.update_block(|block| block.time = block.time.plus_seconds(WEEK));
+
+    // time has passed so we can withdraw
+    helper.withdraw(router_ref, "user").unwrap();
+    helper.check_xastro_balance(router_ref, "user", 100);
+    helper.check_xastro_balance(router_ref, helper.voting_instance.as_str(), 0);
+
+    // check that the lock has disappeared
+    let res = helper
+        .extend_lock_amount(router_ref, "user", 1)
+        .unwrap_err();
+    assert_eq!(res.to_string(), "Lock does not exist");
+}
+
+#[test]
+#[ignore]
+// TODO: to implement voting math test
+fn voting_math() {
+    let mut router = mock_app();
+    let router_ref = &mut router;
+    let owner = Addr::unchecked("owner");
+    let helper = Helper::init(router_ref, owner);
+
+    // mint ASTRO, stake it and mint xASTRO
+    helper.mint_xastro(router_ref, "user", 100);
+    helper.check_xastro_balance(router_ref, "user", 100);
+
+    helper.create_lock(router_ref, "user", WEEK, 50).unwrap();
 
     let res: VotingPowerResponse = router
         .wrap()
-        .query_wasm_smart(voting_instance.clone(), &QueryMsg::TotalVotingPower {})
+        .query_wasm_smart(
+            helper.voting_instance.clone(),
+            &QueryMsg::TotalVotingPower {},
+        )
         .unwrap();
 
     dbg!(res);

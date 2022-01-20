@@ -10,8 +10,6 @@ pub struct Config {
     pub period: u64,
     /// the xASTRO token contract address
     pub xastro_token_addr: Addr,
-    /// total xASTRO locked balance
-    pub balance: Uint128,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -36,7 +34,7 @@ impl Point {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Lock {
     pub amount: Uint128,
-    pub time: Timestamp,
+    pub final_period: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

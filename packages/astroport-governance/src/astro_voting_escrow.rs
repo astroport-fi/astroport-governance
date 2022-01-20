@@ -25,6 +25,7 @@ pub enum ExecuteMsg {
     /// Receives a message of type [`Cw20ReceiveMsg`] and processes it depending on the received
     /// template.
     Receive(Cw20ReceiveMsg),
+    Withdraw {},
 }
 
 /// ## Description
@@ -34,7 +35,6 @@ pub enum ExecuteMsg {
 pub enum Cw20HookMsg {
     CreateLock { time: Timestamp },
     ExtendLockAmount {},
-    Withdraw {},
 }
 
 /// ## Description
