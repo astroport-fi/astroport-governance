@@ -1,10 +1,9 @@
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
-use astroport_governance::astro_vesting::{AllocationParams, Schedule};
-
 use astroport_governance::astro_vesting::msg::{
     AllocationResponse, ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg, ReceiveMsg,
     SimulateWithdrawResponse, StateResponse,
 };
+use astroport_governance::astro_vesting::{AllocationParams, Schedule};
 use cosmwasm_std::testing::{mock_env, MockApi, MockQuerier, MockStorage};
 use cosmwasm_std::{attr, to_binary, Addr, Timestamp, Uint128};
 use cw20::BalanceResponse;
