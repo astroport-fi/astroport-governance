@@ -1,6 +1,7 @@
 pub mod asset;
 pub mod astro_vesting;
 pub mod querier;
+pub mod astro_voting_escrow;
 
 #[allow(clippy::all)]
 mod uints {

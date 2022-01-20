@@ -1,0 +1,19 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Description",
+  "description": "This structure describes the query messages of the contract.",
+  "oneOf": [
+    {
+      "type": "object",
+      "required": [
+        "total_voting_power"
+      ],
+      "properties": {
+        "total_voting_power": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
+    }
+  ]
+}

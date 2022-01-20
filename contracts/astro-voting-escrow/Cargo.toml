@@ -1,0 +1,41 @@
+[package]
+name = "astroport-voting-escrow"
+version = "1.0.0"
+authors = ["Astroport"]
+edition = "2018"
+repository = "https://github.com/astroport-fi/astroport-governance"
+homepage = "https://astroport.fi"
+
+exclude = [
+    # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
+    "contract.wasm",
+    "hash.txt",
+]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+# for quicker tests, cargo test --lib
+# for more explicit tests, cargo test --features=backtraces
+backtraces = ["cosmwasm-std/backtraces"]
+
+[dependencies]
+cw2 = "0.8"
+cw20 = "0.8"
+cosmwasm-std = { version = "0.16" }
+cw-storage-plus = { version = "0.8.0", features = ["iterator"] }
+schemars = "0.8.1"
+serde = { version = "1.0.103", default-features = false, features = ["derive"] }
+terra-cosmwasm = { version = "2.2.0" }
+thiserror = { version = "1.0.20" }
+astroport-governance = { path = "../../packages/astroport-governance", default-features = false, version = "1.0.0" }
+astroport = { git = "https://github.com/astroport-fi/astroport.git", package = "astroport" }
+
+[dev-dependencies]
+cosmwasm-schema = { version = "0.16.0" }
+terra-multi-test = { git = "https://github.com/astroport-fi/terra-plus.git" }
+astroport-token = { git = "https://github.com/astroport-fi/astroport.git", package = "astroport-token" }
+astroport-staking = { git = "https://github.com/astroport-fi/astroport.git", package = "astroport-staking" }
