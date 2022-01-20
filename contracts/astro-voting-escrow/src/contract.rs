@@ -15,7 +15,7 @@ use astroport_governance::astro_voting_escrow::{
 
 use crate::error::ContractError;
 use crate::state::{Config, History, Lock, Point, CONFIG, HISTORY, LOCKED};
-use crate::utils::{change_balance, ChangeBalanceOp};
+use crate::utils::{change_balance, time_limits_check, ChangeBalanceOp};
 
 /// Contract name that is used for migration.
 const CONTRACT_NAME: &str = "astro-voting-escrow";
@@ -23,7 +23,7 @@ const CONTRACT_NAME: &str = "astro-voting-escrow";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub const WEEK: u64 = 7 * 86400; // lock period is rounded down by week
-const MAX_LOCK_TIME: u128 = 2 * 365 * 86400; // 2 years
+pub const MAX_LOCK_TIME: u64 = 2 * 365 * 86400; // 2 years
 pub const PRECISION: u8 = 18; // precision for floating point operations
 
 /// ## Description
@@ -130,6 +130,7 @@ fn create_lock(
     amount: Uint128,
     time: Timestamp,
 ) -> Result<Response, ContractError> {
+    time_limits_check(&time)?;
     LOCKED.update(deps.storage, info.sender, |lock_opt| {
         if lock_opt.is_some() {
             return Err(ContractError::LockAlreadyExists {});
@@ -191,6 +192,7 @@ fn extend_lock_time(
     info: MessageInfo,
     time: Timestamp,
 ) -> Result<Response, ContractError> {
+    time_limits_check(&time)?;
     LOCKED.update(deps.storage, info.sender, |lock_opt| {
         if let Some(mut lock) = lock_opt {
             if lock.time < time {
