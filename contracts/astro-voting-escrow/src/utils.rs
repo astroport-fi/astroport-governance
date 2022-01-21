@@ -1,20 +1,15 @@
 use crate::contract::{MAX_LOCK_TIME, WEEK};
 use crate::error::ContractError;
-use cosmwasm_std::{Addr, Deps, Env, StdResult, Timestamp, Uint128};
+use cosmwasm_std::{Addr, Deps, Env, StdResult, Uint128};
 use cw20::{BalanceResponse, Cw20QueryMsg};
 
 use crate::state::CONFIG;
 
-pub(crate) fn get_current_period(env: Env) -> u64 {
-    env.block.time.seconds() / WEEK
-}
-
-pub(crate) fn get_unlock_period(env: Env, time: &Timestamp) -> Result<u64, ContractError> {
-    if time.seconds() < WEEK || time.seconds() > MAX_LOCK_TIME {
+pub(crate) fn time_limits_check(time: u64) -> Result<(), ContractError> {
+    if !(WEEK..=MAX_LOCK_TIME).contains(&time) {
         Err(ContractError::LockTimeLimitsError {})
     } else {
-        let final_period = get_current_period(env) + time.seconds() / WEEK;
-        Ok(final_period)
+        Ok(())
     }
 }
 

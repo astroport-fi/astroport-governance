@@ -1,6 +1,6 @@
 use astroport::{staking as xastro, token as astro};
 use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
-use cosmwasm_std::{attr, to_binary, Addr, QueryRequest, Timestamp, Uint128, WasmQuery};
+use cosmwasm_std::{attr, to_binary, Addr, QueryRequest, Uint128, WasmQuery};
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
 use terra_multi_test::{
     next_block, AppBuilder, AppResponse, BankKeeper, ContractWrapper, Executor, TerraApp, TerraMock,
@@ -183,10 +183,7 @@ impl Helper {
         let cw20msg = Cw20ExecuteMsg::Send {
             contract: self.voting_instance.to_string(),
             amount: Uint128::from(amount),
-            msg: to_binary(&Cw20HookMsg::CreateLock {
-                time: Timestamp::from_seconds(time),
-            })
-            .unwrap(),
+            msg: to_binary(&Cw20HookMsg::CreateLock { time }).unwrap(),
         };
         router.execute_contract(
             Addr::unchecked(user),
@@ -224,9 +221,7 @@ impl Helper {
         router.execute_contract(
             Addr::unchecked(user),
             self.voting_instance.clone(),
-            &ExecuteMsg::ExtendLockTime {
-                time: Timestamp::from_seconds(time),
-            },
+            &ExecuteMsg::ExtendLockTime { time },
             &[],
         )
     }
@@ -307,12 +302,6 @@ fn lock_unlock_logic() {
     helper.check_xastro_balance(router_ref, "user", 0);
     helper.check_xastro_balance(router_ref, helper.voting_instance.as_str(), 100);
 
-    // trying to reduce lock's time
-    let res = helper
-        .extend_lock_time(router_ref, "user", WEEK)
-        .unwrap_err();
-    assert_eq!(res.to_string(), "Lock time cannot be reduced");
-
     // trying to withdraw from non-expired lock
     let res = helper.withdraw(router_ref, "user").unwrap_err();
     assert_eq!(res.to_string(), "The lock time has not yet expired");
@@ -389,10 +378,7 @@ fn random_token_lock() {
     let cw20msg = Cw20ExecuteMsg::Send {
         contract: helper.voting_instance.to_string(),
         amount: Uint128::from(10_u128),
-        msg: to_binary(&Cw20HookMsg::CreateLock {
-            time: Timestamp::from_seconds(WEEK),
-        })
-        .unwrap(),
+        msg: to_binary(&Cw20HookMsg::CreateLock { time: WEEK }).unwrap(),
     };
     let res = router
         .execute_contract(Addr::unchecked("user"), random_token, &cw20msg, &[])

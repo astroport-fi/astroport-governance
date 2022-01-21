@@ -1,4 +1,4 @@
-use cosmwasm_std::{Decimal, Timestamp};
+use cosmwasm_std::Decimal;
 use cw20::Cw20ReceiveMsg;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -20,7 +20,7 @@ pub enum ExecuteMsg {
         user: String,
     },
     ExtendLockTime {
-        time: Timestamp,
+        time: u64,
     },
     /// Receives a message of type [`Cw20ReceiveMsg`] and processes it depending on the received
     /// template.
@@ -33,7 +33,7 @@ pub enum ExecuteMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum Cw20HookMsg {
-    CreateLock { time: Timestamp },
+    CreateLock { time: u64 },
     ExtendLockAmount {},
 }
 

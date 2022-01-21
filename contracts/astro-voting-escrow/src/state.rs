@@ -34,7 +34,7 @@ impl Point {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Lock {
     pub amount: Uint128,
-    pub final_period: u64,
+    pub end: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

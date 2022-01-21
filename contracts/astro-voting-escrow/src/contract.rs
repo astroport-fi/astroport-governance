@@ -3,7 +3,7 @@ use astroport::asset::addr_validate_to_lower;
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     from_binary, to_binary, Addr, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo,
-    Response, StdResult, Timestamp, WasmMsg,
+    Response, StdResult, WasmMsg,
 };
 use cw2::set_contract_version;
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
@@ -14,7 +14,7 @@ use astroport_governance::astro_voting_escrow::{
 
 use crate::error::ContractError;
 use crate::state::{Config, History, Lock, Point, CONFIG, HISTORY, LOCKED};
-use crate::utils::{get_current_period, get_total_deposit, get_unlock_period, xastro_token_check};
+use crate::utils::{get_total_deposit, time_limits_check, xastro_token_check};
 
 /// Contract name that is used for migration.
 const CONTRACT_NAME: &str = "astro-voting-escrow";
@@ -127,10 +127,10 @@ fn create_lock(
     env: Env,
     info: MessageInfo,
     cw20_msg: Cw20ReceiveMsg,
-    time: Timestamp,
+    time: u64,
 ) -> Result<Response, ContractError> {
     xastro_token_check(deps.as_ref(), info.sender)?;
-    let period = get_unlock_period(env, &time)?;
+    time_limits_check(time)?;
     let amount = cw20_msg.amount;
     let user = addr_validate_to_lower(deps.as_ref().api, &cw20_msg.sender)?;
     LOCKED.update(deps.storage, user, |lock_opt| {
@@ -139,7 +139,7 @@ fn create_lock(
         }
         Ok(Lock {
             amount,
-            final_period: period,
+            end: env.block.time.seconds() + time,
         })
     })?;
 
@@ -172,8 +172,7 @@ fn withdraw(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, Cont
         .may_load(deps.storage, sender.clone())?
         .ok_or(ContractError::LockDoesntExist {})?;
 
-    let cur_period = get_current_period(env);
-    if lock.final_period > cur_period {
+    if lock.end > env.block.time.seconds() {
         Err(ContractError::LockHasNotExpired {})
     } else {
         let config = CONFIG.load(deps.storage)?;
@@ -197,17 +196,16 @@ fn extend_lock_time(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    time: Timestamp,
+    time: u64,
 ) -> Result<Response, ContractError> {
-    let period = get_unlock_period(env, &time)?;
+    // disabling ability to extend lock time by less than a week
+    time_limits_check(time)?;
     LOCKED.update(deps.storage, info.sender, |lock_opt| {
         if let Some(mut lock) = lock_opt {
-            if lock.final_period < period {
-                lock.final_period = period;
-                Ok(lock)
-            } else {
-                Err(ContractError::LockTimeDecreaseError {})
-            }
+            lock.end += time;
+            // should not exceed MAX_LOCK_TIME
+            time_limits_check(lock.end - env.block.time.seconds())?;
+            Ok(lock)
         } else {
             Err(ContractError::LockDoesntExist {})
         }
