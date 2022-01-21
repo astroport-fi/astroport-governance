@@ -297,6 +297,25 @@ fn lock_unlock_logic() {
         .unwrap_err();
     assert_eq!(res.to_string(), "Lock already exists");
 
+    // trying to increase lock time by time less than a week
+    let res = helper
+        .extend_lock_time(router_ref, "user", 86400)
+        .unwrap_err();
+    assert_eq!(
+        res.to_string(),
+        "Lock time must be within the limits (week <= lock time < 2 years)"
+    );
+
+    // trying to exceed MAX_LOCK_TIME by increasing lock time
+    // we locked for 2 weeks so increasing by MAX_LOCK_TIME - 2 weeks + 1 is impossible
+    let res = helper
+        .extend_lock_time(router_ref, "user", MAX_LOCK_TIME - 2 * WEEK + 1)
+        .unwrap_err();
+    assert_eq!(
+        res.to_string(),
+        "Lock time must be within the limits (week <= lock time < 2 years)"
+    );
+
     // adding more xASTRO to existing lock
     helper.extend_lock_amount(router_ref, "user", 10).unwrap();
     helper.check_xastro_balance(router_ref, "user", 0);
