@@ -342,6 +342,66 @@ fn lock_unlock_logic() {
 }
 
 #[test]
+fn random_token_lock() {
+    let mut router = mock_app();
+    let router_ref = &mut router;
+    let owner = Addr::unchecked("owner");
+    let helper = Helper::init(router_ref, owner);
+
+    let random_token_contract = Box::new(ContractWrapper::new_with_empty(
+        astroport_token::contract::execute,
+        astroport_token::contract::instantiate,
+        astroport_token::contract::query,
+    ));
+    let random_token_code_id = router.store_code(random_token_contract);
+
+    let msg = astro::InstantiateMsg {
+        name: String::from("Random token"),
+        symbol: String::from("FOO"),
+        decimals: 6,
+        initial_balances: vec![],
+        mint: Some(MinterResponse {
+            minter: helper.owner.to_string(),
+            cap: None,
+        }),
+    };
+
+    let random_token = router
+        .instantiate_contract(
+            random_token_code_id,
+            helper.owner.clone(),
+            &msg,
+            &[],
+            String::from("FOO"),
+            None,
+        )
+        .unwrap();
+
+    let msg = cw20::Cw20ExecuteMsg::Mint {
+        recipient: String::from("user"),
+        amount: Uint128::from(100_u128),
+    };
+
+    router
+        .execute_contract(helper.owner.clone(), random_token.clone(), &msg, &[])
+        .unwrap();
+
+    let cw20msg = Cw20ExecuteMsg::Send {
+        contract: helper.voting_instance.to_string(),
+        amount: Uint128::from(10_u128),
+        msg: to_binary(&Cw20HookMsg::CreateLock {
+            time: Timestamp::from_seconds(WEEK),
+        })
+        .unwrap(),
+    };
+    let res = router
+        .execute_contract(Addr::unchecked("user"), random_token, &cw20msg, &[])
+        .unwrap_err();
+
+    assert_eq!(res.to_string(), "Unauthorized");
+}
+
+#[test]
 #[ignore]
 // TODO: to implement voting math test
 fn voting_math() {
