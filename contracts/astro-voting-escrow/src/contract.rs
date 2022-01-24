@@ -78,10 +78,6 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::CheckpointTotal {} => {
-            checkpoint(deps, env, None, None, None)?;
-            Ok(Response::default().add_attribute("action", "checkpoint"))
-        }
         ExecuteMsg::ExtendLockTime { time } => extend_lock_time(deps, env, info, time),
         ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
         ExecuteMsg::Withdraw {} => withdraw(deps, env, info),
@@ -91,13 +87,12 @@ pub fn execute(
 fn checkpoint(
     deps: DepsMut,
     env: Env,
-    user: Option<Addr>,
+    user: Addr,
     add_amount: Option<Uint128>,
     add_time: Option<u64>,
 ) -> StdResult<()> {
     let cur_period = get_period(env.block.time.seconds());
     let cur_period_key = U64Key::new(cur_period);
-    let user = user.unwrap_or(env.contract.address);
 
     // get last checkpoint
     let last_checkpoint = HISTORY
@@ -172,7 +167,7 @@ fn create_lock(
             end: env.block.time.seconds() + time,
         })
     })?;
-    checkpoint(deps, env, Some(user), Some(amount), Some(time))?;
+    checkpoint(deps, env, user, Some(amount), Some(time))?;
 
     Ok(Response::default().add_attribute("action", "create_lock"))
 }
@@ -194,7 +189,7 @@ fn extend_lock_amount(
             Err(ContractError::LockDoesntExist {})
         }
     })?;
-    checkpoint(deps, env, Some(user), Some(amount), None)?;
+    checkpoint(deps, env, user, Some(amount), None)?;
 
     Ok(Response::default().add_attribute("action", "extend_lock_amount"))
 }
@@ -219,7 +214,7 @@ fn withdraw(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, Cont
         });
         LOCKED.remove(deps.storage, sender.clone());
 
-        checkpoint(deps, env, Some(sender), Some(Uint128::zero()), None)?;
+        checkpoint(deps, env, sender, Some(Uint128::zero()), None)?;
 
         Ok(Response::default()
             .add_message(transfer_msg)
@@ -247,7 +242,7 @@ fn extend_lock_time(
         }
     })?;
 
-    checkpoint(deps, env, Some(user), None, Some(time))?;
+    checkpoint(deps, env, user, None, Some(time))?;
 
     Ok(Response::default().add_attribute("action", "extend_lock_time"))
 }
