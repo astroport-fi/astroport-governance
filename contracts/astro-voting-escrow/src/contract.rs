@@ -25,7 +25,6 @@ const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub const WEEK: u64 = 7 * 86400; // lock period is rounded down by week
 pub const MAX_LOCK_TIME: u64 = 2 * 365 * 86400; // 2 years
-pub const PRECISION: u8 = 18; // precision for floating point operations
 
 /// ## Description
 /// Creates a new contract with the specified parameters in the [`InstantiateMsg`].
@@ -48,7 +47,6 @@ pub fn instantiate(
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     let config = Config {
-        period: 0,
         xastro_token_addr: addr_validate_to_lower(deps.api, &msg.deposit_token_addr)?,
     };
     CONFIG.save(deps.storage, &config)?;
@@ -100,7 +98,7 @@ fn checkpoint(
             deps.as_ref().storage,
             None,
             Some(Bound::Inclusive(cur_period_key.wrapped.clone())),
-            Order::Descending,
+            Order::Ascending,
         )
         .last();
     let block_time = env.block.time.seconds();
@@ -112,7 +110,7 @@ fn checkpoint(
             end = max(lock.end, end);
         };
         Lock {
-            power: calc_voting_power(lock.clone(), cur_period) + add_amount.unwrap_or_default(),
+            power: calc_voting_power(lock, cur_period) + add_amount.unwrap_or_default(),
             end,
             start: block_time,
         }
@@ -290,7 +288,7 @@ fn get_user_voting_power(deps: Deps, env: Env, user: String) -> StdResult<Voting
     let cur_period_key = U64Key::new(cur_period);
 
     let last_checkpoint = HISTORY
-        .prefix(user.clone())
+        .prefix(user)
         .range(
             deps.storage,
             None,

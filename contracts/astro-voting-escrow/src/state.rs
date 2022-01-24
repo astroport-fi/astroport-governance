@@ -7,7 +7,6 @@ use serde::{Deserialize, Serialize};
 /// This structure describes the main control config of maker.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
-    pub period: u64,
     /// the xASTRO token contract address
     pub xastro_token_addr: Addr,
 }
