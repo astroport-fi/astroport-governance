@@ -40,7 +40,7 @@ pub(crate) fn calc_voting_power(lock: Lock, cur_period: u64) -> Uint128 {
 /// * **deps** is the object of type [`Deps`].
 ///
 /// * **env** is the object of type [`Env`].
-pub fn get_total_deposit(deps: Deps, env: Env) -> StdResult<Uint128> {
+pub fn _get_total_deposit(deps: Deps, env: Env) -> StdResult<Uint128> {
     let config = CONFIG.load(deps.storage)?;
     let result: BalanceResponse = deps.querier.query_wasm_smart(
         &config.xastro_token_addr,

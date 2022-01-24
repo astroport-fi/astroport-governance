@@ -8,6 +8,7 @@ use cosmwasm_std::{
 use cw2::set_contract_version;
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 use cw_storage_plus::{Bound, U64Key};
+use std::cmp::max;
 
 use astroport_governance::astro_voting_escrow::{
     Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg, VotingPowerResponse,
@@ -15,9 +16,7 @@ use astroport_governance::astro_voting_escrow::{
 
 use crate::error::ContractError;
 use crate::state::{Config, Lock, CONFIG, HISTORY, LOCKED};
-use crate::utils::{
-    calc_voting_power, get_period, get_total_deposit, time_limits_check, xastro_token_check,
-};
+use crate::utils::{calc_voting_power, get_period, time_limits_check, xastro_token_check};
 
 /// Contract name that is used for migration.
 const CONTRACT_NAME: &str = "astro-voting-escrow";
@@ -87,16 +86,16 @@ pub fn execute(
 fn checkpoint(
     deps: DepsMut,
     env: Env,
-    user: Addr,
+    addr: Addr,
     add_amount: Option<Uint128>,
-    add_time: Option<u64>,
+    new_end: Option<u64>,
 ) -> StdResult<()> {
     let cur_period = get_period(env.block.time.seconds());
     let cur_period_key = U64Key::new(cur_period);
 
     // get last checkpoint
     let last_checkpoint = HISTORY
-        .prefix(user.clone())
+        .prefix(addr.clone())
         .range(
             deps.as_ref().storage,
             None,
@@ -107,19 +106,34 @@ fn checkpoint(
     let block_time = env.block.time.seconds();
     let new_lock = if let Some(storage_result) = last_checkpoint {
         let (_, lock) = storage_result?;
+        // if this is checkpoint for total VP then lock.end is equal to the latest lock in the contract
+        let mut end = new_end.unwrap_or(block_time);
+        if addr == env.contract.address {
+            end = max(lock.end, end);
+        };
         Lock {
             power: calc_voting_power(lock.clone(), cur_period) + add_amount.unwrap_or_default(),
-            end: lock.end + add_time.unwrap_or(0),
+            end,
             start: block_time,
         }
     } else {
+        // this error can't happen since this if-branch is intended for checkpoint creation
+        let end =
+            new_end.ok_or_else(|| StdError::generic_err("Checkpoint initialization error"))?;
         Lock {
             power: add_amount.unwrap_or_default(),
-            end: block_time + add_time.unwrap_or(MAX_LOCK_TIME), // TODO: should we fix it?
+            end,
             start: block_time,
         }
     };
-    HISTORY.save(deps.storage, (user, cur_period_key), &new_lock)
+    HISTORY.save(deps.storage, (addr.clone(), cur_period_key), &new_lock)?;
+    let contract_addr = env.contract.address.clone();
+    if addr != contract_addr {
+        // checkpointing total voting power parameters
+        checkpoint(deps, env, contract_addr, add_amount, new_end)
+    } else {
+        Ok(())
+    }
 }
 
 /// ## Description
@@ -157,17 +171,21 @@ fn create_lock(
     time_limits_check(time)?;
     let amount = cw20_msg.amount;
     let user = addr_validate_to_lower(deps.as_ref().api, &cw20_msg.sender)?;
+    let block_time = env.block.time.seconds();
+    let end = block_time + time;
+
     LOCKED.update(deps.storage, user.clone(), |lock_opt| {
         if lock_opt.is_some() {
             return Err(ContractError::LockAlreadyExists {});
         }
         Ok(Lock {
             power: amount,
-            start: env.block.time.seconds(),
-            end: env.block.time.seconds() + time,
+            start: block_time,
+            end,
         })
     })?;
-    checkpoint(deps, env, user, Some(amount), Some(time))?;
+
+    checkpoint(deps, env, user, Some(amount), Some(end))?;
 
     Ok(Response::default().add_attribute("action", "create_lock"))
 }
@@ -231,18 +249,15 @@ fn extend_lock_time(
     // disabling ability to extend lock time by less than a week
     time_limits_check(time)?;
     let user = info.sender;
-    LOCKED.update(deps.storage, user.clone(), |lock_opt| {
-        if let Some(mut lock) = lock_opt {
-            lock.end += time;
-            // should not exceed MAX_LOCK_TIME
-            time_limits_check(lock.end - env.block.time.seconds())?;
-            Ok(lock)
-        } else {
-            Err(ContractError::LockDoesntExist {})
-        }
-    })?;
+    let mut lock = LOCKED
+        .load(deps.storage, user.clone())
+        .map_err(|_| ContractError::LockDoesntExist {})?;
+    lock.end += time;
+    // should not exceed MAX_LOCK_TIME
+    time_limits_check(lock.end - env.block.time.seconds())?;
+    LOCKED.save(deps.storage, user.clone(), &lock)?;
 
-    checkpoint(deps, env, user, None, Some(time))?;
+    checkpoint(deps, env, user, None, Some(lock.end))?;
 
     Ok(Response::default().add_attribute("action", "extend_lock_time"))
 }
@@ -261,15 +276,12 @@ fn extend_lock_time(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::TotalVotingPower {} => to_binary(&get_total_voting_power(deps, env)?),
+        QueryMsg::TotalVotingPower {} => {
+            let contract_addr = env.contract.address.to_string();
+            to_binary(&get_user_voting_power(deps, env, contract_addr)?)
+        }
         QueryMsg::UserVotingPower { user } => to_binary(&get_user_voting_power(deps, env, user)?),
     }
-}
-
-fn get_total_voting_power(deps: Deps, env: Env) -> StdResult<VotingPowerResponse> {
-    let _total_deposit = get_total_deposit(deps, env)?;
-    let voting_power = Uint128::zero();
-    Ok(VotingPowerResponse { voting_power })
 }
 
 fn get_user_voting_power(deps: Deps, env: Env, user: String) -> StdResult<VotingPowerResponse> {

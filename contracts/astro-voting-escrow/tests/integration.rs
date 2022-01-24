@@ -247,6 +247,10 @@ impl Helper {
             },
         )
     }
+
+    pub fn query_total_vp(&self, router: &mut TerraApp) -> StdResult<VotingPowerResponse> {
+        self.query_user_vp(router, &self.voting_instance.to_string())
+    }
 }
 
 #[test]
@@ -420,7 +424,7 @@ fn random_token_lock() {
 }
 
 #[test]
-fn voting_decay_without_changes() {
+fn voting_constant_decay() {
     let mut router = mock_app();
     let router_ref = &mut router;
     let helper = Helper::init(router_ref, Addr::unchecked("owner"));
@@ -434,6 +438,8 @@ fn voting_decay_without_changes() {
         .unwrap();
 
     let vp = helper.query_user_vp(router_ref, "user").unwrap();
+    assert_eq!(vp.voting_power.u128(), 30);
+    let vp = helper.query_total_vp(router_ref).unwrap();
     assert_eq!(vp.voting_power.u128(), 30);
 
     // since user2 did not lock his xASTRO the contract does not have any information
@@ -456,6 +462,8 @@ fn voting_decay_without_changes() {
     assert_eq!(vp.voting_power.u128(), 15);
     let vp = helper.query_user_vp(router_ref, "user2").unwrap();
     assert_eq!(vp.voting_power.u128(), 50);
+    let vp = helper.query_total_vp(router_ref).unwrap();
+    assert_eq!(vp.voting_power.u128(), 65);
 
     // going to the future
     router_ref.update_block(next_block);
@@ -464,16 +472,20 @@ fn voting_decay_without_changes() {
     assert_eq!(vp.voting_power.u128(), 0);
     let vp = helper.query_user_vp(router_ref, "user2").unwrap();
     assert_eq!(vp.voting_power.u128(), 8);
+    let vp = helper.query_total_vp(router_ref).unwrap();
+    // TODO: assert_eq!(vp.voting_power.u128(), 8);
 
     // going to the future
     router_ref.update_block(next_block);
     router_ref.update_block(|block| block.time = block.time.plus_seconds(WEEK));
     let vp = helper.query_user_vp(router_ref, "user2").unwrap();
     assert_eq!(vp.voting_power.u128(), 0);
+    let vp = helper.query_total_vp(router_ref).unwrap();
+    assert_eq!(vp.voting_power.u128(), 0);
 }
 
 #[test]
-fn voting_decay_with_changes() {
+fn voting_variable_decay() {
     let mut router = mock_app();
     let router_ref = &mut router;
     let helper = Helper::init(router_ref, Addr::unchecked("owner"));
@@ -494,6 +506,8 @@ fn voting_decay_with_changes() {
     helper
         .create_lock(router_ref, "user2", WEEK * 6, 50)
         .unwrap();
+    let vp = helper.query_total_vp(router_ref).unwrap();
+    assert_eq!(vp.voting_power.u128(), 80);
 
     // going to the future
     router_ref.update_block(next_block);
@@ -507,6 +521,8 @@ fn voting_decay_with_changes() {
     assert_eq!(vp.voting_power.u128(), 73);
     let vp = helper.query_user_vp(router_ref, "user2").unwrap();
     assert_eq!(vp.voting_power.u128(), 17);
+    let vp = helper.query_total_vp(router_ref).unwrap();
+    assert_eq!(vp.voting_power.u128(), 90);
 
     // going to the future
     router_ref.update_block(next_block);
@@ -514,5 +530,7 @@ fn voting_decay_with_changes() {
     let vp = helper.query_user_vp(router_ref, "user").unwrap();
     assert_eq!(vp.voting_power.u128(), 0);
     let vp = helper.query_user_vp(router_ref, "user2").unwrap();
+    assert_eq!(vp.voting_power.u128(), 16);
+    let vp = helper.query_total_vp(router_ref).unwrap();
     assert_eq!(vp.voting_power.u128(), 16);
 }
