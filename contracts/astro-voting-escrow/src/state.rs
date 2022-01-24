@@ -14,7 +14,7 @@ pub struct Config {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Lock {
-    pub amount: Uint128,
+    pub power: Uint128,
     pub start: u64,
     pub end: u64,
 }

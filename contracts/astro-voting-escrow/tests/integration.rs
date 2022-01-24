@@ -1,6 +1,6 @@
 use astroport::{staking as xastro, token as astro};
 use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
-use cosmwasm_std::{attr, to_binary, Addr, QueryRequest, Uint128, WasmQuery};
+use cosmwasm_std::{attr, to_binary, Addr, QueryRequest, StdResult, Uint128, WasmQuery};
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
 use terra_multi_test::{
     next_block, AppBuilder, AppResponse, BankKeeper, ContractWrapper, Executor, TerraApp, TerraMock,
@@ -234,6 +234,19 @@ impl Helper {
             &[],
         )
     }
+
+    pub fn query_user_vp(
+        &self,
+        router: &mut TerraApp,
+        user: &str,
+    ) -> StdResult<VotingPowerResponse> {
+        router.wrap().query_wasm_smart(
+            self.voting_instance.clone(),
+            &QueryMsg::UserVotingPower {
+                user: user.to_string(),
+            },
+        )
+    }
 }
 
 #[test]
@@ -407,46 +420,99 @@ fn random_token_lock() {
 }
 
 #[test]
-// TODO: to implement voting math test
-fn voting_math() {
+fn voting_decay_without_changes() {
     let mut router = mock_app();
     let router_ref = &mut router;
-    let owner = Addr::unchecked("owner");
-    let helper = Helper::init(router_ref, owner);
+    let helper = Helper::init(router_ref, Addr::unchecked("owner"));
 
     // mint ASTRO, stake it and mint xASTRO
     helper.mint_xastro(router_ref, "user", 100);
-    helper.check_xastro_balance(router_ref, "user", 100);
+    helper.mint_xastro(router_ref, "user2", 50);
 
     helper
         .create_lock(router_ref, "user", WEEK * 10, 30)
         .unwrap();
 
-    let res: VotingPowerResponse = router_ref
-        .wrap()
-        .query_wasm_smart(
-            helper.voting_instance.clone(),
-            &QueryMsg::UserVotingPower {
-                user: "user".to_string(),
-            },
-        )
-        .unwrap();
+    let vp = helper.query_user_vp(router_ref, "user").unwrap();
+    assert_eq!(vp.voting_power.u128(), 30);
 
-    dbg!(res);
+    // since user2 did not lock his xASTRO the contract does not have any information
+    let err = helper.query_user_vp(router_ref, "user2").unwrap_err();
+    assert_eq!(
+        err.to_string(),
+        "Generic error: Querier contract error: Generic error: User is not found"
+    );
 
     // going to the future
     router_ref.update_block(next_block);
     router_ref.update_block(|block| block.time = block.time.plus_seconds(WEEK * 5));
 
-    let res: VotingPowerResponse = router_ref
-        .wrap()
-        .query_wasm_smart(
-            helper.voting_instance.clone(),
-            &QueryMsg::UserVotingPower {
-                user: "user".to_string(),
-            },
-        )
+    // create lock for user2
+    helper
+        .create_lock(router_ref, "user2", WEEK * 6, 50)
         .unwrap();
 
-    dbg!(res);
+    let vp = helper.query_user_vp(router_ref, "user").unwrap();
+    assert_eq!(vp.voting_power.u128(), 15);
+    let vp = helper.query_user_vp(router_ref, "user2").unwrap();
+    assert_eq!(vp.voting_power.u128(), 50);
+
+    // going to the future
+    router_ref.update_block(next_block);
+    router_ref.update_block(|block| block.time = block.time.plus_seconds(WEEK * 5));
+    let vp = helper.query_user_vp(router_ref, "user").unwrap();
+    assert_eq!(vp.voting_power.u128(), 0);
+    let vp = helper.query_user_vp(router_ref, "user2").unwrap();
+    assert_eq!(vp.voting_power.u128(), 8);
+
+    // going to the future
+    router_ref.update_block(next_block);
+    router_ref.update_block(|block| block.time = block.time.plus_seconds(WEEK));
+    let vp = helper.query_user_vp(router_ref, "user2").unwrap();
+    assert_eq!(vp.voting_power.u128(), 0);
+}
+
+#[test]
+fn voting_decay_with_changes() {
+    let mut router = mock_app();
+    let router_ref = &mut router;
+    let helper = Helper::init(router_ref, Addr::unchecked("owner"));
+
+    // mint ASTRO, stake it and mint xASTRO
+    helper.mint_xastro(router_ref, "user", 100);
+    helper.mint_xastro(router_ref, "user2", 100);
+
+    helper
+        .create_lock(router_ref, "user", WEEK * 10, 30)
+        .unwrap();
+
+    // going to the future
+    router_ref.update_block(next_block);
+    router_ref.update_block(|block| block.time = block.time.plus_seconds(WEEK * 5));
+
+    // create lock for user2
+    helper
+        .create_lock(router_ref, "user2", WEEK * 6, 50)
+        .unwrap();
+
+    // going to the future
+    router_ref.update_block(next_block);
+    router_ref.update_block(|block| block.time = block.time.plus_seconds(WEEK * 4));
+
+    helper.extend_lock_amount(router_ref, "user", 70).unwrap();
+    helper
+        .extend_lock_time(router_ref, "user2", WEEK * 10)
+        .unwrap();
+    let vp = helper.query_user_vp(router_ref, "user").unwrap();
+    assert_eq!(vp.voting_power.u128(), 73);
+    let vp = helper.query_user_vp(router_ref, "user2").unwrap();
+    assert_eq!(vp.voting_power.u128(), 17);
+
+    // going to the future
+    router_ref.update_block(next_block);
+    router_ref.update_block(|block| block.time = block.time.plus_seconds(WEEK));
+    let vp = helper.query_user_vp(router_ref, "user").unwrap();
+    assert_eq!(vp.voting_power.u128(), 0);
+    let vp = helper.query_user_vp(router_ref, "user2").unwrap();
+    assert_eq!(vp.voting_power.u128(), 16);
 }

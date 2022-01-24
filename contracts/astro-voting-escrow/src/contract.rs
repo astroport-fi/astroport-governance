@@ -3,7 +3,7 @@ use astroport::asset::addr_validate_to_lower;
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     from_binary, to_binary, Addr, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Order,
-    Response, StdResult, Uint128, WasmMsg,
+    Response, StdError, StdResult, Uint128, WasmMsg,
 };
 use cw2::set_contract_version;
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
@@ -15,7 +15,9 @@ use astroport_governance::astro_voting_escrow::{
 
 use crate::error::ContractError;
 use crate::state::{Config, Lock, CONFIG, HISTORY, LOCKED};
-use crate::utils::{cur_period, get_total_deposit, time_limits_check, xastro_token_check};
+use crate::utils::{
+    calc_voting_power, get_period, get_total_deposit, time_limits_check, xastro_token_check,
+};
 
 /// Contract name that is used for migration.
 const CONTRACT_NAME: &str = "astro-voting-escrow";
@@ -93,35 +95,36 @@ fn checkpoint(
     add_amount: Option<Uint128>,
     add_time: Option<u64>,
 ) -> StdResult<()> {
-    let cur_period = U64Key::new(cur_period(env.block.time));
+    let cur_period = get_period(env.block.time.seconds());
+    let cur_period_key = U64Key::new(cur_period);
     let user = user.unwrap_or(env.contract.address);
 
-    // get last checkpoint period
+    // get last checkpoint
     let last_checkpoint = HISTORY
         .prefix(user.clone())
         .range(
             deps.as_ref().storage,
             None,
-            Some(Bound::Inclusive(cur_period.wrapped.clone())),
+            Some(Bound::Inclusive(cur_period_key.wrapped.clone())),
             Order::Descending,
         )
         .last();
     let block_time = env.block.time.seconds();
     let new_lock = if let Some(storage_result) = last_checkpoint {
-        let (_, Lock { amount, start, end }) = storage_result?;
+        let (_, lock) = storage_result?;
         Lock {
-            amount: amount + add_amount.unwrap_or_default(),
-            end: end + add_time.unwrap_or(0),
+            power: calc_voting_power(lock.clone(), cur_period) + add_amount.unwrap_or_default(),
+            end: lock.end + add_time.unwrap_or(0),
             start: block_time,
         }
     } else {
         Lock {
-            amount: add_amount.unwrap_or_default(),
-            end: add_time.unwrap_or(MAX_LOCK_TIME), // TODO: should we fix it?
+            power: add_amount.unwrap_or_default(),
+            end: block_time + add_time.unwrap_or(MAX_LOCK_TIME), // TODO: should we fix it?
             start: block_time,
         }
     };
-    HISTORY.save(deps.storage, (user, cur_period), &new_lock)
+    HISTORY.save(deps.storage, (user, cur_period_key), &new_lock)
 }
 
 /// ## Description
@@ -164,7 +167,7 @@ fn create_lock(
             return Err(ContractError::LockAlreadyExists {});
         }
         Ok(Lock {
-            amount,
+            power: amount,
             start: env.block.time.seconds(),
             end: env.block.time.seconds() + time,
         })
@@ -185,7 +188,7 @@ fn extend_lock_amount(
     let user = addr_validate_to_lower(deps.as_ref().api, &cw20_msg.sender)?;
     LOCKED.update(deps.storage, user.clone(), |lock_opt| {
         if let Some(mut lock) = lock_opt {
-            lock.amount += amount;
+            lock.power += amount;
             Ok(lock)
         } else {
             Err(ContractError::LockDoesntExist {})
@@ -210,7 +213,7 @@ fn withdraw(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, Cont
             contract_addr: config.xastro_token_addr.to_string(),
             msg: to_binary(&Cw20ExecuteMsg::Transfer {
                 recipient: sender.to_string(),
-                amount: lock.amount,
+                amount: lock.power,
             })?,
             funds: vec![],
         });
@@ -276,12 +279,24 @@ fn get_total_voting_power(deps: Deps, env: Env) -> StdResult<VotingPowerResponse
 
 fn get_user_voting_power(deps: Deps, env: Env, user: String) -> StdResult<VotingPowerResponse> {
     let user = addr_validate_to_lower(deps.api, &user)?;
-    let lock = LOCKED.load(deps.storage, user)?;
-    let slope = lock.amount.u128() as f32 / (lock.end - lock.start) as f32;
-    let voting_power =
-        lock.amount.u128() as f32 - slope * (env.block.time.seconds() - lock.start) as f32;
+    let cur_period = get_period(env.block.time.seconds());
+    let cur_period_key = U64Key::new(cur_period);
+
+    let last_checkpoint = HISTORY
+        .prefix(user.clone())
+        .range(
+            deps.storage,
+            None,
+            Some(Bound::Inclusive(cur_period_key.wrapped)),
+            Order::Ascending,
+        )
+        .last();
+
+    let (_, lock) =
+        last_checkpoint.unwrap_or_else(|| Err(StdError::generic_err("User is not found")))?;
+
     Ok(VotingPowerResponse {
-        voting_power: Uint128::from(voting_power as u128),
+        voting_power: calc_voting_power(lock, cur_period),
     })
 }
 

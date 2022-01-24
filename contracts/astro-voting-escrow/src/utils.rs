@@ -1,9 +1,9 @@
 use crate::contract::{MAX_LOCK_TIME, WEEK};
 use crate::error::ContractError;
-use cosmwasm_std::{Addr, Deps, Env, StdResult, Timestamp, Uint128};
+use cosmwasm_std::{Addr, Deps, Env, StdResult, Uint128};
 use cw20::{BalanceResponse, Cw20QueryMsg};
 
-use crate::state::CONFIG;
+use crate::state::{Lock, CONFIG};
 
 pub(crate) fn time_limits_check(time: u64) -> Result<(), ContractError> {
     if !(WEEK..=MAX_LOCK_TIME).contains(&time) {
@@ -13,8 +13,8 @@ pub(crate) fn time_limits_check(time: u64) -> Result<(), ContractError> {
     }
 }
 
-pub(crate) fn cur_period(time: Timestamp) -> u64 {
-    time.seconds() / WEEK
+pub(crate) fn get_period(time: u64) -> u64 {
+    time / WEEK
 }
 
 pub(crate) fn xastro_token_check(deps: Deps, sender: Addr) -> Result<(), ContractError> {
@@ -24,6 +24,14 @@ pub(crate) fn xastro_token_check(deps: Deps, sender: Addr) -> Result<(), Contrac
     } else {
         Ok(())
     }
+}
+
+pub(crate) fn calc_voting_power(lock: Lock, cur_period: u64) -> Uint128 {
+    let (end_period, start_period) = (get_period(lock.end), get_period(lock.start));
+    let slope = lock.power.u128() as f32 / (end_period - start_period) as f32;
+    let voting_power = lock.power.u128() as f32 - slope * (cur_period - start_period) as f32;
+    // if it goes below zero then u128 will adjust it to 0
+    Uint128::from(voting_power.round() as u128)
 }
 
 /// ## Description
