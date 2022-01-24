@@ -407,7 +407,6 @@ fn random_token_lock() {
 }
 
 #[test]
-#[ignore]
 // TODO: to implement voting math test
 fn voting_math() {
     let mut router = mock_app();
@@ -419,13 +418,33 @@ fn voting_math() {
     helper.mint_xastro(router_ref, "user", 100);
     helper.check_xastro_balance(router_ref, "user", 100);
 
-    helper.create_lock(router_ref, "user", WEEK, 50).unwrap();
+    helper
+        .create_lock(router_ref, "user", WEEK * 10, 30)
+        .unwrap();
 
-    let res: VotingPowerResponse = router
+    let res: VotingPowerResponse = router_ref
         .wrap()
         .query_wasm_smart(
             helper.voting_instance.clone(),
-            &QueryMsg::TotalVotingPower {},
+            &QueryMsg::UserVotingPower {
+                user: "user".to_string(),
+            },
+        )
+        .unwrap();
+
+    dbg!(res);
+
+    // going to the future
+    router_ref.update_block(next_block);
+    router_ref.update_block(|block| block.time = block.time.plus_seconds(WEEK * 5));
+
+    let res: VotingPowerResponse = router_ref
+        .wrap()
+        .query_wasm_smart(
+            helper.voting_instance.clone(),
+            &QueryMsg::UserVotingPower {
+                user: "user".to_string(),
+            },
         )
         .unwrap();
 

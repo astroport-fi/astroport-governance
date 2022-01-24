@@ -1,6 +1,6 @@
 use crate::contract::{MAX_LOCK_TIME, WEEK};
 use crate::error::ContractError;
-use cosmwasm_std::{Addr, Deps, Env, StdResult, Uint128};
+use cosmwasm_std::{Addr, Deps, Env, StdResult, Timestamp, Uint128};
 use cw20::{BalanceResponse, Cw20QueryMsg};
 
 use crate::state::CONFIG;
@@ -11,6 +11,10 @@ pub(crate) fn time_limits_check(time: u64) -> Result<(), ContractError> {
     } else {
         Ok(())
     }
+}
+
+pub(crate) fn cur_period(time: Timestamp) -> u64 {
+    time.seconds() / WEEK
 }
 
 pub(crate) fn xastro_token_check(deps: Deps, sender: Addr) -> Result<(), ContractError> {
