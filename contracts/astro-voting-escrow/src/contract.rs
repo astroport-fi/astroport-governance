@@ -96,7 +96,7 @@ fn checkpoint(
     let cur_period = U64Key::new(cur_period(env.block.time));
     let user = user.unwrap_or(env.contract.address);
 
-    // get checkpoint in the current period
+    // get last checkpoint period
     let last_checkpoint = HISTORY
         .prefix(user.clone())
         .range(
