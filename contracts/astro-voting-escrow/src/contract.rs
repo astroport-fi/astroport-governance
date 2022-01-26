@@ -101,18 +101,17 @@ fn checkpoint(
             Order::Ascending,
         )
         .last();
-    let block_time = env.block.time.seconds();
     let new_lock = if let Some(storage_result) = last_checkpoint {
         let (_, lock) = storage_result?;
+        let mut end = new_end.unwrap_or(cur_period);
         // if this is checkpoint for total VP then lock.end is equal to the latest lock in the contract
-        let mut end = new_end.unwrap_or(block_time);
         if addr == env.contract.address {
             end = max(lock.end, end);
         };
         Lock {
             power: calc_voting_power(lock, cur_period) + add_amount.unwrap_or_default(),
             end,
-            start: block_time,
+            start: cur_period,
         }
     } else {
         // this error can't happen since this if-branch is intended for checkpoint creation
@@ -121,7 +120,7 @@ fn checkpoint(
         Lock {
             power: add_amount.unwrap_or_default(),
             end,
-            start: block_time,
+            start: cur_period,
         }
     };
     HISTORY.save(deps.storage, (addr.clone(), cur_period_key), &new_lock)?;
@@ -169,8 +168,8 @@ fn create_lock(
     time_limits_check(time)?;
     let amount = cw20_msg.amount;
     let user = addr_validate_to_lower(deps.as_ref().api, &cw20_msg.sender)?;
-    let block_time = env.block.time.seconds();
-    let end = block_time + time;
+    let block_period = get_period(env.block.time.seconds());
+    let end = block_period + get_period(time);
 
     LOCKED.update(deps.storage, user.clone(), |lock_opt| {
         if lock_opt.is_some() {
@@ -178,7 +177,7 @@ fn create_lock(
         }
         Ok(Lock {
             power: amount,
-            start: block_time,
+            start: block_period,
             end,
         })
     })?;
@@ -216,7 +215,7 @@ fn withdraw(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, Cont
         .may_load(deps.storage, sender.clone())?
         .ok_or(ContractError::LockDoesntExist {})?;
 
-    if lock.end > env.block.time.seconds() {
+    if lock.end > get_period(env.block.time.seconds()) {
         Err(ContractError::LockHasNotExpired {})
     } else {
         let config = CONFIG.load(deps.storage)?;
@@ -230,6 +229,7 @@ fn withdraw(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, Cont
         });
         LOCKED.remove(deps.storage, sender.clone());
 
+        // TODO: do we need checkpoint here?
         checkpoint(deps, env, sender, Some(Uint128::zero()), None)?;
 
         Ok(Response::default()
@@ -250,9 +250,9 @@ fn extend_lock_time(
     let mut lock = LOCKED
         .load(deps.storage, user.clone())
         .map_err(|_| ContractError::LockDoesntExist {})?;
-    lock.end += time;
     // should not exceed MAX_LOCK_TIME
-    time_limits_check(lock.end - env.block.time.seconds())?;
+    time_limits_check(lock.end * WEEK + time - lock.start * WEEK)?;
+    lock.end += get_period(time);
     LOCKED.save(deps.storage, user.clone(), &lock)?;
 
     checkpoint(deps, env, user, None, Some(lock.end))?;
@@ -300,9 +300,13 @@ fn get_user_voting_power(deps: Deps, env: Env, user: String) -> StdResult<Voting
     let (_, lock) =
         last_checkpoint.unwrap_or_else(|| Err(StdError::generic_err("User is not found")))?;
 
-    Ok(VotingPowerResponse {
-        voting_power: calc_voting_power(lock, cur_period),
-    })
+    let voting_power = if lock.start == cur_period {
+        lock.power
+    } else {
+        calc_voting_power(lock, cur_period)
+    };
+
+    Ok(VotingPowerResponse { voting_power })
 }
 
 /// ## Description

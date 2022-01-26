@@ -27,9 +27,8 @@ pub(crate) fn xastro_token_check(deps: Deps, sender: Addr) -> Result<(), Contrac
 }
 
 pub(crate) fn calc_voting_power(lock: Lock, cur_period: u64) -> Uint128 {
-    let (end_period, start_period) = (get_period(lock.end), get_period(lock.start));
-    let slope = lock.power.u128() as f32 / (end_period - start_period) as f32;
-    let voting_power = lock.power.u128() as f32 - slope * (cur_period - start_period) as f32;
+    let slope = lock.power.u128() as f32 / (lock.end - lock.start) as f32;
+    let voting_power = lock.power.u128() as f32 - slope * (cur_period - lock.start) as f32;
     // if it goes below zero then u128 will adjust it to 0
     Uint128::from(voting_power.round() as u128)
 }
