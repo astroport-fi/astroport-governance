@@ -93,16 +93,35 @@ pub fn instantiate(
 /// * **msg** is the object of type [`ExecuteMsg`].
 ///
 /// ## Queries
-/// * **ExecuteMsg::Claim { recipient, amount }** Claims the amount from Vesting for transfer
-/// to the recipient.
-///
 /// * **ExecuteMsg::ProposeNewOwner { owner, expires_in }** Creates a request to change ownership.
 ///
 /// * **ExecuteMsg::DropOwnershipProposal {}** Removes a request to change ownership.
 ///
 /// * **ExecuteMsg::ClaimOwnership {}** Approves ownership.
 ///
-/// * **ExecuteMsg::CheckpointToken {}** Ca.
+/// * **ExecuteMsg::CheckpointTotalSupply {}** Update the vxAstro total supply checkpoint.
+///
+/// * **ExecuteMsg::Burn { token_address }** Receive tokens into the contract and trigger a token
+/// checkpoint.
+///
+/// * **ExecuteMsg::KillMe {}** Kill the contract. Killing transfers the entire token balance to
+/// the emergency return address and blocks the ability to claim or burn. The contract cannot be
+/// unkilled.
+///
+/// * **ExecuteMsg::RecoverBalance { token_address }** Recover tokens from this contract,
+/// tokens are sent to the emergency return address.
+///
+/// * **ExecuteMsg::ToggleAllowCheckpointToken {}** Enables or disables the ability to set
+/// a checkpoint token.
+///
+/// * **ExecuteMsg::Claim { recipient }** Claims the tokens from distributor for transfer
+/// to the recipient.
+///
+/// * **ExecuteMsg::ClaimMany { receivers }**  Make multiple fee claims in a single call.
+///
+/// * **ExecuteMsg::CheckpointToken {}** Calculates the total number of tokens to be distributed
+/// in a given week.
+///
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
@@ -111,16 +130,6 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::CheckpointTotalSupply {} => checkpoint_total_supply(deps, env),
-        ExecuteMsg::Burn { token_address } => burn(deps.as_ref(), env, info, token_address),
-        ExecuteMsg::KillMe {} => kill_me(deps.as_ref(), env, info),
-        ExecuteMsg::RecoverBalance { token_address } => {
-            recover_balance(deps.as_ref(), env, info, token_address)
-        }
-        ExecuteMsg::ToggleAllowCheckpointToken {} => toggle_allow_checkpoint_token(deps, info),
-        ExecuteMsg::Claim { recipient } => claim(deps, env, info, recipient),
-        ExecuteMsg::ClaimMany { receivers } => claim_many(deps, env, info, receivers),
-        ExecuteMsg::CheckpointToken {} => checkpoint_token(deps, env, info),
         ExecuteMsg::ProposeNewOwner { owner, expires_in } => {
             let config: Config = CONFIG.load(deps.storage)?;
 
@@ -152,15 +161,24 @@ pub fn execute(
             })
             .map_err(|e| e.into())
         }
+        ExecuteMsg::CheckpointTotalSupply {} => checkpoint_total_supply(deps, env),
+        ExecuteMsg::Burn { token_address } => burn(deps, env, info, token_address),
+        ExecuteMsg::KillMe {} => kill_me(deps.as_ref(), env, info),
+        ExecuteMsg::RecoverBalance { token_address } => {
+            recover_balance(deps.as_ref(), env, info, token_address)
+        }
+        ExecuteMsg::ToggleAllowCheckpointToken {} => toggle_allow_checkpoint_token(deps, info),
+        ExecuteMsg::Claim { recipient } => claim(deps, env, info, recipient),
+        ExecuteMsg::ClaimMany { receivers } => claim_many(deps, env, info, receivers),
+        ExecuteMsg::CheckpointToken {} => checkpoint_token(deps, env, info),
     }
 }
 
 /// ## Description
 /// Update the vxAstro total supply checkpoint. The checkpoint is also updated by the first
-/// claimant each new epoch week. This function may be called independently of a claim,
-/// to reduce claiming gas costs.
-/// Returns the [`Response`] with the specified attributes if the operation was successful,
-/// otherwise returns the [`ContractError`].
+/// claimant each new period week. This function may be called independently of a claim,
+/// to reduce claiming gas costs. Returns the [`Response`] with the specified attributes if the
+/// operation was successful, otherwise returns the [`ContractError`].
 ///
 /// ## Params
 /// * **deps** is the object of type [`Deps`].
@@ -175,7 +193,9 @@ fn checkpoint_total_supply(deps: DepsMut, env: Env) -> Result<Response, Contract
         .block
         .time
         .seconds()
-        .checked_div(WEEK * WEEK)
+        .checked_div(WEEK)
+        .ok_or_else(|| StdError::generic_err("Timestamp calculation error."))?
+        .checked_mul(WEEK)
         .ok_or_else(|| StdError::generic_err("Timestamp calculation error."))?;
     let mut t = config.time_cursor;
     // TODO: execute VotingEscrow.checkpoint()
@@ -186,7 +206,7 @@ fn checkpoint_total_supply(deps: DepsMut, env: Env) -> Result<Response, Contract
         if t > rounded_timestamp {
             break;
         } else {
-            let _period = find_timestamp_period(deps.as_ref(), config.voting_escrow.clone(), t)?; // TODO:
+            let _period = find_timestamp_period(deps.as_ref(), config.voting_escrow.clone(), t)?;
 
             let pt = Point::default(); // TODO: query from VotingEscrow
                                        // let pt: Point = deps.querier.query_wasm_smart(
@@ -237,13 +257,13 @@ fn checkpoint_total_supply(deps: DepsMut, env: Env) -> Result<Response, Contract
 /// * **token_address** is the object of type [`String`]. Address of the coin being received.
 ///
 fn burn(
-    deps: Deps,
+    mut deps: DepsMut,
     env: Env,
     info: MessageInfo,
     token_address: String,
 ) -> Result<Response, ContractError> {
     let token_addr = addr_validate_to_lower(deps.api, &token_address)?;
-    let config: Config = CONFIG.load(deps.storage)?;
+    let mut config: Config = CONFIG.load(deps.storage)?;
 
     if token_addr != config.token {
         return Err(ContractError::TokenAddressIsWrong {});
@@ -268,8 +288,10 @@ fn burn(
     if config.can_checkpoint_token
         && (env.block.time.seconds() > config.last_token_time + TOKEN_CHECKPOINT_DEADLINE)
     {
-        // TODO: run checkpoint token
+        calc_checkpoint_token(deps.branch(), env, &mut config)?;
     }
+
+    CONFIG.save(deps.storage, &config)?;
 
     Ok(Response::new()
         .add_attributes(vec![
@@ -373,8 +395,6 @@ fn recover_balance(
 ///
 /// * **info** is the object of type [`MessageInfo`].
 ///
-/// * **allow_checkpoint_token** is the object of type [`bool`].
-///
 fn toggle_allow_checkpoint_token(
     deps: DepsMut,
     info: MessageInfo,
@@ -404,12 +424,16 @@ fn toggle_allow_checkpoint_token(
 /// ## Params
 /// * **deps** is the object of type [`DepsMut`].
 ///
-/// * **_env** is the object of type [`Env`].
+/// * **env** is the object of type [`Env`].
 ///
 /// * **info** is the object of type [`MessageInfo`].
 ///
-fn checkpoint_token(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, ContractError> {
-    let config: Config = CONFIG.load(deps.storage)?;
+fn checkpoint_token(
+    mut deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+) -> Result<Response, ContractError> {
+    let mut config: Config = CONFIG.load(deps.storage)?;
 
     if info.sender != config.owner
         && (!config.can_checkpoint_token
@@ -418,7 +442,9 @@ fn checkpoint_token(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Respon
         return Err(ContractError::CheckpointTokenIsNotAvailable {});
     }
 
-    calc_checkpoint_token(deps, env, config)?;
+    calc_checkpoint_token(deps.branch(), env, &mut config)?;
+    CONFIG.save(deps.storage, &config)?;
+
     Ok(Response::new().add_attributes(vec![attr("action", "checkpoint_token")]))
 }
 
@@ -428,11 +454,11 @@ fn checkpoint_token(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Respon
 /// ## Params
 /// * **deps** is the object of type [`DepsMut`].
 ///
-/// * **_env** is the object of type [`Env`].
+/// * **env** is the object of type [`Env`].
 ///
 /// * **config** is the object of type [`Config`].
 ///
-fn calc_checkpoint_token(deps: DepsMut, env: Env, mut config: Config) -> StdResult<()> {
+fn calc_checkpoint_token(deps: DepsMut, env: Env, config: &mut Config) -> StdResult<()> {
     let mut distributor_info: DistributorInfo = DISTRIBUTOR_INFO.load(deps.storage)?;
 
     let distributor_balance =
@@ -495,13 +521,12 @@ fn calc_checkpoint_token(deps: DepsMut, env: Env, mut config: Config) -> StdResu
         U64Key::new(env.block.time.seconds()),
         &to_distribute,
     )?;
-    CONFIG.save(deps.storage, &config)?;
 
     Ok(())
 }
 
 /// ## Description
-/// Claims the amount from Vesting for transfer to the recipient. Returns the [`Response`] with
+/// Claims the amount from FeeDistributor for transfer to the recipient. Returns the [`Response`] with
 /// specified attributes if operation was successful, otherwise returns the [`ContractError`].
 /// ## Params
 /// * **deps** is the object of type [`DepsMut`].
@@ -512,7 +537,6 @@ fn calc_checkpoint_token(deps: DepsMut, env: Env, mut config: Config) -> StdResu
 ///
 /// * **recipient** is an [`Option`] field of type [`String`]. Sets the recipient for claim.
 ///
-/// * **amount** is an [`Option`] field of type [`Uint128`]. Sets the amount of claim.
 pub fn claim(
     mut deps: DepsMut,
     env: Env,
@@ -543,7 +567,9 @@ pub fn claim(
     }
 
     last_token_time = last_token_time
-        .checked_div(WEEK * WEEK)
+        .checked_div(WEEK)
+        .ok_or_else(|| StdError::generic_err("Timestamp calculation error."))?
+        .checked_mul(WEEK)
         .ok_or_else(|| StdError::generic_err("Timestamp calculation error."))?;
 
     let mut distributor_info: DistributorInfo = DISTRIBUTOR_INFO.load(deps.storage)?;
@@ -574,6 +600,18 @@ pub fn claim(
     Ok(response)
 }
 
+/// ## Description
+/// Make multiple fee claims in a single call. Returns the [`Response`] with
+/// specified attributes if operation was successful, otherwise returns the [`ContractError`].
+/// ## Params
+/// * **deps** is the object of type [`DepsMut`].
+///
+/// * **env** is the object of type [`Env`].
+///
+/// * **info** is the object of type [`MessageInfo`].
+///
+/// * **receivers** is vector field of type [`String`]. Sets the receivers for claim.
+///
 fn claim_many(
     mut deps: DepsMut,
     env: Env,
@@ -599,7 +637,9 @@ fn claim_many(
     }
 
     last_token_time = last_token_time
-        .checked_div(WEEK * WEEK)
+        .checked_div(WEEK)
+        .ok_or_else(|| StdError::generic_err("Timestamp calculation error."))?
+        .checked_mul(WEEK)
         .ok_or_else(|| StdError::generic_err("Timestamp calculation error."))?;
 
     let mut total = Uint128::zero();
@@ -643,6 +683,20 @@ fn claim_many(
     Ok(response)
 }
 
+/// ## Description
+/// Calculation amount of claim.
+///
+/// ## Params
+/// * **deps** is the object of type [`DepsMut`].
+///
+/// * **config** is the object of type [`Config`].
+///
+/// * **distributor_info** is the object of type [`DistributorInfo`].
+///
+/// * **addr** is the object of type [`Addr`].
+///
+/// * **last_token_time** is the object of type [`u64`].
+///
 fn calc_claim_amount(
     deps: DepsMut,
     config: Config,
