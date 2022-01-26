@@ -341,7 +341,7 @@ fn get_all_users(deps: Deps, env: Env) -> StdResult<Binary> {
     let keys: Vec<_> = LOCKED
         .keys(deps.storage, None, None, Order::Ascending)
         .filter_map(|key| {
-            let addr = String::from_utf8(key).unwrap();
+            let addr = String::from_utf8(key).map_err(StdError::from).ok()?;
             if addr == env.contract.address.as_str() {
                 None
             } else {
