@@ -39,7 +39,9 @@ pub enum Cw20HookMsg {
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
     TotalVotingPower {},
+    TotalVotingPowerAt { time: u64 },
     UserVotingPower { user: String },
+    UserVotingPowerAt { user: String, time: u64 },
     Users {},
 }
 

@@ -248,8 +248,37 @@ impl Helper {
         )
     }
 
+    pub fn query_user_vp_at(
+        &self,
+        router: &mut TerraApp,
+        user: &str,
+        time: u64,
+    ) -> StdResult<VotingPowerResponse> {
+        router.wrap().query_wasm_smart(
+            self.voting_instance.clone(),
+            &QueryMsg::UserVotingPowerAt {
+                user: user.to_string(),
+                time,
+            },
+        )
+    }
+
     pub fn query_total_vp(&self, router: &mut TerraApp) -> StdResult<VotingPowerResponse> {
-        self.query_user_vp(router, &self.voting_instance.to_string())
+        router
+            .wrap()
+            .query_wasm_smart(self.voting_instance.clone(), &QueryMsg::TotalVotingPower {})
+    }
+
+    // TODO: cover with tests
+    pub fn query_total_vp_at(
+        &self,
+        router: &mut TerraApp,
+        time: u64,
+    ) -> StdResult<VotingPowerResponse> {
+        router.wrap().query_wasm_smart(
+            self.voting_instance.clone(),
+            &QueryMsg::TotalVotingPowerAt { time },
+        )
     }
 }
 
@@ -453,11 +482,48 @@ fn voting_constant_decay() {
     router_ref.update_block(next_block);
     router_ref.update_block(|block| block.time = block.time.plus_seconds(WEEK * 5));
 
+    // we can check voting power in the past
+    let res = helper
+        .query_user_vp_at(
+            router_ref,
+            "user",
+            router_ref.block_info().time.seconds() - WEEK,
+        )
+        .unwrap();
+    assert_eq!(res.voting_power.u128(), 18);
+    let res = helper
+        .query_user_vp_at(
+            router_ref,
+            "user",
+            router_ref.block_info().time.seconds() - 3 * WEEK,
+        )
+        .unwrap();
+    assert_eq!(res.voting_power.u128(), 24);
+
+    // and even in the future
+    let res = helper
+        .query_user_vp_at(
+            router_ref,
+            "user",
+            router_ref.block_info().time.seconds() + WEEK,
+        )
+        .unwrap();
+    assert_eq!(res.voting_power.u128(), 12);
+    let res = helper
+        .query_user_vp_at(
+            router_ref,
+            "user",
+            router_ref.block_info().time.seconds() + 5 * WEEK,
+        )
+        .unwrap();
+    assert_eq!(res.voting_power.u128(), 0);
+
     // create lock for user2
     helper
         .create_lock(router_ref, "user2", WEEK * 6, 50)
         .unwrap();
 
+    // check that we have locks from "user" and "user2"
     let res: UsersResponse = router_ref
         .wrap()
         .query_wasm_smart(helper.voting_instance.clone(), &QueryMsg::Users {})
@@ -479,7 +545,7 @@ fn voting_constant_decay() {
     let vp = helper.query_user_vp(router_ref, "user2").unwrap();
     assert_eq!(vp.voting_power.u128(), 8);
     let vp = helper.query_total_vp(router_ref).unwrap();
-    // assert_eq!(vp.voting_power.u128(), 8);
+    // TODO: assert_eq!(vp.voting_power.u128(), 8);
 
     // going to the future
     router_ref.update_block(next_block);
@@ -528,7 +594,7 @@ fn voting_variable_decay() {
     let vp = helper.query_user_vp(router_ref, "user2").unwrap();
     assert_eq!(vp.voting_power.u128(), 17);
     let vp = helper.query_total_vp(router_ref).unwrap();
-    // assert_eq!(vp.voting_power.u128(), 90);
+    // TODO: assert_eq!(vp.voting_power.u128(), 90);
 
     // going to the future
     router_ref.update_block(next_block);
@@ -538,5 +604,5 @@ fn voting_variable_decay() {
     let vp = helper.query_user_vp(router_ref, "user2").unwrap();
     assert_eq!(vp.voting_power.u128(), 16);
     let vp = helper.query_total_vp(router_ref).unwrap();
-    // assert_eq!(vp.voting_power.u128(), 16);
+    // TODO: assert_eq!(vp.voting_power.u128(), 16);
 }

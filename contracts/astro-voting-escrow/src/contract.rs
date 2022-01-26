@@ -277,24 +277,43 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::TotalVotingPower {} => {
             let contract_addr = env.contract.address.to_string();
-            to_binary(&get_user_voting_power(deps, env, contract_addr)?)
+            to_binary(&get_user_voting_power(deps, env, contract_addr, None)?)
         }
-        QueryMsg::UserVotingPower { user } => to_binary(&get_user_voting_power(deps, env, user)?),
+        QueryMsg::UserVotingPower { user } => {
+            to_binary(&get_user_voting_power(deps, env, user, None)?)
+        }
+        QueryMsg::TotalVotingPowerAt { time } => {
+            let contract_addr = env.contract.address.to_string();
+            to_binary(&get_user_voting_power(
+                deps,
+                env,
+                contract_addr,
+                Some(time),
+            )?)
+        }
+        QueryMsg::UserVotingPowerAt { user, time } => {
+            to_binary(&get_user_voting_power(deps, env, user, Some(time))?)
+        }
         QueryMsg::Users {} => get_all_users(deps, env),
     }
 }
 
-fn get_user_voting_power(deps: Deps, env: Env, user: String) -> StdResult<VotingPowerResponse> {
+fn get_user_voting_power(
+    deps: Deps,
+    env: Env,
+    user: String,
+    time: Option<u64>,
+) -> StdResult<VotingPowerResponse> {
     let user = addr_validate_to_lower(deps.api, &user)?;
-    let cur_period = get_period(env.block.time.seconds());
-    let cur_period_key = U64Key::new(cur_period);
+    let period = get_period(time.unwrap_or(env.block.time.seconds()));
+    let period_key = U64Key::new(period);
 
     let last_checkpoint = HISTORY
         .prefix(user)
         .range(
             deps.storage,
             None,
-            Some(Bound::Inclusive(cur_period_key.wrapped)),
+            Some(Bound::Inclusive(period_key.wrapped)),
             Order::Ascending,
         )
         .last();
@@ -302,10 +321,10 @@ fn get_user_voting_power(deps: Deps, env: Env, user: String) -> StdResult<Voting
     let (_, lock) =
         last_checkpoint.unwrap_or_else(|| Err(StdError::generic_err("User is not found")))?;
 
-    let voting_power = if lock.start == cur_period {
+    let voting_power = if lock.start == period {
         lock.power
     } else {
-        calc_voting_power(lock, cur_period)
+        calc_voting_power(lock, period)
     };
 
     Ok(VotingPowerResponse { voting_power })
