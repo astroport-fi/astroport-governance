@@ -22,4 +22,7 @@ pub enum ContractError {
 
     #[error("The lock time has not yet expired")]
     LockHasNotExpired {},
+
+    #[error("The lock expired. Withdraw and create new lock")]
+    LockExpired {},
 }

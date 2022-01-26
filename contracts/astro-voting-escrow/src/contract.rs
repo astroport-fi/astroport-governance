@@ -199,8 +199,12 @@ fn extend_lock_amount(
     let user = addr_validate_to_lower(deps.as_ref().api, &cw20_msg.sender)?;
     LOCKED.update(deps.storage, user.clone(), |lock_opt| {
         if let Some(mut lock) = lock_opt {
-            lock.power += amount;
-            Ok(lock)
+            if lock.end <= get_period(env.block.time.seconds()) {
+                Err(ContractError::LockExpired {})
+            } else {
+                lock.power += amount;
+                Ok(lock)
+            }
         } else {
             Err(ContractError::LockDoesntExist {})
         }
@@ -251,6 +255,9 @@ fn extend_lock_time(
     let mut lock = LOCKED
         .load(deps.storage, user.clone())
         .map_err(|_| ContractError::LockDoesntExist {})?;
+    if lock.end <= get_period(env.block.time.seconds()) {
+        return Err(ContractError::LockExpired {});
+    };
     // should not exceed MAX_LOCK_TIME
     time_limits_check(lock.end * WEEK + time - lock.start * WEEK)?;
     lock.end += get_period(time);

@@ -363,9 +363,9 @@ fn lock_unlock_logic() {
     );
 
     // adding more xASTRO to existing lock
-    helper.extend_lock_amount(router_ref, "user", 10).unwrap();
-    helper.check_xastro_balance(router_ref, "user", 0);
-    helper.check_xastro_balance(router_ref, helper.voting_instance.as_str(), 100);
+    helper.extend_lock_amount(router_ref, "user", 9).unwrap();
+    helper.check_xastro_balance(router_ref, "user", 1);
+    helper.check_xastro_balance(router_ref, helper.voting_instance.as_str(), 99);
 
     // trying to withdraw from non-expired lock
     let res = helper.withdraw(router_ref, "user").unwrap_err();
@@ -375,13 +375,30 @@ fn lock_unlock_logic() {
     router_ref.update_block(next_block);
     router_ref.update_block(|block| block.time = block.time.plus_seconds(WEEK));
 
-    // but still lock has not yet expired since we locked for 2 weeks
+    // but still the lock has not yet expired since we locked for 2 weeks
     let res = helper.withdraw(router_ref, "user").unwrap_err();
     assert_eq!(res.to_string(), "The lock time has not yet expired");
 
     // going to the future again
     router_ref.update_block(next_block);
     router_ref.update_block(|block| block.time = block.time.plus_seconds(WEEK));
+
+    // trying to add more xASTRO to expired lock
+    let res = helper
+        .extend_lock_amount(router_ref, "user", 1)
+        .unwrap_err();
+    assert_eq!(
+        res.to_string(),
+        "The lock expired. Withdraw and create new lock"
+    );
+    // trying to increase lock time for expired lock
+    let res = helper
+        .extend_lock_time(router_ref, "user", WEEK)
+        .unwrap_err();
+    assert_eq!(
+        res.to_string(),
+        "The lock expired. Withdraw and create new lock"
+    );
 
     // time has passed so we can withdraw
     helper.withdraw(router_ref, "user").unwrap();
