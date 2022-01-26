@@ -57,7 +57,9 @@ pub fn instantiate(
 
     let t = msg
         .start_time
-        .checked_div(WEEK * WEEK)
+        .checked_div(WEEK)
+        .ok_or_else(|| StdError::generic_err("Timestamp calculation error."))?
+        .checked_mul(WEEK)
         .ok_or_else(|| StdError::generic_err("Timestamp calculation error."))?;
 
     CONFIG.save(
@@ -544,9 +546,11 @@ pub fn claim(
         .checked_div(WEEK * WEEK)
         .ok_or_else(|| StdError::generic_err("Timestamp calculation error."))?;
 
+    let mut distributor_info: DistributorInfo = DISTRIBUTOR_INFO.load(deps.storage)?;
     let claim_amount = calc_claim_amount(
         deps.branch(),
         config.clone(),
+        &mut distributor_info,
         recipient_addr.clone(),
         last_token_time,
     )?;
@@ -554,11 +558,10 @@ pub fn claim(
     let mut transfer_msg = vec![];
     if !claim_amount.is_zero() {
         transfer_msg = transfer_token_amount(config.token, recipient_addr.clone(), claim_amount)?;
-
-        let mut distributor_info: DistributorInfo = DISTRIBUTOR_INFO.load(deps.storage)?;
         distributor_info.token_last_balance -= claim_amount;
-        DISTRIBUTOR_INFO.save(deps.storage, &distributor_info)?;
     };
+
+    DISTRIBUTOR_INFO.save(deps.storage, &distributor_info)?;
 
     let response = Response::new()
         .add_attributes(vec![
@@ -602,11 +605,14 @@ fn claim_many(
     let mut total = Uint128::zero();
     let mut transfer_msg = vec![];
 
+    let mut distributor_info: DistributorInfo = DISTRIBUTOR_INFO.load(deps.storage)?;
+
     for receiver in receivers {
         let receiver_addr = addr_validate_to_lower(deps.api, &receiver)?;
         let claim_amount = calc_claim_amount(
             deps.branch(),
             config.clone(),
+            &mut distributor_info,
             receiver_addr.clone(),
             last_token_time,
         )?;
@@ -622,10 +628,10 @@ fn claim_many(
     }
 
     if !total.is_zero() {
-        let mut distributor_info: DistributorInfo = DISTRIBUTOR_INFO.load(deps.storage)?;
         distributor_info.token_last_balance -= total;
-        DISTRIBUTOR_INFO.save(deps.storage, &distributor_info)?;
     }
+
+    DISTRIBUTOR_INFO.save(deps.storage, &distributor_info)?;
 
     let response = Response::new()
         .add_attributes(vec![
@@ -640,6 +646,7 @@ fn claim_many(
 fn calc_claim_amount(
     deps: DepsMut,
     config: Config,
+    distributor_info: &mut DistributorInfo,
     addr: Addr,
     last_token_time: u64,
 ) -> StdResult<Uint128> {
@@ -654,8 +661,6 @@ fn calc_claim_amount(
         // No lock = no fees
         return Ok(Uint128::zero());
     }
-
-    let mut distributor_info: DistributorInfo = DISTRIBUTOR_INFO.load(deps.storage)?;
 
     let mut week_cursor: u64;
     if let Some(w_cursor) = distributor_info.time_cursor_of.get(&addr) {
