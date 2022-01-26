@@ -312,7 +312,7 @@ fn get_user_voting_power(
     time: Option<u64>,
 ) -> StdResult<VotingPowerResponse> {
     let user = addr_validate_to_lower(deps.api, &user)?;
-    let period = get_period(time.unwrap_or(env.block.time.seconds()));
+    let period = get_period(time.unwrap_or_else(|| env.block.time.seconds()));
     let period_key = U64Key::new(period);
 
     let last_checkpoint = HISTORY

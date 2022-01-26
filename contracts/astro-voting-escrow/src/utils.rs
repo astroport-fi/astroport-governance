@@ -1,7 +1,6 @@
 use crate::contract::{MAX_LOCK_TIME, WEEK};
 use crate::error::ContractError;
-use cosmwasm_std::{Addr, Deps, Env, StdResult, Uint128};
-use cw20::{BalanceResponse, Cw20QueryMsg};
+use cosmwasm_std::{Addr, Deps, Uint128};
 
 use crate::state::{Lock, CONFIG};
 
@@ -27,25 +26,9 @@ pub(crate) fn xastro_token_check(deps: Deps, sender: Addr) -> Result<(), Contrac
 }
 
 pub(crate) fn calc_voting_power(lock: Lock, cur_period: u64) -> Uint128 {
-    let slope = lock.power.u128() as f32 / (lock.end - lock.start) as f32;
-    let voting_power = lock.power.u128() as f32 - slope * (cur_period - lock.start) as f32;
+    let power = lock.power.u128() as f32;
+    let slope = power / (lock.end - lock.start) as f32;
+    let voting_power = power - slope * (cur_period - lock.start) as f32;
     // if it goes below zero then u128 will adjust it to 0
     Uint128::from(voting_power.round() as u128)
-}
-
-/// ## Description
-/// Returns the total deposit of locked xASTRO tokens.
-/// ## Params
-/// * **deps** is the object of type [`Deps`].
-///
-/// * **env** is the object of type [`Env`].
-pub fn _get_total_deposit(deps: Deps, env: Env) -> StdResult<Uint128> {
-    let config = CONFIG.load(deps.storage)?;
-    let result: BalanceResponse = deps.querier.query_wasm_smart(
-        &config.xastro_token_addr,
-        &Cw20QueryMsg::Balance {
-            address: env.contract.address.to_string(),
-        },
-    )?;
-    Ok(result.balance)
 }
