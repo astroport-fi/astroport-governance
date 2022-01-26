@@ -40,11 +40,17 @@ pub enum Cw20HookMsg {
 pub enum QueryMsg {
     TotalVotingPower {},
     UserVotingPower { user: String },
+    Users {},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct VotingPowerResponse {
     pub voting_power: Uint128,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct UsersResponse {
+    pub users: Vec<String>,
 }
 
 /// ## Description

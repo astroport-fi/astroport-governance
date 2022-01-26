@@ -11,7 +11,8 @@ use cw_storage_plus::{Bound, U64Key};
 use std::cmp::max;
 
 use astroport_governance::astro_voting_escrow::{
-    Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg, VotingPowerResponse,
+    Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg, UsersResponse,
+    VotingPowerResponse,
 };
 
 use crate::error::ContractError;
@@ -279,6 +280,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             to_binary(&get_user_voting_power(deps, env, contract_addr)?)
         }
         QueryMsg::UserVotingPower { user } => to_binary(&get_user_voting_power(deps, env, user)?),
+        QueryMsg::Users {} => get_all_users(deps, env),
     }
 }
 
@@ -307,6 +309,21 @@ fn get_user_voting_power(deps: Deps, env: Env, user: String) -> StdResult<Voting
     };
 
     Ok(VotingPowerResponse { voting_power })
+}
+
+fn get_all_users(deps: Deps, env: Env) -> StdResult<Binary> {
+    let keys: Vec<_> = LOCKED
+        .keys(deps.storage, None, None, Order::Ascending)
+        .filter_map(|key| {
+            let addr = String::from_utf8(key).unwrap();
+            if addr == env.contract.address.as_str() {
+                None
+            } else {
+                Some(addr)
+            }
+        })
+        .collect();
+    to_binary(&UsersResponse { users: keys })
 }
 
 /// ## Description

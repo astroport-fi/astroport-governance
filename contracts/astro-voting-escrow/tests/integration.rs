@@ -8,7 +8,7 @@ use terra_multi_test::{
 
 use anyhow::Result;
 use astroport_governance::astro_voting_escrow::{
-    Cw20HookMsg, ExecuteMsg, InstantiateMsg, QueryMsg, VotingPowerResponse,
+    Cw20HookMsg, ExecuteMsg, InstantiateMsg, QueryMsg, UsersResponse, VotingPowerResponse,
 };
 
 use astroport_voting_escrow::contract::{MAX_LOCK_TIME, WEEK};
@@ -457,6 +457,12 @@ fn voting_constant_decay() {
     helper
         .create_lock(router_ref, "user2", WEEK * 6, 50)
         .unwrap();
+
+    let res: UsersResponse = router_ref
+        .wrap()
+        .query_wasm_smart(helper.voting_instance.clone(), &QueryMsg::Users {})
+        .unwrap();
+    assert_eq!(vec!["user", "user2"], res.users);
 
     let vp = helper.query_user_vp(router_ref, "user").unwrap();
     assert_eq!(vp.voting_power.u128(), 15);
