@@ -139,7 +139,7 @@ fn checkpoint(
     let cur_period = get_period(env.block.time.seconds());
     let cur_period_key = U64Key::new(cur_period);
     let add_amount = add_amount.unwrap_or_default();
-    let mut new_slope;
+    let new_slope;
 
     // get last checkpoint
     let last_checkpoint = HISTORY
@@ -171,18 +171,17 @@ fn checkpoint(
         };
 
         // cancel previously scheduled slope change
-        SLOPE_CHANGES.update(
-            deps.storage,
-            U64Key::new(point.start),
-            |slope_opt| -> StdResult<Slope> {
-                if let Some(pslope) = slope_opt {
-                    Ok(pslope - point.slope.clone())
-                } else {
-                    // TODO: we should not add this slope but update() force it. need to fix it later
-                    Ok(Slope(0))
-                }
-            },
-        )?;
+        let start_period_key = U64Key::new(point.start);
+        if let Some(old_slope) =
+            SLOPE_CHANGES.may_load(deps.as_ref().storage, start_period_key.clone())?
+        {
+            SLOPE_CHANGES.save(
+                deps.storage,
+                start_period_key,
+                &(old_slope - point.slope.clone()),
+            )?
+        }
+
         // schedule slope change
         SLOPE_CHANGES.update(
             deps.storage,
