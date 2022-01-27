@@ -617,9 +617,9 @@ fn voting_variable_decay() {
     router_ref.update_block(next_block);
     router_ref.update_block(|block| block.time = block.time.plus_seconds(WEEK));
     let vp = helper.query_user_vp(router_ref, "user").unwrap();
-    // assert_eq!(vp.voting_power.u128(), 0);
+    assert_eq!(vp.voting_power.u128(), 0);
     let vp = helper.query_user_vp(router_ref, "user2").unwrap();
-    // assert_eq!(vp.voting_power.u128(), 16);
+    assert_eq!(vp.voting_power.u128(), 15);
     let vp = helper.query_total_vp(router_ref).unwrap();
-    // assert_eq!(vp.voting_power.u128(), 16);
+    // assert_eq!(vp.voting_power.u128(), 15);
 }

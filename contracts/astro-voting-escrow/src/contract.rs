@@ -86,13 +86,13 @@ fn checkpoint_total(
     deps: DepsMut,
     env: Env,
     add_amount: Option<Uint128>,
+    dslope: Slope,
     new_end: Option<u64>,
 ) -> StdResult<()> {
     let cur_period = get_period(env.block.time.seconds());
     let cur_period_key = U64Key::new(cur_period);
     let contract_addr = env.contract.address;
     let add_amount = add_amount.unwrap_or_default();
-    let slope;
 
     // get last checkpoint
     let last_checkpoint = HISTORY
@@ -107,18 +107,11 @@ fn checkpoint_total(
     let new_point = if let Some(storage_result) = last_checkpoint {
         let (_, point) = storage_result?;
         let end = new_end.unwrap_or(cur_period);
-
         let scheduled_change = SLOPE_CHANGES.may_load(deps.storage, cur_period_key.clone())?;
-        let dt = end - cur_period;
-        let add_slope = if dt != 0 {
-            add_amount.u128() as f32 / dt as f32
-        } else {
-            0_f32
-        };
 
         Point {
             power: calc_voting_power(&point, cur_period) + add_amount,
-            slope: point.slope + add_slope.into() - scheduled_change.unwrap_or(Slope(0)),
+            slope: point.slope + dslope - scheduled_change.unwrap_or(Slope(0)),
             start: cur_period,
             end,
         }
@@ -126,10 +119,9 @@ fn checkpoint_total(
         // this error can't happen since this if-branch is intended for checkpoint creation
         let end =
             new_end.ok_or_else(|| StdError::generic_err("Checkpoint initialization error"))?;
-        slope = (add_amount.u128() as f32 / (end - cur_period) as f32).into();
         Point {
             power: add_amount,
-            slope,
+            slope: dslope,
             start: cur_period,
             end,
         }
@@ -147,6 +139,7 @@ fn checkpoint(
     let cur_period = get_period(env.block.time.seconds());
     let cur_period_key = U64Key::new(cur_period);
     let add_amount = add_amount.unwrap_or_default();
+    let mut new_slope;
 
     // get last checkpoint
     let last_checkpoint = HISTORY
@@ -160,12 +153,21 @@ fn checkpoint(
         .last();
     let new_point = if let Some(storage_result) = last_checkpoint {
         let (_, point) = storage_result?;
-        let end = new_end.unwrap_or(cur_period);
-        let dt = end - point.start;
-        let slope = if dt != 0 {
-            (point.power.u128() as f32 / dt as f32).into()
+        let end = new_end.unwrap_or(point.end);
+        let dt = end - cur_period;
+        let current_power = calc_voting_power(&point, cur_period);
+        new_slope = if dt != 0 {
+            let current_power = current_power.u128() as f32;
+            if end > point.end {
+                // this is extend_lock_time
+                // TODO: we need to subtract this from slope schedule
+                (current_power / dt as f32).into()
+            } else {
+                // increase lock's amount
+                ((current_power + add_amount.u128() as f32) / dt as f32).into()
+            }
         } else {
-            point.slope.clone()
+            Slope(0)
         };
 
         // cancel previously scheduled slope change
@@ -174,7 +176,7 @@ fn checkpoint(
             U64Key::new(point.start),
             |slope_opt| -> StdResult<Slope> {
                 if let Some(pslope) = slope_opt {
-                    Ok(pslope - slope.clone())
+                    Ok(pslope - point.slope.clone())
                 } else {
                     // TODO: we should not add this slope but update() force it. need to fix it later
                     Ok(Slope(0))
@@ -187,16 +189,16 @@ fn checkpoint(
             U64Key::new(end),
             |slope_opt| -> StdResult<Slope> {
                 if let Some(pslope) = slope_opt {
-                    Ok(pslope + slope.clone())
+                    Ok(pslope + new_slope.clone())
                 } else {
-                    Ok(slope.clone())
+                    Ok(new_slope.clone())
                 }
             },
         )?;
 
         Point {
-            power: calc_voting_power(&point, cur_period) + add_amount,
-            slope,
+            power: current_power + add_amount,
+            slope: new_slope.clone(),
             start: cur_period,
             end,
         }
@@ -204,16 +206,16 @@ fn checkpoint(
         // this error can't happen since this if-branch is intended for checkpoint creation
         let end =
             new_end.ok_or_else(|| StdError::generic_err("Checkpoint initialization error"))?;
-        let slope = (add_amount.u128() as f32 / (end - cur_period) as f32).into();
+        new_slope = (add_amount.u128() as f32 / (end - cur_period) as f32).into();
         Point {
             power: add_amount,
-            slope,
+            slope: new_slope.clone(),
             start: cur_period,
             end,
         }
     };
     HISTORY.save(deps.storage, (addr, cur_period_key), &new_point)?;
-    checkpoint_total(deps, env, Some(add_amount), new_end)
+    checkpoint_total(deps, env, Some(add_amount), new_slope, new_end)
 }
 
 /// ## Description
@@ -338,7 +340,7 @@ fn extend_lock_time(
     };
     // should not exceed MAX_LOCK_TIME
     time_limits_check(lock.end * WEEK + time - env.block.time.seconds())?;
-    lock.end += get_period(time);
+    lock.end = get_period(env.block.time.seconds()) + get_period(time);
     LOCKED.save(deps.storage, user.clone(), &lock)?;
 
     checkpoint(deps, env, user, None, Some(lock.end))?;

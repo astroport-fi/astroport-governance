@@ -12,7 +12,7 @@ pub struct Config {
     pub xastro_token_addr: Addr,
 }
 
-const MULTIPLIER: u64 = 1000000;
+const MULTIPLIER: f32 = 1000000_f32;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Slope(pub u64);
