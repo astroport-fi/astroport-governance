@@ -470,6 +470,50 @@ fn random_token_lock() {
 }
 
 #[test]
+fn new_lock_after_lock_expired() {
+    let mut router = mock_app();
+    let router_ref = &mut router;
+    let helper = Helper::init(router_ref, Addr::unchecked("owner"));
+
+    // mint ASTRO, stake it and mint xASTRO
+    helper.mint_xastro(router_ref, "user", 100);
+
+    helper
+        .create_lock(router_ref, "user", WEEK * 5, 50)
+        .unwrap();
+
+    let vp = helper.query_user_vp(router_ref, "user").unwrap();
+    assert_eq!(vp.voting_power.u128(), 50);
+    let vp = helper.query_total_vp(router_ref).unwrap();
+    assert_eq!(vp.voting_power.u128(), 50);
+
+    // going to the future
+    router_ref.update_block(next_block);
+    router_ref.update_block(|block| block.time = block.time.plus_seconds(WEEK * 5));
+
+    helper.withdraw(router_ref, "user").unwrap();
+    helper.check_xastro_balance(router_ref, "user", 100);
+
+    let vp = helper.query_user_vp(router_ref, "user").unwrap();
+    assert_eq!(vp.voting_power.u128(), 0);
+    let vp = helper.query_total_vp(router_ref).unwrap();
+    assert_eq!(vp.voting_power.u128(), 0);
+
+    // creating a new lock in 3 weeks
+    router_ref.update_block(next_block);
+    router_ref.update_block(|block| block.time = block.time.plus_seconds(WEEK * 3));
+
+    helper
+        .create_lock(router_ref, "user", WEEK * 5, 100)
+        .unwrap();
+
+    let vp = helper.query_user_vp(router_ref, "user").unwrap();
+    assert_eq!(vp.voting_power.u128(), 100);
+    let vp = helper.query_total_vp(router_ref).unwrap();
+    assert_eq!(vp.voting_power.u128(), 100);
+}
+
+#[test]
 fn voting_constant_decay() {
     let mut router = mock_app();
     let router_ref = &mut router;
