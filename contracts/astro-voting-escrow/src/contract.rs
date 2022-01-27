@@ -139,7 +139,6 @@ fn checkpoint(
     let cur_period = get_period(env.block.time.seconds());
     let cur_period_key = U64Key::new(cur_period);
     let add_amount = add_amount.unwrap_or_default();
-    let new_slope;
 
     // get last checkpoint
     let last_checkpoint = HISTORY
@@ -156,7 +155,7 @@ fn checkpoint(
         let end = new_end.unwrap_or(point.end);
         let dt = end - cur_period;
         let current_power = calc_voting_power(&point, cur_period);
-        new_slope = if dt != 0 {
+        let slope = if dt != 0 {
             let current_power = current_power.u128() as f32;
             if end > point.end {
                 // this is extend_lock_time
@@ -188,16 +187,16 @@ fn checkpoint(
             U64Key::new(end),
             |slope_opt| -> StdResult<Slope> {
                 if let Some(pslope) = slope_opt {
-                    Ok(pslope + new_slope.clone())
+                    Ok(pslope + slope.clone())
                 } else {
-                    Ok(new_slope.clone())
+                    Ok(slope.clone())
                 }
             },
         )?;
 
         Point {
             power: current_power + add_amount,
-            slope: new_slope.clone(),
+            slope,
             start: cur_period,
             end,
         }
@@ -205,16 +204,16 @@ fn checkpoint(
         // this error can't happen since this if-branch is intended for checkpoint creation
         let end =
             new_end.ok_or_else(|| StdError::generic_err("Checkpoint initialization error"))?;
-        new_slope = (add_amount.u128() as f32 / (end - cur_period) as f32).into();
+        let slope = (add_amount.u128() as f32 / (end - cur_period) as f32).into();
         Point {
             power: add_amount,
-            slope: new_slope.clone(),
+            slope,
             start: cur_period,
             end,
         }
     };
     HISTORY.save(deps.storage, (addr, cur_period_key), &new_point)?;
-    checkpoint_total(deps, env, Some(add_amount), new_slope, new_end)
+    checkpoint_total(deps, env, Some(add_amount), new_point.slope, new_end)
 }
 
 /// ## Description
