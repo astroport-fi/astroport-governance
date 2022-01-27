@@ -1,3 +1,4 @@
+pub mod assembly;
 pub mod asset;
 pub mod astro_vesting;
 pub mod querier;

@@ -4,7 +4,7 @@ use std::fmt;
 
 use crate::querier::{query_balance, query_token_balance};
 use cosmwasm_std::{
-    to_binary, Addr, BankMsg, Coin, CosmosMsg, Decimal, MessageInfo, QuerierWrapper, StdError,
+    to_binary, Addr, Api, BankMsg, Coin, CosmosMsg, Decimal, MessageInfo, QuerierWrapper, StdError,
     StdResult, Uint128, WasmMsg,
 };
 use cw20::Cw20ExecuteMsg;
@@ -162,4 +162,20 @@ impl AssetInfo {
             AssetInfo::Token { contract_addr } => contract_addr.as_bytes(),
         }
     }
+}
+
+/// ## Description
+/// Returns the validated address in lowercase on success. Otherwise returns [`Err`]
+/// ## Params
+/// * **api** is a object of type [`Api`]
+///
+/// * **addr** is the object of type [`Addr`]
+pub fn addr_validate_to_lower(api: &dyn Api, addr: &str) -> StdResult<Addr> {
+    if addr.to_lowercase() != addr {
+        return Err(StdError::generic_err(format!(
+            "Address {} should be lowercase",
+            addr
+        )));
+    }
+    api.addr_validate(addr)
 }

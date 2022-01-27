@@ -9,10 +9,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "62e1f47f7dc0422027a4e370dd4548d4d66b26782e513e98dca1e689e058a80e"
 
 [[package]]
-name = "astro-vesting"
-version = "1.0.0"
+name = "astro-assembly"
+version = "0.1.0"
 dependencies = [
- "astroport",
+ "astroport 1.1.0",
  "astroport-governance",
  "astroport-token",
  "cosmwasm-schema",
@@ -24,6 +24,38 @@ dependencies = [
  "serde",
  "terra-multi-test",
  "thiserror",
+]
+
+[[package]]
+name = "astro-vesting"
+version = "1.0.0"
+dependencies = [
+ "astroport 2.4.0",
+ "astroport-governance",
+ "astroport-token",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-storage-plus 0.8.1",
+ "cw2",
+ "cw20",
+ "schemars",
+ "serde",
+ "terra-multi-test",
+ "thiserror",
+]
+
+[[package]]
+name = "astroport"
+version = "1.1.0"
+source = "git+https://github.com/astroport-fi/astroport.git?branch=feature/make-token-migratable#60a516b3e8de8470b1de9bcde3a1908b2ab69782"
+dependencies = [
+ "cosmwasm-std",
+ "cw-storage-plus 0.8.1",
+ "cw20",
+ "schemars",
+ "serde",
+ "terra-cosmwasm",
+ "uint",
 ]
 
 [[package]]
@@ -57,7 +89,7 @@ name = "astroport-token"
 version = "0.0.0"
 source = "git+https://github.com/astroport-fi/astroport.git?branch=master#76bbb92e62799c16f6e292760215f1b81ce70594"
 dependencies = [
- "astroport",
+ "astroport 2.4.0",
  "cosmwasm-std",
  "cw2",
  "cw20",
