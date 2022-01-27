@@ -705,7 +705,7 @@ fn calc_claim_amount(
     last_token_time: u64,
 ) -> StdResult<Uint128> {
     // Minimal user period is 0 (if user had no point)
-    let mut user_period: u64 = 0;
+    let mut user_period: u64;
     let mut to_distribute = Uint128::zero();
 
     let max_user_period: u64 = 10; // TODO get from VotingEscrow(ve).user_point_epoch(addr)
@@ -719,25 +719,25 @@ fn calc_claim_amount(
     let mut week_cursor: u64;
     if let Some(w_cursor) = distributor_info.time_cursor_of.get(&addr) {
         week_cursor = *w_cursor;
-        if *w_cursor == 0 {
-            user_period = find_timestamp_user_period(
-                deps.as_ref(),
-                config.voting_escrow,
-                addr.clone(),
-                start_time,
-                max_user_period,
-            )?;
-        } else if let Some(period) = distributor_info.user_period_of.get(&addr) {
-            if *period == 0 {
-                user_period = 1;
-            } else {
-                user_period = *period;
-            }
-        } else {
+    } else {
+        week_cursor = 0;
+    }
+
+    if week_cursor == 0 {
+        user_period = find_timestamp_user_period(
+            deps.as_ref(),
+            config.voting_escrow,
+            addr.clone(),
+            start_time,
+            max_user_period,
+        )?;
+    } else if let Some(period) = distributor_info.user_period_of.get(&addr) {
+        user_period = *period;
+        if user_period == 0 {
             user_period = 1;
         }
     } else {
-        week_cursor = 0;
+        user_period = 1;
     }
 
     let mut user_point = Point::default(); // TODO:
@@ -771,6 +771,7 @@ fn calc_claim_amount(
         if week_cursor >= user_point.ts && user_period <= max_user_period {
             user_period += 1;
             old_user_point = user_point.clone();
+
             if user_period > max_user_period {
                 user_point = Point::default();
             } else {
