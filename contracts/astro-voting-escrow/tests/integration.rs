@@ -269,7 +269,6 @@ impl Helper {
             .query_wasm_smart(self.voting_instance.clone(), &QueryMsg::TotalVotingPower {})
     }
 
-    // TODO: cover with tests
     pub fn query_total_vp_at(
         &self,
         router: &mut TerraApp,
@@ -328,6 +327,13 @@ fn lock_unlock_logic() {
         .extend_lock_amount(router_ref, "user", 1)
         .unwrap_err();
     assert_eq!(res.to_string(), "Lock does not exist");
+
+    // since nothing is locked we have no checkpoints
+    let err = helper.query_total_vp(router_ref).unwrap_err();
+    assert_eq!(
+        err.to_string(),
+        "Generic error: Querier contract error: Generic error: Checkpoint not found"
+    );
 
     // creating valid voting escrow lock
     helper
@@ -560,6 +566,13 @@ fn voting_constant_decay() {
         )
         .unwrap();
     assert_eq!(res.voting_power.u128(), 24);
+    let res = helper
+        .query_total_vp_at(
+            router_ref,
+            router_ref.block_info().time.seconds() - 5 * WEEK,
+        )
+        .unwrap();
+    assert_eq!(res.voting_power.u128(), 30);
 
     // and even in the future
     let res = helper
@@ -597,6 +610,13 @@ fn voting_constant_decay() {
     assert_eq!(vp.voting_power.u128(), 50);
     let vp = helper.query_total_vp(router_ref).unwrap();
     assert_eq!(vp.voting_power.u128(), 65);
+    let res = helper
+        .query_total_vp_at(
+            router_ref,
+            router_ref.block_info().time.seconds() + 4 * WEEK,
+        )
+        .unwrap();
+    assert_eq!(res.voting_power.u128(), 20);
 
     // going to the future
     router_ref.update_block(next_block);
@@ -656,6 +676,18 @@ fn voting_variable_decay() {
     assert_eq!(vp.voting_power.u128(), 17);
     let vp = helper.query_total_vp(router_ref).unwrap();
     assert_eq!(vp.voting_power.u128(), 90);
+    let res = helper
+        .query_user_vp_at(
+            router_ref,
+            "user2",
+            router_ref.block_info().time.seconds() + 4 * WEEK,
+        )
+        .unwrap();
+    assert_eq!(res.voting_power.u128(), 10);
+    let res = helper
+        .query_total_vp_at(router_ref, router_ref.block_info().time.seconds() + WEEK)
+        .unwrap();
+    assert_eq!(res.voting_power.u128(), 15);
 
     // going to the future
     router_ref.update_block(next_block);

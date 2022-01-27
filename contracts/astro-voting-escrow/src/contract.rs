@@ -444,7 +444,7 @@ fn get_total_voting_power(
         .last();
 
     let (_, point) =
-        last_checkpoint.unwrap_or_else(|| Err(StdError::generic_err("Checkpoint is not found")))?;
+        last_checkpoint.unwrap_or_else(|| Err(StdError::generic_err("Checkpoint not found")))?;
 
     let voting_power = if point.start == period {
         point.power
@@ -472,7 +472,7 @@ fn get_total_voting_power(
                 ..init_point
             }
         }
-        init_point.power
+        calc_voting_power(&init_point, period)
     };
 
     Ok(VotingPowerResponse { voting_power })
