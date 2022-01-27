@@ -86,7 +86,8 @@ fn checkpoint_total(
     deps: DepsMut,
     env: Env,
     add_amount: Option<Uint128>,
-    dslope: Slope,
+    old_slope: Slope,
+    new_slope: Slope,
     new_end: Option<u64>,
 ) -> StdResult<()> {
     let cur_period = get_period(env.block.time.seconds());
@@ -113,7 +114,7 @@ fn checkpoint_total(
 
         Point {
             power: calc_voting_power(&point, cur_period) + add_amount,
-            slope: point.slope + dslope - scheduled_change,
+            slope: point.slope - old_slope + new_slope - scheduled_change,
             start: cur_period,
             end,
         }
@@ -123,7 +124,7 @@ fn checkpoint_total(
             new_end.ok_or_else(|| StdError::generic_err("Checkpoint initialization error"))?;
         Point {
             power: add_amount,
-            slope: dslope,
+            slope: new_slope,
             start: cur_period,
             end,
         }
@@ -141,6 +142,7 @@ fn checkpoint(
     let cur_period = get_period(env.block.time.seconds());
     let cur_period_key = U64Key::new(cur_period);
     let add_amount = add_amount.unwrap_or_default();
+    let mut old_slope = Slope(0);
 
     // get last checkpoint
     let last_checkpoint = HISTORY
@@ -182,6 +184,9 @@ fn checkpoint(
             )?
         }
 
+        // we need to subtract it from total VP slope
+        old_slope = point.slope.clone();
+
         Point {
             power: current_power + add_amount,
             slope: new_slope,
@@ -215,7 +220,14 @@ fn checkpoint(
     )?;
 
     HISTORY.save(deps.storage, (addr, cur_period_key), &new_point)?;
-    checkpoint_total(deps, env, Some(add_amount), new_point.slope, new_end)
+    checkpoint_total(
+        deps,
+        env,
+        Some(add_amount),
+        old_slope,
+        new_point.slope,
+        new_end,
+    )
 }
 
 /// ## Description
