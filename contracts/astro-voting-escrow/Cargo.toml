@@ -32,11 +32,11 @@ serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 terra-cosmwasm = { version = "2.2.0" }
 thiserror = { version = "1.0.20" }
 astroport-governance = { path = "../../packages/astroport-governance", default-features = false, version = "1.0.0" }
-astroport = { git = "https://github.com/astroport-fi/astroport.git", package = "astroport" }
 
 [dev-dependencies]
 cosmwasm-schema = { version = "0.16.0" }
 terra-multi-test = { git = "https://github.com/astroport-fi/terra-plus.git" }
+astroport = { git = "https://github.com/astroport-fi/astroport.git", package = "astroport" }
 astroport-token = { git = "https://github.com/astroport-fi/astroport.git", package = "astroport-token" }
 astroport-staking = { git = "https://github.com/astroport-fi/astroport.git", package = "astroport-staking" }
 anyhow = "1"

@@ -1,4 +1,3 @@
-use astroport::asset::addr_validate_to_lower;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
@@ -17,7 +16,9 @@ use astroport_governance::astro_voting_escrow::{
 
 use crate::error::ContractError;
 use crate::state::{Config, Lock, Point, Slope, CONFIG, HISTORY, LOCKED, SLOPE_CHANGES};
-use crate::utils::{calc_voting_power, get_period, time_limits_check, xastro_token_check};
+use crate::utils::{
+    addr_validate_to_lower, calc_voting_power, get_period, time_limits_check, xastro_token_check,
+};
 
 /// Contract name that is used for migration.
 const CONTRACT_NAME: &str = "astro-voting-escrow";
@@ -37,6 +38,7 @@ pub const MAX_LOCK_TIME: u64 = 2 * 365 * 86400; // 2 years
 /// * **_env** is the object of type [`Env`].
 ///
 /// * **_info** is the object of type [`MessageInfo`].
+///
 /// * **msg** is a message of type [`InstantiateMsg`] which contains the basic settings for creating a contract
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -62,7 +64,7 @@ pub fn instantiate(
 ///
 /// * **env** is the object of type [`Env`].
 ///
-/// * **_info** is the object of type [`MessageInfo`].
+/// * **info** is the object of type [`MessageInfo`].
 ///
 /// * **msg** is the object of type [`ExecuteMsg`].
 ///
@@ -465,7 +467,7 @@ fn get_total_voting_power(
         for (recalc_period, scheduled_change) in scheduled_slope_changes {
             init_point = Point {
                 power: calc_voting_power(&init_point, recalc_period),
-                start: recalc_period + 1,
+                start: recalc_period,
                 slope: init_point.slope - scheduled_change,
                 ..init_point
             }
