@@ -110,7 +110,7 @@ fn checkpoint_total(
         let end = new_end.unwrap_or(cur_period);
         let scheduled_change = SLOPE_CHANGES
             .may_load(deps.storage, cur_period_key.clone())?
-            .unwrap_or_else(|| Slope(0));
+            .unwrap_or(Slope(0));
 
         Point {
             power: calc_voting_power(&point, cur_period) + add_amount,
@@ -185,7 +185,7 @@ fn checkpoint(
         }
 
         // we need to subtract it from total VP slope
-        old_slope = point.slope.clone();
+        old_slope = point.slope;
 
         Point {
             power: current_power + add_amount,
@@ -324,7 +324,7 @@ fn withdraw(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, Cont
             })?,
             funds: vec![],
         });
-        LOCKED.remove(deps.storage, sender.clone());
+        LOCKED.remove(deps.storage, sender);
 
         // TODO: do we need checkpoint here?
         // checkpoint(deps, env, sender, Some(Uint128::zero()), None)?;
