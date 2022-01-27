@@ -107,11 +107,13 @@ fn checkpoint_total(
     let new_point = if let Some(storage_result) = last_checkpoint {
         let (_, point) = storage_result?;
         let end = new_end.unwrap_or(cur_period);
-        let scheduled_change = SLOPE_CHANGES.may_load(deps.storage, cur_period_key.clone())?;
+        let scheduled_change = SLOPE_CHANGES
+            .may_load(deps.storage, cur_period_key.clone())?
+            .unwrap_or_else(|| Slope(0));
 
         Point {
             power: calc_voting_power(&point, cur_period) + add_amount,
-            slope: point.slope + dslope - scheduled_change.unwrap_or(Slope(0)),
+            slope: point.slope + dslope - scheduled_change,
             start: cur_period,
             end,
         }
@@ -155,11 +157,10 @@ fn checkpoint(
         let end = new_end.unwrap_or(point.end);
         let dt = end - cur_period;
         let current_power = calc_voting_power(&point, cur_period);
-        let slope = if dt != 0 {
+        let new_slope = if dt != 0 {
             let current_power = current_power.u128() as f32;
             if end > point.end {
                 // this is extend_lock_time
-                // TODO: we need to subtract this from slope schedule
                 (current_power / dt as f32).into()
             } else {
                 // increase lock's amount
@@ -170,33 +171,20 @@ fn checkpoint(
         };
 
         // cancel previously scheduled slope change
-        let start_period_key = U64Key::new(point.start);
+        let end_period_key = U64Key::new(point.end);
         if let Some(old_slope) =
-            SLOPE_CHANGES.may_load(deps.as_ref().storage, start_period_key.clone())?
+            SLOPE_CHANGES.may_load(deps.as_ref().storage, end_period_key.clone())?
         {
             SLOPE_CHANGES.save(
                 deps.storage,
-                start_period_key,
+                end_period_key,
                 &(old_slope - point.slope.clone()),
             )?
         }
 
-        // schedule slope change
-        SLOPE_CHANGES.update(
-            deps.storage,
-            U64Key::new(end),
-            |slope_opt| -> StdResult<Slope> {
-                if let Some(pslope) = slope_opt {
-                    Ok(pslope + slope.clone())
-                } else {
-                    Ok(slope.clone())
-                }
-            },
-        )?;
-
         Point {
             power: current_power + add_amount,
-            slope,
+            slope: new_slope,
             start: cur_period,
             end,
         }
@@ -212,6 +200,20 @@ fn checkpoint(
             end,
         }
     };
+
+    // schedule slope change
+    SLOPE_CHANGES.update(
+        deps.storage,
+        U64Key::new(new_point.end),
+        |slope_opt| -> StdResult<Slope> {
+            if let Some(pslope) = slope_opt {
+                Ok(pslope + new_point.slope.clone())
+            } else {
+                Ok(new_point.slope.clone())
+            }
+        },
+    )?;
+
     HISTORY.save(deps.storage, (addr, cur_period_key), &new_point)?;
     checkpoint_total(deps, env, Some(add_amount), new_point.slope, new_end)
 }
@@ -427,7 +429,7 @@ fn get_total_voting_power(
         )
         .last();
 
-    let (_, mut point) =
+    let (_, point) =
         last_checkpoint.unwrap_or_else(|| Err(StdError::generic_err("Checkpoint is not found")))?;
 
     let voting_power = if point.start == period {
@@ -438,7 +440,7 @@ fn get_total_voting_power(
             .range(
                 deps.storage,
                 Some(Bound::Inclusive(checkpoint_period_key.wrapped)),
-                Some(Bound::Exclusive(period_key.wrapped)),
+                Some(Bound::Inclusive(period_key.wrapped)),
                 Order::Ascending,
             )
             .filter_map(|item| {
@@ -447,12 +449,16 @@ fn get_total_voting_power(
                 Some((u64::from_be_bytes(period_bytes), lock))
             })
             .collect();
-        for (recalc_period, slope) in scheduled_slope_changes {
-            point.slope = point.slope - slope;
-            point.power = calc_voting_power(&point, recalc_period);
+        let mut init_point = point;
+        for (recalc_period, scheduled_change) in scheduled_slope_changes {
+            init_point = Point {
+                power: calc_voting_power(&init_point, recalc_period),
+                start: recalc_period + 1,
+                slope: init_point.slope - scheduled_change,
+                ..init_point
+            }
         }
-        // we recalculated previous points but we need to calc current period
-        calc_voting_power(&point, period)
+        init_point.power
     };
 
     Ok(VotingPowerResponse { voting_power })

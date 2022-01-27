@@ -621,5 +621,5 @@ fn voting_variable_decay() {
     let vp = helper.query_user_vp(router_ref, "user2").unwrap();
     assert_eq!(vp.voting_power.u128(), 15);
     let vp = helper.query_total_vp(router_ref).unwrap();
-    // assert_eq!(vp.voting_power.u128(), 15);
+    assert_eq!(vp.voting_power.u128(), 15);
 }
