@@ -8,7 +8,7 @@ use cosmwasm_std::{
 use cw2::set_contract_version;
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 use cw_storage_plus::{Bound, U64Key};
-use std::cmp::max;
+use std::convert::TryInto;
 
 use astroport_governance::astro_voting_escrow::{
     Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg, UsersResponse,
@@ -16,7 +16,7 @@ use astroport_governance::astro_voting_escrow::{
 };
 
 use crate::error::ContractError;
-use crate::state::{Config, Lock, CONFIG, HISTORY, LOCKED};
+use crate::state::{Config, Lock, Point, Slope, CONFIG, HISTORY, LOCKED, SLOPE_CHANGES};
 use crate::utils::{calc_voting_power, get_period, time_limits_check, xastro_token_check};
 
 /// Contract name that is used for migration.
@@ -82,6 +82,61 @@ pub fn execute(
     }
 }
 
+fn checkpoint_total(
+    deps: DepsMut,
+    env: Env,
+    add_amount: Option<Uint128>,
+    new_end: Option<u64>,
+) -> StdResult<()> {
+    let cur_period = get_period(env.block.time.seconds());
+    let cur_period_key = U64Key::new(cur_period);
+    let contract_addr = env.contract.address;
+    let add_amount = add_amount.unwrap_or_default();
+    let slope;
+
+    // get last checkpoint
+    let last_checkpoint = HISTORY
+        .prefix(contract_addr.clone())
+        .range(
+            deps.as_ref().storage,
+            None,
+            Some(Bound::Inclusive(cur_period_key.wrapped.clone())),
+            Order::Ascending,
+        )
+        .last();
+    let new_point = if let Some(storage_result) = last_checkpoint {
+        let (_, point) = storage_result?;
+        let end = new_end.unwrap_or(cur_period);
+
+        let scheduled_change = SLOPE_CHANGES.may_load(deps.storage, cur_period_key.clone())?;
+        let dt = end - cur_period;
+        let add_slope = if dt != 0 {
+            add_amount.u128() as f32 / dt as f32
+        } else {
+            0_f32
+        };
+
+        Point {
+            power: calc_voting_power(&point, cur_period) + add_amount,
+            slope: point.slope + add_slope.into() - scheduled_change.unwrap_or(Slope(0)),
+            start: cur_period,
+            end,
+        }
+    } else {
+        // this error can't happen since this if-branch is intended for checkpoint creation
+        let end =
+            new_end.ok_or_else(|| StdError::generic_err("Checkpoint initialization error"))?;
+        slope = (add_amount.u128() as f32 / (end - cur_period) as f32).into();
+        Point {
+            power: add_amount,
+            slope,
+            start: cur_period,
+            end,
+        }
+    };
+    HISTORY.save(deps.storage, (contract_addr, cur_period_key), &new_point)
+}
+
 fn checkpoint(
     deps: DepsMut,
     env: Env,
@@ -91,6 +146,7 @@ fn checkpoint(
 ) -> StdResult<()> {
     let cur_period = get_period(env.block.time.seconds());
     let cur_period_key = U64Key::new(cur_period);
+    let add_amount = add_amount.unwrap_or_default();
 
     // get last checkpoint
     let last_checkpoint = HISTORY
@@ -102,36 +158,62 @@ fn checkpoint(
             Order::Ascending,
         )
         .last();
-    let new_lock = if let Some(storage_result) = last_checkpoint {
-        let (_, lock) = storage_result?;
-        let mut end = new_end.unwrap_or(cur_period);
-        // if this is checkpoint for total VP then lock.end is equal to the latest lock in the contract
-        if addr == env.contract.address {
-            end = max(lock.end, end);
+    let new_point = if let Some(storage_result) = last_checkpoint {
+        let (_, point) = storage_result?;
+        let end = new_end.unwrap_or(cur_period);
+        let dt = end - point.start;
+        let slope = if dt != 0 {
+            (point.power.u128() as f32 / dt as f32).into()
+        } else {
+            point.slope.clone()
         };
-        Lock {
-            power: calc_voting_power(lock, cur_period) + add_amount.unwrap_or_default(),
-            end,
+
+        // cancel previously scheduled slope change
+        SLOPE_CHANGES.update(
+            deps.storage,
+            U64Key::new(point.start),
+            |slope_opt| -> StdResult<Slope> {
+                if let Some(pslope) = slope_opt {
+                    Ok(pslope - slope.clone())
+                } else {
+                    // TODO: we should not add this slope but update() force it. need to fix it later
+                    Ok(Slope(0))
+                }
+            },
+        )?;
+        // schedule slope change
+        SLOPE_CHANGES.update(
+            deps.storage,
+            U64Key::new(end),
+            |slope_opt| -> StdResult<Slope> {
+                if let Some(pslope) = slope_opt {
+                    Ok(pslope + slope.clone())
+                } else {
+                    Ok(slope.clone())
+                }
+            },
+        )?;
+
+        Point {
+            power: calc_voting_power(&point, cur_period) + add_amount,
+            slope,
             start: cur_period,
+            end,
         }
     } else {
         // this error can't happen since this if-branch is intended for checkpoint creation
         let end =
             new_end.ok_or_else(|| StdError::generic_err("Checkpoint initialization error"))?;
-        Lock {
-            power: add_amount.unwrap_or_default(),
-            end,
+        let slope = (add_amount.u128() as f32 / (end - cur_period) as f32).into();
+        Point {
+            power: add_amount,
+            slope,
             start: cur_period,
+            end,
         }
     };
-    HISTORY.save(deps.storage, (addr.clone(), cur_period_key), &new_lock)?;
-    let contract_addr = env.contract.address.clone();
-    if addr != contract_addr {
-        // checkpointing total voting power parameters
-        checkpoint(deps, env, contract_addr, add_amount, new_end)
-    } else {
-        Ok(())
-    }
+    HISTORY.save(deps.storage, (addr, cur_period_key), &new_point)?;
+    checkpoint_total(deps, env, Some(add_amount), new_end)
 }
 
 /// ## Description
@@ -176,11 +258,7 @@ fn create_lock(
         if lock_opt.is_some() {
             return Err(ContractError::LockAlreadyExists {});
         }
-        Ok(Lock {
-            power: amount,
-            start: block_period,
-            end,
-        })
+        Ok(Lock { power: amount, end })
     })?;
 
     checkpoint(deps, env, user, Some(amount), Some(end))?;
@@ -235,7 +313,7 @@ fn withdraw(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, Cont
         LOCKED.remove(deps.storage, sender.clone());
 
         // TODO: do we need checkpoint here?
-        checkpoint(deps, env, sender, Some(Uint128::zero()), None)?;
+        // checkpoint(deps, env, sender, Some(Uint128::zero()), None)?;
 
         Ok(Response::default()
             .add_message(transfer_msg)
@@ -259,7 +337,7 @@ fn extend_lock_time(
         return Err(ContractError::LockExpired {});
     };
     // should not exceed MAX_LOCK_TIME
-    time_limits_check(lock.end * WEEK + time - lock.start * WEEK)?;
+    time_limits_check(lock.end * WEEK + time - env.block.time.seconds())?;
     lock.end += get_period(time);
     LOCKED.save(deps.storage, user.clone(), &lock)?;
 
@@ -282,21 +360,12 @@ fn extend_lock_time(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::TotalVotingPower {} => {
-            let contract_addr = env.contract.address.to_string();
-            to_binary(&get_user_voting_power(deps, env, contract_addr, None)?)
-        }
+        QueryMsg::TotalVotingPower {} => to_binary(&get_total_voting_power(deps, env, None)?),
         QueryMsg::UserVotingPower { user } => {
             to_binary(&get_user_voting_power(deps, env, user, None)?)
         }
         QueryMsg::TotalVotingPowerAt { time } => {
-            let contract_addr = env.contract.address.to_string();
-            to_binary(&get_user_voting_power(
-                deps,
-                env,
-                contract_addr,
-                Some(time),
-            )?)
+            to_binary(&get_total_voting_power(deps, env, Some(time))?)
         }
         QueryMsg::UserVotingPowerAt { user, time } => {
             to_binary(&get_user_voting_power(deps, env, user, Some(time))?)
@@ -315,7 +384,7 @@ fn get_user_voting_power(
     let period = get_period(time.unwrap_or_else(|| env.block.time.seconds()));
     let period_key = U64Key::new(period);
 
-    let last_checkpoint = HISTORY
+    let last_checkpoints = HISTORY
         .prefix(user)
         .range(
             deps.storage,
@@ -325,13 +394,65 @@ fn get_user_voting_power(
         )
         .last();
 
-    let (_, lock) =
-        last_checkpoint.unwrap_or_else(|| Err(StdError::generic_err("User is not found")))?;
+    let (_, point) =
+        last_checkpoints.unwrap_or_else(|| Err(StdError::generic_err("User is not found")))?;
 
-    let voting_power = if lock.start == period {
-        lock.power
+    // the point right in this period was found
+    let voting_power = if point.start == period {
+        point.power
     } else {
-        calc_voting_power(lock, period)
+        // the point before this period was found thus we can calculate VP in the period we interested in
+        calc_voting_power(&point, period)
+    };
+
+    Ok(VotingPowerResponse { voting_power })
+}
+
+fn get_total_voting_power(
+    deps: Deps,
+    env: Env,
+    time: Option<u64>,
+) -> StdResult<VotingPowerResponse> {
+    let contract_addr = env.contract.address.clone();
+    let period = get_period(time.unwrap_or_else(|| env.block.time.seconds()));
+    let period_key = U64Key::new(period);
+
+    let last_checkpoint = HISTORY
+        .prefix(contract_addr)
+        .range(
+            deps.storage,
+            None,
+            Some(Bound::Inclusive(period_key.wrapped.clone())),
+            Order::Ascending,
+        )
+        .last();
+
+    let (_, mut point) =
+        last_checkpoint.unwrap_or_else(|| Err(StdError::generic_err("Checkpoint is not found")))?;
+
+    let voting_power = if point.start == period {
+        point.power
+    } else {
+        let checkpoint_period_key = U64Key::new(point.start);
+        let scheduled_slope_changes: Vec<_> = SLOPE_CHANGES
+            .range(
+                deps.storage,
+                Some(Bound::Inclusive(checkpoint_period_key.wrapped)),
+                Some(Bound::Exclusive(period_key.wrapped)),
+                Order::Ascending,
+            )
+            .filter_map(|item| {
+                let (period_serialized, lock) = item.ok()?;
+                let period_bytes: [u8; 8] = period_serialized.try_into().unwrap();
+                Some((u64::from_be_bytes(period_bytes), lock))
+            })
+            .collect();
+        for (recalc_period, slope) in scheduled_slope_changes {
+            point.slope = point.slope - slope;
+            point.power = calc_voting_power(&point, recalc_period);
+        }
+        // we recalculated previous points but we need to calc current period
+        calc_voting_power(&point, period)
     };
 
     Ok(VotingPowerResponse { voting_power })

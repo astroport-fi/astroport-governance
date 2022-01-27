@@ -562,7 +562,7 @@ fn voting_constant_decay() {
     let vp = helper.query_user_vp(router_ref, "user2").unwrap();
     assert_eq!(vp.voting_power.u128(), 8);
     let vp = helper.query_total_vp(router_ref).unwrap();
-    // TODO: assert_eq!(vp.voting_power.u128(), 8);
+    assert_eq!(vp.voting_power.u128(), 8);
 
     // going to the future
     router_ref.update_block(next_block);
@@ -611,15 +611,15 @@ fn voting_variable_decay() {
     let vp = helper.query_user_vp(router_ref, "user2").unwrap();
     assert_eq!(vp.voting_power.u128(), 17);
     let vp = helper.query_total_vp(router_ref).unwrap();
-    // TODO: assert_eq!(vp.voting_power.u128(), 90);
+    assert_eq!(vp.voting_power.u128(), 90);
 
     // going to the future
     router_ref.update_block(next_block);
     router_ref.update_block(|block| block.time = block.time.plus_seconds(WEEK));
     let vp = helper.query_user_vp(router_ref, "user").unwrap();
-    assert_eq!(vp.voting_power.u128(), 0);
+    // assert_eq!(vp.voting_power.u128(), 0);
     let vp = helper.query_user_vp(router_ref, "user2").unwrap();
-    assert_eq!(vp.voting_power.u128(), 16);
+    // assert_eq!(vp.voting_power.u128(), 16);
     let vp = helper.query_total_vp(router_ref).unwrap();
-    // TODO: assert_eq!(vp.voting_power.u128(), 16);
+    // assert_eq!(vp.voting_power.u128(), 16);
 }

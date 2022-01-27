@@ -2,7 +2,7 @@ use crate::contract::{MAX_LOCK_TIME, WEEK};
 use crate::error::ContractError;
 use cosmwasm_std::{Addr, Deps, Uint128};
 
-use crate::state::{Lock, CONFIG};
+use crate::state::{Point, CONFIG};
 
 pub(crate) fn time_limits_check(time: u64) -> Result<(), ContractError> {
     if !(WEEK..=MAX_LOCK_TIME).contains(&time) {
@@ -25,10 +25,9 @@ pub(crate) fn xastro_token_check(deps: Deps, sender: Addr) -> Result<(), Contrac
     }
 }
 
-pub(crate) fn calc_voting_power(lock: Lock, cur_period: u64) -> Uint128 {
-    let power = lock.power.u128() as f32;
-    let slope = power / (lock.end - lock.start) as f32;
-    let voting_power = power - slope * (cur_period - lock.start) as f32;
+pub(crate) fn calc_voting_power(point: &Point, period: u64) -> Uint128 {
+    let power = point.power.u128() as f32;
+    let voting_power = power - f32::from(point.slope.clone()) * (period - point.start) as f32;
     // if it goes below zero then u128 will adjust it to 0
     Uint128::from(voting_power.round() as u128)
 }
