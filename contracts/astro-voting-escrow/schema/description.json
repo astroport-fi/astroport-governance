@@ -14,6 +14,86 @@
         }
       },
       "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "total_voting_power_at"
+      ],
+      "properties": {
+        "total_voting_power_at": {
+          "type": "object",
+          "required": [
+            "time"
+          ],
+          "properties": {
+            "time": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "user_voting_power"
+      ],
+      "properties": {
+        "user_voting_power": {
+          "type": "object",
+          "required": [
+            "user"
+          ],
+          "properties": {
+            "user": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "user_voting_power_at"
+      ],
+      "properties": {
+        "user_voting_power_at": {
+          "type": "object",
+          "required": [
+            "time",
+            "user"
+          ],
+          "properties": {
+            "time": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            },
+            "user": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "users"
+      ],
+      "properties": {
+        "users": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
     }
   ]
 }

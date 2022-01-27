@@ -1,7 +1,9 @@
 use std::env::current_dir;
 use std::fs::create_dir_all;
 
-use astroport_governance::astro_voting_escrow::{ExecuteMsg, InstantiateMsg, QueryMsg};
+use astroport_governance::astro_voting_escrow::{
+    ExecuteMsg, InstantiateMsg, QueryMsg, UsersResponse, VotingPowerResponse,
+};
 use cosmwasm_schema::{export_schema, remove_schemas, schema_for};
 
 fn main() {
@@ -13,4 +15,6 @@ fn main() {
     export_schema(&schema_for!(InstantiateMsg), &out_dir);
     export_schema(&schema_for!(ExecuteMsg), &out_dir);
     export_schema(&schema_for!(QueryMsg), &out_dir);
+    export_schema(&schema_for!(VotingPowerResponse), &out_dir);
+    export_schema(&schema_for!(UsersResponse), &out_dir);
 }
