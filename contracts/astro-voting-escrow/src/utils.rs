@@ -1,8 +1,9 @@
 use crate::contract::{MAX_LOCK_TIME, WEEK};
 use crate::error::ContractError;
-use cosmwasm_std::{Addr, Api, Deps, StdError, StdResult, Uint128};
+use cosmwasm_std::{Addr, Api, Deps, Order, Pair, StdError, StdResult, Uint128};
+use cw_storage_plus::{Bound, U64Key};
 
-use crate::state::{Point, CONFIG};
+use crate::state::{Point, CONFIG, HISTORY};
 
 pub(crate) fn time_limits_check(time: u64) -> Result<(), ContractError> {
     if !(WEEK..=MAX_LOCK_TIME).contains(&time) {
@@ -30,6 +31,23 @@ pub(crate) fn calc_voting_power(point: &Point, period: u64) -> Uint128 {
     let voting_power = power - f32::from(point.slope.clone()) * (period - point.start) as f32;
     // if it goes below zero then u128 will adjust it to 0
     Uint128::from(voting_power.round() as u128)
+}
+
+pub(crate) fn fetch_last_checkpoint(
+    deps: Deps,
+    addr: &Addr,
+    period_key: &U64Key,
+) -> StdResult<Option<Pair<Point>>> {
+    HISTORY
+        .prefix(addr.clone())
+        .range(
+            deps.storage,
+            None,
+            Some(Bound::Inclusive(period_key.wrapped.clone())),
+            Order::Ascending,
+        )
+        .last()
+        .transpose()
 }
 
 /// ## Description

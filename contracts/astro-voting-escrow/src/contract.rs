@@ -17,7 +17,8 @@ use astroport_governance::astro_voting_escrow::{
 use crate::error::ContractError;
 use crate::state::{Config, Lock, Point, Slope, CONFIG, HISTORY, LOCKED, SLOPE_CHANGES};
 use crate::utils::{
-    addr_validate_to_lower, calc_voting_power, get_period, time_limits_check, xastro_token_check,
+    addr_validate_to_lower, calc_voting_power, fetch_last_checkpoint, get_period,
+    time_limits_check, xastro_token_check,
 };
 
 /// Contract name that is used for migration.
@@ -35,7 +36,7 @@ pub const MAX_LOCK_TIME: u64 = 2 * 365 * 86400; // 2 years
 /// ## Params
 /// * **deps** is the object of type [`DepsMut`].
 ///
-/// * **_env** is the object of type [`Env`].
+/// * **env** is the object of type [`Env`].
 ///
 /// * **_info** is the object of type [`MessageInfo`].
 ///
@@ -43,7 +44,7 @@ pub const MAX_LOCK_TIME: u64 = 2 * 365 * 86400; // 2 years
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
-    _env: Env,
+    env: Env,
     _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
@@ -53,6 +54,19 @@ pub fn instantiate(
         xastro_token_addr: addr_validate_to_lower(deps.api, &msg.deposit_token_addr)?,
     };
     CONFIG.save(deps.storage, &config)?;
+
+    let cur_period = get_period(env.block.time.seconds());
+    let point = Point {
+        power: Uint128::zero(),
+        start: cur_period,
+        end: 0,
+        slope: Slope(0),
+    };
+    HISTORY.save(
+        deps.storage,
+        (env.contract.address, U64Key::new(cur_period)),
+        &point,
+    )?;
 
     Ok(Response::default())
 }
@@ -98,17 +112,8 @@ fn checkpoint_total(
     let add_amount = add_amount.unwrap_or_default();
 
     // get last checkpoint
-    let last_checkpoint = HISTORY
-        .prefix(contract_addr.clone())
-        .range(
-            deps.as_ref().storage,
-            None,
-            Some(Bound::Inclusive(cur_period_key.wrapped.clone())),
-            Order::Ascending,
-        )
-        .last();
-    let new_point = if let Some(storage_result) = last_checkpoint {
-        let (_, point) = storage_result?;
+    let last_checkpoint = fetch_last_checkpoint(deps.as_ref(), &contract_addr, &cur_period_key)?;
+    let new_point = if let Some((_, point)) = last_checkpoint {
         let end = new_end.unwrap_or(cur_period);
         let scheduled_change = SLOPE_CHANGES
             .may_load(deps.storage, cur_period_key.clone())?
@@ -147,17 +152,8 @@ fn checkpoint(
     let mut old_slope = Slope(0);
 
     // get last checkpoint
-    let last_checkpoint = HISTORY
-        .prefix(addr.clone())
-        .range(
-            deps.as_ref().storage,
-            None,
-            Some(Bound::Inclusive(cur_period_key.wrapped.clone())),
-            Order::Ascending,
-        )
-        .last();
-    let new_point = if let Some(storage_result) = last_checkpoint {
-        let (_, point) = storage_result?;
+    let last_checkpoint = fetch_last_checkpoint(deps.as_ref(), &addr, &cur_period_key)?;
+    let new_point = if let Some((_, point)) = last_checkpoint {
         let end = new_end.unwrap_or(point.end);
         let dt = end - cur_period;
         let current_power = calc_voting_power(&point, cur_period);
@@ -326,10 +322,9 @@ fn withdraw(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, Cont
             })?,
             funds: vec![],
         });
-        LOCKED.remove(deps.storage, sender);
+        LOCKED.remove(deps.storage, sender.clone());
 
-        // TODO: do we need checkpoint here?
-        // checkpoint(deps, env, sender, Some(Uint128::zero()), None)?;
+        checkpoint(deps, env, sender, Some(Uint128::zero()), None)?;
 
         Ok(Response::default()
             .add_message(transfer_msg)
@@ -343,18 +338,22 @@ fn extend_lock_time(
     info: MessageInfo,
     time: u64,
 ) -> Result<Response, ContractError> {
-    // disabling ability to extend lock time by less than a week
-    time_limits_check(time)?;
     let user = info.sender;
     let mut lock = LOCKED
         .load(deps.storage, user.clone())
         .map_err(|_| ContractError::LockDoesntExist {})?;
+
+    // disabling ability to extend lock time by less than a week
+    time_limits_check(time)?;
+
     if lock.end <= get_period(env.block.time.seconds()) {
         return Err(ContractError::LockExpired {});
     };
+
+    let block_time = env.block.time.seconds();
     // should not exceed MAX_LOCK_TIME
-    time_limits_check(lock.end * WEEK + time - env.block.time.seconds())?;
-    lock.end = get_period(env.block.time.seconds()) + get_period(time);
+    time_limits_check(lock.end * WEEK + time - block_time)?;
+    lock.end = get_period(block_time) + get_period(time);
     LOCKED.save(deps.storage, user.clone(), &lock)?;
 
     checkpoint(deps, env, user, None, Some(lock.end))?;
@@ -400,24 +399,16 @@ fn get_user_voting_power(
     let period = get_period(time.unwrap_or_else(|| env.block.time.seconds()));
     let period_key = U64Key::new(period);
 
-    let last_checkpoints = HISTORY
-        .prefix(user)
-        .range(
-            deps.storage,
-            None,
-            Some(Bound::Inclusive(period_key.wrapped)),
-            Order::Ascending,
-        )
-        .last();
+    let last_checkpoint = fetch_last_checkpoint(deps, &user, &period_key)?;
 
-    let (_, point) =
-        last_checkpoints.unwrap_or_else(|| Err(StdError::generic_err("User is not found")))?;
+    let (_, point) = last_checkpoint.ok_or_else(|| StdError::generic_err("User is not found"))?;
 
     // the point right in this period was found
     let voting_power = if point.start == period {
         point.power
     } else {
-        // the point before this period was found thus we can calculate VP in the period we interested in
+        // the point before this period was found thus we can calculate VP in the period
+        // we are interested in
         calc_voting_power(&point, period)
     };
 
@@ -433,18 +424,10 @@ fn get_total_voting_power(
     let period = get_period(time.unwrap_or_else(|| env.block.time.seconds()));
     let period_key = U64Key::new(period);
 
-    let last_checkpoint = HISTORY
-        .prefix(contract_addr)
-        .range(
-            deps.storage,
-            None,
-            Some(Bound::Inclusive(period_key.wrapped.clone())),
-            Order::Ascending,
-        )
-        .last();
+    let last_checkpoint = fetch_last_checkpoint(deps, &contract_addr, &period_key)?;
 
     let (_, point) =
-        last_checkpoint.unwrap_or_else(|| Err(StdError::generic_err("Checkpoint not found")))?;
+        last_checkpoint.ok_or_else(|| StdError::generic_err("Checkpoint not found"))?;
 
     let voting_power = if point.start == period {
         point.power

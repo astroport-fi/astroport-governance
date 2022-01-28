@@ -328,12 +328,9 @@ fn lock_unlock_logic() {
         .unwrap_err();
     assert_eq!(res.to_string(), "Lock does not exist");
 
-    // since nothing is locked we have no checkpoints
-    let err = helper.query_total_vp(router_ref).unwrap_err();
-    assert_eq!(
-        err.to_string(),
-        "Generic error: Querier contract error: Generic error: Checkpoint not found"
-    );
+    // current total voting power is 0
+    let vp = helper.query_total_vp(router_ref).unwrap();
+    assert_eq!(vp.voting_power.u128(), 0);
 
     // creating valid voting escrow lock
     helper
