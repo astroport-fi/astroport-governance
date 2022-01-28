@@ -1,6 +1,7 @@
 use crate::contract::{MAX_LOCK_TIME, WEEK};
 use crate::error::ContractError;
-use cosmwasm_std::{Addr, Api, Deps, Order, Pair, StdError, StdResult, Uint128};
+use astroport::DecimalCheckedOps;
+use cosmwasm_std::{Addr, Deps, Order, Pair, StdResult, Uint128};
 use cw_storage_plus::{Bound, U64Key};
 
 use crate::state::{Point, CONFIG, HISTORY};
@@ -27,10 +28,14 @@ pub(crate) fn xastro_token_check(deps: Deps, sender: Addr) -> Result<(), Contrac
 }
 
 pub(crate) fn calc_voting_power(point: &Point, period: u64) -> Uint128 {
-    let power = point.power.u128() as f32;
-    let voting_power = power - f32::from(point.slope.clone()) * (period - point.start) as f32;
-    // if it goes below zero then u128 will adjust it to 0
-    Uint128::from(voting_power.round() as u128)
+    let shift = point
+        .slope
+        .checked_mul(Uint128::from(period - point.start))
+        .unwrap_or_else(|_| Uint128::zero());
+    point
+        .power
+        .checked_sub(shift)
+        .unwrap_or_else(|_| Uint128::zero())
 }
 
 pub(crate) fn fetch_last_checkpoint(
@@ -48,20 +53,4 @@ pub(crate) fn fetch_last_checkpoint(
         )
         .last()
         .transpose()
-}
-
-/// ## Description
-/// Returns the validated address in lowercase on success. Otherwise returns [`Err`]
-/// ## Params
-/// * **api** is a object of type [`Api`]
-///
-/// * **addr** is the object of type [`Addr`]
-pub(crate) fn addr_validate_to_lower(api: &dyn Api, addr: &str) -> StdResult<Addr> {
-    if addr.to_lowercase() != addr {
-        return Err(StdError::generic_err(format!(
-            "Address {} should be lowercase",
-            addr
-        )));
-    }
-    api.addr_validate(addr)
 }

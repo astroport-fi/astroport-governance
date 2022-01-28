@@ -1,8 +1,9 @@
+use astroport::asset::addr_validate_to_lower;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    from_binary, to_binary, Addr, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Order,
-    Response, StdError, StdResult, Uint128, WasmMsg,
+    from_binary, to_binary, Addr, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo,
+    Order, Response, StdError, StdResult, Uint128, WasmMsg,
 };
 use cw2::set_contract_version;
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
@@ -15,10 +16,9 @@ use astroport_governance::astro_voting_escrow::{
 };
 
 use crate::error::ContractError;
-use crate::state::{Config, Lock, Point, Slope, CONFIG, HISTORY, LOCKED, SLOPE_CHANGES};
+use crate::state::{Config, Lock, Point, CONFIG, HISTORY, LOCKED, SLOPE_CHANGES};
 use crate::utils::{
-    addr_validate_to_lower, calc_voting_power, fetch_last_checkpoint, get_period,
-    time_limits_check, xastro_token_check,
+    calc_voting_power, fetch_last_checkpoint, get_period, time_limits_check, xastro_token_check,
 };
 
 /// Contract name that is used for migration.
@@ -60,7 +60,7 @@ pub fn instantiate(
         power: Uint128::zero(),
         start: cur_period,
         end: 0,
-        slope: Slope(0),
+        slope: Decimal::zero(),
     };
     HISTORY.save(
         deps.storage,
@@ -102,8 +102,8 @@ fn checkpoint_total(
     deps: DepsMut,
     env: Env,
     add_amount: Option<Uint128>,
-    old_slope: Slope,
-    new_slope: Slope,
+    old_slope: Decimal,
+    new_slope: Decimal,
     new_end: Option<u64>,
 ) -> StdResult<()> {
     let cur_period = get_period(env.block.time.seconds());
@@ -117,7 +117,7 @@ fn checkpoint_total(
         let end = new_end.unwrap_or(cur_period);
         let scheduled_change = SLOPE_CHANGES
             .may_load(deps.storage, cur_period_key.clone())?
-            .unwrap_or(Slope(0));
+            .unwrap_or_else(Decimal::zero);
 
         Point {
             power: calc_voting_power(&point, cur_period) + add_amount,
@@ -149,7 +149,7 @@ fn checkpoint(
     let cur_period = get_period(env.block.time.seconds());
     let cur_period_key = U64Key::new(cur_period);
     let add_amount = add_amount.unwrap_or_default();
-    let mut old_slope = Slope(0);
+    let mut old_slope = Decimal::zero();
 
     // get last checkpoint
     let last_checkpoint = fetch_last_checkpoint(deps.as_ref(), &addr, &cur_period_key)?;
@@ -158,16 +158,15 @@ fn checkpoint(
         let dt = end - cur_period;
         let current_power = calc_voting_power(&point, cur_period);
         let new_slope = if dt != 0 {
-            let current_power = current_power.u128() as f32;
             if end > point.end {
                 // this is extend_lock_time
-                (current_power / dt as f32).into()
+                Decimal::from_ratio(current_power, dt)
             } else {
                 // increase lock's amount
-                ((current_power + add_amount.u128() as f32) / dt as f32).into()
+                Decimal::from_ratio(current_power + add_amount, dt)
             }
         } else {
-            Slope(0)
+            Decimal::zero()
         };
 
         // cancel previously scheduled slope change
@@ -175,11 +174,7 @@ fn checkpoint(
         if let Some(old_slope) =
             SLOPE_CHANGES.may_load(deps.as_ref().storage, end_period_key.clone())?
         {
-            SLOPE_CHANGES.save(
-                deps.storage,
-                end_period_key,
-                &(old_slope - point.slope.clone()),
-            )?
+            SLOPE_CHANGES.save(deps.storage, end_period_key, &(old_slope - point.slope))?
         }
 
         // we need to subtract it from total VP slope
@@ -195,7 +190,7 @@ fn checkpoint(
         // this error can't happen since this if-branch is intended for checkpoint creation
         let end =
             new_end.ok_or_else(|| StdError::generic_err("Checkpoint initialization error"))?;
-        let slope = (add_amount.u128() as f32 / (end - cur_period) as f32).into();
+        let slope = Decimal::from_ratio(add_amount, end - cur_period);
         Point {
             power: add_amount,
             slope,
@@ -208,11 +203,11 @@ fn checkpoint(
     SLOPE_CHANGES.update(
         deps.storage,
         U64Key::new(new_point.end),
-        |slope_opt| -> StdResult<Slope> {
+        |slope_opt| -> StdResult<Decimal> {
             if let Some(pslope) = slope_opt {
-                Ok(pslope + new_point.slope.clone())
+                Ok(pslope + new_point.slope)
             } else {
-                Ok(new_point.slope.clone())
+                Ok(new_point.slope)
             }
         },
     )?;
