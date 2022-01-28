@@ -519,6 +519,7 @@ fn new_lock_after_lock_expired() {
     assert_eq!(vp.voting_power.u128(), 100);
 }
 
+/// Plot for this case tests/plots/constant_decay.png
 #[test]
 fn voting_constant_decay() {
     let mut router = mock_app();
@@ -637,6 +638,7 @@ fn voting_constant_decay() {
     assert_eq!(vp.voting_power.u128(), 0);
 }
 
+/// Plot for this case tests/plots/variable_decay.png
 #[test]
 fn voting_variable_decay() {
     let mut router = mock_app();
