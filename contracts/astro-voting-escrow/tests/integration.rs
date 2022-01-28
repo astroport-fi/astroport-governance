@@ -29,6 +29,8 @@ fn mock_app() -> TerraApp {
         .build()
 }
 
+pub const MULTIPLIER: u64 = 100000;
+
 struct Helper {
     pub owner: Addr,
     pub astro_token: Addr,
@@ -135,6 +137,7 @@ impl Helper {
     }
 
     pub fn mint_xastro(&self, router: &mut TerraApp, to: &str, amount: u64) {
+        let amount = amount * MULTIPLIER;
         let msg = cw20::Cw20ExecuteMsg::Mint {
             recipient: String::from(to),
             amount: Uint128::from(amount),
@@ -161,6 +164,7 @@ impl Helper {
     }
 
     pub fn check_xastro_balance(&self, router: &mut TerraApp, user: &str, amount: u64) {
+        let amount = amount * MULTIPLIER;
         let res: BalanceResponse = router
             .wrap()
             .query_wasm_smart(
@@ -178,8 +182,9 @@ impl Helper {
         router: &mut TerraApp,
         user: &str,
         time: u64,
-        amount: u128,
+        amount: u64,
     ) -> Result<AppResponse> {
+        let amount = amount * MULTIPLIER;
         let cw20msg = Cw20ExecuteMsg::Send {
             contract: self.voting_instance.to_string(),
             amount: Uint128::from(amount),
@@ -197,8 +202,9 @@ impl Helper {
         &self,
         router: &mut TerraApp,
         user: &str,
-        amount: u128,
+        amount: u64,
     ) -> Result<AppResponse> {
+        let amount = amount * MULTIPLIER;
         let cw20msg = Cw20ExecuteMsg::Send {
             contract: self.voting_instance.to_string(),
             amount: Uint128::from(amount),
@@ -240,12 +246,17 @@ impl Helper {
         router: &mut TerraApp,
         user: &str,
     ) -> StdResult<VotingPowerResponse> {
-        router.wrap().query_wasm_smart(
-            self.voting_instance.clone(),
-            &QueryMsg::UserVotingPower {
-                user: user.to_string(),
-            },
-        )
+        router
+            .wrap()
+            .query_wasm_smart(
+                self.voting_instance.clone(),
+                &QueryMsg::UserVotingPower {
+                    user: user.to_string(),
+                },
+            )
+            .map(|vp: VotingPowerResponse| VotingPowerResponse {
+                voting_power: vp.voting_power / Uint128::from(MULTIPLIER),
+            })
     }
 
     pub fn query_user_vp_at(
@@ -254,19 +265,27 @@ impl Helper {
         user: &str,
         time: u64,
     ) -> StdResult<VotingPowerResponse> {
-        router.wrap().query_wasm_smart(
-            self.voting_instance.clone(),
-            &QueryMsg::UserVotingPowerAt {
-                user: user.to_string(),
-                time,
-            },
-        )
+        router
+            .wrap()
+            .query_wasm_smart(
+                self.voting_instance.clone(),
+                &QueryMsg::UserVotingPowerAt {
+                    user: user.to_string(),
+                    time,
+                },
+            )
+            .map(|vp: VotingPowerResponse| VotingPowerResponse {
+                voting_power: vp.voting_power / Uint128::from(MULTIPLIER),
+            })
     }
 
     pub fn query_total_vp(&self, router: &mut TerraApp) -> StdResult<VotingPowerResponse> {
         router
             .wrap()
             .query_wasm_smart(self.voting_instance.clone(), &QueryMsg::TotalVotingPower {})
+            .map(|vp: VotingPowerResponse| VotingPowerResponse {
+                voting_power: vp.voting_power / Uint128::from(MULTIPLIER),
+            })
     }
 
     pub fn query_total_vp_at(
@@ -274,10 +293,15 @@ impl Helper {
         router: &mut TerraApp,
         time: u64,
     ) -> StdResult<VotingPowerResponse> {
-        router.wrap().query_wasm_smart(
-            self.voting_instance.clone(),
-            &QueryMsg::TotalVotingPowerAt { time },
-        )
+        router
+            .wrap()
+            .query_wasm_smart(
+                self.voting_instance.clone(),
+                &QueryMsg::TotalVotingPowerAt { time },
+            )
+            .map(|vp: VotingPowerResponse| VotingPowerResponse {
+                voting_power: vp.voting_power / Uint128::from(MULTIPLIER),
+            })
     }
 }
 
@@ -310,7 +334,14 @@ fn lock_unlock_logic() {
     let res = helper
         .create_lock(router_ref, "user", WEEK, 101)
         .unwrap_err();
-    assert_eq!(res.to_string(), "Overflow: Cannot Sub with 100 and 101");
+    assert_eq!(
+        res.to_string(),
+        format!(
+            "Overflow: Cannot Sub with {} and {}",
+            100 * MULTIPLIER,
+            101 * MULTIPLIER
+        )
+    );
 
     // trying to increase lock's time which does not exist
     let res = helper
