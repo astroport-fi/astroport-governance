@@ -14,7 +14,7 @@ version = "1.0.0"
 dependencies = [
  "astroport 2.4.0",
  "astroport-governance 1.0.0",
- "astroport-token",
+ "astroport-token 0.0.0",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 0.8.1",
@@ -30,6 +30,20 @@ dependencies = [
 name = "astroport"
 version = "0.3.1"
 source = "git+https://github.com/astroport-fi/astroport.git?tag=v1.0.0#05bfb278302d462c355e47ed67566a8a97f417dd"
+dependencies = [
+ "cosmwasm-std",
+ "cw-storage-plus 0.8.1",
+ "cw20",
+ "schemars",
+ "serde",
+ "terra-cosmwasm",
+ "uint",
+]
+
+[[package]]
+name = "astroport"
+version = "1.1.0"
+source = "git+https://github.com/astroport-fi/astroport.git#c5bbb89150cdc1a0268078954c894d296c8b9ab9"
 dependencies = [
  "cosmwasm-std",
  "cw-storage-plus 0.8.1",
@@ -60,7 +74,8 @@ dependencies = [
  "astroport 0.3.1",
  "astroport-governance 1.0.0",
  "astroport-governance 1.0.0 (git+https://github.com/astroport-fi/astroport-governance.git?branch=feat/astro_voting_escrow)",
- "astroport-token",
+ "astroport-tests",
+ "astroport-token 0.0.0",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 0.8.1",
@@ -69,6 +84,22 @@ dependencies = [
  "schemars",
  "serde",
  "terra-multi-test 0.9.1",
+ "thiserror",
+]
+
+[[package]]
+name = "astroport-escrow-fee-distributor"
+version = "1.0.0"
+source = "git+https://github.com/astroport-fi/astroport-governance.git?branch=feat/astroport-tests-package#4a73ea8d95d00ed716788a6832846d3b93c2fb93"
+dependencies = [
+ "astroport 0.3.1",
+ "astroport-governance 1.0.0 (git+https://github.com/astroport-fi/astroport-governance.git?branch=feat/astroport-tests-package)",
+ "cosmwasm-std",
+ "cw-storage-plus 0.8.1",
+ "cw2",
+ "cw20",
+ "schemars",
+ "serde",
  "thiserror",
 ]
 
@@ -99,11 +130,58 @@ dependencies = [
 ]
 
 [[package]]
+name = "astroport-governance"
+version = "1.0.0"
+source = "git+https://github.com/astroport-fi/astroport-governance.git?branch=feat/astroport-tests-package#4a73ea8d95d00ed716788a6832846d3b93c2fb93"
+dependencies = [
+ "cosmwasm-std",
+ "cw20",
+ "schemars",
+ "serde",
+ "terra-cosmwasm",
+ "uint",
+]
+
+[[package]]
+name = "astroport-tests"
+version = "1.0.0"
+source = "git+https://github.com/astroport-fi/astroport-governance.git?branch=feat/astroport-tests-package#4a73ea8d95d00ed716788a6832846d3b93c2fb93"
+dependencies = [
+ "astroport 0.3.1",
+ "astroport-escrow-fee-distributor 1.0.0 (git+https://github.com/astroport-fi/astroport-governance.git?branch=feat/astroport-tests-package)",
+ "astroport-governance 1.0.0 (git+https://github.com/astroport-fi/astroport-governance.git?branch=feat/astroport-tests-package)",
+ "astroport-token 1.0.0",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw20",
+ "schemars",
+ "serde",
+ "terra-cosmwasm",
+ "terra-multi-test 0.9.1",
+ "uint",
+]
+
+[[package]]
 name = "astroport-token"
 version = "0.0.0"
 source = "git+https://github.com/astroport-fi/astroport.git?branch=master#76bbb92e62799c16f6e292760215f1b81ce70594"
 dependencies = [
  "astroport 2.4.0",
+ "cosmwasm-std",
+ "cw2",
+ "cw20",
+ "cw20-base",
+ "schemars",
+ "serde",
+ "snafu",
+]
+
+[[package]]
+name = "astroport-token"
+version = "1.0.0"
+source = "git+https://github.com/astroport-fi/astroport.git#c5bbb89150cdc1a0268078954c894d296c8b9ab9"
+dependencies = [
+ "astroport 1.1.0",
  "cosmwasm-std",
  "cw2",
  "cw20",
