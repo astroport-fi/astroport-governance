@@ -6,12 +6,12 @@ use cw2::set_contract_version;
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20ReceiveMsg};
 use cw_storage_plus::{Bound, U64Key};
 
+use astroport::asset::addr_validate_to_lower;
 use astroport_governance::assembly::{
     Config, Cw20HookMsg, ExecuteMsg, InstantiateMsg, Proposal, ProposalListResponse,
     ProposalMessage, ProposalStatus, ProposalVoteOption, ProposalVotesResponse, QueryMsg,
     UpdateConfig,
 };
-use astroport_governance::asset::addr_validate_to_lower;
 
 use astroport::xastro_token::QueryMsg as XAstroTokenQueryMsg;
 
