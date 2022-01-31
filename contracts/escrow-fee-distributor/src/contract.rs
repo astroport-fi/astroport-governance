@@ -328,14 +328,15 @@ fn kill_me(deps: Deps, env: Env, info: MessageInfo) -> Result<Response, Contract
 
     let transfer_msg = transfer_token_amount(
         config.token.clone(),
-        config.emergency_return,
+        config.emergency_return.clone(),
         current_balance,
     )?;
 
     Ok(Response::new()
         .add_attributes(vec![
             attr("action", "kill_me"),
-            attr("balance", current_balance.to_string()),
+            attr("transferred_balance", current_balance.to_string()),
+            attr("recipient", config.emergency_return.to_string()),
         ])
         .add_messages(transfer_msg))
 }
@@ -917,6 +918,7 @@ fn query_user_balance(deps: Deps, _env: Env, user: String, timestamp: u64) -> St
 /// * **deps** is the object of type [`Deps`].
 pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
     let config: Config = CONFIG.load(deps.storage)?;
+
     let resp = ConfigResponse {
         owner: config.owner,
         token: config.token,
@@ -926,6 +928,7 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
         last_token_time: config.last_token_time,
         time_cursor: config.time_cursor,
         can_checkpoint_token: config.can_checkpoint_token,
+        is_killed: config.is_killed,
     };
 
     Ok(resp)

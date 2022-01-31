@@ -31,7 +31,8 @@ fn proper_initialization() {
             start_time: 0,
             last_token_time: 0,
             time_cursor: 0,
-            can_checkpoint_token: false
+            can_checkpoint_token: false,
+            is_killed: false
         }
     );
 }

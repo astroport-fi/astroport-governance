@@ -85,6 +85,7 @@ pub struct ConfigResponse {
     pub time_cursor: u64,
     /// makes it possible for everyone to call
     pub can_checkpoint_token: bool,
+    pub is_killed: bool,
 }
 
 /// ## Description
@@ -122,21 +123,10 @@ pub struct Claimed {
 
 /// ## Description
 /// A custom struct for each query response.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[derive(Serialize, Default, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Point {
     pub bias: i128,
     pub slope: i128,
     pub ts: u64,
     pub blk: u64,
-}
-
-impl Default for Point {
-    fn default() -> Self {
-        Point {
-            bias: 0,
-            slope: 0,
-            ts: 0,
-            blk: 0,
-        }
-    }
 }
