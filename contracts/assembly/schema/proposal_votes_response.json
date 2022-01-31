@@ -1,0 +1,27 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ProposalVotesResponse",
+  "type": "object",
+  "required": [
+    "against_power",
+    "for_power",
+    "proposal_id"
+  ],
+  "properties": {
+    "against_power": {
+      "type": "integer",
+      "format": "uint128",
+      "minimum": 0.0
+    },
+    "for_power": {
+      "type": "integer",
+      "format": "uint128",
+      "minimum": 0.0
+    },
+    "proposal_id": {
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
+    }
+  }
+}
