@@ -1,8 +1,11 @@
-use cosmwasm_std::{Addr, CosmosMsg, Decimal, Uint128, Uint64};
+use cosmwasm_std::{Addr, CosmosMsg, Decimal, StdError, StdResult, Uint128, Uint64};
 use cw20::Cw20ReceiveMsg;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::fmt::{Display, Formatter, Result};
+
+pub const MINIMUM_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE: u64 = 50;
+pub const MAX_PROPOSAL_REQUIRED_PERCENTAGE: u64 = 100;
 
 /// ## Description
 /// This structure describes the basic settings for creating a contract.
@@ -19,7 +22,7 @@ pub struct InstantiateMsg {
     /// Proposal expiration period
     pub proposal_expiration_period: u64,
     /// Proposal required deposit
-    pub proposal_required_deposit: u128,
+    pub proposal_required_deposit: Uint128,
     /// Proposal required quorum
     pub proposal_required_quorum: u64,
     /// Proposal required threshold
@@ -116,6 +119,29 @@ pub struct Config {
     pub proposal_required_threshold: Decimal,
 }
 
+impl Config {
+    pub fn validate(&self) -> StdResult<()> {
+        if self.proposal_required_threshold > Decimal::percent(MAX_PROPOSAL_REQUIRED_PERCENTAGE)
+            || self.proposal_required_threshold
+                < Decimal::percent(MINIMUM_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE)
+        {
+            return Err(StdError::generic_err(format!(
+                "The proposal required threshold cannot be less than {}% and more than {}%",
+                MINIMUM_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE, MAX_PROPOSAL_REQUIRED_PERCENTAGE
+            )));
+        }
+
+        if self.proposal_required_quorum > Decimal::percent(100u64) {
+            return Err(StdError::generic_err(format!(
+                "The proposal required quorum cannot be more than {}%",
+                MAX_PROPOSAL_REQUIRED_PERCENTAGE
+            )));
+        }
+
+        Ok(())
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct UpdateConfig {
     /// xASTRO token address
@@ -137,7 +163,7 @@ pub struct UpdateConfig {
 }
 
 /// ## Description
-/// This structs describes proposal.
+/// This structure describes proposal.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Proposal {
     /// Unique ID of proposal
@@ -146,10 +172,14 @@ pub struct Proposal {
     pub submitter: Addr,
     /// Status of proposal
     pub status: ProposalStatus,
-    /// `For` votes of proposal
-    pub for_votes: Uint128,
-    /// `Against` votes of proposal
-    pub against_votes: Uint128,
+    /// `For` power of proposal
+    pub for_power: Uint128,
+    /// `Against` power of proposal
+    pub against_power: Uint128,
+    /// `For` voters of proposal
+    pub for_voters: Vec<Addr>,
+    /// `Against` voters of proposal
+    pub against_voters: Vec<Addr>,
     /// Start block of proposal
     pub start_block: u64,
     /// End block of proposal
@@ -231,8 +261,8 @@ impl Display for ProposalVoteOption {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ProposalVotesResponse {
     pub proposal_id: u64,
-    pub for_votes: u128,
-    pub against_votes: u128,
+    pub for_power: u128,
+    pub against_power: u128,
 }
 
 /// ## Description

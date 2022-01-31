@@ -8,15 +8,15 @@ use cw_storage_plus::{Bound, U64Key};
 
 use astroport_governance::assembly::{
     Config, Cw20HookMsg, ExecuteMsg, InstantiateMsg, Proposal, ProposalListResponse,
-    ProposalMessage, ProposalStatus, ProposalVote, ProposalVoteOption, ProposalVotesResponse,
-    QueryMsg, UpdateConfig,
+    ProposalMessage, ProposalStatus, ProposalVoteOption, ProposalVotesResponse, QueryMsg,
+    UpdateConfig,
 };
 use astroport_governance::asset::addr_validate_to_lower;
 
 use astroport::xastro_token::QueryMsg as XAstroTokenQueryMsg;
 
 use crate::error::ContractError;
-use crate::state::{CONFIG, PROPOSALS, PROPOSAL_COUNT, PROPOSAL_VOTES};
+use crate::state::{CONFIG, PROPOSALS, PROPOSAL_COUNT};
 
 // version info for migration info
 const CONTRACT_NAME: &str = "astro-assembly";
@@ -54,19 +54,20 @@ pub fn instantiate(
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    CONFIG.save(
-        deps.storage,
-        &Config {
-            xastro_token_addr: addr_validate_to_lower(deps.api, &msg.xastro_token_addr)?,
-            staking_addr: addr_validate_to_lower(deps.api, &msg.staking_addr)?,
-            proposal_voting_period: msg.proposal_voting_period,
-            proposal_effective_delay: msg.proposal_effective_delay,
-            proposal_expiration_period: msg.proposal_expiration_period,
-            proposal_required_deposit: Uint128::new(msg.proposal_required_deposit),
-            proposal_required_quorum: Decimal::percent(msg.proposal_required_quorum),
-            proposal_required_threshold: Decimal::percent(msg.proposal_required_threshold),
-        },
-    )?;
+    let config = Config {
+        xastro_token_addr: addr_validate_to_lower(deps.api, &msg.xastro_token_addr)?,
+        staking_addr: addr_validate_to_lower(deps.api, &msg.staking_addr)?,
+        proposal_voting_period: msg.proposal_voting_period,
+        proposal_effective_delay: msg.proposal_effective_delay,
+        proposal_expiration_period: msg.proposal_expiration_period,
+        proposal_required_deposit: msg.proposal_required_deposit,
+        proposal_required_quorum: Decimal::percent(msg.proposal_required_quorum),
+        proposal_required_threshold: Decimal::percent(msg.proposal_required_threshold),
+    };
+
+    config.validate()?;
+
+    CONFIG.save(deps.storage, &config)?;
 
     PROPOSAL_COUNT.save(deps.storage, &Uint64::zero())?;
 
@@ -233,9 +234,9 @@ pub fn submit_proposal(
     }
 
     // Update proposal count
-    let mut count = PROPOSAL_COUNT.load(deps.storage)?;
-    count = count.checked_add(Uint64::from(1u32))?;
-    PROPOSAL_COUNT.save(deps.storage, &count)?;
+    let count = PROPOSAL_COUNT.update(deps.storage, |c| -> StdResult<_> {
+        Ok(c.checked_add(Uint64::from(1u32))?)
+    })?;
 
     PROPOSALS.save(
         deps.storage,
@@ -244,8 +245,10 @@ pub fn submit_proposal(
             proposal_id: count,
             submitter: sender.clone(),
             status: ProposalStatus::Active,
-            for_votes: Uint128::zero(),
-            against_votes: Uint128::zero(),
+            for_power: Uint128::zero(),
+            against_power: Uint128::zero(),
+            for_voters: Vec::new(),
+            against_voters: Vec::new(),
             start_block: env.block.height,
             end_block: env.block.height + config.proposal_expiration_period,
             title,
@@ -301,7 +304,8 @@ pub fn cast_vote(
         return Err(ContractError::VotingPeriodEnded {});
     }
 
-    if PROPOSAL_VOTES.has(deps.storage, (U64Key::new(proposal_id), &info.sender)) {
+    if proposal.for_voters.contains(&info.sender) || proposal.against_voters.contains(&info.sender)
+    {
         return Err(ContractError::UserAlreadyVoted {});
     }
 
@@ -313,21 +317,14 @@ pub fn cast_vote(
 
     match vote_option {
         ProposalVoteOption::For => {
-            proposal.for_votes = proposal.for_votes.checked_add(voting_power)?
+            proposal.for_power = proposal.for_power.checked_add(voting_power)?;
+            proposal.for_voters.push(info.sender.clone());
         }
         ProposalVoteOption::Against => {
-            proposal.against_votes = proposal.against_votes.checked_add(voting_power)?
+            proposal.against_power = proposal.against_power.checked_add(voting_power)?;
+            proposal.against_voters.push(info.sender.clone());
         }
     };
-
-    PROPOSAL_VOTES.save(
-        deps.storage,
-        (U64Key::new(proposal_id), &info.sender),
-        &ProposalVote {
-            option: vote_option.clone(),
-            power: voting_power,
-        },
-    )?;
 
     PROPOSALS.save(deps.storage, U64Key::new(proposal_id), &proposal)?;
 
@@ -369,8 +366,8 @@ pub fn end_proposal(
 
     let config = CONFIG.load(deps.storage)?;
 
-    let for_votes = proposal.for_votes;
-    let against_votes = proposal.against_votes;
+    let for_votes = proposal.for_power;
+    let against_votes = proposal.against_power;
     let total_votes = for_votes + against_votes;
 
     let total_voting_power = calc_total_voting_power_at(&deps, proposal.start_block - 1)?;
@@ -586,6 +583,8 @@ pub fn update_config(
         .map(Decimal::percent)
         .unwrap_or(config.proposal_required_threshold);
 
+    config.validate()?;
+
     CONFIG.save(deps.storage, &config)?;
 
     Ok(Response::new().add_attribute("action", "update_config"))
@@ -685,8 +684,8 @@ pub fn query_proposal_votes(deps: Deps, proposal_id: u64) -> StdResult<ProposalV
 
     Ok(ProposalVotesResponse {
         proposal_id,
-        for_votes: proposal.for_votes.u128(),
-        against_votes: proposal.against_votes.u128(),
+        for_power: proposal.for_power.u128(),
+        against_power: proposal.against_power.u128(),
     })
 }
 
