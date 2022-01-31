@@ -250,7 +250,7 @@ pub fn submit_proposal(
             for_voters: Vec::new(),
             against_voters: Vec::new(),
             start_block: env.block.height,
-            end_block: env.block.height + config.proposal_expiration_period,
+            end_block: env.block.height + config.proposal_voting_period,
             title,
             description,
             link,
@@ -265,7 +265,7 @@ pub fn submit_proposal(
         .add_attribute("proposal_id", count.to_string())
         .add_attribute(
             "proposal_end_height",
-            (env.block.height + config.proposal_expiration_period).to_string(),
+            (env.block.height + config.proposal_voting_period).to_string(),
         ))
 }
 
