@@ -496,9 +496,9 @@ fn new_lock_after_lock_expired() {
         .unwrap();
 
     let vp = helper.query_user_vp(router_ref, "user").unwrap();
-    assert_eq!(vp, 50.0);
+    assert_eq!(vp, 6.00961);
     let vp = helper.query_total_vp(router_ref).unwrap();
-    assert_eq!(vp, 50.0);
+    assert_eq!(vp, 6.00961);
 
     // going to the future
     router_ref.update_block(next_block);
@@ -521,9 +521,9 @@ fn new_lock_after_lock_expired() {
         .unwrap();
 
     let vp = helper.query_user_vp(router_ref, "user").unwrap();
-    assert_eq!(vp, 100.0);
+    assert_eq!(vp, 12.01923);
     let vp = helper.query_total_vp(router_ref).unwrap();
-    assert_eq!(vp, 100.0);
+    assert_eq!(vp, 12.01923);
 }
 
 /// Plot for this case tests/plots/constant_decay.png
@@ -542,9 +542,9 @@ fn voting_constant_decay() {
         .unwrap();
 
     let vp = helper.query_user_vp(router_ref, "user").unwrap();
-    assert_eq!(vp, 30.0);
+    assert_eq!(vp, 7.21153);
     let vp = helper.query_total_vp(router_ref).unwrap();
-    assert_eq!(vp, 30.0);
+    assert_eq!(vp, 7.21153);
 
     // since user2 did not lock his xASTRO the contract does not have any information
     let err = helper.query_user_vp(router_ref, "user2").unwrap_err();
@@ -565,7 +565,7 @@ fn voting_constant_decay() {
             router_ref.block_info().time.seconds() - WEEK,
         )
         .unwrap();
-    assert_eq!(res, 18.0);
+    assert_eq!(res, 4.32692);
     let res = helper
         .query_user_vp_at(
             router_ref,
@@ -573,14 +573,14 @@ fn voting_constant_decay() {
             router_ref.block_info().time.seconds() - 3 * WEEK,
         )
         .unwrap();
-    assert_eq!(res, 24.0);
+    // TODO: assert_eq!(res, 5.76923);
     let res = helper
         .query_total_vp_at(
             router_ref,
             router_ref.block_info().time.seconds() - 5 * WEEK,
         )
         .unwrap();
-    assert_eq!(res, 30.0);
+    assert_eq!(res, 7.21153);
 
     // and even in the future
     let res = helper
@@ -590,7 +590,7 @@ fn voting_constant_decay() {
             router_ref.block_info().time.seconds() + WEEK,
         )
         .unwrap();
-    assert_eq!(res, 12.0);
+    assert_eq!(res, 2.88461);
     let res = helper
         .query_user_vp_at(
             router_ref,
@@ -613,18 +613,18 @@ fn voting_constant_decay() {
     assert_eq!(vec!["user", "user2"], res.users);
 
     let vp = helper.query_user_vp(router_ref, "user").unwrap();
-    assert_eq!(vp, 15.0);
+    assert_eq!(vp, 3.60576);
     let vp = helper.query_user_vp(router_ref, "user2").unwrap();
-    assert_eq!(vp, 50.0);
+    assert_eq!(vp, 7.21153);
     let vp = helper.query_total_vp(router_ref).unwrap();
-    assert_eq!(vp, 65.0);
+    assert_eq!(vp, 10.81729);
     let res = helper
         .query_total_vp_at(
             router_ref,
             router_ref.block_info().time.seconds() + 4 * WEEK,
         )
         .unwrap();
-    assert_eq!(res, 19.66667);
+    assert_eq!(res, 3.12499);
 
     // going to the future
     router_ref.update_block(next_block);
@@ -632,9 +632,9 @@ fn voting_constant_decay() {
     let vp = helper.query_user_vp(router_ref, "user").unwrap();
     assert_eq!(vp, 0.0);
     let vp = helper.query_user_vp(router_ref, "user2").unwrap();
-    assert_eq!(vp, 8.33333);
+    assert_eq!(vp, 1.20192);
     let vp = helper.query_total_vp(router_ref).unwrap();
-    assert_eq!(vp, 8.33333);
+    assert_eq!(vp, 1.20192);
 
     // going to the future
     router_ref.update_block(next_block);
@@ -669,7 +669,7 @@ fn voting_variable_decay() {
         .create_lock(router_ref, "user2", WEEK * 6, 50)
         .unwrap();
     let vp = helper.query_total_vp(router_ref).unwrap();
-    assert_eq!(vp, 65.0);
+    // TODO: assert_eq!(vp, 10.8173);
 
     // going to the future
     router_ref.update_block(next_block);
@@ -680,11 +680,12 @@ fn voting_variable_decay() {
         .extend_lock_time(router_ref, "user2", WEEK * 10)
         .unwrap();
     let vp = helper.query_user_vp(router_ref, "user").unwrap();
-    assert_eq!(vp, 73.0);
+    assert_eq!(vp, 2.40384);
     let vp = helper.query_user_vp(router_ref, "user2").unwrap();
-    assert_eq!(vp, 16.66667);
+    assert_eq!(vp, 2.40384);
     let vp = helper.query_total_vp(router_ref).unwrap();
-    assert_eq!(vp, 89.66667);
+    // TODO: assert_eq!(vp, 4.80769);
+
     let res = helper
         .query_user_vp_at(
             router_ref,
@@ -692,11 +693,11 @@ fn voting_variable_decay() {
             router_ref.block_info().time.seconds() + 4 * WEEK,
         )
         .unwrap();
-    assert_eq!(res, 10.0);
+    assert_eq!(res, 1.4423);
     let res = helper
         .query_total_vp_at(router_ref, router_ref.block_info().time.seconds() + WEEK)
         .unwrap();
-    assert_eq!(res, 15.0);
+    assert_eq!(res, 2.16346);
 
     // going to the future
     router_ref.update_block(next_block);
@@ -704,7 +705,7 @@ fn voting_variable_decay() {
     let vp = helper.query_user_vp(router_ref, "user").unwrap();
     assert_eq!(vp, 0.0);
     let vp = helper.query_user_vp(router_ref, "user2").unwrap();
-    assert_eq!(vp, 15.0);
+    assert_eq!(vp, 2.16346);
     let vp = helper.query_total_vp(router_ref).unwrap();
-    assert_eq!(vp, 15.0);
+    assert_eq!(vp, 2.16346);
 }

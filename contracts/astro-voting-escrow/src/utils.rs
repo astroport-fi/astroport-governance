@@ -1,8 +1,10 @@
 use crate::contract::{MAX_LOCK_TIME, WEEK};
 use crate::error::ContractError;
-use astroport::DecimalCheckedOps;
-use cosmwasm_std::{Addr, Deps, Order, Pair, StdResult, Uint128};
+use cosmwasm_std::{
+    Addr, Decimal, Deps, Fraction, Order, OverflowError, Pair, StdResult, Uint128, Uint256,
+};
 use cw_storage_plus::{Bound, U64Key};
+use std::convert::TryInto;
 
 use crate::state::{Point, CONFIG, HISTORY};
 
@@ -27,25 +29,53 @@ pub(crate) fn xastro_token_check(deps: Deps, sender: Addr) -> Result<(), Contrac
     }
 }
 
-pub(crate) fn round_uint128(number: u128) -> Uint128 {
-    if number > 10 && number % 10 >= 5 {
-        number + 1_u128
-    } else {
-        number
+trait DecimalRoundedCheckedMul {
+    fn checked_mul(self, other: Uint128) -> Result<Uint128, OverflowError>;
+}
+
+impl DecimalRoundedCheckedMul for Decimal {
+    fn checked_mul(self, other: Uint128) -> Result<Uint128, OverflowError> {
+        if self.is_zero() || other.is_zero() {
+            return Ok(Uint128::zero());
+        }
+        let numerator = other.full_mul(self.numerator());
+        let multiply_ratio = numerator / Uint256::from(self.denominator());
+        if multiply_ratio > Uint256::from(Uint128::MAX) {
+            Err(OverflowError::new(
+                cosmwasm_std::OverflowOperation::Mul,
+                self,
+                other,
+            ))
+        } else {
+            let mut result: Uint128 = multiply_ratio.try_into().unwrap();
+            let rem: Uint128 = numerator
+                .checked_rem(Uint256::from(self.denominator()))
+                .unwrap()
+                .try_into()
+                .unwrap();
+            // 0.5 in Decimal
+            if rem.u128() >= 500000000000000000_u128 {
+                result += Uint128::from(1_u128);
+            }
+            Ok(result)
+        }
     }
-    .into()
 }
 
 pub(crate) fn calc_voting_power(point: &Point, period: u64) -> Uint128 {
-    let raw_shift = point
+    let shift = point
         .slope
         .checked_mul(Uint128::from(period - point.start))
         .unwrap_or_else(|_| Uint128::zero());
-    let shift = round_uint128(raw_shift.u128());
     point
         .power
         .checked_sub(shift)
         .unwrap_or_else(|_| Uint128::zero())
+}
+
+pub(crate) fn apply_boost(amount: Uint128, interval: u64) -> Uint128 {
+    // boost = 2.5 * (end - start) / MAX_LOCK_TIME
+    amount * Uint128::from(25_u64 * interval) / Uint128::from(get_period(MAX_LOCK_TIME) * 10)
 }
 
 pub(crate) fn fetch_last_checkpoint(

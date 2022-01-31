@@ -18,7 +18,8 @@ use astroport_governance::astro_voting_escrow::{
 use crate::error::ContractError;
 use crate::state::{Config, Lock, Point, CONFIG, HISTORY, LOCKED, SLOPE_CHANGES};
 use crate::utils::{
-    calc_voting_power, fetch_last_checkpoint, get_period, time_limits_check, xastro_token_check,
+    apply_boost, calc_voting_power, fetch_last_checkpoint, get_period, time_limits_check,
+    xastro_token_check,
 };
 
 /// Contract name that is used for migration.
@@ -27,7 +28,7 @@ const CONTRACT_NAME: &str = "astro-voting-escrow";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub const WEEK: u64 = 7 * 86400; // lock period is rounded down by week
-pub const MAX_LOCK_TIME: u64 = 2 * 365 * 86400; // 2 years
+pub const MAX_LOCK_TIME: u64 = 2 * 365 * 86400; // 2 years (104 weeks)
 
 /// ## Description
 /// Creates a new contract with the specified parameters in the [`InstantiateMsg`].
@@ -150,6 +151,7 @@ fn checkpoint(
     let cur_period_key = U64Key::new(cur_period);
     let add_amount = add_amount.unwrap_or_default();
     let mut old_slope = Decimal::zero();
+    let mut add_voting_power = Uint128::zero();
 
     // get last checkpoint
     let last_checkpoint = fetch_last_checkpoint(deps.as_ref(), &addr, &cur_period_key)?;
@@ -158,12 +160,13 @@ fn checkpoint(
         let dt = end - cur_period;
         let current_power = calc_voting_power(&point, cur_period);
         let new_slope = if dt != 0 {
-            if end > point.end {
+            if end > point.end && add_amount.is_zero() {
                 // this is extend_lock_time
                 Decimal::from_ratio(current_power, dt)
             } else {
-                // increase lock's amount
-                Decimal::from_ratio(current_power + add_amount, dt)
+                // increase lock's amount or lock creation after withdrawal
+                add_voting_power = apply_boost(add_amount, dt);
+                Decimal::from_ratio(current_power + add_voting_power, dt)
             }
         } else {
             Decimal::zero()
@@ -181,7 +184,7 @@ fn checkpoint(
         old_slope = point.slope;
 
         Point {
-            power: current_power + add_amount,
+            power: current_power + add_voting_power,
             slope: new_slope,
             start: cur_period,
             end,
@@ -190,9 +193,11 @@ fn checkpoint(
         // this error can't happen since this if-branch is intended for checkpoint creation
         let end =
             new_end.ok_or_else(|| StdError::generic_err("Checkpoint initialization error"))?;
-        let slope = Decimal::from_ratio(add_amount, end - cur_period);
+        let dt = end - cur_period;
+        add_voting_power = apply_boost(add_amount, dt);
+        let slope = Decimal::from_ratio(add_voting_power, dt);
         Point {
-            power: add_amount,
+            power: add_voting_power,
             slope,
             start: cur_period,
             end,
@@ -216,7 +221,7 @@ fn checkpoint(
     checkpoint_total(
         deps,
         env,
-        Some(add_amount),
+        Some(add_voting_power),
         old_slope,
         new_point.slope,
         new_end,
