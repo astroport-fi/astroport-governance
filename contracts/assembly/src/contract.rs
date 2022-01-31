@@ -56,7 +56,6 @@ pub fn instantiate(
 
     let config = Config {
         xastro_token_addr: addr_validate_to_lower(deps.api, &msg.xastro_token_addr)?,
-        staking_addr: addr_validate_to_lower(deps.api, &msg.staking_addr)?,
         proposal_voting_period: msg.proposal_voting_period,
         proposal_effective_delay: msg.proposal_effective_delay,
         proposal_expiration_period: msg.proposal_expiration_period,
@@ -536,12 +535,6 @@ pub fn update_config(
         .map(|addr| addr_validate_to_lower(deps.api, &addr))
         .transpose()?
         .unwrap_or(config.xastro_token_addr);
-
-    config.staking_addr = updated_config
-        .staking_addr
-        .map(|addr| addr_validate_to_lower(deps.api, &addr))
-        .transpose()?
-        .unwrap_or(config.staking_addr);
 
     config.proposal_voting_period = updated_config
         .proposal_voting_period

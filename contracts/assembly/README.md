@@ -7,7 +7,6 @@ The Assembly contract allows ASTRO holders to post new on-chain proposals that c
 ```json
 {
   "xastro_token_addr": "terra...",
-  "staking_addr": "terra...",
   "proposal_voting_period": 123,
   "proposal_effective_delay": 123,
   "proposal_expiration_period": 123,
@@ -90,7 +89,6 @@ Update current assembly contract. Only assembly contract via passed proposal can
 {
   "update_config": {
     "xastro_token_addr": "terra...",
-    "staking_addr": "terra...",
     "proposal_voting_period": 123,
     "proposal_effective_delay": 123,
     "proposal_expiration_period": 123,

@@ -549,8 +549,6 @@
       }
     },
     "ProposalMessage": {
-      "title": "Description",
-      "description": "This structure describes proposal message",
       "type": "object",
       "required": [
         "msg",
