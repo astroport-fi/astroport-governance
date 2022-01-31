@@ -384,32 +384,12 @@ pub fn end_proposal(
     }
 
     // Determine proposal result
-    let msg = if proposal_quorum >= config.proposal_required_quorum
+    proposal.status = if proposal_quorum >= config.proposal_required_quorum
         && proposal_threshold > config.proposal_required_threshold
     {
-        // if quorum and threshold are met then proposal passes
-        // refund deposit amount to submitter
-        proposal.status = ProposalStatus::Passed;
-
-        CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: config.xastro_token_addr.to_string(),
-            msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                recipient: proposal.submitter.to_string(),
-                amount: proposal.deposit_amount,
-            })?,
-            funds: vec![],
-        })
+        ProposalStatus::Passed
     } else {
-        proposal.status = ProposalStatus::Rejected;
-
-        CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: config.xastro_token_addr.to_string(),
-            msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                recipient: config.staking_addr.to_string(),
-                amount: proposal.deposit_amount,
-            })?,
-            funds: vec![],
-        })
+        ProposalStatus::Rejected
     };
 
     PROPOSALS.save(deps.storage, U64Key::new(proposal_id), &proposal)?;
@@ -420,7 +400,14 @@ pub fn end_proposal(
             attr("proposal_id", proposal_id.to_string()),
             attr("proposal_result", proposal.status.to_string()),
         ])
-        .add_message(msg);
+        .add_message(CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: config.xastro_token_addr.to_string(),
+            msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                recipient: proposal.submitter.to_string(),
+                amount: proposal.deposit_amount,
+            })?,
+            funds: vec![],
+        }));
 
     Ok(response)
 }
