@@ -27,11 +27,21 @@ pub(crate) fn xastro_token_check(deps: Deps, sender: Addr) -> Result<(), Contrac
     }
 }
 
+pub(crate) fn round_uint128(number: u128) -> Uint128 {
+    if number > 10 && number % 10 >= 5 {
+        number + 1_u128
+    } else {
+        number
+    }
+    .into()
+}
+
 pub(crate) fn calc_voting_power(point: &Point, period: u64) -> Uint128 {
-    let shift = point
+    let raw_shift = point
         .slope
         .checked_mul(Uint128::from(period - point.start))
         .unwrap_or_else(|_| Uint128::zero());
+    let shift = round_uint128(raw_shift.u128());
     point
         .power
         .checked_sub(shift)

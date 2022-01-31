@@ -632,20 +632,17 @@ fn voting_constant_decay() {
     let vp = helper.query_user_vp(router_ref, "user").unwrap();
     assert_eq!(vp, 0.0);
     let vp = helper.query_user_vp(router_ref, "user2").unwrap();
-    assert_eq!(vp, 8.33334);
+    assert_eq!(vp, 8.33333);
     let vp = helper.query_total_vp(router_ref).unwrap();
-    assert_eq!(vp, 8.33334);
+    assert_eq!(vp, 8.33333);
 
     // going to the future
     router_ref.update_block(next_block);
     router_ref.update_block(|block| block.time = block.time.plus_seconds(WEEK));
-    // TODO: fix residual
-    // Left:  0.00001
-    // Right: 0.0
     let vp = helper.query_user_vp(router_ref, "user2").unwrap();
-    // assert_eq!(vp, 0.0);
+    assert_eq!(vp, 0.0);
     let vp = helper.query_total_vp(router_ref).unwrap();
-    // assert_eq!(vp, 0.0);
+    assert_eq!(vp, 0.0);
 }
 
 /// Plot for this case tests/plots/variable_decay.png
@@ -695,25 +692,19 @@ fn voting_variable_decay() {
             router_ref.block_info().time.seconds() + 4 * WEEK,
         )
         .unwrap();
-    // TODO: fix residual
-    // Left:  10.00001
-    // Right: 10.0
-    // assert_eq!(res, 10.0);
+    assert_eq!(res, 10.0);
     let res = helper
         .query_total_vp_at(router_ref, router_ref.block_info().time.seconds() + WEEK)
         .unwrap();
-    // assert_eq!(res, 15.0);
+    assert_eq!(res, 15.0);
 
     // going to the future
     router_ref.update_block(next_block);
     router_ref.update_block(|block| block.time = block.time.plus_seconds(WEEK));
     let vp = helper.query_user_vp(router_ref, "user").unwrap();
     assert_eq!(vp, 0.0);
-    // TODO: fix residual
-    // Left:  15.00001
-    // Right: 15.0
     let vp = helper.query_user_vp(router_ref, "user2").unwrap();
-    // assert_eq!(vp, 15.0);
+    assert_eq!(vp, 15.0);
     let vp = helper.query_total_vp(router_ref).unwrap();
-    // assert_eq!(vp, 15.0);
+    assert_eq!(vp, 15.0);
 }
