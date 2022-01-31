@@ -10,7 +10,7 @@ checksum = "62e1f47f7dc0422027a4e370dd4548d4d66b26782e513e98dca1e689e058a80e"
 
 [[package]]
 name = "astro-assembly"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "astroport 1.1.0",
  "astroport-governance",
