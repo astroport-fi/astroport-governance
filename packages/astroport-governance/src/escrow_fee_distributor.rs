@@ -43,7 +43,6 @@ pub enum ExecuteMsg {
     ClaimMany {
         receivers: Vec<String>,
     },
-    ToggleAllowCheckpointToken {},
     RecoverBalance {
         token_address: String,
     },
@@ -52,6 +51,11 @@ pub enum ExecuteMsg {
         token_address: String,
     },
     CheckpointTotalSupply {},
+    UpdateConfig {
+        max_limit_accounts_of_claim: Option<u64>,
+        /// Enables or disables the ability to set a checkpoint token
+        can_checkpoint_token: Option<bool>,
+    },
 }
 
 /// ## Description
@@ -86,6 +90,7 @@ pub struct ConfigResponse {
     /// makes it possible for everyone to call
     pub can_checkpoint_token: bool,
     pub is_killed: bool,
+    pub max_limit_accounts_of_claim: u64,
 }
 
 /// ## Description

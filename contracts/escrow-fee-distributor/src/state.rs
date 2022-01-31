@@ -27,6 +27,7 @@ pub struct Config {
     /// makes it possible for everyone to call
     pub can_checkpoint_token: bool,
     pub is_killed: bool,
+    pub max_limit_accounts_of_claim: u64,
 }
 
 /// ## Description

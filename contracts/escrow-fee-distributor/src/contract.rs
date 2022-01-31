@@ -1,6 +1,6 @@
 use cosmwasm_std::{
-    attr, entry_point, to_binary, Addr, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo,
-    Response, StdError, StdResult, Uint128, WasmMsg,
+    attr, entry_point, to_binary, Addr, Attribute, Binary, CosmosMsg, Deps, DepsMut, Env,
+    MessageInfo, Response, StdError, StdResult, Uint128, WasmMsg,
 };
 use std::cmp::{max, min};
 
@@ -30,6 +30,7 @@ const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 const WEEK: u64 = 7 * 86400;
 const TOKEN_CHECKPOINT_DEADLINE: u64 = 86400;
+const MAX_LIMIT_OF_CLAIM: u64 = 10;
 
 /// ## Description
 /// Creates a new contract with the specified parameters in the [`InstantiateMsg`].
@@ -74,6 +75,7 @@ pub fn instantiate(
             time_cursor: t,
             can_checkpoint_token: false,
             is_killed: false,
+            max_limit_accounts_of_claim: MAX_LIMIT_OF_CLAIM,
         },
     )?;
 
@@ -167,10 +169,18 @@ pub fn execute(
         ExecuteMsg::RecoverBalance { token_address } => {
             recover_balance(deps.as_ref(), env, info, token_address)
         }
-        ExecuteMsg::ToggleAllowCheckpointToken {} => toggle_allow_checkpoint_token(deps, info),
         ExecuteMsg::Claim { recipient } => claim(deps, env, info, recipient),
         ExecuteMsg::ClaimMany { receivers } => claim_many(deps, env, info, receivers),
         ExecuteMsg::CheckpointToken {} => checkpoint_token(deps, env, info),
+        ExecuteMsg::UpdateConfig {
+            max_limit_accounts_of_claim,
+            can_checkpoint_token,
+        } => update_config(
+            deps,
+            info,
+            max_limit_accounts_of_claim,
+            can_checkpoint_token,
+        ),
     }
 }
 
@@ -388,47 +398,8 @@ fn recover_balance(
 }
 
 /// ## Description
-/// Enables or disables the ability to set a checkpoint token. Returns the [`Response`] with the
-/// specified attributes if the operation was successful, otherwise returns the [`ContractError`].
-///
-/// ## Params
-/// * **deps** is the object of type [`DepsMut`].
-///
-/// * **info** is the object of type [`MessageInfo`].
-///
-fn toggle_allow_checkpoint_token(
-    deps: DepsMut,
-    info: MessageInfo,
-) -> Result<Response, ContractError> {
-    let mut config: Config = CONFIG.load(deps.storage)?;
-
-    if info.sender != config.owner {
-        return Err(ContractError::Unauthorized {});
-    }
-
-    config.can_checkpoint_token = !config.can_checkpoint_token;
-    CONFIG.save(deps.storage, &config)?;
-
-    Ok(Response::new().add_attributes(vec![
-        attr("action", "toggle_allow_checkpoint_token"),
-        attr(
-            "can_checkpoint_token",
-            (!config.can_checkpoint_token).to_string(),
-        ),
-    ]))
-}
-
-/// ## Description
-/// Calculates the total number of tokens to be distributed in a given week. Returns the [`Response`]
-/// with the specified attributes if the operation was successful, otherwise returns the [`ContractError`].
-///
-/// ## Params
-/// * **deps** is the object of type [`DepsMut`].
-///
-/// * **env** is the object of type [`Env`].
-///
-/// * **info** is the object of type [`MessageInfo`].
-///
+/// Update the token checkpoint. Returns the [`Response`] with the specified attributes if the
+/// operation was successful, otherwise returns the [`ContractError`].
 fn checkpoint_token(
     mut deps: DepsMut,
     env: Env,
@@ -451,14 +422,6 @@ fn checkpoint_token(
 
 /// ## Description
 /// Calculates the total number of tokens to be distributed in a given week.
-///
-/// ## Params
-/// * **deps** is the object of type [`DepsMut`].
-///
-/// * **env** is the object of type [`Env`].
-///
-/// * **config** is the object of type [`Config`].
-///
 fn calc_checkpoint_token(deps: DepsMut, env: Env, config: &mut Config) -> StdResult<()> {
     let mut distributor_info: DistributorInfo = DISTRIBUTOR_INFO.load(deps.storage)?;
 
@@ -467,25 +430,27 @@ fn calc_checkpoint_token(deps: DepsMut, env: Env, config: &mut Config) -> StdRes
     let to_distribute = distributor_balance.checked_sub(distributor_info.token_last_balance)?;
 
     distributor_info.token_last_balance = distributor_balance;
-    let mut t = config.last_token_time;
+    let mut last_token_time = config.last_token_time;
 
     let since_last = env
         .block
         .time
         .seconds()
-        .checked_sub(t)
+        .checked_sub(last_token_time)
         .ok_or_else(|| StdError::generic_err("Timestamp calculation error."))?;
 
     config.last_token_time = env.block.time.seconds();
 
-    let mut current_week = t
-        .checked_div(WEEK * WEEK)
+    let mut current_week = last_token_time
+        .checked_div(WEEK)
+        .ok_or_else(|| StdError::generic_err("Timestamp calculation error."))?
+        .checked_mul(WEEK)
         .ok_or_else(|| StdError::generic_err("Timestamp calculation error."))?;
 
     for _i in 1..20 {
         let next_week = current_week + WEEK;
         if env.block.time.seconds() < next_week {
-            if since_last == 0 && env.block.time.seconds() == t {
+            if since_last == 0 && env.block.time.seconds() == last_token_time {
                 *distributor_info
                     .tokens_per_week
                     .entry(current_week)
@@ -495,10 +460,12 @@ fn calc_checkpoint_token(deps: DepsMut, env: Env, config: &mut Config) -> StdRes
                     .tokens_per_week
                     .entry(current_week)
                     .or_insert_with(|| Uint128::new(0)) += to_distribute
-                    .checked_mul(Uint128::from(env.block.time.seconds()) - Uint128::from(t))?
+                    .checked_mul(
+                        Uint128::from(env.block.time.seconds()) - Uint128::from(last_token_time),
+                    )?
                     .checked_div(Uint128::from(since_last))?;
             }
-        } else if since_last == 0 && next_week == t {
+        } else if since_last == 0 && next_week == last_token_time {
             *distributor_info
                 .tokens_per_week
                 .entry(current_week)
@@ -508,11 +475,11 @@ fn calc_checkpoint_token(deps: DepsMut, env: Env, config: &mut Config) -> StdRes
                 .tokens_per_week
                 .entry(current_week)
                 .or_insert_with(|| Uint128::new(0)) += to_distribute
-                .checked_mul(Uint128::from(next_week) - Uint128::from(t))?
+                .checked_mul(Uint128::from(next_week) - Uint128::from(last_token_time))?
                 .checked_div(Uint128::from(since_last))?;
         }
 
-        t = next_week;
+        last_token_time = next_week;
         current_week = next_week;
     }
 
@@ -841,6 +808,43 @@ fn calc_claim_amount(
 }
 
 /// ## Description
+/// Updates general settings. Returns an [`ContractError`] on failure or the following [`Config`]
+/// data will be updated if successful.
+fn update_config(
+    deps: DepsMut,
+    info: MessageInfo,
+    max_limit_accounts_of_claim: Option<u64>,
+    can_checkpoint_token: Option<bool>,
+) -> Result<Response, ContractError> {
+    let mut attributes = vec![attr("action", "set_config")];
+    let mut config: Config = CONFIG.load(deps.storage)?;
+
+    if info.sender != config.owner {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    if let Some(can_checkpoint_token) = can_checkpoint_token {
+        config.can_checkpoint_token = can_checkpoint_token;
+        attributes.push(Attribute::new(
+            "can_checkpoint_token",
+            can_checkpoint_token.to_string(),
+        ));
+    };
+
+    if let Some(max_limit_accounts_of_claim) = max_limit_accounts_of_claim {
+        config.max_limit_accounts_of_claim = max_limit_accounts_of_claim;
+        attributes.push(Attribute::new(
+            "max_limit_accounts_of_claim",
+            max_limit_accounts_of_claim.to_string(),
+        ));
+    };
+
+    CONFIG.save(deps.storage, &config)?;
+
+    Ok(Response::new().add_attributes(attributes))
+}
+
+/// ## Description
 /// Available the query messages of the contract.
 /// ## Params
 /// * **deps** is the object of type [`Deps`].
@@ -929,6 +933,7 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
         time_cursor: config.time_cursor,
         can_checkpoint_token: config.can_checkpoint_token,
         is_killed: config.is_killed,
+        max_limit_accounts_of_claim: config.max_limit_accounts_of_claim,
     };
 
     Ok(resp)

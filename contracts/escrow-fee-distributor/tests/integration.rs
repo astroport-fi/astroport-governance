@@ -54,6 +54,7 @@ fn instantiation() {
     assert_eq!(false, resp.can_checkpoint_token);
     assert_eq!(0u64, resp.time_cursor);
     assert_eq!(false, resp.is_killed);
+    assert_eq!(10u64, resp.max_limit_accounts_of_claim);
 }
 
 #[test]
