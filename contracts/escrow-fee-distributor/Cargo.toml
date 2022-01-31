@@ -22,10 +22,10 @@ serde = { version = "1.0.125", default-features = false, features = ["derive"] }
 astroport = {git = "https://github.com/astroport-fi/astroport.git", tag = "v1.0.0"}
 thiserror = { version = "1.0.24" }
 astroport-governance = { path = "../../packages/astroport-governance", default-features = false, version = "1.0.0"}
+astroport-governance-voting = { git = "https://github.com/astroport-fi/astroport-governance.git", package = "astroport-governance", branch = "feat/astro_voting_escrow"}
 
 [dev-dependencies]
 cosmwasm-schema = { version = "0.16.2", default-features = false  }
 terra-multi-test = {git = "https://github.com/astroport-fi/terra-plus.git", tag = "v0.9.1-terra"}
 astroport-token = {git = "https://github.com/astroport-fi/astroport.git", branch = "master", package = "astroport-token"}
-astroport-governance-voting = { git = "https://github.com/astroport-fi/astroport-governance.git", package = "astroport-governance", branch = "feat/astro_voting_escrow"}
 astroport-tests = {path = "../../packages/astroport-tests", package = "astroport-tests"}

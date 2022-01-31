@@ -3,6 +3,7 @@ use cosmwasm_std::{
     MessageInfo, Response, StdError, StdResult, Uint128, WasmMsg,
 };
 use std::cmp::{max, min};
+use std::collections::HashMap;
 
 use crate::error::ContractError;
 use crate::state::{
@@ -17,7 +18,7 @@ use astroport_governance::escrow_fee_distributor::{
     Claimed, ConfigResponse, ExecuteMsg, InstantiateMsg, MigrateMsg, Point, QueryMsg,
     RecipientsPerWeekResponse,
 };
-//use astroport_governance_voting::astro_voting_escrow::QueryMsg as VotingQueryMsg;
+use astroport_governance_voting::astro_voting_escrow::QueryMsg as VotingQueryMsg;
 use cw20::Cw20ExecuteMsg;
 
 use cw2::set_contract_version;
@@ -31,6 +32,7 @@ const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 const WEEK: u64 = 7 * 86400;
 const TOKEN_CHECKPOINT_DEADLINE: u64 = 86400;
 const MAX_LIMIT_OF_CLAIM: u64 = 10;
+const MAX_WEEKS: u64 = 20;
 
 /// ## Description
 /// Creates a new contract with the specified parameters in the [`InstantiateMsg`].
@@ -76,6 +78,21 @@ pub fn instantiate(
             can_checkpoint_token: false,
             is_killed: false,
             max_limit_accounts_of_claim: MAX_LIMIT_OF_CLAIM,
+        },
+    )?;
+
+    let mut period: HashMap<Addr, u64> = HashMap::new();
+    period.entry(Addr::unchecked("")).or_insert_with(|| 0u64);
+    let mut week: HashMap<u64, Uint128> = HashMap::new();
+    week.entry(0u64).or_insert_with(|| Uint128::new(0));
+    DISTRIBUTOR_INFO.save(
+        deps.storage,
+        &DistributorInfo {
+            token_last_balance: Uint128::new(0),
+            time_cursor_of: period.clone(), // TODO:
+            user_period_of: period,         // TODO:
+            tokens_per_week: week.clone(),
+            voting_supply_per_week: week,
         },
     )?;
 
@@ -134,6 +151,9 @@ pub fn execute(
     match msg {
         ExecuteMsg::ProposeNewOwner { owner, expires_in } => {
             let config: Config = CONFIG.load(deps.storage)?;
+            if config.is_killed {
+                return Err(ContractError::ContractIsKilled {});
+            }
 
             propose_new_owner(
                 deps,
@@ -148,11 +168,19 @@ pub fn execute(
         }
         ExecuteMsg::DropOwnershipProposal {} => {
             let config: Config = CONFIG.load(deps.storage)?;
+            if config.is_killed {
+                return Err(ContractError::ContractIsKilled {});
+            }
 
             drop_ownership_proposal(deps, info, config.owner, OWNERSHIP_PROPOSAL)
                 .map_err(|e| e.into())
         }
         ExecuteMsg::ClaimOwnership {} => {
+            let config: Config = CONFIG.load(deps.storage)?;
+            if config.is_killed {
+                return Err(ContractError::ContractIsKilled {});
+            }
+
             claim_ownership(deps, info, env, OWNERSHIP_PROPOSAL, |deps, new_owner| {
                 CONFIG.update::<_, StdError>(deps.storage, |mut v| {
                     v.owner = new_owner;
@@ -165,7 +193,7 @@ pub fn execute(
         }
         ExecuteMsg::CheckpointTotalSupply {} => checkpoint_total_supply(deps, env),
         ExecuteMsg::Burn { token_address } => burn(deps, env, info, token_address),
-        ExecuteMsg::KillMe {} => kill_me(deps.as_ref(), env, info),
+        ExecuteMsg::KillMe {} => kill_me(deps, env, info),
         ExecuteMsg::RecoverBalance { token_address } => {
             recover_balance(deps.as_ref(), env, info, token_address)
         }
@@ -189,14 +217,6 @@ pub fn execute(
 /// claimant each new period week. This function may be called independently of a claim,
 /// to reduce claiming gas costs. Returns the [`Response`] with the specified attributes if the
 /// operation was successful, otherwise returns the [`ContractError`].
-///
-/// ## Params
-/// * **deps** is the object of type [`Deps`].
-///
-/// * **info** is the object of type [`MessageInfo`].
-///
-/// * **env** is the object of type [`Env`].
-///
 fn checkpoint_total_supply(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
     let mut config = CONFIG.load(deps.storage)?;
     let rounded_timestamp = env
@@ -207,45 +227,29 @@ fn checkpoint_total_supply(deps: DepsMut, env: Env) -> Result<Response, Contract
         .ok_or_else(|| StdError::generic_err("Timestamp calculation error."))?
         .checked_mul(WEEK)
         .ok_or_else(|| StdError::generic_err("Timestamp calculation error."))?;
-    let mut t = config.time_cursor;
+    let mut time_cursor = config.time_cursor;
     // TODO: execute VotingEscrow.checkpoint()
 
     let mut distributor_info = DISTRIBUTOR_INFO.load(deps.storage)?;
 
-    for _i in 1..20 {
-        if t > rounded_timestamp {
+    for _i in 1..MAX_WEEKS {
+        if time_cursor > rounded_timestamp {
             break;
         } else {
-            let _period = find_timestamp_period(deps.as_ref(), config.voting_escrow.clone(), t)?;
-
-            let pt = Point::default(); // TODO: query from VotingEscrow
-                                       // let pt: Point = deps.querier.query_wasm_smart(
-                                       //     &config.voting_escrow,
-                                       //     &VotingQueryMsg::PointHistory { period },
-                                       // )?;
-
-            let dt: u64;
-            if t > pt.ts {
-                dt = t - pt.ts;
-            } else {
-                dt = 0;
-            }
+            let total_voting_power: Uint128 = deps.querier.query_wasm_smart(
+                &config.voting_escrow,
+                &VotingQueryMsg::TotalVotingPowerAt { time: time_cursor },
+            )?;
 
             *distributor_info
                 .voting_supply_per_week
-                .entry(t)
-                .or_insert_with(|| Uint128::new(0)) += Uint128::from(max(
-                pt.bias
-                    - pt.slope
-                        .checked_mul(dt as i128)
-                        .ok_or_else(|| StdError::generic_err("Math operation error."))?,
-                0,
-            ) as u128);
+                .entry(time_cursor)
+                .or_insert_with(|| Uint128::new(0)) += total_voting_power;
         }
-        t += WEEK;
+        time_cursor += WEEK;
     }
 
-    config.time_cursor = t;
+    config.time_cursor = time_cursor;
     CONFIG.save(deps.storage, &config)?;
     DISTRIBUTOR_INFO.save(deps.storage, &distributor_info)?;
 
@@ -275,12 +279,12 @@ fn burn(
     let token_addr = addr_validate_to_lower(deps.api, &token_address)?;
     let mut config: Config = CONFIG.load(deps.storage)?;
 
-    if token_addr != config.token {
-        return Err(ContractError::TokenAddressIsWrong {});
-    }
-
     if config.is_killed {
         return Err(ContractError::ContractIsKilled {});
+    }
+
+    if token_addr != config.token {
+        return Err(ContractError::TokenAddressIsWrong {});
     }
 
     let balance = query_token_balance(&deps.querier, token_addr.clone(), info.sender.clone())?;
@@ -324,7 +328,7 @@ fn burn(
 ///
 /// * **env** is the object of type [`Env`].
 ///
-fn kill_me(deps: Deps, env: Env, info: MessageInfo) -> Result<Response, ContractError> {
+fn kill_me(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, ContractError> {
     let mut config: Config = CONFIG.load(deps.storage)?;
 
     if info.sender != config.owner {
@@ -341,6 +345,8 @@ fn kill_me(deps: Deps, env: Env, info: MessageInfo) -> Result<Response, Contract
         config.emergency_return.clone(),
         current_balance,
     )?;
+
+    CONFIG.save(deps.storage, &config)?;
 
     Ok(Response::new()
         .add_attributes(vec![
@@ -375,6 +381,10 @@ fn recover_balance(
 
     let config: Config = CONFIG.load(deps.storage)?;
 
+    if config.is_killed {
+        return Err(ContractError::ContractIsKilled {});
+    }
+
     if info.sender != config.owner {
         return Err(ContractError::Unauthorized {});
     }
@@ -406,6 +416,10 @@ fn checkpoint_token(
     info: MessageInfo,
 ) -> Result<Response, ContractError> {
     let mut config: Config = CONFIG.load(deps.storage)?;
+
+    if config.is_killed {
+        return Err(ContractError::ContractIsKilled {});
+    }
 
     if info.sender != config.owner
         && (!config.can_checkpoint_token
@@ -447,7 +461,7 @@ fn calc_checkpoint_token(deps: DepsMut, env: Env, config: &mut Config) -> StdRes
         .checked_mul(WEEK)
         .ok_or_else(|| StdError::generic_err("Timestamp calculation error."))?;
 
-    for _i in 1..20 {
+    for _i in 1..MAX_WEEKS {
         let next_week = current_week + WEEK;
         if env.block.time.seconds() < next_week {
             if since_last == 0 && env.block.time.seconds() == last_token_time {
@@ -818,6 +832,10 @@ fn update_config(
 ) -> Result<Response, ContractError> {
     let mut attributes = vec![attr("action", "set_config")];
     let mut config: Config = CONFIG.load(deps.storage)?;
+
+    if config.is_killed {
+        return Err(ContractError::ContractIsKilled {});
+    }
 
     if info.sender != config.owner {
         return Err(ContractError::Unauthorized {});

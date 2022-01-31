@@ -139,4 +139,34 @@ impl BaseAstroportTestPackage {
         let res: StdResult<BalanceResponse> = app.wrap().query_wasm_smart(token, &msg);
         assert_eq!(res.unwrap().balance, Uint128::from(expected));
     }
+
+    pub fn allowance_token(
+        router: &mut TerraApp,
+        owner: Addr,
+        spender: Addr,
+        token: Addr,
+        amount: Uint128,
+    ) {
+        let msg = cw20::Cw20ExecuteMsg::IncreaseAllowance {
+            spender: spender.to_string(),
+            amount,
+            expires: None,
+        };
+        let res = router
+            .execute_contract(owner.clone(), token.clone(), &msg, &[])
+            .unwrap();
+        assert_eq!(
+            res.events[1].attributes[1],
+            attr("action", "increase_allowance")
+        );
+        assert_eq!(
+            res.events[1].attributes[2],
+            attr("owner", owner.to_string())
+        );
+        assert_eq!(
+            res.events[1].attributes[3],
+            attr("spender", spender.to_string())
+        );
+        assert_eq!(res.events[1].attributes[4], attr("amount", amount));
+    }
 }
