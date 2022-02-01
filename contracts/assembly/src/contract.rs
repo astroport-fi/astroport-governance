@@ -724,5 +724,5 @@ pub fn calc_total_voting_power_at(deps: &DepsMut, block: u64) -> StdResult<Uint1
         .querier
         .query_wasm_smart(config.builder_unlock_addr, &BuilderUnlockQueryMsg::State {})?;
 
-    Ok(total_supply + total_locked_astro_in_unlock_contract.total_astro_deposited)
+    Ok(total_supply + total_locked_astro_in_unlock_contract.remaining_astro_tokens)
 }
