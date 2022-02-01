@@ -426,8 +426,15 @@ fn get_total_voting_power(
 
     let last_checkpoint = fetch_last_checkpoint(deps, &contract_addr, &period_key)?;
 
-    let (_, point) =
-        last_checkpoint.ok_or_else(|| StdError::generic_err("Checkpoint not found"))?;
+    let point = last_checkpoint.map_or(
+        Point {
+            power: Uint128::zero(),
+            start: period,
+            end: period,
+            slope: Decimal::zero(),
+        },
+        |(_, point)| point,
+    );
 
     let voting_power = if point.start == period {
         point.power
