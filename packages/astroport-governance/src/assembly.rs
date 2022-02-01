@@ -8,7 +8,7 @@ pub const MINIMUM_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE: u64 = 50;
 pub const MAX_PROPOSAL_REQUIRED_PERCENTAGE: u64 = 100;
 
 /// ## Description
-/// This structure describes the basic settings for creating a contract.
+/// This structure describes the basic settings for creating an Assembly contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
     /// Address of xASTRO token
@@ -36,7 +36,7 @@ pub enum ExecuteMsg {
     /// Receives a message of type [`Cw20ReceiveMsg`]
     Receive(Cw20ReceiveMsg),
     /// ## Description
-    /// Cast vote for an active propose.
+    /// Cast a vote for an active proposal
     CastVote {
         /// Proposal identifier
         proposal_id: u64,
@@ -44,48 +44,48 @@ pub enum ExecuteMsg {
         vote: ProposalVoteOption,
     },
     /// ## Description
-    /// End proposal.
+    /// Set the status of a proposal that expired
     EndProposal {
         /// Proposal identifier
         proposal_id: u64,
     },
     /// ## Description
-    /// Execute proposal messages
+    /// Execute a successful proposal
     ExecuteProposal {
         /// Proposal identifier
         proposal_id: u64,
     },
     /// ## Description
-    /// Remove completed proposal in the proposal list.
+    /// Remove a proposal that was already executed
     RemoveCompletedProposal {
         /// Proposal identifier
         proposal_id: u64,
     },
     /// ## Description
-    /// Update current assembly contract
+    /// Update parameters in the Assembly contract
     /// ## Executor
-    /// Only assembly contract via passed proposal can execute it
+    /// Only the Assembly contract is allowed to update its own parameters
     UpdateConfig(UpdateConfig),
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
-    /// Config returns the base setting of the assembly contract
+    /// Config returns general parameters from the Assembly contract
     Config {},
-    /// Proposals returns list of proposals
+    /// Proposals returns the current list of proposals
     Proposals {
         start: Option<u64>,
         limit: Option<u32>,
     },
-    /// Proposal returns information about proposal
+    /// Proposal returns information about a specific proposal
     Proposal { proposal_id: u64 },
-    /// Proposal returns information about proposal votes
+    /// ProposalVotes returns information about the votes cast on a specific proposal
     ProposalVotes { proposal_id: u64 },
 }
 
 /// ## Description
-/// This structure describes a CW20 hook message.
+/// This structure stores data for a CW20 hook message.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum Cw20HookMsg {
@@ -98,7 +98,7 @@ pub enum Cw20HookMsg {
 }
 
 /// ## Description
-/// This structure describes the basic settings for assembly contract.
+/// This structure stores params for the Assembly contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
     /// xASTRO token address
@@ -124,14 +124,14 @@ impl Config {
                 < Decimal::percent(MINIMUM_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE)
         {
             return Err(StdError::generic_err(format!(
-                "The proposal required threshold cannot be less than {}% and more than {}%",
+                "The required threshold for a proposal cannot be lower than {}% or higher than {}%",
                 MINIMUM_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE, MAX_PROPOSAL_REQUIRED_PERCENTAGE
             )));
         }
 
         if self.proposal_required_quorum > Decimal::percent(100u64) {
             return Err(StdError::generic_err(format!(
-                "The proposal required quorum cannot be more than {}%",
+                "The required quorum for a proposal cannot be higher than {}%",
                 MAX_PROPOSAL_REQUIRED_PERCENTAGE
             )));
         }
@@ -159,41 +159,41 @@ pub struct UpdateConfig {
 }
 
 /// ## Description
-/// This structure describes proposal.
+/// This structure stores data for a proposal.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Proposal {
-    /// Unique ID of proposal
+    /// Unique proposal ID
     pub proposal_id: Uint64,
-    /// Submitter address of proposal
+    /// The address of the proposal submitter
     pub submitter: Addr,
-    /// Status of proposal
+    /// Status of the proposal
     pub status: ProposalStatus,
     /// `For` power of proposal
     pub for_power: Uint128,
     /// `Against` power of proposal
     pub against_power: Uint128,
-    /// `For` voters of proposal
+    /// `For` votes for the proposal
     pub for_voters: Vec<Addr>,
-    /// `Against` voters of proposal
+    /// `Against` votes for the proposal
     pub against_voters: Vec<Addr>,
     /// Start block of proposal
     pub start_block: u64,
     /// End block of proposal
     pub end_block: u64,
-    /// Title of proposal
+    /// Proposal title
     pub title: String,
-    /// Description of proposal
+    /// Proposal description
     pub description: String,
-    /// Link of proposal
+    /// Proposal link
     pub link: Option<String>,
-    /// Messages of proposal
+    /// Proposal messages
     pub messages: Option<Vec<ProposalMessage>>,
-    /// Deposit amount of proposal
+    /// Amount of xASTRO deposited in order to post the proposal
     pub deposit_amount: Uint128,
 }
 
 /// ## Description
-/// This enum describes available statuses for Proposal.
+/// This enum describes available statuses/states for a Proposal.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub enum ProposalStatus {
     Active,

@@ -3,11 +3,11 @@ use std::fs::create_dir_all;
 
 use cosmwasm_schema::{export_schema, remove_schemas, schema_for};
 
-use astroport_governance::astro_vesting::msg::{
+use astroport_governance::builder_unlock::msg::{
     AllocationResponse, ExecuteMsg, InstantiateMsg, QueryMsg, ReceiveMsg, SimulateWithdrawResponse,
     StateResponse,
 };
-use astroport_governance::astro_vesting::{AllocationParams, AllocationStatus, Schedule};
+use astroport_governance::builder_unlock::{AllocationParams, AllocationStatus, Schedule};
 
 fn main() {
     let mut out_dir = current_dir().unwrap();

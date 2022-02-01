@@ -1,6 +1,6 @@
-# Astroport Assembly
+# Astral Assembly
 
-The Assembly contract allows ASTRO holders to post new on-chain proposals that can execute arbitrary logic and then vote on them.
+The Assembly contract allows xASTRO and vxASTRO holders as well as Initial Astroport Builders to post and vote on new on-chain proposals that can execute arbitrary logic,
 
 ## InstantiateMsg
 
@@ -20,7 +20,7 @@ The Assembly contract allows ASTRO holders to post new on-chain proposals that c
 
 ### `receive`
 
-Submitting proposal.
+Submit a new proposal.
 
 ```json
 {
@@ -34,7 +34,7 @@ Submitting proposal.
 
 ### `cast_vote`
 
-Casts vote for an active propose.
+Casts vote for an active proposal.
 
 ```json
 {
@@ -47,7 +47,7 @@ Casts vote for an active propose.
 
 ### `end_proposal`
 
-Ends proposal.
+Ends an expired proposal.
 
 ```json
 {
@@ -59,7 +59,7 @@ Ends proposal.
 
 ### `execute_proposal`
 
-Executes proposal messages
+Executes a proposal.
 
 ```json
 {
@@ -71,7 +71,7 @@ Executes proposal messages
 
 ### `remove_completed_proposal`
 
-Removes completed proposal in the proposal list.
+Removes a completed proposal from the proposal list.
 
 ```json
 {
@@ -83,7 +83,7 @@ Removes completed proposal in the proposal list.
 
 ### `update_config`
 
-Update current assembly contract. Only assembly contract via passed proposal can execute it.
+Update contract parameters. Only the Assembly is allowed to update its own parameters.
 
 ```json
 {
@@ -105,7 +105,7 @@ All query messages are described below. A custom struct is defined for each quer
 
 ### `config`
 
-Returns the information about the assembly contract
+Returns Astral Assembly parameters.
 
 ```json
 {
@@ -115,7 +115,7 @@ Returns the information about the assembly contract
 
 ### `proposals`
 
-Returns list of proposals
+Returns the current proposal list.
 
 ```json
 {
@@ -128,7 +128,7 @@ Returns list of proposals
 
 ### `proposal`
 
-Returns information about proposal
+Returns information about a specific proposal.
 
 ```json
 {
@@ -140,7 +140,7 @@ Returns information about proposal
 
 ### `proposal_votes`
 
-Returns information about proposal votes
+Returns information about the votes cast on a proposal.
 
 ```json
 {

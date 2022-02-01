@@ -74,7 +74,7 @@ pub fn instantiate(
 }
 
 /// ## Description
-/// Available the execute messages of the contract.
+/// Execute transactions.
 /// ## Params
 /// * **deps** is the object of type [`Deps`].
 ///
@@ -88,15 +88,15 @@ pub fn instantiate(
 /// * **ExecuteMsg::Receive(cw20_msg)** Receives a message of type [`Cw20ReceiveMsg`] and processes
 /// it depending on the received template.
 ///
-/// * **ExecuteMsg::CastVote { proposal_id, vote }** Gets vote for an active propose.
+/// * **ExecuteMsg::CastVote { proposal_id, vote }** Cast a vote on a specific proposal.
 ///
-/// * **ExecuteMsg::EndProposal { proposal_id }** Ends expired propose.
+/// * **ExecuteMsg::EndProposal { proposal_id }** Sets the status of an expired/finalized proposal.
 ///
-/// * **ExecuteMsg::ExecuteProposal { proposal_id }** Executes messages of the passed propose.
+/// * **ExecuteMsg::ExecuteProposal { proposal_id }** Executes a successful proposal.
 ///
-/// * **ExecuteMsg::RemoveCompletedProposal { proposal_id }** Removes completed specified proposal.
+/// * **ExecuteMsg::RemoveCompletedProposal { proposal_id }** Removes a finalized proposal from the proposal list.
 ///
-/// * **ExecuteMsg::UpdateConfig(config)** Updates contract configuration.
+/// * **ExecuteMsg::UpdateConfig(config)** Updates the contract configuration.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
@@ -121,7 +121,7 @@ pub fn execute(
 /// ## Description
 /// Receives a message of type [`Cw20ReceiveMsg`] and processes it depending on the received template.
 /// If the template is not found in the received message, then an [`ContractError`] is returned,
-/// otherwise returns the [`Response`] with the specified attributes if the operation was successful
+/// otherwise the function returns a [`Response`] with the specified attributes if the operation was successful
 /// ## Params
 /// * **deps** is the object of type [`DepsMut`].
 ///
@@ -157,8 +157,8 @@ pub fn receive_cw20(
 }
 
 /// ## Description
-/// Performs a submitting of proposal.
-/// Returns an [`ContractError`] on failure, otherwise returns the [`Response`] with the specified attributes if the operation was successful.
+/// Submit a brand new proposal and lock some xASTRO as an anti-spam mechanism.
+/// Returns [`ContractError`] on failure, otherwise returns a [`Response`] with the specified attributes if the operation was successful.
 /// ## Params
 /// * **deps** is the object of type [`DepsMut`].
 ///
@@ -166,17 +166,17 @@ pub fn receive_cw20(
 ///
 /// * **info** is the object of type [`MessageInfo`].
 ///
-/// * **sender** is the object of type [`Addr`]. Submitter of proposal.
+/// * **sender** is the object of type [`Addr`]. Proposal submitter.
 ///
-/// * **deposit_amount** is the object of type [`Uint128`]. Deposited amount of proposal.
+/// * **deposit_amount** is the object of type [`Uint128`]. Amount of xASTRO to deposit in order to submit the proposal.
 ///
 /// * **title** is the object of type [`String`]. Title of proposal.
 ///
 /// * **description** is the object of type [`String`]. Description of proposal.
 ///
-/// * **link** is the object of type [`Option<String>`]. Link of proposal.
+/// * **link** is the object of type [`Option<String>`]. Proposal link.
 ///
-/// * **messages** is the object of type [`Option<Vec<ProposalMessage>>`]. Messages of proposal.
+/// * **messages** is the object of type [`Option<Vec<ProposalMessage>>`]. Proposal messages.
 #[allow(clippy::too_many_arguments)]
 pub fn submit_proposal(
     deps: DepsMut,
@@ -200,7 +200,7 @@ pub fn submit_proposal(
         return Err(ContractError::InvalidProposal("Title too long".to_string()));
     }
 
-    // Validate description
+    // Validate the description
     if description.len() < MIN_DESC_LENGTH {
         return Err(ContractError::InvalidProposal(
             "Description too short".to_string(),
@@ -232,7 +232,7 @@ pub fn submit_proposal(
         return Err(ContractError::InsufficientDeposit {});
     }
 
-    // Update proposal count
+    // Update the proposal count
     let count = PROPOSAL_COUNT.update(deps.storage, |c| -> StdResult<_> {
         Ok(c.checked_add(Uint64::from(1u32))?)
     })?;
@@ -269,8 +269,8 @@ pub fn submit_proposal(
 }
 
 /// ## Description
-/// Accepts the vote.
-/// Returns an [`ContractError`] on failure, otherwise returns the [`Response`] with the specified
+/// Cast a vote on a proposal.
+/// Returns [`ContractError`] on failure, otherwise returns a [`Response`] with the specified
 /// attributes if the operation was successful.
 /// ## Params
 /// * **deps** is the object of type [`DepsMut`].
@@ -281,7 +281,7 @@ pub fn submit_proposal(
 ///
 /// * **proposal_id** is the identifier of the proposal.
 ///
-/// * **vote_option** is the object of type [`ProposalVoteOption`]. Contains voting option.
+/// * **vote_option** is an object of type [`ProposalVoteOption`]. Contains the vote option.
 pub fn cast_vote(
     deps: DepsMut,
     env: Env,
@@ -336,7 +336,7 @@ pub fn cast_vote(
 }
 
 /// ## Description
-/// Ends proposal voting.
+/// Ends proposal voting and sets the proposal status.
 /// Returns an [`ContractError`] on failure, otherwise returns the [`Response`] with the specified
 /// attributes if the operation was successful.
 /// ## Params
@@ -382,7 +382,7 @@ pub fn end_proposal(
         proposal_threshold = Decimal::from_ratio(for_votes, total_votes);
     }
 
-    // Determine proposal result
+    // Determine the proposal result
     proposal.status = if proposal_quorum >= config.proposal_required_quorum
         && proposal_threshold > config.proposal_required_threshold
     {
@@ -412,8 +412,8 @@ pub fn end_proposal(
 }
 
 /// ## Description
-/// Executes passed.
-/// Returns an [`ContractError`] on failure, otherwise returns the [`Response`] with the specified
+/// Executes a successful proposal.
+/// Returns [`ContractError`] on failure, otherwise returns a [`Response`] with the specified
 /// attributes if the operation was successful.
 /// ## Params
 /// * **deps** is the object of type [`DepsMut`].
@@ -466,8 +466,8 @@ pub fn execute_proposal(
 }
 
 /// ## Description
-/// Removes expired or rejected proposal from list.
-/// Returns an [`ContractError`] on failure, otherwise returns the [`Response`] with the specified
+/// Removes an expired or rejected proposal from the general proposal list.
+/// Returns [`ContractError`] on failure, otherwise returns a [`Response`] with the specified
 /// attributes if the operation was successful.
 /// ## Params
 /// * **deps** is the object of type [`DepsMut`].
@@ -505,8 +505,8 @@ pub fn remove_completed_proposal(
 }
 
 /// ## Description
-/// Updates config of assembly contract.
-/// Returns an [`ContractError`] on failure, otherwise returns the [`Response`] with the specified
+/// Updates Assembly parameters.
+/// Returns [`ContractError`] on failure, otherwise returns a [`Response`] with the specified
 /// attributes if the operation was successful.
 /// ## Params
 /// * **deps** is the object of type [`DepsMut`].
@@ -524,8 +524,7 @@ pub fn update_config(
 ) -> Result<Response, ContractError> {
     let mut config = CONFIG.load(deps.storage)?;
 
-    // In council, config can be updated only by itself (through an approved proposal)
-    // instead of by it's owner
+    // Only the Assembly is allowed to update its own parameters (through a successful proposal)
     if info.sender != env.contract.address {
         return Err(ContractError::Unauthorized {});
     }
@@ -571,7 +570,7 @@ pub fn update_config(
 }
 
 /// ## Description
-/// Available the query messages of the contract.
+/// Expose and execute available contract queries.
 /// ## Params
 /// * **deps** is the object of type [`Deps`].
 ///
@@ -580,14 +579,13 @@ pub fn update_config(
 /// * **msg** is the object of type [`QueryMsg`].
 ///
 /// ## Queries
-/// * **QueryMsg::Config {}** Returns controls settings that specified in [`Config`] structure.
+/// * **QueryMsg::Config {}** Returns core contract settings stored in the [`Config`] structure.
 ///
-/// * **QueryMsg::Proposals { start, limit }** Returns the [`ProposalListResponse`] according to the specified input parameters.
+/// * **QueryMsg::Proposals { start, limit }** Returns a [`ProposalListResponse`] according to the specified input parameters.
 ///
-/// * **QueryMsg::Proposal { proposal_id }** Returns an array that contains items of [`PairInfo`]
-/// according to the specified input parameters.
+/// * **QueryMsg::Proposal { proposal_id }** Returns an array that contains [`PairInfo`] items
 ///
-/// * **QueryMsg::ProposalVotes { proposal_id }** Returns votes of the proposal that specified in [`ProposalVotesResponse`] structure.
+/// * **QueryMsg::ProposalVotes { proposal_id }** Returns proposal vote counts that are stored in the [`ProposalVotesResponse`] structure.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
@@ -601,7 +599,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 }
 
 /// ## Description
-/// Returns the assembly contract configuration in [`Config`] structure.
+/// Returns the contract configuration stored in the [`Config`] structure.
 /// ## Params
 /// * **deps** is the object of type [`Deps`].
 pub fn query_config(deps: Deps) -> StdResult<Config> {
@@ -610,13 +608,13 @@ pub fn query_config(deps: Deps) -> StdResult<Config> {
 }
 
 /// ## Description
-/// Returns list of proposals.
+/// Returns the current proposal list.
 /// ## Params
 /// * **deps** is the object of type [`Deps`].
 ///
-/// * **start_after** is an [`Option`] type. Sets the index to start reading.
+/// * **start_after** is an [`Option`] type. Specifies the proposal list index to start reading from.
 ///
-/// * **limit** is a [`Option`] type. Sets the number of items to be read.
+/// * **limit** is a [`Option`] type. Specifies the number of items to read.
 pub fn query_proposals(
     deps: Deps,
     start: Option<u64>,
@@ -643,22 +641,22 @@ pub fn query_proposals(
 }
 
 /// ## Description
-/// Returns a proposal information specified in the [`Proposal`] structure.
+/// Returns proposal information stored in the [`Proposal`] structure.
 /// ## Params
 /// * **deps** is the object of type [`Deps`].
 ///
-/// * **proposal_id** is the proposal identifier.
+/// * **proposal_id** is the desired proposal identifier.
 pub fn query_proposal(deps: Deps, proposal_id: u64) -> StdResult<Proposal> {
     let proposal = PROPOSALS.load(deps.storage, U64Key::new(proposal_id))?;
     Ok(proposal)
 }
 
 /// ## Description
-/// Returns proposal votes specified in the custom [`ProposalVotesResponse`] structure.
+/// Returns proposal votes stored in the [`ProposalVotesResponse`] structure.
 /// ## Params
 /// * **deps** is the object of type [`Deps`].
 ///
-/// * **proposal_id** is the proposal identifier.
+/// * **proposal_id** is the desired proposal identifier.
 pub fn query_proposal_votes(deps: Deps, proposal_id: u64) -> StdResult<ProposalVotesResponse> {
     let proposal = PROPOSALS.load(deps.storage, U64Key::from(proposal_id))?;
 
@@ -670,13 +668,13 @@ pub fn query_proposal_votes(deps: Deps, proposal_id: u64) -> StdResult<ProposalV
 }
 
 /// ## Description
-/// Calculates sender voting power at specified block.
+/// Calculates sender voting power at the specified block.
 /// ## Params
 /// * **deps** is the object of type [`DepsMut`].
 ///
 /// * **sender** is the object of type [`String`].
 ///
-/// * **block** is the block height.
+/// * **block** is the Terra block height.
 pub fn calc_voting_power(deps: &DepsMut, sender: String, block: u64) -> StdResult<Uint128> {
     let config = CONFIG.load(deps.storage)?;
 
@@ -692,11 +690,11 @@ pub fn calc_voting_power(deps: &DepsMut, sender: String, block: u64) -> StdResul
 }
 
 /// ## Description
-/// Calculates total voting power at specified block.
+/// Calculates total voting power at a specified block.
 /// ## Params
 /// * **deps** is the object of type [`DepsMut`].
 ///
-/// * **block** is the block height.
+/// * **block** is the Terra block height.
 pub fn calc_total_voting_power_at(deps: &DepsMut, block: u64) -> StdResult<Uint128> {
     let config = CONFIG.load(deps.storage)?;
 

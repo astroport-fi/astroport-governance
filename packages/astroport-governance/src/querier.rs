@@ -35,7 +35,7 @@ pub fn query_token_balance(
     contract_addr: Addr,
     account_addr: Addr,
 ) -> StdResult<Uint128> {
-    // load balance form the token contract
+    // load balance from the token contract
     let res: Cw20BalanceResponse = querier
         .query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: String::from(contract_addr),

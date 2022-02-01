@@ -17,7 +17,7 @@ pub enum ContractError {
     #[error("Proposal not active!")]
     ProposalNotActive {},
 
-    #[error("Proposal submitter cannot vote for submitted propose!")]
+    #[error("Proposal submitter cannot vote on their own proposal!")]
     SubmitterCannotVote {},
 
     #[error("Voting period ended!")]
@@ -26,16 +26,16 @@ pub enum ContractError {
     #[error("User already voted!")]
     UserAlreadyVoted {},
 
-    #[error("You don't have voting power!")]
+    #[error("You don't have any voting power!")]
     NoVotingPower {},
 
     #[error("Voting period not ended yet!")]
     VotingPeriodNotEnded {},
 
-    #[error("Proposal is expired for execution!")]
+    #[error("Proposal expired!")]
     ExecuteProposalExpired {},
 
-    #[error("Insufficient deposit!")]
+    #[error("Insufficient token deposit!")]
     InsufficientDeposit {},
 
     #[error("Proposal not passed!")]
