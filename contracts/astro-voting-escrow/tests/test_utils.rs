@@ -64,6 +64,7 @@ impl Helper {
         let staking_code_id = router.store_code(staking_contract);
 
         let msg = xastro::InstantiateMsg {
+            owner: owner.to_string(),
             token_code_id: astro_token_code_id,
             deposit_token_addr: astro_token.to_string(),
         };
