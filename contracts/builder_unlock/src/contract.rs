@@ -116,7 +116,9 @@ fn execute_create_allocations(
     let mut state = STATE.may_load(deps.storage)?.unwrap_or_default();
 
     if deps.api.addr_validate(&creator)? != config.owner {
-        return Err(StdError::generic_err("Only the contract owner can create allocations"));
+        return Err(StdError::generic_err(
+            "Only the contract owner can create allocations",
+        ));
     }
 
     if deposit_token != config.astro_token {
@@ -213,7 +215,9 @@ fn execute_transfer_ownership(
     let mut config = CONFIG.load(deps.storage)?;
 
     if info.sender != config.owner {
-        return Err(StdError::generic_err("Only the current owner can transfer ownership"));
+        return Err(StdError::generic_err(
+            "Only the current owner can transfer ownership",
+        ));
     }
 
     if new_owner.is_some() {
