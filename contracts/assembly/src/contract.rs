@@ -14,6 +14,9 @@ use astroport_governance::assembly::{
 };
 
 use astroport::xastro_token::QueryMsg as XAstroTokenQueryMsg;
+use astroport_governance::builder_unlock::msg::{
+    AllocationResponse, QueryMsg as BuilderUnlockQueryMsg, StateResponse,
+};
 
 use crate::error::ContractError;
 use crate::state::{CONFIG, PROPOSALS, PROPOSAL_COUNT};
@@ -56,6 +59,7 @@ pub fn instantiate(
 
     let config = Config {
         xastro_token_addr: addr_validate_to_lower(deps.api, &msg.xastro_token_addr)?,
+        builder_unlock_addr: addr_validate_to_lower(deps.api, &msg.builder_unlock_addr)?,
         proposal_voting_period: msg.proposal_voting_period,
         proposal_effective_delay: msg.proposal_effective_delay,
         proposal_expiration_period: msg.proposal_expiration_period,
@@ -535,6 +539,12 @@ pub fn update_config(
         .transpose()?
         .unwrap_or(config.xastro_token_addr);
 
+    config.builder_unlock_addr = updated_config
+        .builder_unlock_addr
+        .map(|addr| addr_validate_to_lower(deps.api, &addr))
+        .transpose()?
+        .unwrap_or(config.builder_unlock_addr);
+
     config.proposal_voting_period = updated_config
         .proposal_voting_period
         .unwrap_or(config.proposal_voting_period);
@@ -681,12 +691,17 @@ pub fn calc_voting_power(deps: &DepsMut, sender: String, block: u64) -> StdResul
     let xastro_amount: BalanceResponse = deps.querier.query_wasm_smart(
         config.xastro_token_addr,
         &XAstroTokenQueryMsg::BalanceAt {
-            address: sender,
+            address: sender.clone(),
             block,
         },
     )?;
 
-    Ok(xastro_amount.balance)
+    let locked_amount: AllocationResponse = deps.querier.query_wasm_smart(
+        config.builder_unlock_addr,
+        &BuilderUnlockQueryMsg::Allocation { account: sender },
+    )?;
+
+    Ok(xastro_amount.balance + locked_amount.params.amount)
 }
 
 /// ## Description
@@ -698,10 +713,16 @@ pub fn calc_voting_power(deps: &DepsMut, sender: String, block: u64) -> StdResul
 pub fn calc_total_voting_power_at(deps: &DepsMut, block: u64) -> StdResult<Uint128> {
     let config = CONFIG.load(deps.storage)?;
 
+    // Total xASTRO supply at a specified block
     let total_supply: Uint128 = deps.querier.query_wasm_smart(
         config.xastro_token_addr,
         &XAstroTokenQueryMsg::TotalSupplyAt { block },
     )?;
 
-    Ok(total_supply)
+    // Total builder locked
+    let total_locked_astro_in_unlock_contract: StateResponse = deps
+        .querier
+        .query_wasm_smart(config.builder_unlock_addr, &BuilderUnlockQueryMsg::State {})?;
+
+    Ok(total_supply + total_locked_astro_in_unlock_contract.total_astro_deposited)
 }
