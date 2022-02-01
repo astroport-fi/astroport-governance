@@ -40,3 +40,4 @@ terra-multi-test = { git = "https://github.com/astroport-fi/terra-plus.git" }
 astroport-token = { git = "https://github.com/astroport-fi/astroport.git", package = "astroport-token" }
 astroport-staking = { git = "https://github.com/astroport-fi/astroport.git", package = "astroport-staking" }
 anyhow = "1"
+proptest = "1.0.0"
