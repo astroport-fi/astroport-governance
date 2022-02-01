@@ -104,7 +104,7 @@ dependencies = [
 [[package]]
 name = "astroport-governance"
 version = "1.0.0"
-source = "git+https://github.com/astroport-fi/astroport-governance.git?branch=feat/astro_voting_escrow#d277197e62d605307e1bd39a43aa42ce30a5b875"
+source = "git+https://github.com/astroport-fi/astroport-governance.git?branch=feat/astro_voting_escrow#55be1208456d1888dda1a5ad68a2041e9f5b268d"
 dependencies = [
  "cosmwasm-std",
  "cw20",
@@ -115,13 +115,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "astroport-staking"
+version = "1.0.0"
+source = "git+https://github.com/astroport-fi/astroport.git#a4bf79bff126fbcaba7ae64401e655f074422001"
+dependencies = [
+ "astroport 1.1.0 (git+https://github.com/astroport-fi/astroport.git)",
+ "cosmwasm-std",
+ "cw-storage-plus 0.8.1",
+ "cw2",
+ "cw20",
+ "protobuf",
+ "schemars",
+ "serde",
+ "thiserror",
+]
+
+[[package]]
 name = "astroport-tests"
 version = "1.0.0"
 dependencies = [
- "astroport 0.3.1",
+ "astroport 1.1.0 (git+https://github.com/astroport-fi/astroport.git?branch=master)",
  "astroport-escrow-fee-distributor",
  "astroport-governance 1.0.0",
+ "astroport-governance 1.0.0 (git+https://github.com/astroport-fi/astroport-governance.git?branch=feat/astro_voting_escrow)",
+ "astroport-staking",
  "astroport-token 1.0.0 (git+https://github.com/astroport-fi/astroport.git)",
+ "astroport-voting-escrow",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw20",
@@ -159,6 +178,23 @@ dependencies = [
  "schemars",
  "serde",
  "snafu",
+]
+
+[[package]]
+name = "astroport-voting-escrow"
+version = "1.0.0"
+source = "git+https://github.com/astroport-fi/astroport-governance.git?branch=feat/astro_voting_escrow#55be1208456d1888dda1a5ad68a2041e9f5b268d"
+dependencies = [
+ "astroport 1.1.0 (git+https://github.com/astroport-fi/astroport.git)",
+ "astroport-governance 1.0.0 (git+https://github.com/astroport-fi/astroport-governance.git?branch=feat/astro_voting_escrow)",
+ "cosmwasm-std",
+ "cw-storage-plus 0.8.1",
+ "cw2",
+ "cw20",
+ "schemars",
+ "serde",
+ "terra-cosmwasm",
+ "thiserror",
 ]
 
 [[package]]
@@ -650,6 +686,15 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "protobuf"
+version = "2.26.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "00e95f7417529a121d3c1d0bd831fd86cc5d5bf7b77ae1449259db3d5ff8b3e7"
+dependencies = [
+ "bytes",
 ]
 
 [[package]]

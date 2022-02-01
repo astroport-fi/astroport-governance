@@ -1,16 +1,15 @@
 use cosmwasm_std::{
     attr, entry_point, to_binary, Addr, Attribute, Binary, CosmosMsg, Deps, DepsMut, Env,
-    MessageInfo, Response, StdError, StdResult, Uint128, WasmMsg,
+    MessageInfo, Order, Response, StdError, StdResult, Uint128, WasmMsg,
 };
 use std::cmp::{max, min};
-use std::collections::HashMap;
 
 use crate::error::ContractError;
 use crate::state::{
     Config, DistributorInfo, CHECKPOINT_TOKEN, CLAIMED, CONFIG, DISTRIBUTOR_INFO,
-    OWNERSHIP_PROPOSAL,
+    OWNERSHIP_PROPOSAL, TOKENS_PER_WEEK, VOTING_SUPPLY_PER_WEEK,
 };
-use crate::utils::{find_timestamp_period, find_timestamp_user_period, transfer_token_amount};
+use crate::utils::{find_timestamp_user_period, transfer_token_amount};
 use astroport::asset::addr_validate_to_lower;
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::querier::query_token_balance;
@@ -18,7 +17,9 @@ use astroport_governance::escrow_fee_distributor::{
     Claimed, ConfigResponse, ExecuteMsg, InstantiateMsg, MigrateMsg, Point, QueryMsg,
     RecipientsPerWeekResponse,
 };
-use astroport_governance_voting::astro_voting_escrow::QueryMsg as VotingQueryMsg;
+use astroport_governance_voting::astro_voting_escrow::{
+    QueryMsg as VotingQueryMsg, VotingPowerResponse,
+};
 use cw20::Cw20ExecuteMsg;
 
 use cw2::set_contract_version;
@@ -78,24 +79,12 @@ pub fn instantiate(
             can_checkpoint_token: false,
             is_killed: false,
             max_limit_accounts_of_claim: MAX_LIMIT_OF_CLAIM,
-        },
-    )?;
-
-    let mut period: HashMap<Addr, u64> = HashMap::new();
-    period.entry(Addr::unchecked("")).or_insert_with(|| 0u64);
-    let mut week: HashMap<u64, Uint128> = HashMap::new();
-    week.entry(0u64).or_insert_with(|| Uint128::new(0));
-    DISTRIBUTOR_INFO.save(
-        deps.storage,
-        &DistributorInfo {
             token_last_balance: Uint128::new(0),
-            time_cursor_of: period.clone(), // TODO:
-            user_period_of: period,         // TODO:
-            tokens_per_week: week.clone(),
-            voting_supply_per_week: week,
         },
     )?;
 
+    VOTING_SUPPLY_PER_WEEK.save(deps.storage, U64Key::new(0u64), &Uint128::new(0))?;
+    TOKENS_PER_WEEK.save(deps.storage, U64Key::new(0u64), &Uint128::new(0))?;
     Ok(Response::new())
 }
 
@@ -228,30 +217,33 @@ fn checkpoint_total_supply(deps: DepsMut, env: Env) -> Result<Response, Contract
         .checked_mul(WEEK)
         .ok_or_else(|| StdError::generic_err("Timestamp calculation error."))?;
     let mut time_cursor = config.time_cursor;
-    // TODO: execute VotingEscrow.checkpoint()
-
-    let mut distributor_info = DISTRIBUTOR_INFO.load(deps.storage)?;
 
     for _i in 1..MAX_WEEKS {
         if time_cursor > rounded_timestamp {
             break;
         } else {
-            let total_voting_power: Uint128 = deps.querier.query_wasm_smart(
+            let total_voting_power_per_week: VotingPowerResponse = deps.querier.query_wasm_smart(
                 &config.voting_escrow,
                 &VotingQueryMsg::TotalVotingPowerAt { time: time_cursor },
             )?;
 
-            *distributor_info
-                .voting_supply_per_week
-                .entry(time_cursor)
-                .or_insert_with(|| Uint128::new(0)) += total_voting_power;
+            VOTING_SUPPLY_PER_WEEK.update(
+                deps.storage,
+                U64Key::from(time_cursor),
+                |cursor| -> StdResult<_> {
+                    if let Some(cursor_value) = cursor {
+                        Ok(cursor_value + total_voting_power_per_week.voting_power)
+                    } else {
+                        Ok(total_voting_power_per_week.voting_power)
+                    }
+                },
+            )?;
         }
         time_cursor += WEEK;
     }
 
     config.time_cursor = time_cursor;
     CONFIG.save(deps.storage, &config)?;
-    DISTRIBUTOR_INFO.save(deps.storage, &distributor_info)?;
 
     Ok(Response::new())
 }
@@ -437,23 +429,25 @@ fn checkpoint_token(
 /// ## Description
 /// Calculates the total number of tokens to be distributed in a given week.
 fn calc_checkpoint_token(deps: DepsMut, env: Env, config: &mut Config) -> StdResult<()> {
-    let mut distributor_info: DistributorInfo = DISTRIBUTOR_INFO.load(deps.storage)?;
+    let distributor_balance = query_token_balance(
+        &deps.querier,
+        config.token.clone(),
+        env.clone().contract.address,
+    )?;
+    let to_distribute = distributor_balance.checked_sub(config.token_last_balance)?;
 
-    let distributor_balance =
-        query_token_balance(&deps.querier, config.token.clone(), env.contract.address)?;
-    let to_distribute = distributor_balance.checked_sub(distributor_info.token_last_balance)?;
-
-    distributor_info.token_last_balance = distributor_balance;
+    config.token_last_balance = distributor_balance;
     let mut last_token_time = config.last_token_time;
 
     let since_last = env
+        .clone()
         .block
         .time
         .seconds()
         .checked_sub(last_token_time)
         .ok_or_else(|| StdError::generic_err("Timestamp calculation error."))?;
 
-    config.last_token_time = env.block.time.seconds();
+    config.last_token_time = env.clone().block.time.seconds();
 
     let mut current_week = last_token_time
         .checked_div(WEEK)
@@ -463,41 +457,71 @@ fn calc_checkpoint_token(deps: DepsMut, env: Env, config: &mut Config) -> StdRes
 
     for _i in 1..MAX_WEEKS {
         let next_week = current_week + WEEK;
-        if env.block.time.seconds() < next_week {
-            if since_last == 0 && env.block.time.seconds() == last_token_time {
-                *distributor_info
-                    .tokens_per_week
-                    .entry(current_week)
-                    .or_insert_with(|| Uint128::new(0)) += to_distribute;
+        if env.clone().block.time.seconds() < next_week {
+            if since_last == 0 && env.clone().block.time.seconds() == last_token_time {
+                TOKENS_PER_WEEK.update(
+                    deps.storage,
+                    U64Key::from(current_week),
+                    |cursor| -> StdResult<_> {
+                        if let Some(cursor_value) = cursor {
+                            Ok(cursor_value + to_distribute)
+                        } else {
+                            Ok(to_distribute)
+                        }
+                    },
+                )?;
             } else {
-                *distributor_info
-                    .tokens_per_week
-                    .entry(current_week)
-                    .or_insert_with(|| Uint128::new(0)) += to_distribute
-                    .checked_mul(
-                        Uint128::from(env.block.time.seconds()) - Uint128::from(last_token_time),
-                    )?
-                    .checked_div(Uint128::from(since_last))?;
+                TOKENS_PER_WEEK.update(
+                    deps.storage,
+                    U64Key::from(current_week),
+                    |cursor| -> StdResult<_> {
+                        let to_distribute_val = to_distribute
+                            .checked_mul(
+                                Uint128::from(env.block.time.seconds())
+                                    - Uint128::from(last_token_time),
+                            )?
+                            .checked_div(Uint128::from(since_last))?;
+                        if let Some(cursor_value) = cursor {
+                            Ok(cursor_value + to_distribute_val)
+                        } else {
+                            Ok(to_distribute_val)
+                        }
+                    },
+                )?;
             }
         } else if since_last == 0 && next_week == last_token_time {
-            *distributor_info
-                .tokens_per_week
-                .entry(current_week)
-                .or_insert_with(|| Uint128::new(0)) += to_distribute;
+            TOKENS_PER_WEEK.update(
+                deps.storage,
+                U64Key::from(current_week),
+                |cursor| -> StdResult<_> {
+                    if let Some(cursor_value) = cursor {
+                        Ok(cursor_value + to_distribute)
+                    } else {
+                        Ok(to_distribute)
+                    }
+                },
+            )?;
         } else {
-            *distributor_info
-                .tokens_per_week
-                .entry(current_week)
-                .or_insert_with(|| Uint128::new(0)) += to_distribute
-                .checked_mul(Uint128::from(next_week) - Uint128::from(last_token_time))?
-                .checked_div(Uint128::from(since_last))?;
+            TOKENS_PER_WEEK.update(
+                deps.storage,
+                U64Key::from(current_week),
+                |cursor| -> StdResult<_> {
+                    let to_distribute_val = to_distribute
+                        .checked_mul(Uint128::from(next_week) - Uint128::from(last_token_time))?
+                        .checked_div(Uint128::from(since_last))?;
+                    if let Some(cursor_value) = cursor {
+                        Ok(cursor_value + to_distribute_val)
+                    } else {
+                        Ok(to_distribute_val)
+                    }
+                },
+            )?;
         }
 
         last_token_time = next_week;
         current_week = next_week;
     }
 
-    DISTRIBUTOR_INFO.save(deps.storage, &distributor_info)?;
     CHECKPOINT_TOKEN.save(
         deps.storage,
         U64Key::new(env.block.time.seconds()),
@@ -780,6 +804,9 @@ fn calc_claim_amount(
             }
 
             if balance_of > 0 {
+                if let Some(_voting_supply) = VOTING_SUPPLY_PER_WEEK
+                    .may_load(deps.as_ref().storage, U64Key::from(week_cursor))?
+                {}
                 if let Some(voting_supply_per_week) =
                     distributor_info.voting_supply_per_week.get(&week_cursor)
                 {
@@ -885,9 +912,18 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         }
         QueryMsg::Config {} => Ok(to_binary(&query_config(deps)?)?),
         QueryMsg::AstroRecipientsPerWeek {} => Ok(to_binary(&query_recipients_per_weeks(deps)?)?),
+        QueryMsg::VotingSupplyPerWeek {} => Ok(to_binary(&query_voting_supply_per_week(deps)?)?),
     }
 }
 
+fn query_voting_supply_per_week(deps: Deps) -> StdResult<Vec<Uint128>> {
+    let mut result: Vec<Uint128> = vec![];
+    for x in VOTING_SUPPLY_PER_WEEK.keys(deps.storage, None, None, Order::Ascending) {
+        let val = VOTING_SUPPLY_PER_WEEK.load(deps.storage, U64Key::from(x))?;
+        result.push(val);
+    }
+    Ok(result)
+}
 /// ## Description
 /// Returns information about the vesting configs in the [`ConfigResponse`] object.
 ///

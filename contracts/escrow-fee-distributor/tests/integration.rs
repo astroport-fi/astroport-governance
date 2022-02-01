@@ -354,21 +354,22 @@ fn test_checkpoint_total_supply() {
     let mut router = mock_app();
     let router_ref = &mut router;
     let owner = Addr::unchecked("owner");
-    let voting_escrow = Addr::unchecked("voting_escrow");
     let emergency_return = Addr::unchecked("emergency_return");
     let user1 = Addr::unchecked("user1");
+
+    let voting_escrow_pack =
+        BaseAstroportTestPackage::init_voting_escrow(router_ref, owner.clone());
 
     let base_test_pack = BaseAstroportTestPackage::init_escrow_fee_distributor(
         router_ref,
         owner.clone(),
-        voting_escrow.clone(),
+        voting_escrow_pack.voting_escrow.unwrap().address,
         emergency_return.clone(),
     );
 
     let escrow_fee_distributor = base_test_pack.clone().escrow_fee_distributor.unwrap();
 
-    // check if anyone can't update configs
-    let resp = router_ref
+    router_ref
         .execute_contract(
             user1.clone(),
             escrow_fee_distributor.clone().address,
@@ -377,29 +378,17 @@ fn test_checkpoint_total_supply() {
         )
         .unwrap();
 
-    let resp_config: ConfigResponse = router_ref
+    // checks if voting supply per week is set to zero
+    let resp_config: Vec<Uint128> = router_ref
         .wrap()
         .query_wasm_smart(
             &escrow_fee_distributor.address.clone(),
-            &QueryMsg::Config {},
+            &QueryMsg::VotingSupplyPerWeek {},
         )
         .unwrap();
 
-    assert_eq!(20u64, resp_config.max_limit_accounts_of_claim);
-    assert_eq!(true, resp_config.can_checkpoint_token);
-
-    assert_eq!(
-        vec![
-            attr("action", "set_config"),
-            attr("can_checkpoint_token", "true"),
-            attr("max_limit_accounts_of_claim", "20"),
-        ],
-        vec![
-            resp.events[1].attributes[1].clone(),
-            resp.events[1].attributes[2].clone(),
-            resp.events[1].attributes[3].clone(),
-        ]
-    );
+    let voting_supply: Vec<Uint128> = vec![Uint128::new(0); 19];
+    assert_eq!(voting_supply, resp_config);
 }
 
 #[test]
@@ -417,7 +406,7 @@ fn claim() {
         emergency_return.clone(),
     );
 
-    let escrow_fee_distributor = base_test_pack.escrow_fee_distributor.unwrap();
+    let _escrow_fee_distributor = base_test_pack.escrow_fee_distributor.unwrap();
 
     // let resp = router_ref
     //     .execute_contract(

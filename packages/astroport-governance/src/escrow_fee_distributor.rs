@@ -69,6 +69,8 @@ pub enum QueryMsg {
     AstroRecipientsPerWeek {},
     /// Returns the vxAstro balance for user at timestamp
     FetchUserBalanceByTimestamp { user: String, timestamp: u64 },
+    /// Returns the vector that contains voting supply per week
+    VotingSupplyPerWeek {},
 }
 
 /// ## Description

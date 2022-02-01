@@ -28,6 +28,7 @@ pub struct Config {
     pub can_checkpoint_token: bool,
     pub is_killed: bool,
     pub max_limit_accounts_of_claim: u64,
+    pub token_last_balance: Uint128,
 }
 
 /// ## Description
@@ -52,6 +53,14 @@ pub const CONFIG: Item<Config> = Item::new("config");
 /// ## Description
 /// Stores config at the given key
 pub const CHECKPOINT_TOKEN: Map<U64Key, Uint128> = Map::new("checkpoint_token");
+
+/// ## Description
+/// Stores config at the given key
+pub const VOTING_SUPPLY_PER_WEEK: Map<U64Key, Uint128> = Map::new("voting_supply_per_week");
+
+/// ## Description
+/// Stores config at the given key
+pub const TOKENS_PER_WEEK: Map<U64Key, Uint128> = Map::new("tokens_per_week");
 
 /// ## Description
 /// Stores config at the given key

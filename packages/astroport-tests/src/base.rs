@@ -1,9 +1,11 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+use astroport::staking;
 use astroport::token::InstantiateMsg as AstroTokenInstantiateMsg;
 use astroport_governance::escrow_fee_distributor::InstantiateMsg as EscrowFeeDistributorInstantiateMsg;
-use cosmwasm_std::{attr, Addr, StdResult, Uint128};
+use astroport_governance_voting::astro_voting_escrow::InstantiateMsg as AstroVotingEscrowInstantiateMsg;
+use cosmwasm_std::{attr, to_binary, Addr, QueryRequest, StdResult, Uint128, WasmQuery};
 use cw20::{BalanceResponse, Cw20QueryMsg, MinterResponse};
 use terra_multi_test::{ContractWrapper, Executor, TerraApp};
 
@@ -20,6 +22,8 @@ pub struct BaseAstroportTestPackage {
     pub owner: Addr,
     pub astro_token: Option<ContractInfo>,
     pub escrow_fee_distributor: Option<ContractInfo>,
+    pub staking: Option<ContractInfo>,
+    pub voting_escrow: Option<ContractInfo>,
 }
 
 impl BaseAstroportTestPackage {
@@ -61,6 +65,8 @@ impl BaseAstroportTestPackage {
                 code_id: astro_token_code_id,
             }),
             escrow_fee_distributor: None,
+            staking: None,
+            voting_escrow: None,
         }
     }
 
@@ -107,6 +113,98 @@ impl BaseAstroportTestPackage {
                 address: escrow_fee_distributor_instance,
                 code_id: escrow_fee_distributor_code_id,
             }),
+            staking: None,
+            voting_escrow: None,
+        }
+    }
+
+    pub fn init_staking(router: &mut TerraApp, owner: Addr) -> Self {
+        let staking_contract = Box::new(
+            ContractWrapper::new_with_empty(
+                astroport_staking::contract::execute,
+                astroport_staking::contract::instantiate,
+                astroport_staking::contract::query,
+            )
+            .with_reply_empty(astroport_staking::contract::reply),
+        );
+
+        let staking_code_id = router.store_code(staking_contract);
+
+        let astro_token = Self::init_astro_token(router, owner.clone())
+            .astro_token
+            .unwrap();
+
+        let msg = staking::InstantiateMsg {
+            owner: owner.to_string(),
+            token_code_id: astro_token.code_id,
+            deposit_token_addr: astro_token.address.to_string(),
+        };
+
+        let staking_instance = router
+            .instantiate_contract(
+                staking_code_id,
+                owner.clone(),
+                &msg,
+                &[],
+                String::from("xASTRO"),
+                None,
+            )
+            .unwrap();
+
+        Self {
+            owner,
+            astro_token: Some(astro_token),
+            escrow_fee_distributor: None,
+            staking: Some(ContractInfo {
+                address: staking_instance,
+                code_id: staking_code_id,
+            }),
+            voting_escrow: None,
+        }
+    }
+
+    pub fn init_voting_escrow(router: &mut TerraApp, owner: Addr) -> Self {
+        let staking = Self::init_staking(router, owner.clone()).staking.unwrap();
+        let res = router
+            .wrap()
+            .query::<staking::ConfigResponse>(&QueryRequest::Wasm(WasmQuery::Smart {
+                contract_addr: staking.address.to_string(),
+                msg: to_binary(&staking::QueryMsg::Config {}).unwrap(),
+            }))
+            .unwrap();
+
+        let voting_contract = Box::new(ContractWrapper::new_with_empty(
+            astroport_voting_escrow::contract::execute,
+            astroport_voting_escrow::contract::instantiate,
+            astroport_voting_escrow::contract::query,
+        ));
+
+        let voting_code_id = router.store_code(voting_contract);
+
+        let msg = AstroVotingEscrowInstantiateMsg {
+            deposit_token_addr: res.share_token_addr.to_string(),
+        };
+
+        let voting_instance = router
+            .instantiate_contract(
+                voting_code_id,
+                owner.clone(),
+                &msg,
+                &[],
+                String::from("vxASTRO"),
+                None,
+            )
+            .unwrap();
+
+        Self {
+            owner,
+            astro_token: None,
+            escrow_fee_distributor: None,
+            voting_escrow: Some(ContractInfo {
+                address: voting_instance,
+                code_id: voting_code_id,
+            }),
+            staking: Some(staking),
         }
     }
 
@@ -153,7 +251,7 @@ impl BaseAstroportTestPackage {
             expires: None,
         };
         let res = router
-            .execute_contract(owner.clone(), token.clone(), &msg, &[])
+            .execute_contract(owner.clone(), token, &msg, &[])
             .unwrap();
         assert_eq!(
             res.events[1].attributes[1],
