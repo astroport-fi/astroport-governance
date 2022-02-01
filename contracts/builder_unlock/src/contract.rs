@@ -8,16 +8,16 @@ use cosmwasm_std::{
 use cw2::set_contract_version;
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 
-use astroport_governance::astro_vesting::msg::{
+use astroport_governance::builder_unlock::msg::{
     AllocationResponse, ExecuteMsg, InstantiateMsg, QueryMsg, ReceiveMsg, SimulateWithdrawResponse,
     StateResponse,
 };
-use astroport_governance::astro_vesting::{AllocationParams, AllocationStatus, Config};
+use astroport_governance::builder_unlock::{AllocationParams, AllocationStatus, Config};
 
 use crate::state::{CONFIG, PARAMS, STATE, STATUS};
 
-// version info for migration info
-const CONTRACT_NAME: &str = "astro-vesting";
+// Version and name
+const CONTRACT_NAME: &str = "builder-unlock";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 //----------------------------------------------------------------------------------------
@@ -101,7 +101,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 /// @dev Admin function facilitating creation of new Allocations
 /// @params creator: Function caller address. Needs to be the admin
 /// @params deposit_token: Token being deposited, should be ASTRO
-/// @params deposit_amount: Number of tokens sent along-with the call, should equal the sum of allocation amount
+/// @params deposit_amount: Number of tokens sent along with the call, should equal the sum of allocation amounts
 /// @params allocations: New Allocations being created
 fn execute_create_allocations(
     deps: DepsMut,
@@ -116,11 +116,13 @@ fn execute_create_allocations(
     let mut state = STATE.may_load(deps.storage)?.unwrap_or_default();
 
     if deps.api.addr_validate(&creator)? != config.owner {
-        return Err(StdError::generic_err("Only owner can create allocations"));
+        return Err(StdError::generic_err(
+            "Only the contract owner can create allocations",
+        ));
     }
 
     if deposit_token != config.astro_token {
-        return Err(StdError::generic_err("Only ASTRO token can be deposited"));
+        return Err(StdError::generic_err("Only ASTRO can be deposited"));
     }
 
     if deposit_amount != allocations.iter().map(|params| params.1.amount).sum() {
@@ -164,7 +166,7 @@ fn execute_create_allocations(
     Ok(Response::default())
 }
 
-/// @dev Allows allocation receivers to claim their ASTRO tokens that can be withdrawn
+/// @dev Allows allocation receivers to claim their ASTRO tokens
 fn execute_withdraw(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Response> {
     let config = CONFIG.load(deps.storage)?;
     let mut state = STATE.may_load(deps.storage)?.unwrap_or_default();
@@ -213,7 +215,9 @@ fn execute_transfer_ownership(
     let mut config = CONFIG.load(deps.storage)?;
 
     if info.sender != config.owner {
-        return Err(StdError::generic_err("Only owner can transfer ownership"));
+        return Err(StdError::generic_err(
+            "Only the current owner can transfer ownership",
+        ));
     }
 
     if new_owner.is_some() {
@@ -225,7 +229,7 @@ fn execute_transfer_ownership(
     Ok(Response::new())
 }
 
-/// @dev Facilitates a user to propose the transfer of the ownership of his allocation to a new terra address.
+/// @dev Allows the current allocation receiver to propose a new receiver
 /// @params new_receiver : Proposed terra address to which the ownership of his allocation is to be transferred
 fn execute_propose_new_receiver(
     deps: DepsMut,
@@ -262,7 +266,7 @@ fn execute_propose_new_receiver(
         .add_attribute("proposed_receiver", new_receiver))
 }
 
-/// @dev Facilitates a user to drop the initially proposed receiver for his allocation
+/// @dev Facilitates a user to drop the newly proposed receiver for his allocation
 fn execute_drop_new_receiver(deps: DepsMut, _env: Env, info: MessageInfo) -> StdResult<Response> {
     let mut alloc_params = PARAMS.load(deps.storage, &info.sender)?;
     let prev_proposed_receiver: Addr;
@@ -283,7 +287,7 @@ fn execute_drop_new_receiver(deps: DepsMut, _env: Env, info: MessageInfo) -> Std
         .add_attribute("dropped_proposed_receiver", prev_proposed_receiver))
 }
 
-/// @dev Allows a proposed receiver of an allocation to claim the ownership of that allocation
+/// @dev Allows a newly proposed allocation receiver to claim the ownership of that allocation
 /// @params prev_receiver : User who proposed the info.sender as the proposed terra address to which the ownership of his allocation is to be transferred
 fn execute_claim_receiver(
     deps: DepsMut,
@@ -297,17 +301,17 @@ fn execute_claim_receiver(
         Some(proposed_receiver) => {
             if proposed_receiver == info.sender {
                 // Transfers Allocation Parameters ::
-                // 1. Save the allocation against the new receiver
+                // 1. Save the allocation for the new receiver
                 alloc_params.proposed_receiver = None;
                 PARAMS.save(deps.storage, &info.sender, &alloc_params)?;
-                // 2. Remove the allocation info of previous owner
+                // 2. Remove the allocation info from the previous owner
                 PARAMS.remove(deps.storage, &deps.api.addr_validate(&prev_receiver)?);
                 // Transfers Allocation Status ::
                 let status = STATUS.load(deps.storage, &deps.api.addr_validate(&prev_receiver)?)?;
                 STATUS.save(deps.storage, &info.sender, &status)?;
             } else {
                 return Err(StdError::generic_err(format!(
-                    "Proposed receiver mismatch, Proposed receiver : {}",
+                    "Proposed receiver mismatch, actual proposed receiver : {}",
                     proposed_receiver
                 )));
             }
@@ -367,7 +371,7 @@ fn query_tokens_unlocked(deps: Deps, env: Env, account: String) -> StdResult<Uin
     ))
 }
 
-/// @dev Query function to fetch allocation state at any future timestamp
+/// @dev Query function to fetch the allocation state at any future timestamp
 /// @params account : Account address whose allocation state is to be calculated
 /// @params timestamp : Timestamp at which allocation state is to be calculated
 fn query_simulate_withdraw(
@@ -405,8 +409,8 @@ pub fn migrate(_deps: DepsMut, _env: Env, _msg: Empty) -> StdResult<Response> {
 mod helpers {
     use cosmwasm_std::Uint128;
 
-    use astroport_governance::astro_vesting::msg::SimulateWithdrawResponse;
-    use astroport_governance::astro_vesting::{AllocationParams, AllocationStatus, Schedule};
+    use astroport_governance::builder_unlock::msg::SimulateWithdrawResponse;
+    use astroport_governance::builder_unlock::{AllocationParams, AllocationStatus, Schedule};
 
     // Computes number of tokens that are now unlocked for a given allocation
     pub fn compute_unlocked_amount(

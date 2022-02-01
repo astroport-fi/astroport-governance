@@ -1,4 +1,4 @@
-## Scripts
+## Scripts to deploy the Astroport Builder Unlock contract
 
 ### Build env local
 

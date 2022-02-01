@@ -1,18 +1,20 @@
-# Astroport-Governance
+# Astroport Governance
 
-This repo contains Astroport Governance contracts.
+This repo contains Astroport Governance related contracts.
 
 ## Contracts
 
 | Name                           | Description                      |
 | ------------------------------ | -------------------------------- |
-| [`vesting`](contracts/vesting) | ASTRO vesting for team/investors |
+| [`builder_unlock`](contracts/builder_unlock) | ASTRO unlock/vesting contract for Initial Builders |
+| [`assembly`](contracts/assembly) | The Astral Assembly governance contract |
+| [`treasury`](contracts/treasury) | The Astroport DAO Treasury contract |
 
 ## Running this contract
 
 You will need Rust 1.44.1+ with wasm32-unknown-unknown target installed.
 
-For a production-ready (compressed) build, run the following from the repository root:
+For a production-ready (compressed) build, run the following command from the repository's root:
 
 ```
 docker run --rm -v "$(pwd)":/code \
@@ -21,7 +23,4 @@ docker run --rm -v "$(pwd)":/code \
   cosmwasm/workspace-optimizer:0.12.3
 ```
 
-The optimized contracts are generated in the artifacts/ directory.
-
-#### Contract Address
-- Columbus-5  : terra1fh27l8h4s0tfx9ykqxq5efq4xx88f06x6clwmr
+The optimized contracts are generated in the `artifacts/` directory.

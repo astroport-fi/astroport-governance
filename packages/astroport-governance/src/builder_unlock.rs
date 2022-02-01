@@ -13,9 +13,9 @@ pub struct Config {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct State {
-    /// ASTRO Tokens deposited into the contract
+    /// Aount of ASTRO tokens deposited into the contract
     pub total_astro_deposited: Uint128,
-    /// Currently available ASTRO Tokens
+    /// Currently available ASTRO tokens that still need to be unlocked and/or withdrawn
     pub remaining_astro_tokens: Uint128,
 }
 
@@ -31,21 +31,21 @@ impl Default for State {
 // Parameters describing a typical unlocking schedule
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Schedule {
-    /// Timestamp of when unlocking is to be started (in seconds)
+    /// Timestamp for the start of the unlock schedule (in seconds)
     pub start_time: u64,
-    /// Number of seconds starting unlocking during which no tokens can be withdrawn
+    /// Cliff period during which no tokens can be withdrawn out of the contract
     pub cliff: u64,
-    /// Number of seconds taken since unlocking beginning for tokens to be fully unlocked
+    /// Time after the cliff during which the remaining tokens linearly unlock
     pub duration: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct AllocationParams {
-    /// Total amount of ASTRO token allocated to this account
+    /// Total amount of ASTRO tokens allocated to a specific account
     pub amount: Uint128,
     /// Parameters controlling the unlocking process
     pub unlock_schedule: Schedule,
-    /// proposed new_receiver who will get the allocation
+    /// Proposed new receiver who will get the ASTRO allocation
     pub proposed_receiver: Option<Addr>,
 }
 
@@ -95,33 +95,33 @@ pub mod msg {
 
     #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
     pub struct InstantiateMsg {
-        /// Account who can create new allocations
+        /// Account that can create new allocations
         pub owner: String,
-        /// Address of ASTRO token
+        /// ASTRO token address
         pub astro_token: String,
     }
 
     #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
     #[serde(rename_all = "snake_case")]
     pub enum ExecuteMsg {
-        /// Implementation of cw20 receive msg
+        /// Implementation for the cw20 receive msg
         Receive(Cw20ReceiveMsg),
         /// Claim withdrawable ASTRO
         Withdraw {},
-        /// Update addresses of owner
+        /// Transfer contract ownership
         TransferOwnership { new_owner: Option<String> },
-        /// Allows users to change the receiver address of their allocations etc
+        /// Allows a user to change the receiver address for their ASTRO allocation
         ProposeNewReceiver { new_receiver: String },
-        /// Allows users to remove the previously proposed new receiver for their allocations
+        /// Allows a user to remove the previously proposed new receiver for their ASTRO allocation
         DropNewReceiver {},
-        /// Allows new receivers to claim the allocations
+        /// Allows newly proposed receivers to claim ASTRO allocations ownership
         ClaimReceiver { prev_receiver: String },
     }
 
     #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
     #[serde(rename_all = "snake_case")]
     pub enum ReceiveMsg {
-        /// Create new allocations
+        /// Create new ASTRO allocations
         CreateAllocations {
             allocations: Vec<(String, AllocationParams)>,
         },
@@ -130,7 +130,7 @@ pub mod msg {
     #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
     #[serde(rename_all = "snake_case")]
     pub enum QueryMsg {
-        // Config of this contract
+        // Config for this contract
         Config {},
         // State of this contract
         State {},
@@ -138,7 +138,7 @@ pub mod msg {
         Allocation {
             account: String,
         },
-        // Tokens unlocked for an allocation (may not be withdrawable because of cliff)
+        // Unlocked tokens from an allocation
         UnlockedTokens {
             account: String,
         },
@@ -165,9 +165,9 @@ pub mod msg {
 
     #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
     pub struct StateResponse {
-        /// ASTRO Tokens deposited into the contract
+        /// ASTRO tokens deposited into the contract and that are meant to unlock
         pub total_astro_deposited: Uint128,
-        /// Currently available ASTRO Tokens
+        /// Currently available ASTRO tokens that weren't yet withdrawn from the contract
         pub remaining_astro_tokens: Uint128,
     }
 }

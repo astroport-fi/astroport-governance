@@ -1,5 +1,6 @@
+pub mod assembly;
 pub mod asset;
-pub mod astro_vesting;
+pub mod builder_unlock;
 pub mod querier;
 pub mod astro_voting_escrow;
 
