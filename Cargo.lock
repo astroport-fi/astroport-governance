@@ -29,24 +29,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "astro-vesting"
-version = "1.0.0"
-dependencies = [
- "astroport 2.4.0",
- "astroport-governance",
- "astroport-token 0.0.0",
- "cosmwasm-schema",
- "cosmwasm-std",
- "cw-storage-plus 0.8.1",
- "cw2",
- "cw20",
- "schemars",
- "serde",
- "terra-multi-test 0.8.0",
- "thiserror",
-]
-
-[[package]]
 name = "astroport"
 version = "1.1.0"
 source = "git+https://github.com/astroport-fi/astroport.git#a4bf79bff126fbcaba7ae64401e655f074422001"
@@ -161,6 +143,24 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4152116fd6e9dadb291ae18fc1ec3575ed6d84c29642d97890f4b4a3417297e4"
 dependencies = [
  "generic-array",
+]
+
+[[package]]
+name = "builder-unlock"
+version = "1.0.0"
+dependencies = [
+ "astroport 2.4.0",
+ "astroport-governance",
+ "astroport-token 0.0.0",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-storage-plus 0.8.1",
+ "cw2",
+ "cw20",
+ "schemars",
+ "serde",
+ "terra-multi-test 0.8.0",
+ "thiserror",
 ]
 
 [[package]]

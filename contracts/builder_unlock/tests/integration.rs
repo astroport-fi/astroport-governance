@@ -149,7 +149,7 @@ fn test_transfer_ownership() {
         .unwrap_err();
     assert_eq!(
         err.to_string(),
-        "Generic error: Only owner can transfer ownership"
+        "Generic error: Only the current owner can transfer ownership"
     );
 
     // ######    SUCCESSFULLY TRANSFERS OWNERSHIP :: UPDATES OWNER    ######
@@ -271,7 +271,7 @@ fn test_create_allocations() {
         .unwrap_err();
     assert_eq!(
         err.to_string(),
-        "Generic error: Only owner can create allocations"
+        "Generic error: Only the contract owner can create allocations"
     );
 
     // ######    ERROR :: Only ASTRO can be can be deposited     ######
