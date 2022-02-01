@@ -6,7 +6,7 @@ This repo contains Astroport Governance related contracts.
 
 | Name                           | Description                      |
 | ------------------------------ | -------------------------------- |
-| [`builder_unlock`](contracts/builder-unlock) | ASTRO unlock/vesting contract for Initial Builders |
+| [`builder_unlock`](contracts/builder_unlock) | ASTRO unlock/vesting contract for Initial Builders |
 | [`assembly`](contracts/assembly) | The Astral Assembly governance contract |
 | [`treasury`](contracts/treasury) | The Astroport DAO Treasury contract |
 
