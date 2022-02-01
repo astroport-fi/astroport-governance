@@ -386,6 +386,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             to_binary(&get_user_voting_power(deps, env, user, Some(time))?)
         }
         QueryMsg::Users {} => get_all_users(deps, env),
+        // TODO: add user's boost value query
     }
 }
 
@@ -469,6 +470,7 @@ fn get_total_voting_power(
 }
 
 fn get_all_users(deps: Deps, env: Env) -> StdResult<Binary> {
+    // TODO: change to *at behavior bc we need to know all locked users in particular period
     let keys: Vec<_> = LOCKED
         .keys(deps.storage, None, None, Order::Ascending)
         .filter_map(|key| {
