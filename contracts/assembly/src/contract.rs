@@ -681,8 +681,6 @@ pub fn query_proposal_votes(deps: Deps, proposal_id: u64) -> StdResult<ProposalV
 pub fn calc_voting_power(deps: &DepsMut, sender: String, block: u64) -> StdResult<Uint128> {
     let config = CONFIG.load(deps.storage)?;
 
-    let mut total = Uint128::zero();
-
     let xastro_amount: BalanceResponse = deps.querier.query_wasm_smart(
         config.xastro_token_addr,
         &XAstroTokenQueryMsg::BalanceAt {
@@ -691,7 +689,7 @@ pub fn calc_voting_power(deps: &DepsMut, sender: String, block: u64) -> StdResul
         },
     )?;
 
-    total = total.checked_add(xastro_amount.balance)?;
+    let mut total = xastro_amount.balance;
 
     let locked_amount: AllocationResponse = deps.querier.query_wasm_smart(
         config.builder_unlock_addr,
