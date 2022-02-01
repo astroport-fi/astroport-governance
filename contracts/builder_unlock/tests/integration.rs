@@ -1,9 +1,10 @@
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
-use astroport_governance::astro_vesting::msg::{
+use astroport_governance::builder_unlock::{AllocationParams, Schedule};
+
+use astroport_governance::builder_unlock::msg::{
     AllocationResponse, ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg, ReceiveMsg,
     SimulateWithdrawResponse, StateResponse,
 };
-use astroport_governance::astro_vesting::{AllocationParams, Schedule};
 use cosmwasm_std::testing::{mock_env, MockApi, MockQuerier, MockStorage};
 use cosmwasm_std::{attr, to_binary, Addr, Timestamp, Uint128};
 use cw20::BalanceResponse;
@@ -53,36 +54,36 @@ fn init_contracts(app: &mut App) -> (Addr, Addr, InstantiateMsg) {
         )
         .unwrap();
 
-    // Instantiate Vesting Contract
-    let vesting_contract = Box::new(ContractWrapper::new(
-        astro_vesting::contract::execute,
-        astro_vesting::contract::instantiate,
-        astro_vesting::contract::query,
+    // Instantiate the contract
+    let unlock_contract = Box::new(ContractWrapper::new(
+        builder_unlock::contract::execute,
+        builder_unlock::contract::instantiate,
+        builder_unlock::contract::query,
     ));
 
-    let vesting_code_id = app.store_code(vesting_contract);
+    let unlock_code_id = app.store_code(unlock_contract);
 
-    let vesting_instantiate_msg = InstantiateMsg {
+    let unlock_instantiate_msg = InstantiateMsg {
         owner: OWNER.clone().to_string(),
         astro_token: astro_token_instance.to_string(),
     };
 
     // Init contract
-    let vesting_instance = app
+    let unlock_instance = app
         .instantiate_contract(
-            vesting_code_id,
+            unlock_code_id,
             Addr::unchecked(OWNER.clone()),
-            &vesting_instantiate_msg,
+            &unlock_instantiate_msg,
             &[],
-            "vesting",
+            "unlock",
             None,
         )
         .unwrap();
 
     (
-        vesting_instance,
+        unlock_instance,
         astro_token_instance,
-        vesting_instantiate_msg,
+        unlock_instantiate_msg,
     )
 }
 
@@ -108,11 +109,11 @@ fn mint_some_astro(
 #[test]
 fn proper_initialization() {
     let mut app = mock_app();
-    let (vesting_instance, _astro_instance, init_msg) = init_contracts(&mut app);
+    let (unlock_instance, _astro_instance, init_msg) = init_contracts(&mut app);
 
     let resp: ConfigResponse = app
         .wrap()
-        .query_wasm_smart(&vesting_instance, &QueryMsg::Config {})
+        .query_wasm_smart(&unlock_instance, &QueryMsg::Config {})
         .unwrap();
 
     // Check config
@@ -122,7 +123,7 @@ fn proper_initialization() {
     // Check state
     let resp: StateResponse = app
         .wrap()
-        .query_wasm_smart(&vesting_instance, &QueryMsg::State {})
+        .query_wasm_smart(&unlock_instance, &QueryMsg::State {})
         .unwrap();
 
     assert_eq!(Uint128::zero(), resp.total_astro_deposited);
@@ -132,14 +133,14 @@ fn proper_initialization() {
 #[test]
 fn test_transfer_ownership() {
     let mut app = mock_app();
-    let (vesting_instance, _, init_msg) = init_contracts(&mut app);
+    let (unlock_instance, _, init_msg) = init_contracts(&mut app);
 
     // ######    ERROR :: Unauthorized     ######
 
     let err = app
         .execute_contract(
             Addr::unchecked("not_owner".to_string()),
-            vesting_instance.clone(),
+            unlock_instance.clone(),
             &ExecuteMsg::TransferOwnership {
                 new_owner: Some("new_owner".to_string()),
             },
@@ -148,14 +149,14 @@ fn test_transfer_ownership() {
         .unwrap_err();
     assert_eq!(
         err.to_string(),
-        "Generic error: Only owner can transfer ownership"
+        "Generic error: Only the current owner can transfer ownership"
     );
 
     // ######    SUCCESSFULLY TRANSFERS OWNERSHIP :: UPDATES OWNER    ######
 
     app.execute_contract(
         Addr::unchecked(OWNER.to_string()),
-        vesting_instance.clone(),
+        unlock_instance.clone(),
         &ExecuteMsg::TransferOwnership {
             new_owner: Some("new_owner".to_string()),
         },
@@ -165,18 +166,18 @@ fn test_transfer_ownership() {
 
     let resp: ConfigResponse = app
         .wrap()
-        .query_wasm_smart(&vesting_instance, &QueryMsg::Config {})
+        .query_wasm_smart(&unlock_instance, &QueryMsg::Config {})
         .unwrap();
 
     // Check config
     assert_eq!("new_owner".to_string(), resp.owner);
     assert_eq!(init_msg.astro_token, resp.astro_token);
 
-    // ######    SUCCESSFULLY TRANSFERS OWNERSHIP :: UPDATES REFUND RECEPIENT    ######
+    // ######    SUCCESSFULLY TRANSFERS OWNERSHIP :: UPDATES REFUND RECIPIENT    ######
 
     app.execute_contract(
         Addr::unchecked("new_owner".to_string()),
-        vesting_instance.clone(),
+        unlock_instance.clone(),
         &ExecuteMsg::TransferOwnership { new_owner: None },
         &[],
     )
@@ -184,7 +185,7 @@ fn test_transfer_ownership() {
 
     let resp: ConfigResponse = app
         .wrap()
-        .query_wasm_smart(&vesting_instance, &QueryMsg::Config {})
+        .query_wasm_smart(&unlock_instance, &QueryMsg::Config {})
         .unwrap();
 
     // Check config
@@ -195,7 +196,7 @@ fn test_transfer_ownership() {
 #[test]
 fn test_create_allocations() {
     let mut app = mock_app();
-    let (vesting_instance, astro_instance, _) = init_contracts(&mut app);
+    let (unlock_instance, astro_instance, _) = init_contracts(&mut app);
 
     mint_some_astro(
         &mut app,
@@ -258,7 +259,7 @@ fn test_create_allocations() {
             Addr::unchecked("not_owner".to_string()),
             astro_instance.clone(),
             &cw20::Cw20ExecuteMsg::Send {
-                contract: vesting_instance.clone().to_string(),
+                contract: unlock_instance.clone().to_string(),
                 amount: Uint128::from(1_000u64),
                 msg: to_binary(&ReceiveMsg::CreateAllocations {
                     allocations: allocations.clone(),
@@ -270,12 +271,12 @@ fn test_create_allocations() {
         .unwrap_err();
     assert_eq!(
         err.to_string(),
-        "Generic error: Only owner can create allocations"
+        "Generic error: Only the contract owner can create allocations"
     );
 
-    // ######    ERROR :: Only ASTRO Token can be  can be deposited     ######
+    // ######    ERROR :: Only ASTRO can be can be deposited     ######
 
-    // Instantiate ASTRO Token Contract
+    // Instantiate the ASTRO token contract
     let not_astro_token_contract = Box::new(ContractWrapper::new(
         astroport_token::contract::execute,
         astroport_token::contract::instantiate,
@@ -285,7 +286,7 @@ fn test_create_allocations() {
     let not_astro_token_code_id = app.store_code(not_astro_token_contract);
 
     let msg = TokenInstantiateMsg {
-        name: String::from("Astro token"),
+        name: String::from("Astro Token"),
         symbol: String::from("ASTRO"),
         decimals: 6,
         initial_balances: vec![],
@@ -322,7 +323,7 @@ fn test_create_allocations() {
             Addr::unchecked(OWNER.clone()),
             not_astro_token_instance.clone(),
             &cw20::Cw20ExecuteMsg::Send {
-                contract: vesting_instance.clone().to_string(),
+                contract: unlock_instance.clone().to_string(),
                 amount: Uint128::from(15_000_000_000000u64),
                 msg: to_binary(&ReceiveMsg::CreateAllocations {
                     allocations: allocations.clone(),
@@ -334,7 +335,7 @@ fn test_create_allocations() {
         .unwrap_err();
     assert_eq!(
         err.to_string(),
-        "Generic error: Only ASTRO token can be deposited"
+        "Generic error: Only ASTRO can be deposited"
     );
 
     // ######    ERROR :: ASTRO deposit amount mismatch     ######
@@ -344,7 +345,7 @@ fn test_create_allocations() {
             Addr::unchecked(OWNER.clone()),
             astro_instance.clone(),
             &cw20::Cw20ExecuteMsg::Send {
-                contract: vesting_instance.clone().to_string(),
+                contract: unlock_instance.clone().to_string(),
                 amount: Uint128::from(15_000_000_000001u64),
                 msg: to_binary(&ReceiveMsg::CreateAllocations {
                     allocations: allocations.clone(),
@@ -365,7 +366,7 @@ fn test_create_allocations() {
         Addr::unchecked(OWNER.clone()),
         astro_instance.clone(),
         &cw20::Cw20ExecuteMsg::Send {
-            contract: vesting_instance.clone().to_string(),
+            contract: unlock_instance.clone().to_string(),
             amount: Uint128::from(15_000_000_000000u64),
             msg: to_binary(&ReceiveMsg::CreateAllocations {
                 allocations: allocations.clone(),
@@ -379,7 +380,7 @@ fn test_create_allocations() {
     // Check state
     let resp: StateResponse = app
         .wrap()
-        .query_wasm_smart(&vesting_instance, &QueryMsg::State {})
+        .query_wasm_smart(&unlock_instance, &QueryMsg::State {})
         .unwrap();
     assert_eq!(
         resp.total_astro_deposited,
@@ -394,7 +395,7 @@ fn test_create_allocations() {
     let resp: AllocationResponse = app
         .wrap()
         .query_wasm_smart(
-            &vesting_instance,
+            &unlock_instance,
             &QueryMsg::Allocation {
                 account: "investor_1".to_string(),
             },
@@ -415,7 +416,7 @@ fn test_create_allocations() {
     let resp: AllocationResponse = app
         .wrap()
         .query_wasm_smart(
-            &vesting_instance,
+            &unlock_instance,
             &QueryMsg::Allocation {
                 account: "advisor_1".to_string(),
             },
@@ -436,7 +437,7 @@ fn test_create_allocations() {
     let resp: AllocationResponse = app
         .wrap()
         .query_wasm_smart(
-            &vesting_instance,
+            &unlock_instance,
             &QueryMsg::Allocation {
                 account: "team_1".to_string(),
             },
@@ -460,7 +461,7 @@ fn test_create_allocations() {
             Addr::unchecked(OWNER.clone()),
             astro_instance.clone(),
             &cw20::Cw20ExecuteMsg::Send {
-                contract: vesting_instance.clone().to_string(),
+                contract: unlock_instance.clone().to_string(),
                 amount: Uint128::from(5_000_000_000000u64),
                 msg: to_binary(&ReceiveMsg::CreateAllocations {
                     allocations: vec![allocations[0].clone()],
@@ -479,7 +480,7 @@ fn test_create_allocations() {
 #[test]
 fn test_withdraw() {
     let mut app = mock_app();
-    let (vesting_instance, astro_instance, _) = init_contracts(&mut app);
+    let (unlock_instance, astro_instance, _) = init_contracts(&mut app);
 
     mint_some_astro(
         &mut app,
@@ -532,7 +533,7 @@ fn test_withdraw() {
         Addr::unchecked(OWNER.clone()),
         astro_instance.clone(),
         &cw20::Cw20ExecuteMsg::Send {
-            contract: vesting_instance.clone().to_string(),
+            contract: unlock_instance.clone().to_string(),
             amount: Uint128::from(15_000_000_000000u64),
             msg: to_binary(&ReceiveMsg::CreateAllocations {
                 allocations: allocations.clone(),
@@ -548,14 +549,14 @@ fn test_withdraw() {
     let err = app
         .execute_contract(
             Addr::unchecked(OWNER.clone()),
-            vesting_instance.clone(),
+            unlock_instance.clone(),
             &ExecuteMsg::Withdraw {},
             &[],
         )
         .unwrap_err();
     assert_eq!(
         err.to_string(),
-        "astroport_governance::astro_vesting::AllocationParams not found"
+        "astroport_governance::builder_unlock::AllocationParams not found"
     );
 
     // ######   SUCCESSFULLY WITHDRAWS ASTRO #1   ######
@@ -577,7 +578,7 @@ fn test_withdraw() {
 
     app.execute_contract(
         Addr::unchecked("investor_1".clone()),
-        vesting_instance.clone(),
+        unlock_instance.clone(),
         &ExecuteMsg::Withdraw {},
         &[],
     )
@@ -586,7 +587,7 @@ fn test_withdraw() {
     // Check state
     let state_resp: StateResponse = app
         .wrap()
-        .query_wasm_smart(&vesting_instance, &QueryMsg::State {})
+        .query_wasm_smart(&unlock_instance, &QueryMsg::State {})
         .unwrap();
     assert_eq!(
         state_resp.total_astro_deposited,
@@ -601,7 +602,7 @@ fn test_withdraw() {
     let alloc_resp: AllocationResponse = app
         .wrap()
         .query_wasm_smart(
-            &vesting_instance,
+            &unlock_instance,
             &QueryMsg::Allocation {
                 account: "investor_1".to_string(),
             },
@@ -625,24 +626,24 @@ fn test_withdraw() {
         alloc_resp.status.astro_withdrawn
     );
 
-    // Check Number of vested tokens
-    let mut vest_resp: Uint128 = app
+    // Check the number of unlocked tokens
+    let mut unlock_resp: Uint128 = app
         .wrap()
         .query_wasm_smart(
-            &vesting_instance,
+            &unlock_instance,
             &QueryMsg::UnlockedTokens {
                 account: "investor_1".to_string(),
             },
         )
         .unwrap();
-    assert_eq!(vest_resp, Uint128::from(158548u64));
+    assert_eq!(unlock_resp, Uint128::from(158548u64));
 
     // ######    ERROR :: No unlocked ASTRO to be withdrawn   ######
 
     let err = app
         .execute_contract(
             Addr::unchecked("investor_1".clone()),
-            vesting_instance.clone(),
+            unlock_instance.clone(),
             &ExecuteMsg::Withdraw {},
             &[],
         )
@@ -659,23 +660,23 @@ fn test_withdraw() {
         b.time = Timestamp::from_seconds(1642402285)
     });
 
-    // Check Number of vested tokens
-    vest_resp = app
+    // Check the number of unlocked tokens
+    unlock_resp = app
         .wrap()
         .query_wasm_smart(
-            &vesting_instance,
+            &unlock_instance,
             &QueryMsg::UnlockedTokens {
                 account: "investor_1".to_string(),
             },
         )
         .unwrap();
-    assert_eq!(vest_resp, Uint128::from(1744038u64));
+    assert_eq!(unlock_resp, Uint128::from(1744038u64));
 
-    // Check Number of tokens that can be withdrawn
+    // Check the number of tokens that can be withdrawn from the contract right now
     let mut sim_withdraw_resp: SimulateWithdrawResponse = app
         .wrap()
         .query_wasm_smart(
-            &vesting_instance,
+            &unlock_instance,
             &QueryMsg::SimulateWithdraw {
                 account: "investor_1".to_string(),
                 timestamp: None,
@@ -685,12 +686,12 @@ fn test_withdraw() {
 
     assert_eq!(
         sim_withdraw_resp.astro_to_withdraw,
-        vest_resp - alloc_resp.status.astro_withdrawn
+        unlock_resp - alloc_resp.status.astro_withdrawn
     );
 
     app.execute_contract(
         Addr::unchecked("investor_1".clone()),
-        vesting_instance.clone(),
+        unlock_instance.clone(),
         &ExecuteMsg::Withdraw {},
         &[],
     )
@@ -699,21 +700,21 @@ fn test_withdraw() {
     let resp: AllocationResponse = app
         .wrap()
         .query_wasm_smart(
-            &vesting_instance,
+            &unlock_instance,
             &QueryMsg::Allocation {
                 account: "investor_1".to_string(),
             },
         )
         .unwrap();
     assert_eq!(resp.params.amount, Uint128::from(5_000_000_000000u64));
-    assert_eq!(resp.status.astro_withdrawn, vest_resp);
+    assert_eq!(resp.status.astro_withdrawn, unlock_resp);
 
     // ######    ERROR :: No unlocked ASTRO to be withdrawn   ######
 
     let err = app
         .execute_contract(
             Addr::unchecked("investor_1".clone()),
-            vesting_instance.clone(),
+            unlock_instance.clone(),
             &ExecuteMsg::Withdraw {},
             &[],
         )
@@ -731,23 +732,23 @@ fn test_withdraw() {
         b.time = Timestamp::from_seconds(1650178273)
     });
 
-    // Check Number of vested tokens
-    vest_resp = app
+    // Check the number of unlocked tokens
+    unlock_resp = app
         .wrap()
         .query_wasm_smart(
-            &vesting_instance,
+            &unlock_instance,
             &QueryMsg::UnlockedTokens {
                 account: "team_1".to_string(),
             },
         )
         .unwrap();
-    assert_eq!(vest_resp, Uint128::from(1232876553779u64));
+    assert_eq!(unlock_resp, Uint128::from(1232876553779u64));
 
     // Check Number of tokens that can be withdrawn
     sim_withdraw_resp = app
         .wrap()
         .query_wasm_smart(
-            &vesting_instance,
+            &unlock_instance,
             &QueryMsg::SimulateWithdraw {
                 account: "team_1".to_string(),
                 timestamp: None,
@@ -762,23 +763,23 @@ fn test_withdraw() {
         b.time = Timestamp::from_seconds(1650178279)
     });
 
-    // Check Number of vested tokens
-    vest_resp = app
+    // Check the number of unlocked tokens
+    unlock_resp = app
         .wrap()
         .query_wasm_smart(
-            &vesting_instance,
+            &unlock_instance,
             &QueryMsg::UnlockedTokens {
                 account: "team_1".to_string(),
             },
         )
         .unwrap();
-    assert_eq!(vest_resp, Uint128::from(1232877505073u64));
+    assert_eq!(unlock_resp, Uint128::from(1232877505073u64));
 
     // Check Number of tokens that can be withdrawn
     sim_withdraw_resp = app
         .wrap()
         .query_wasm_smart(
-            &vesting_instance,
+            &unlock_instance,
             &QueryMsg::SimulateWithdraw {
                 account: "team_1".to_string(),
                 timestamp: None,
@@ -793,7 +794,7 @@ fn test_withdraw() {
 
     app.execute_contract(
         Addr::unchecked("team_1".clone()),
-        vesting_instance.clone(),
+        unlock_instance.clone(),
         &ExecuteMsg::Withdraw {},
         &[],
     )
@@ -802,7 +803,7 @@ fn test_withdraw() {
     let resp: AllocationResponse = app
         .wrap()
         .query_wasm_smart(
-            &vesting_instance,
+            &unlock_instance,
             &QueryMsg::Allocation {
                 account: "team_1".to_string(),
             },
@@ -817,7 +818,7 @@ fn test_withdraw() {
     sim_withdraw_resp = app
         .wrap()
         .query_wasm_smart(
-            &vesting_instance,
+            &unlock_instance,
             &QueryMsg::SimulateWithdraw {
                 account: "team_1".to_string(),
                 timestamp: None,
@@ -831,7 +832,7 @@ fn test_withdraw() {
 #[test]
 fn test_propose_new_receiver() {
     let mut app = mock_app();
-    let (vesting_instance, astro_instance, _) = init_contracts(&mut app);
+    let (unlock_instance, astro_instance, _) = init_contracts(&mut app);
 
     mint_some_astro(
         &mut app,
@@ -884,7 +885,7 @@ fn test_propose_new_receiver() {
         Addr::unchecked(OWNER.clone()),
         astro_instance.clone(),
         &cw20::Cw20ExecuteMsg::Send {
-            contract: vesting_instance.clone().to_string(),
+            contract: unlock_instance.clone().to_string(),
             amount: Uint128::from(15_000_000_000000u64),
             msg: to_binary(&ReceiveMsg::CreateAllocations {
                 allocations: allocations.clone(),
@@ -900,7 +901,7 @@ fn test_propose_new_receiver() {
     let err = app
         .execute_contract(
             Addr::unchecked(OWNER.clone()),
-            vesting_instance.clone(),
+            unlock_instance.clone(),
             &ExecuteMsg::ProposeNewReceiver {
                 new_receiver: "investor_1_new".to_string(),
             },
@@ -909,7 +910,7 @@ fn test_propose_new_receiver() {
         .unwrap_err();
     assert_eq!(
         err.to_string(),
-        "astroport_governance::astro_vesting::AllocationParams not found"
+        "astroport_governance::builder_unlock::AllocationParams not found"
     );
 
     // ######    ERROR :: Invalid new_receiver.    ######
@@ -917,7 +918,7 @@ fn test_propose_new_receiver() {
     let err = app
         .execute_contract(
             Addr::unchecked("investor_1".clone()),
-            vesting_instance.clone(),
+            unlock_instance.clone(),
             &ExecuteMsg::ProposeNewReceiver {
                 new_receiver: "team_1".to_string(),
             },
@@ -933,7 +934,7 @@ fn test_propose_new_receiver() {
 
     app.execute_contract(
         Addr::unchecked("investor_1".clone()),
-        vesting_instance.clone(),
+        unlock_instance.clone(),
         &ExecuteMsg::ProposeNewReceiver {
             new_receiver: "investor_1_new".to_string(),
         },
@@ -944,7 +945,7 @@ fn test_propose_new_receiver() {
     let resp: AllocationResponse = app
         .wrap()
         .query_wasm_smart(
-            &vesting_instance,
+            &unlock_instance,
             &QueryMsg::Allocation {
                 account: "investor_1".to_string(),
             },
@@ -960,7 +961,7 @@ fn test_propose_new_receiver() {
     let err = app
         .execute_contract(
             Addr::unchecked("investor_1".clone()),
-            vesting_instance.clone(),
+            unlock_instance.clone(),
             &ExecuteMsg::ProposeNewReceiver {
                 new_receiver: "investor_1_new_".to_string(),
             },
@@ -976,7 +977,7 @@ fn test_propose_new_receiver() {
 #[test]
 fn test_drop_new_receiver() {
     let mut app = mock_app();
-    let (vesting_instance, astro_instance, _) = init_contracts(&mut app);
+    let (unlock_instance, astro_instance, _) = init_contracts(&mut app);
 
     mint_some_astro(
         &mut app,
@@ -1029,7 +1030,7 @@ fn test_drop_new_receiver() {
         Addr::unchecked(OWNER.clone()),
         astro_instance.clone(),
         &cw20::Cw20ExecuteMsg::Send {
-            contract: vesting_instance.clone().to_string(),
+            contract: unlock_instance.clone().to_string(),
             amount: Uint128::from(15_000_000_000000u64),
             msg: to_binary(&ReceiveMsg::CreateAllocations {
                 allocations: allocations.clone(),
@@ -1045,14 +1046,14 @@ fn test_drop_new_receiver() {
     let err = app
         .execute_contract(
             Addr::unchecked(OWNER.clone()),
-            vesting_instance.clone(),
+            unlock_instance.clone(),
             &ExecuteMsg::DropNewReceiver {},
             &[],
         )
         .unwrap_err();
     assert_eq!(
         err.to_string(),
-        "astroport_governance::astro_vesting::AllocationParams not found"
+        "astroport_governance::builder_unlock::AllocationParams not found"
     );
 
     // ######    ERROR ::"Proposed receiver not set"   ######
@@ -1060,7 +1061,7 @@ fn test_drop_new_receiver() {
     let err = app
         .execute_contract(
             Addr::unchecked("investor_1".clone()),
-            vesting_instance.clone(),
+            unlock_instance.clone(),
             &ExecuteMsg::DropNewReceiver {},
             &[],
         )
@@ -1072,7 +1073,7 @@ fn test_drop_new_receiver() {
     // SUCCESSFULLY PROPOSES NEW RECEIVER
     app.execute_contract(
         Addr::unchecked("investor_1".clone()),
-        vesting_instance.clone(),
+        unlock_instance.clone(),
         &ExecuteMsg::ProposeNewReceiver {
             new_receiver: "investor_1_new".to_string(),
         },
@@ -1083,7 +1084,7 @@ fn test_drop_new_receiver() {
     let mut resp: AllocationResponse = app
         .wrap()
         .query_wasm_smart(
-            &vesting_instance,
+            &unlock_instance,
             &QueryMsg::Allocation {
                 account: "investor_1".to_string(),
             },
@@ -1096,7 +1097,7 @@ fn test_drop_new_receiver() {
 
     app.execute_contract(
         Addr::unchecked("investor_1".clone()),
-        vesting_instance.clone(),
+        unlock_instance.clone(),
         &ExecuteMsg::DropNewReceiver {},
         &[],
     )
@@ -1105,7 +1106,7 @@ fn test_drop_new_receiver() {
     resp = app
         .wrap()
         .query_wasm_smart(
-            &vesting_instance,
+            &unlock_instance,
             &QueryMsg::Allocation {
                 account: "investor_1".to_string(),
             },
@@ -1117,7 +1118,7 @@ fn test_drop_new_receiver() {
 #[test]
 fn test_claim_receiver() {
     let mut app = mock_app();
-    let (vesting_instance, astro_instance, _) = init_contracts(&mut app);
+    let (unlock_instance, astro_instance, _) = init_contracts(&mut app);
 
     mint_some_astro(
         &mut app,
@@ -1170,7 +1171,7 @@ fn test_claim_receiver() {
         Addr::unchecked(OWNER.clone()),
         astro_instance.clone(),
         &cw20::Cw20ExecuteMsg::Send {
-            contract: vesting_instance.clone().to_string(),
+            contract: unlock_instance.clone().to_string(),
             amount: Uint128::from(15_000_000_000000u64),
             msg: to_binary(&ReceiveMsg::CreateAllocations {
                 allocations: allocations.clone(),
@@ -1186,14 +1187,14 @@ fn test_claim_receiver() {
     let err = app
         .execute_contract(
             Addr::unchecked(OWNER.clone()),
-            vesting_instance.clone(),
+            unlock_instance.clone(),
             &ExecuteMsg::Withdraw {},
             &[],
         )
         .unwrap_err();
     assert_eq!(
         err.to_string(),
-        "astroport_governance::astro_vesting::AllocationParams not found"
+        "astroport_governance::builder_unlock::AllocationParams not found"
     );
 
     // ######    ERROR ::"Proposed receiver not set"   ######
@@ -1201,7 +1202,7 @@ fn test_claim_receiver() {
     let err = app
         .execute_contract(
             Addr::unchecked("investor_1_new".clone()),
-            vesting_instance.clone(),
+            unlock_instance.clone(),
             &ExecuteMsg::ClaimReceiver {
                 prev_receiver: "investor_1".to_string(),
             },
@@ -1215,7 +1216,7 @@ fn test_claim_receiver() {
     // SUCCESSFULLY PROPOSES NEW RECEIVER
     app.execute_contract(
         Addr::unchecked("investor_1".clone()),
-        vesting_instance.clone(),
+        unlock_instance.clone(),
         &ExecuteMsg::ProposeNewReceiver {
             new_receiver: "investor_1_new".to_string(),
         },
@@ -1226,7 +1227,7 @@ fn test_claim_receiver() {
     let alloc_resp_before: AllocationResponse = app
         .wrap()
         .query_wasm_smart(
-            &vesting_instance,
+            &unlock_instance,
             &QueryMsg::Allocation {
                 account: "investor_1".to_string(),
             },
@@ -1237,7 +1238,7 @@ fn test_claim_receiver() {
     let sim_withdraw_resp_before: SimulateWithdrawResponse = app
         .wrap()
         .query_wasm_smart(
-            &vesting_instance,
+            &unlock_instance,
             &QueryMsg::SimulateWithdraw {
                 account: "investor_1".to_string(),
                 timestamp: None,
@@ -1248,7 +1249,7 @@ fn test_claim_receiver() {
     // Claimed by new receiver
     app.execute_contract(
         Addr::unchecked("investor_1_new".clone()),
-        vesting_instance.clone(),
+        unlock_instance.clone(),
         &ExecuteMsg::ClaimReceiver {
             prev_receiver: "investor_1".to_string(),
         },
@@ -1260,7 +1261,7 @@ fn test_claim_receiver() {
     let alloc_resp_after: AllocationResponse = app
         .wrap()
         .query_wasm_smart(
-            &vesting_instance,
+            &unlock_instance,
             &QueryMsg::Allocation {
                 account: "investor_1".to_string(),
             },
@@ -1284,7 +1285,7 @@ fn test_claim_receiver() {
     let alloc_resp_after: AllocationResponse = app
         .wrap()
         .query_wasm_smart(
-            &vesting_instance,
+            &unlock_instance,
             &QueryMsg::Allocation {
                 account: "investor_1_new".to_string(),
             },
@@ -1308,7 +1309,7 @@ fn test_claim_receiver() {
     let sim_withdraw_resp_after_prev_inv: SimulateWithdrawResponse = app
         .wrap()
         .query_wasm_smart(
-            &vesting_instance,
+            &unlock_instance,
             &QueryMsg::SimulateWithdraw {
                 account: "investor_1_new".to_string(),
                 timestamp: None,
@@ -1324,7 +1325,7 @@ fn test_claim_receiver() {
     let sim_withdraw_resp_after_new_inv: SimulateWithdrawResponse = app
         .wrap()
         .query_wasm_smart(
-            &vesting_instance,
+            &unlock_instance,
             &QueryMsg::SimulateWithdraw {
                 account: "investor_1_new".to_string(),
                 timestamp: None,

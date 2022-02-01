@@ -9,12 +9,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "94a45b455c14666b85fc40a019e8ab9eb75e3a124e05494f5397122bc9eb06e0"
 
 [[package]]
-name = "astro-vesting"
+name = "astro-assembly"
 version = "1.0.0"
 dependencies = [
- "astroport 1.1.0 (git+https://github.com/astroport-fi/astroport.git?branch=master)",
+ "astroport 1.1.0 (git+https://github.com/astroport-fi/astroport.git)",
  "astroport-governance 1.0.0",
- "astroport-token 1.0.0 (git+https://github.com/astroport-fi/astroport.git?branch=master)",
+ "astroport-staking",
+ "astroport-token 1.0.0 (git+https://github.com/astroport-fi/astroport.git)",
+ "astroport-xastro-token",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 0.8.1",
@@ -22,7 +24,7 @@ dependencies = [
  "cw20",
  "schemars",
  "serde",
- "terra-multi-test 0.8.0",
+ "terra-multi-test 0.9.1",
  "thiserror",
 ]
 
@@ -198,6 +200,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "astroport-xastro-token"
+version = "1.0.0"
+source = "git+https://github.com/astroport-fi/astroport.git#a4bf79bff126fbcaba7ae64401e655f074422001"
+dependencies = [
+ "astroport 1.1.0 (git+https://github.com/astroport-fi/astroport.git)",
+ "cosmwasm-std",
+ "cw-storage-plus 0.8.1",
+ "cw2",
+ "cw20",
+ "cw20-base",
+ "schemars",
+ "serde",
+ "snafu",
+]
+
+[[package]]
 name = "base64"
 version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -210,6 +228,24 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4152116fd6e9dadb291ae18fc1ec3575ed6d84c29642d97890f4b4a3417297e4"
 dependencies = [
  "generic-array",
+]
+
+[[package]]
+name = "builder-unlock"
+version = "1.0.0"
+dependencies = [
+ "astroport 1.1.0 (git+https://github.com/astroport-fi/astroport.git?branch=master)",
+ "astroport-governance 1.0.0",
+ "astroport-token 1.0.0 (git+https://github.com/astroport-fi/astroport.git?branch=master)",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-storage-plus 0.8.1",
+ "cw2",
+ "cw20",
+ "schemars",
+ "serde",
+ "terra-multi-test 0.8.0",
+ "thiserror",
 ]
 
 [[package]]

@@ -1,5 +1,6 @@
+pub mod assembly;
 pub mod asset;
-pub mod astro_vesting;
+pub mod builder_unlock;
 pub mod escrow_fee_distributor;
 pub mod querier;
 
