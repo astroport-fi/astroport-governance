@@ -2,7 +2,6 @@ use astroport::{
     token::InstantiateMsg as TokenInstantiateMsg,
     xastro_token::InstantiateMsg as XAstroInstantiateMsg, xastro_token::QueryMsg as XAstroQueryMsg,
 };
-use std::collections::HashMap;
 
 use astroport_governance::assembly::{
     Config, Cw20HookMsg, ExecuteMsg, InstantiateMsg, Proposal, ProposalListResponse,
@@ -417,7 +416,7 @@ fn proper_successful_proposal() {
         instantiate_contracts(&mut app, owner);
 
     // Init voting power for users
-    let xastro_balances: HashMap<&str, u128> = HashMap::from([
+    let xastro_balances: Vec<(&str, u128)> = vec![
         ("user0", PROPOSAL_REQUIRED_DEPOSIT), // Proposal submitter
         ("user1", 100),
         ("user2", 200),
@@ -430,7 +429,7 @@ fn proper_successful_proposal() {
         ("user9", 50),
         ("user10", 90),
         ("user11", 500),
-    ]);
+    ];
 
     let default_allocation_params = AllocationParams {
         amount: Uint128::zero(),
@@ -739,7 +738,7 @@ fn proper_unsuccessful_proposal() {
     let (_, xastro_addr, _, assembly_addr) = instantiate_contracts(&mut app, owner);
 
     // Init voting power for users
-    let xastro_balances: HashMap<&str, u128> = HashMap::from([
+    let xastro_balances: Vec<(&str, u128)> = vec![
         ("user0", PROPOSAL_REQUIRED_DEPOSIT), // Proposal submitter
         ("user1", 100),
         ("user2", 200),
@@ -752,7 +751,7 @@ fn proper_unsuccessful_proposal() {
         ("user9", 50),
         ("user10", 90),
         ("user11", 500),
-    ]);
+    ];
 
     for (addr, xastro) in xastro_balances {
         mint_tokens(&mut app, &xastro_addr, &Addr::unchecked(addr), xastro);
