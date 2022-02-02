@@ -102,7 +102,7 @@ pub fn execute(
 fn checkpoint_total(
     deps: DepsMut,
     env: Env,
-    add_amount: Option<Uint128>,
+    add_voting_power: Option<Uint128>,
     old_slope: Decimal,
     new_slope: Decimal,
     new_end: Option<u64>,
@@ -110,7 +110,7 @@ fn checkpoint_total(
     let cur_period = get_period(env.block.time.seconds());
     let cur_period_key = U64Key::new(cur_period);
     let contract_addr = env.contract.address;
-    let add_amount = add_amount.unwrap_or_default();
+    let add_voting_power = add_voting_power.unwrap_or_default();
 
     // get last checkpoint
     let last_checkpoint = fetch_last_checkpoint(deps.as_ref(), &contract_addr, &cur_period_key)?;
@@ -121,7 +121,7 @@ fn checkpoint_total(
             .unwrap_or_else(Decimal::zero);
 
         Point {
-            power: calc_voting_power(&point, cur_period) + add_amount,
+            power: calc_voting_power(&point, cur_period) + add_voting_power,
             slope: point.slope - old_slope + new_slope - scheduled_change,
             start: cur_period,
             end,
@@ -131,7 +131,7 @@ fn checkpoint_total(
         let end =
             new_end.ok_or_else(|| StdError::generic_err("Checkpoint initialization error"))?;
         Point {
-            power: add_amount,
+            power: add_voting_power,
             slope: new_slope,
             start: cur_period,
             end,
