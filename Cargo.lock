@@ -12,11 +12,13 @@ checksum = "62e1f47f7dc0422027a4e370dd4548d4d66b26782e513e98dca1e689e058a80e"
 name = "astro-assembly"
 version = "1.0.0"
 dependencies = [
+ "anyhow",
  "astroport 1.1.0",
  "astroport-governance",
  "astroport-staking",
  "astroport-token 1.0.0",
  "astroport-xastro-token",
+ "builder-unlock",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 0.8.1",
