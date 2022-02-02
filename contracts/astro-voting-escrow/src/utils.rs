@@ -73,9 +73,9 @@ pub(crate) fn calc_voting_power(point: &Point, period: u64) -> Uint128 {
         .unwrap_or_else(|_| Uint128::zero())
 }
 
-pub(crate) fn apply_boost(amount: Uint128, interval: u64) -> Uint128 {
+pub(crate) fn calc_boost(interval: u64) -> Decimal {
     // boost = 2.5 * (end - start) / MAX_LOCK_TIME
-    amount * Uint128::from(25_u64 * interval) / Uint128::from(get_period(MAX_LOCK_TIME) * 10)
+    Decimal::from_ratio(25_u64 * interval, get_period(MAX_LOCK_TIME) * 10)
 }
 
 pub(crate) fn fetch_last_checkpoint(

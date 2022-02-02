@@ -2,10 +2,13 @@ mod test_utils;
 
 use crate::test_utils::{mock_app, Helper, MULTIPLIER};
 use astroport::token as astro;
-use astroport_governance::astro_voting_escrow::{Cw20HookMsg, QueryMsg, UsersResponse};
+use astroport_governance::astro_voting_escrow::{
+    Cw20HookMsg, LockInfoResponse, QueryMsg, UsersResponse,
+};
 use astroport_voting_escrow::contract::{MAX_LOCK_TIME, WEEK};
-use cosmwasm_std::{to_binary, Addr, Uint128};
+use cosmwasm_std::{to_binary, Addr, Decimal, Uint128};
 use cw20::{Cw20ExecuteMsg, MinterResponse};
+use std::str::FromStr;
 use terra_multi_test::{next_block, ContractWrapper, Executor};
 
 #[test]
@@ -432,4 +435,43 @@ fn voting_variable_decay() {
     assert_eq!(vp, 2.16346);
     let vp = helper.query_total_vp(router_ref).unwrap();
     assert_eq!(vp, 2.16346);
+}
+
+#[test]
+fn check_queries() {
+    let mut router = mock_app();
+    let router_ref = &mut router;
+    let owner = Addr::unchecked("owner");
+    let helper = Helper::init(router_ref, owner);
+
+    // mint ASTRO, stake it and mint xASTRO
+    helper.mint_xastro(router_ref, "user", 100);
+    helper.check_xastro_balance(router_ref, "user", 100);
+
+    // creating valid voting escrow lock
+    helper
+        .create_lock(router_ref, "user", WEEK * 2, 90)
+        .unwrap();
+    // check that 90 xASTRO were actually debited
+    helper.check_xastro_balance(router_ref, "user", 10);
+    helper.check_xastro_balance(router_ref, helper.voting_instance.as_str(), 90);
+
+    // validating user's lock
+    let cur_period = router_ref.block_info().time.seconds() / WEEK;
+    let user_lock: LockInfoResponse = router_ref
+        .wrap()
+        .query_wasm_smart(
+            helper.voting_instance.clone(),
+            &QueryMsg::LockInfo {
+                user: "user".to_string(),
+            },
+        )
+        .unwrap();
+    assert_eq!(user_lock.amount.u128(), 90_u128 * MULTIPLIER as u128);
+    assert_eq!(user_lock.start, cur_period);
+    assert_eq!(user_lock.end, cur_period + 2);
+    assert!(
+        user_lock.boost - Decimal::from_str("0.048076").unwrap()
+            < Decimal::from_str("0.000001").unwrap()
+    )
 }

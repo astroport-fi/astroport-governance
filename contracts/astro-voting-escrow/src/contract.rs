@@ -11,14 +11,14 @@ use cw_storage_plus::{Bound, U64Key};
 use std::convert::TryInto;
 
 use astroport_governance::astro_voting_escrow::{
-    Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg, UsersResponse,
+    Cw20HookMsg, ExecuteMsg, InstantiateMsg, LockInfoResponse, MigrateMsg, QueryMsg, UsersResponse,
     VotingPowerResponse,
 };
 
 use crate::error::ContractError;
 use crate::state::{Config, Lock, Point, CONFIG, HISTORY, LOCKED, SLOPE_CHANGES};
 use crate::utils::{
-    apply_boost, calc_voting_power, fetch_last_checkpoint, get_period, time_limits_check,
+    calc_boost, calc_voting_power, fetch_last_checkpoint, get_period, time_limits_check,
     xastro_token_check,
 };
 
@@ -165,7 +165,7 @@ fn checkpoint(
                 Decimal::from_ratio(current_power, dt)
             } else {
                 // increase lock's amount or lock creation after withdrawal
-                add_voting_power = apply_boost(add_amount, dt);
+                add_voting_power = add_amount * calc_boost(dt);
                 Decimal::from_ratio(current_power + add_voting_power, dt)
             }
         } else {
@@ -194,7 +194,7 @@ fn checkpoint(
         let end =
             new_end.ok_or_else(|| StdError::generic_err("Checkpoint initialization error"))?;
         let dt = end - cur_period;
-        add_voting_power = apply_boost(add_amount, dt);
+        add_voting_power = add_amount * calc_boost(dt);
         let slope = Decimal::from_ratio(add_voting_power, dt);
         Point {
             power: add_voting_power,
@@ -270,7 +270,11 @@ fn create_lock(
         if lock_opt.is_some() {
             return Err(ContractError::LockAlreadyExists {});
         }
-        Ok(Lock { power: amount, end })
+        Ok(Lock {
+            amount,
+            start: block_period,
+            end,
+        })
     })?;
 
     checkpoint(deps, env, user, Some(amount), Some(end))?;
@@ -292,7 +296,7 @@ fn extend_lock_amount(
             if lock.end <= get_period(env.block.time.seconds()) {
                 Err(ContractError::LockExpired {})
             } else {
-                lock.power += amount;
+                lock.amount += amount;
                 Ok(lock)
             }
         } else {
@@ -318,7 +322,7 @@ fn withdraw(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, Cont
             contract_addr: config.xastro_token_addr.to_string(),
             msg: to_binary(&Cw20ExecuteMsg::Transfer {
                 recipient: sender.to_string(),
-                amount: lock.power,
+                amount: lock.amount,
             })?,
             funds: vec![],
         });
@@ -386,7 +390,24 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             to_binary(&get_user_voting_power(deps, env, user, Some(time))?)
         }
         QueryMsg::Users {} => get_all_users(deps, env),
-        // TODO: add user's boost value query
+        QueryMsg::LockInfo { user } => to_binary(&get_user_lock_info(deps, env, user)?),
+    }
+}
+
+fn get_user_lock_info(deps: Deps, env: Env, user: String) -> StdResult<LockInfoResponse> {
+    let addr = addr_validate_to_lower(deps.api, &user)?;
+    let lock_opt = LOCKED.may_load(deps.storage, addr.clone())?;
+    if addr == env.contract.address || lock_opt.is_none() {
+        Err(StdError::generic_err("User is not found"))
+    } else {
+        let lock = lock_opt.unwrap();
+        let resp = LockInfoResponse {
+            amount: lock.amount,
+            boost: calc_boost(lock.end - lock.start),
+            start: lock.start,
+            end: lock.end,
+        };
+        Ok(resp)
     }
 }
 

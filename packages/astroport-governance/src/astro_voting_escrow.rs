@@ -1,4 +1,4 @@
-use cosmwasm_std::Uint128;
+use cosmwasm_std::{Decimal, Uint128};
 use cw20::Cw20ReceiveMsg;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -43,11 +43,20 @@ pub enum QueryMsg {
     UserVotingPower { user: String },
     UserVotingPowerAt { user: String, time: u64 },
     Users {},
+    LockInfo { user: String },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct VotingPowerResponse {
     pub voting_power: Uint128,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct LockInfoResponse {
+    pub amount: Uint128,
+    pub boost: Decimal,
+    pub start: u64,
+    pub end: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

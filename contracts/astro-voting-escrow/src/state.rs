@@ -21,7 +21,8 @@ pub struct Point {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Lock {
-    pub power: Uint128,
+    pub amount: Uint128,
+    pub start: u64,
     pub end: u64,
 }
 
