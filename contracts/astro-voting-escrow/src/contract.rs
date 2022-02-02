@@ -389,18 +389,14 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::UserVotingPowerAt { user, time } => {
             to_binary(&get_user_voting_power(deps, env, user, Some(time))?)
         }
-        QueryMsg::Users {} => get_all_users(deps, env),
-        QueryMsg::LockInfo { user } => to_binary(&get_user_lock_info(deps, env, user)?),
+        QueryMsg::Users {} => get_all_users(deps),
+        QueryMsg::LockInfo { user } => to_binary(&get_user_lock_info(deps, user)?),
     }
 }
 
-fn get_user_lock_info(deps: Deps, env: Env, user: String) -> StdResult<LockInfoResponse> {
+fn get_user_lock_info(deps: Deps, user: String) -> StdResult<LockInfoResponse> {
     let addr = addr_validate_to_lower(deps.api, &user)?;
-    let lock_opt = LOCKED.may_load(deps.storage, addr.clone())?;
-    if lock_opt.is_none() {
-        Err(StdError::generic_err("User is not found"))
-    } else {
-        let lock = lock_opt.unwrap();
+    if let Some(lock) = LOCKED.may_load(deps.storage, addr)? {
         let resp = LockInfoResponse {
             amount: lock.amount,
             boost: calc_boost(lock.end - lock.start),
@@ -408,6 +404,8 @@ fn get_user_lock_info(deps: Deps, env: Env, user: String) -> StdResult<LockInfoR
             end: lock.end,
         };
         Ok(resp)
+    } else {
+        Err(StdError::generic_err("User is not found"))
     }
 }
 
@@ -490,7 +488,7 @@ fn get_total_voting_power(
     Ok(VotingPowerResponse { voting_power })
 }
 
-fn get_all_users(deps: Deps, env: Env) -> StdResult<Binary> {
+fn get_all_users(deps: Deps) -> StdResult<Binary> {
     // TODO: change to *at behavior bc we need to know all locked users in particular period
     let keys: Vec<_> = LOCKED
         .keys(deps.storage, None, None, Order::Ascending)
