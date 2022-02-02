@@ -140,6 +140,10 @@ fn lock_unlock_logic() {
         "The lock expired. Withdraw and create new lock"
     );
 
+    // imagine the user will withdraw his expired lock in 5 weeks
+    router_ref.update_block(next_block);
+    router_ref.update_block(|block| block.time = block.time.plus_seconds(5 * WEEK));
+
     // time has passed so we can withdraw
     helper.withdraw(router_ref, "user").unwrap();
     helper.check_xastro_balance(router_ref, "user", 100);

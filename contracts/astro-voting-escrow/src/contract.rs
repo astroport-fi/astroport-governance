@@ -157,7 +157,7 @@ fn checkpoint(
     let last_checkpoint = fetch_last_checkpoint(deps.as_ref(), &addr, &cur_period_key)?;
     let new_point = if let Some((_, point)) = last_checkpoint {
         let end = new_end.unwrap_or(point.end);
-        let dt = end - cur_period;
+        let dt = end.saturating_sub(cur_period);
         let current_power = calc_voting_power(&point, cur_period);
         let new_slope = if dt != 0 {
             if end > point.end && add_amount.is_zero() {
