@@ -397,7 +397,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 fn get_user_lock_info(deps: Deps, env: Env, user: String) -> StdResult<LockInfoResponse> {
     let addr = addr_validate_to_lower(deps.api, &user)?;
     let lock_opt = LOCKED.may_load(deps.storage, addr.clone())?;
-    if addr == env.contract.address || lock_opt.is_none() {
+    if lock_opt.is_none() {
         Err(StdError::generic_err("User is not found"))
     } else {
         let lock = lock_opt.unwrap();
@@ -465,7 +465,7 @@ fn get_total_voting_power(
         let scheduled_slope_changes: Vec<_> = SLOPE_CHANGES
             .range(
                 deps.storage,
-                Some(Bound::Inclusive(checkpoint_period_key.wrapped)),
+                Some(Bound::Exclusive(checkpoint_period_key.wrapped)),
                 Some(Bound::Inclusive(period_key.wrapped)),
                 Order::Ascending,
             )
@@ -494,14 +494,7 @@ fn get_all_users(deps: Deps, env: Env) -> StdResult<Binary> {
     // TODO: change to *at behavior bc we need to know all locked users in particular period
     let keys: Vec<_> = LOCKED
         .keys(deps.storage, None, None, Order::Ascending)
-        .filter_map(|key| {
-            let addr = String::from_utf8(key).map_err(StdError::from).ok()?;
-            if addr == env.contract.address.as_str() {
-                None
-            } else {
-                Some(addr)
-            }
-        })
+        .filter_map(|key| String::from_utf8(key).map_err(StdError::from).ok())
         .collect();
     to_binary(&UsersResponse { users: keys })
 }
