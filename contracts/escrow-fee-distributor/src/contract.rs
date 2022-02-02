@@ -2,12 +2,12 @@ use cosmwasm_std::{
     attr, entry_point, to_binary, Addr, Attribute, Binary, CosmosMsg, Deps, DepsMut, Env,
     MessageInfo, Order, Response, StdError, StdResult, Uint128, WasmMsg,
 };
-use std::cmp::{max, min};
+use std::cmp::max;
 
 use crate::error::ContractError;
 use crate::state::{
-    Config, DistributorInfo, CHECKPOINT_TOKEN, CLAIMED, CONFIG, DISTRIBUTOR_INFO,
-    OWNERSHIP_PROPOSAL, TOKENS_PER_WEEK, VOTING_SUPPLY_PER_WEEK,
+    Config, CHECKPOINT_TOKEN, CLAIMED, CONFIG, OWNERSHIP_PROPOSAL, TIME_CURSOR_OF, TOKENS_PER_WEEK,
+    VOTING_SUPPLY_PER_WEEK,
 };
 use crate::utils::{find_timestamp_user_period, transfer_token_amount};
 use astroport::asset::addr_validate_to_lower;
@@ -39,17 +39,9 @@ const MAX_WEEKS: u64 = 20;
 /// Creates a new contract with the specified parameters in the [`InstantiateMsg`].
 /// Returns the default [`Response`] object if the operation was successful, otherwise returns
 /// the [`StdResult`] if the contract was not created.
-///
 /// ## Params
-/// * **deps** is the object of type [`DepsMut`].
-///
-/// * **_env** is the object of type [`Env`].
-///
-/// * **_info** is the object of type [`MessageInfo`].
-///
 /// * **msg** is a message of type [`InstantiateMsg`] which contains the basic settings for
 /// creating a contract
-///
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
@@ -83,8 +75,6 @@ pub fn instantiate(
         },
     )?;
 
-    VOTING_SUPPLY_PER_WEEK.save(deps.storage, U64Key::new(0u64), &Uint128::new(0))?;
-    TOKENS_PER_WEEK.save(deps.storage, U64Key::new(0u64), &Uint128::new(0))?;
     Ok(Response::new())
 }
 
@@ -129,7 +119,6 @@ pub fn instantiate(
 ///
 /// * **ExecuteMsg::CheckpointToken {}** Calculates the total number of tokens to be distributed
 /// in a given week.
-///
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
@@ -187,7 +176,7 @@ pub fn execute(
             recover_balance(deps.as_ref(), env, info, token_address)
         }
         ExecuteMsg::Claim { recipient } => claim(deps, env, info, recipient),
-        ExecuteMsg::ClaimMany { receivers } => claim_many(deps, env, info, receivers),
+        ExecuteMsg::ClaimMany { receivers } => claim_many(deps, env, receivers),
         ExecuteMsg::CheckpointToken {} => checkpoint_token(deps, env, info),
         ExecuteMsg::UpdateConfig {
             max_limit_accounts_of_claim,
@@ -254,14 +243,7 @@ fn checkpoint_total_supply(deps: DepsMut, env: Env) -> Result<Response, Contract
 /// otherwise returns the [`ContractError`].
 ///
 /// ## Params
-/// * **deps** is the object of type [`Deps`].
-///
-/// * **info** is the object of type [`MessageInfo`].
-///
-/// * **env** is the object of type [`Env`].
-///
 /// * **token_address** is the object of type [`String`]. Address of the coin being received.
-///
 fn burn(
     mut deps: DepsMut,
     env: Env,
@@ -312,14 +294,6 @@ fn burn(
 /// and blocks the ability to claim or burn. The contract cannot be unkilled.
 /// Returns the [`Response`] with the specified attributes if the operation was successful,
 /// otherwise returns the [`ContractError`].
-///
-/// ## Params
-/// * **deps** is the object of type [`Deps`].
-///
-/// * **info** is the object of type [`MessageInfo`].
-///
-/// * **env** is the object of type [`Env`].
-///
 fn kill_me(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, ContractError> {
     let mut config: Config = CONFIG.load(deps.storage)?;
 
@@ -355,14 +329,7 @@ fn kill_me(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, Contr
 /// otherwise returns the [`ContractError`].
 ///
 /// ## Params
-/// * **deps** is the object of type [`DepsMut`].
-///
-/// * **info** is the object of type [`MessageInfo`].
-///
-/// * **env** is the object of type [`Env`].
-///
-/// * **token_address** is the object of type [`String`].
-///
+/// * **token_address** Address of the coin being recover.
 fn recover_balance(
     deps: Deps,
     env: Env,
@@ -535,14 +502,7 @@ fn calc_checkpoint_token(deps: DepsMut, env: Env, config: &mut Config) -> StdRes
 /// Claims the amount from FeeDistributor for transfer to the recipient. Returns the [`Response`] with
 /// specified attributes if operation was successful, otherwise returns the [`ContractError`].
 /// ## Params
-/// * **deps** is the object of type [`DepsMut`].
-///
-/// * **env** is the object of type [`Env`].
-///
-/// * **info** is the object of type [`MessageInfo`].
-///
-/// * **recipient** is an [`Option`] field of type [`String`]. Sets the recipient for claim.
-///
+/// * **recipient** Sets the recipient for claim.
 pub fn claim(
     mut deps: DepsMut,
     env: Env,
@@ -554,7 +514,8 @@ pub fn claim(
         &recipient.unwrap_or_else(|| info.sender.to_string()),
     )?;
 
-    let config: Config = CONFIG.load(deps.storage)?;
+    let mut config: Config = CONFIG.load(deps.storage)?;
+
     if config.is_killed {
         return Err(ContractError::ContractIsKilled {});
     }
@@ -568,7 +529,7 @@ pub fn claim(
     if config.can_checkpoint_token
         && (env.block.time.seconds() > last_token_time + TOKEN_CHECKPOINT_DEADLINE)
     {
-        checkpoint_token(deps.branch(), env.clone(), info)?;
+        calc_checkpoint_token(deps.branch(), env.clone(), &mut config)?;
         last_token_time = env.block.time.seconds();
     }
 
@@ -578,22 +539,21 @@ pub fn claim(
         .checked_mul(WEEK)
         .ok_or_else(|| StdError::generic_err("Timestamp calculation error."))?;
 
-    let mut distributor_info: DistributorInfo = DISTRIBUTOR_INFO.load(deps.storage)?;
     let claim_amount = calc_claim_amount(
         deps.branch(),
         config.clone(),
-        &mut distributor_info,
         recipient_addr.clone(),
         last_token_time,
     )?;
 
     let mut transfer_msg = vec![];
     if !claim_amount.is_zero() {
-        transfer_msg = transfer_token_amount(config.token, recipient_addr.clone(), claim_amount)?;
-        distributor_info.token_last_balance -= claim_amount;
+        transfer_msg =
+            transfer_token_amount(config.token.clone(), recipient_addr.clone(), claim_amount)?;
+        config.token_last_balance -= claim_amount;
     };
 
-    DISTRIBUTOR_INFO.save(deps.storage, &distributor_info)?;
+    CONFIG.save(deps.storage, &config)?;
 
     let response = Response::new()
         .add_attributes(vec![
@@ -610,21 +570,13 @@ pub fn claim(
 /// Make multiple fee claims in a single call. Returns the [`Response`] with
 /// specified attributes if operation was successful, otherwise returns the [`ContractError`].
 /// ## Params
-/// * **deps** is the object of type [`DepsMut`].
-///
-/// * **env** is the object of type [`Env`].
-///
-/// * **info** is the object of type [`MessageInfo`].
-///
 /// * **receivers** is vector field of type [`String`]. Sets the receivers for claim.
-///
 fn claim_many(
     mut deps: DepsMut,
     env: Env,
-    info: MessageInfo,
     receivers: Vec<String>,
 ) -> Result<Response, ContractError> {
-    let config: Config = CONFIG.load(deps.storage)?;
+    let mut config: Config = CONFIG.load(deps.storage)?;
     if config.is_killed {
         return Err(ContractError::ContractIsKilled {});
     }
@@ -638,7 +590,7 @@ fn claim_many(
     if config.can_checkpoint_token
         && (env.block.time.seconds() > last_token_time + TOKEN_CHECKPOINT_DEADLINE)
     {
-        checkpoint_token(deps.branch(), env.clone(), info)?;
+        calc_checkpoint_token(deps.branch(), env.clone(), &mut config)?;
         last_token_time = env.block.time.seconds();
     }
 
@@ -651,14 +603,11 @@ fn claim_many(
     let mut total = Uint128::zero();
     let mut transfer_msg = vec![];
 
-    let mut distributor_info: DistributorInfo = DISTRIBUTOR_INFO.load(deps.storage)?;
-
     for receiver in receivers {
         let receiver_addr = addr_validate_to_lower(deps.api, &receiver)?;
         let claim_amount = calc_claim_amount(
             deps.branch(),
             config.clone(),
-            &mut distributor_info,
             receiver_addr.clone(),
             last_token_time,
         )?;
@@ -674,10 +623,8 @@ fn claim_many(
     }
 
     if !total.is_zero() {
-        distributor_info.token_last_balance -= total;
+        config.token_last_balance -= total;
     }
-
-    DISTRIBUTOR_INFO.save(deps.storage, &distributor_info)?;
 
     let response = Response::new()
         .add_attributes(vec![
@@ -691,157 +638,101 @@ fn claim_many(
 
 /// ## Description
 /// Calculation amount of claim.
-///
-/// ## Params
-/// * **deps** is the object of type [`DepsMut`].
-///
-/// * **config** is the object of type [`Config`].
-///
-/// * **distributor_info** is the object of type [`DistributorInfo`].
-///
-/// * **addr** is the object of type [`Addr`].
-///
-/// * **last_token_time** is the object of type [`u64`].
-///
 fn calc_claim_amount(
     deps: DepsMut,
     config: Config,
-    distributor_info: &mut DistributorInfo,
     addr: Addr,
     last_token_time: u64,
 ) -> StdResult<Uint128> {
-    // Minimal user period is 0 (if user had no point)
-    let mut user_period: u64;
-    let mut to_distribute = Uint128::zero();
+    let user_voting_power: VotingPowerResponse = deps.querier.query_wasm_smart(
+        &config.voting_escrow,
+        &VotingQueryMsg::UserVotingPower {
+            user: addr.to_string(),
+        },
+    )?;
 
-    let max_user_period: u64 = 10; // TODO get from VotingEscrow(ve).user_point_epoch(addr)
-    let start_time = config.start_time;
-
-    if max_user_period == 0 {
+    if user_voting_power.voting_power.is_zero() {
         // No lock = no fees
         return Ok(Uint128::zero());
     }
 
+    let user_max_period: u64 = deps.querier.query_wasm_smart(
+        &config.voting_escrow,
+        &VotingQueryMsg::UserVotingPower {
+            // TODO: query max lock period
+            user: addr.to_string(),
+        },
+    )?;
+
+    let start_time = config.start_time;
     let mut week_cursor: u64;
-    if let Some(w_cursor) = distributor_info.time_cursor_of.get(&addr) {
-        week_cursor = *w_cursor;
+    if let Some(w_cursor) = TIME_CURSOR_OF.may_load(deps.storage, addr.clone())? {
+        week_cursor = w_cursor;
     } else {
         week_cursor = 0;
-    }
-
-    if week_cursor == 0 {
-        user_period = find_timestamp_user_period(
-            deps.as_ref(),
-            config.voting_escrow,
-            addr.clone(),
-            start_time,
-            max_user_period,
-        )?;
-    } else if let Some(period) = distributor_info.user_period_of.get(&addr) {
-        user_period = *period;
-        if user_period == 0 {
-            user_period = 1;
-        }
-    } else {
-        user_period = 1;
-    }
-
-    let mut user_point = Point::default(); // TODO:
-                                           // let user_point: Point = deps.querier.query_wasm_smart(
-                                           //     &config.voting_escrow,
-                                           //     &VotingQueryMsg::UserPointHistory { addr, user_period },
-                                           // )?;
-
-    if week_cursor == 0 {
-        week_cursor = (user_point.ts + WEEK - 1)
-            .checked_div(WEEK * WEEK)
-            .ok_or_else(|| StdError::generic_err("Timestamp calculation error."))?;
-    }
-
-    if week_cursor >= last_token_time {
-        return Ok(Uint128::zero());
     }
 
     if week_cursor < start_time {
         week_cursor = start_time;
     }
 
-    let mut old_user_point = Point::default();
+    if week_cursor >= last_token_time {
+        return Ok(Uint128::zero());
+    }
 
-    // iterate over weeks
-    for _i in 1..50 {
+    let mut to_distribute: Uint128 = Default::default();
+    let mut loop_cursor: u64 = 0;
+    loop {
         if week_cursor >= last_token_time {
             break;
         }
 
-        if week_cursor >= user_point.ts && user_period <= max_user_period {
-            user_period += 1;
-            old_user_point = user_point.clone();
+        if week_cursor >= user_max_period {
+            break;
+        }
 
-            if user_period > max_user_period {
-                user_point = Point::default();
-            } else {
-                user_point = Point {
-                    bias: 0,
-                    slope: 0,
-                    ts: 0,
-                    blk: 1,
-                }; // TODO: // let user_point: Point = deps.querier.query_wasm_smart(
-                   //     &config.voting_escrow,
-                   //     &VotingQueryMsg::UserPointHistory { addr, user_period },
-                   // )?;
-            }
-        } else {
-            // Calc
-            // + i * 2 is for rounding errors
-            let dt = week_cursor
-                .checked_sub(old_user_point.ts)
-                .ok_or_else(|| StdError::generic_err("Timestamp calculation error."))?;
-            let balance_of = max(old_user_point.bias - dt as i128 * old_user_point.slope, 0);
+        let user_voting_power: VotingPowerResponse = deps.querier.query_wasm_smart(
+            &config.voting_escrow,
+            &VotingQueryMsg::UserVotingPowerAt {
+                user: addr.to_string(),
+                time: week_cursor,
+            },
+        )?;
 
-            if balance_of == 0 && user_period > max_user_period {
-                break;
-            }
+        if loop_cursor >= MAX_WEEKS {
+            break;
+        }
 
-            if balance_of > 0 {
-                if let Some(_voting_supply) = VOTING_SUPPLY_PER_WEEK
-                    .may_load(deps.as_ref().storage, U64Key::from(week_cursor))?
-                {}
-                if let Some(voting_supply_per_week) =
-                    distributor_info.voting_supply_per_week.get(&week_cursor)
+        if user_voting_power.voting_power > Uint128::zero() {
+            if let Some(voting_supply_per_week) =
+                VOTING_SUPPLY_PER_WEEK.may_load(deps.as_ref().storage, U64Key::from(week_cursor))?
+            {
+                if let Some(tokens_per_week) =
+                    TOKENS_PER_WEEK.may_load(deps.storage, U64Key::from(week_cursor))?
                 {
-                    if let Some(tokens_per_week) =
-                        distributor_info.tokens_per_week.get(&week_cursor)
-                    {
-                        to_distribute += Uint128::from(balance_of as u128)
-                            .checked_mul(*tokens_per_week)?
-                            .checked_div(*voting_supply_per_week)?;
-                    }
+                    to_distribute = to_distribute.checked_add(
+                        user_voting_power
+                            .voting_power
+                            .checked_mul(tokens_per_week)?
+                            .checked_div(voting_supply_per_week)?,
+                    )?;
                 }
             }
-
-            week_cursor += WEEK;
         }
+
+        week_cursor += WEEK;
+        loop_cursor += 1;
     }
 
-    user_period = min(max_user_period, user_period - 1);
-
-    *distributor_info
-        .user_period_of
-        .entry(addr.clone())
-        .or_insert_with(|| 0) = user_period;
-    *distributor_info
-        .time_cursor_of
-        .entry(addr.clone())
-        .or_insert_with(|| 0) = week_cursor;
+    TIME_CURSOR_OF.save(deps.storage, addr.clone(), &week_cursor)?;
 
     CLAIMED.save(
         deps.storage,
         &vec![Claimed {
             recipient: addr,
             amount: to_distribute,
-            claim_period: user_period,
-            max_period: max_user_period,
+            claim_period: week_cursor,
+            max_period: user_max_period,
         }],
     )?;
 
@@ -891,19 +782,11 @@ fn update_config(
 
 /// ## Description
 /// Available the query messages of the contract.
-/// ## Params
-/// * **deps** is the object of type [`Deps`].
-///
-/// * **_env** is the object of type [`Env`].
-///
-/// * **msg** is the object of type [`QueryMsg`].
-///
 /// ## Queries
 /// * **QueryMsg::Config {}** Returns the base controls configs that contains in the [`Config`] object.
 ///
 /// * **QueryMsg::AstroRecipientsPerWeek {}** Returns the list of accounts who will get ASTRO fees
 /// every week in the [`RecipientsPerWeekResponse`] object.
-///
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
@@ -926,10 +809,6 @@ fn query_voting_supply_per_week(deps: Deps) -> StdResult<Vec<Uint128>> {
 }
 /// ## Description
 /// Returns information about the vesting configs in the [`ConfigResponse`] object.
-///
-/// ## Params
-/// * **deps** is the object of type [`Deps`].
-///
 fn query_user_balance(deps: Deps, _env: Env, user: String, timestamp: u64) -> StdResult<Uint128> {
     let config = CONFIG.load(deps.storage)?;
     let user_addr = addr_validate_to_lower(deps.api, &user)?;
@@ -971,9 +850,6 @@ fn query_user_balance(deps: Deps, _env: Env, user: String, timestamp: u64) -> St
 
 /// ## Description
 /// Returns information about the vesting configs in the [`ConfigResponse`] object.
-///
-/// ## Params
-/// * **deps** is the object of type [`Deps`].
 pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
     let config: Config = CONFIG.load(deps.storage)?;
 
@@ -996,22 +872,12 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
 /// ## Description
 /// Returns the list of accounts who will get ASTRO fees every week in the
 /// [`RecipientsPerWeekResponse`] object.
-///
-/// ## Params
-/// * **deps** is the object of type [`Deps`].
-///
 pub fn query_recipients_per_weeks(_deps: Deps) -> StdResult<RecipientsPerWeekResponse> {
     Ok(RecipientsPerWeekResponse { recipients: vec![] })
 }
 
 /// ## Description
 /// Used for migration of contract. Returns the default object of type [`Response`].
-/// ## Params
-/// * **_deps** is the object of type [`DepsMut`].
-///
-/// * **_env** is the object of type [`Env`].
-///
-/// * **_msg** is the object of type [`MigrateMsg`].
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
     Ok(Response::default())

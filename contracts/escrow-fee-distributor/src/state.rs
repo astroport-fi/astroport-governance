@@ -1,6 +1,5 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 
 use astroport::common::OwnershipProposal;
 
@@ -32,21 +31,6 @@ pub struct Config {
 }
 
 /// ## Description
-/// This structure describes the information of distributor contract.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct DistributorInfo {
-    pub token_last_balance: Uint128,
-    pub time_cursor_of: HashMap<Addr, u64>,
-    pub user_period_of: HashMap<Addr, u64>,
-    pub tokens_per_week: HashMap<u64, Uint128>,
-    pub voting_supply_per_week: HashMap<u64, Uint128>,
-}
-
-/// ## Description
-/// Stores config at the given key
-pub const DISTRIBUTOR_INFO: Item<DistributorInfo> = Item::new("distributor_info");
-
-/// ## Description
 /// Stores config at the given key
 pub const CONFIG: Item<Config> = Item::new("config");
 
@@ -61,6 +45,10 @@ pub const VOTING_SUPPLY_PER_WEEK: Map<U64Key, Uint128> = Map::new("voting_supply
 /// ## Description
 /// Stores config at the given key
 pub const TOKENS_PER_WEEK: Map<U64Key, Uint128> = Map::new("tokens_per_week");
+
+/// ## Description
+/// Stores config at the given key
+pub const TIME_CURSOR_OF: Map<Addr, u64> = Map::new("time_cursor_of");
 
 /// ## Description
 /// Stores config at the given key
