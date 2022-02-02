@@ -2,23 +2,22 @@ use cosmwasm_std::{
     attr, entry_point, to_binary, Addr, Attribute, Binary, CosmosMsg, Deps, DepsMut, Env,
     MessageInfo, Order, Response, StdError, StdResult, Uint128, WasmMsg,
 };
-use std::cmp::max;
 
 use crate::error::ContractError;
 use crate::state::{
     Config, CHECKPOINT_TOKEN, CLAIMED, CONFIG, OWNERSHIP_PROPOSAL, TIME_CURSOR_OF, TOKENS_PER_WEEK,
     VOTING_SUPPLY_PER_WEEK,
 };
-use crate::utils::{find_timestamp_user_period, transfer_token_amount};
+use crate::utils::{get_period, transfer_token_amount};
 use astroport::asset::addr_validate_to_lower;
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::querier::query_token_balance;
 use astroport_governance::escrow_fee_distributor::{
-    Claimed, ConfigResponse, ExecuteMsg, InstantiateMsg, MigrateMsg, Point, QueryMsg,
-    RecipientsPerWeekResponse,
+    Claimed, ConfigResponse, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg,
+    RecipientsPerWeekResponse, MAX_LIMIT_OF_CLAIM, MAX_WEEKS, TOKEN_CHECKPOINT_DEADLINE, WEEK,
 };
 use astroport_governance_voting::astro_voting_escrow::{
-    QueryMsg as VotingQueryMsg, VotingPowerResponse,
+    LockInfoResponse, QueryMsg as VotingQueryMsg, VotingPowerResponse,
 };
 use cw20::Cw20ExecuteMsg;
 
@@ -29,11 +28,6 @@ use cw_storage_plus::U64Key;
 const CONTRACT_NAME: &str = "astroport-escrow-fee-distributor";
 /// Contract version that is used for migration.
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
-
-const WEEK: u64 = 7 * 86400;
-const TOKEN_CHECKPOINT_DEADLINE: u64 = 86400;
-const MAX_LIMIT_OF_CLAIM: u64 = 10;
-const MAX_WEEKS: u64 = 20;
 
 /// ## Description
 /// Creates a new contract with the specified parameters in the [`InstantiateMsg`].
@@ -195,8 +189,14 @@ pub fn execute(
 /// claimant each new period week. This function may be called independently of a claim,
 /// to reduce claiming gas costs. Returns the [`Response`] with the specified attributes if the
 /// operation was successful, otherwise returns the [`ContractError`].
-fn checkpoint_total_supply(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
-    let mut config = CONFIG.load(deps.storage)?;
+fn checkpoint_total_supply(mut deps: DepsMut, env: Env) -> Result<Response, ContractError> {
+    let mut config: Config = CONFIG.load(deps.storage)?;
+    calc_checkpoint_total_supply(deps.branch(), env, &mut config)?;
+    CONFIG.save(deps.storage, &config)?;
+    Ok(Response::new())
+}
+
+fn calc_checkpoint_total_supply(deps: DepsMut, env: Env, config: &mut Config) -> StdResult<()> {
     let rounded_timestamp = env
         .block
         .time
@@ -216,27 +216,33 @@ fn checkpoint_total_supply(deps: DepsMut, env: Env) -> Result<Response, Contract
                 &VotingQueryMsg::TotalVotingPowerAt { time: time_cursor },
             )?;
 
-            VOTING_SUPPLY_PER_WEEK.update(
-                deps.storage,
-                U64Key::from(time_cursor),
-                |cursor| -> StdResult<_> {
-                    if let Some(cursor_value) = cursor {
-                        Ok(cursor_value + total_voting_power_per_week.voting_power)
-                    } else {
-                        Ok(total_voting_power_per_week.voting_power)
-                    }
-                },
-            )?;
+            if VOTING_SUPPLY_PER_WEEK.has(deps.storage, U64Key::from(time_cursor)) {
+                VOTING_SUPPLY_PER_WEEK.update(
+                    deps.storage,
+                    U64Key::from(time_cursor),
+                    |cursor| -> StdResult<_> {
+                        if let Some(cursor_value) = cursor {
+                            Ok(cursor_value + total_voting_power_per_week.voting_power)
+                        } else {
+                            Ok(total_voting_power_per_week.voting_power)
+                        }
+                    },
+                )?;
+            } else {
+                VOTING_SUPPLY_PER_WEEK.save(
+                    deps.storage,
+                    U64Key::from(time_cursor),
+                    &total_voting_power_per_week.voting_power,
+                )?;
+            }
         }
         time_cursor += WEEK;
     }
 
     config.time_cursor = time_cursor;
-    CONFIG.save(deps.storage, &config)?;
 
-    Ok(Response::new())
+    Ok(())
 }
-
 /// ## Description
 /// Receive tokens into the contract and trigger a token checkpoint.
 /// Returns the [`Response`] with the specified attributes if the operation was successful,
@@ -393,9 +399,34 @@ fn checkpoint_token(
     Ok(Response::new().add_attributes(vec![attr("action", "checkpoint_token")]))
 }
 
+fn create_or_update_tokens_per_week(
+    deps: DepsMut,
+    week_cursor: u64,
+    to_distribute: Uint128,
+    to_update: bool,
+) -> StdResult<()> {
+    if to_update {
+        TOKENS_PER_WEEK.update(
+            deps.storage,
+            U64Key::from(week_cursor),
+            |cursor| -> StdResult<_> {
+                if let Some(cursor_value) = cursor {
+                    Ok(cursor_value + to_distribute)
+                } else {
+                    Ok(to_distribute)
+                }
+            },
+        )?;
+    } else {
+        TOKENS_PER_WEEK.save(deps.storage, U64Key::from(week_cursor), &to_distribute)?;
+    }
+
+    Ok(())
+}
+
 /// ## Description
 /// Calculates the total number of tokens to be distributed in a given week.
-fn calc_checkpoint_token(deps: DepsMut, env: Env, config: &mut Config) -> StdResult<()> {
+fn calc_checkpoint_token(mut deps: DepsMut, env: Env, config: &mut Config) -> StdResult<()> {
     let distributor_balance = query_token_balance(
         &deps.querier,
         config.token.clone(),
@@ -407,14 +438,13 @@ fn calc_checkpoint_token(deps: DepsMut, env: Env, config: &mut Config) -> StdRes
     let mut last_token_time = config.last_token_time;
 
     let since_last = env
-        .clone()
         .block
         .time
         .seconds()
         .checked_sub(last_token_time)
         .ok_or_else(|| StdError::generic_err("Timestamp calculation error."))?;
 
-    config.last_token_time = env.clone().block.time.seconds();
+    config.last_token_time = env.block.time.seconds();
 
     let mut current_week = last_token_time
         .checked_div(WEEK)
@@ -424,64 +454,59 @@ fn calc_checkpoint_token(deps: DepsMut, env: Env, config: &mut Config) -> StdRes
 
     for _i in 1..MAX_WEEKS {
         let next_week = current_week + WEEK;
+        let to_update = TOKENS_PER_WEEK.has(deps.storage, U64Key::from(current_week));
+
         if env.clone().block.time.seconds() < next_week {
             if since_last == 0 && env.clone().block.time.seconds() == last_token_time {
-                TOKENS_PER_WEEK.update(
-                    deps.storage,
-                    U64Key::from(current_week),
-                    |cursor| -> StdResult<_> {
-                        if let Some(cursor_value) = cursor {
-                            Ok(cursor_value + to_distribute)
-                        } else {
-                            Ok(to_distribute)
-                        }
-                    },
+                create_or_update_tokens_per_week(
+                    deps.branch(),
+                    current_week,
+                    to_distribute,
+                    to_update,
+                )?;
+            } else if to_update {
+                let to_distribute = to_distribute
+                    .checked_mul(
+                        Uint128::from(env.block.time.seconds()) - Uint128::from(last_token_time),
+                    )?
+                    .checked_div(Uint128::from(since_last))?;
+                create_or_update_tokens_per_week(
+                    deps.branch(),
+                    current_week,
+                    to_distribute,
+                    to_update,
                 )?;
             } else {
-                TOKENS_PER_WEEK.update(
-                    deps.storage,
-                    U64Key::from(current_week),
-                    |cursor| -> StdResult<_> {
-                        let to_distribute_val = to_distribute
-                            .checked_mul(
-                                Uint128::from(env.block.time.seconds())
-                                    - Uint128::from(last_token_time),
-                            )?
-                            .checked_div(Uint128::from(since_last))?;
-                        if let Some(cursor_value) = cursor {
-                            Ok(cursor_value + to_distribute_val)
-                        } else {
-                            Ok(to_distribute_val)
-                        }
-                    },
+                create_or_update_tokens_per_week(
+                    deps.branch(),
+                    current_week,
+                    to_distribute,
+                    to_update,
                 )?;
             }
         } else if since_last == 0 && next_week == last_token_time {
-            TOKENS_PER_WEEK.update(
-                deps.storage,
-                U64Key::from(current_week),
-                |cursor| -> StdResult<_> {
-                    if let Some(cursor_value) = cursor {
-                        Ok(cursor_value + to_distribute)
-                    } else {
-                        Ok(to_distribute)
-                    }
-                },
+            create_or_update_tokens_per_week(
+                deps.branch(),
+                current_week,
+                to_distribute,
+                to_update,
+            )?;
+        } else if to_update {
+            let to_distribute = to_distribute
+                .checked_mul(Uint128::from(next_week) - Uint128::from(last_token_time))?
+                .checked_div(Uint128::from(since_last))?;
+            create_or_update_tokens_per_week(
+                deps.branch(),
+                current_week,
+                to_distribute,
+                to_update,
             )?;
         } else {
-            TOKENS_PER_WEEK.update(
-                deps.storage,
-                U64Key::from(current_week),
-                |cursor| -> StdResult<_> {
-                    let to_distribute_val = to_distribute
-                        .checked_mul(Uint128::from(next_week) - Uint128::from(last_token_time))?
-                        .checked_div(Uint128::from(since_last))?;
-                    if let Some(cursor_value) = cursor {
-                        Ok(cursor_value + to_distribute_val)
-                    } else {
-                        Ok(to_distribute_val)
-                    }
-                },
+            create_or_update_tokens_per_week(
+                deps.branch(),
+                current_week,
+                to_distribute,
+                to_update,
             )?;
         }
 
@@ -521,7 +546,7 @@ pub fn claim(
     }
 
     if env.block.time.seconds() >= config.time_cursor {
-        checkpoint_total_supply(deps.branch(), env.clone())?;
+        calc_checkpoint_total_supply(deps.branch(), env.clone(), &mut config)?;
     }
 
     let mut last_token_time = config.last_token_time;
@@ -582,7 +607,7 @@ fn claim_many(
     }
 
     if env.block.time.seconds() >= config.time_cursor {
-        checkpoint_total_supply(deps.branch(), env.clone())?;
+        calc_checkpoint_total_supply(deps.branch(), env.clone(), &mut config)?;
     }
 
     let mut last_token_time = config.last_token_time;
@@ -656,10 +681,9 @@ fn calc_claim_amount(
         return Ok(Uint128::zero());
     }
 
-    let user_max_period: u64 = deps.querier.query_wasm_smart(
+    let user_lock_info: LockInfoResponse = deps.querier.query_wasm_smart(
         &config.voting_escrow,
-        &VotingQueryMsg::UserVotingPower {
-            // TODO: query max lock period
+        &VotingQueryMsg::LockInfo {
             user: addr.to_string(),
         },
     )?;
@@ -681,13 +705,12 @@ fn calc_claim_amount(
     }
 
     let mut to_distribute: Uint128 = Default::default();
-    let mut loop_cursor: u64 = 0;
     loop {
         if week_cursor >= last_token_time {
             break;
         }
 
-        if week_cursor >= user_max_period {
+        if get_period(week_cursor) >= user_lock_info.end {
             break;
         }
 
@@ -698,10 +721,6 @@ fn calc_claim_amount(
                 time: week_cursor,
             },
         )?;
-
-        if loop_cursor >= MAX_WEEKS {
-            break;
-        }
 
         if user_voting_power.voting_power > Uint128::zero() {
             if let Some(voting_supply_per_week) =
@@ -721,7 +740,6 @@ fn calc_claim_amount(
         }
 
         week_cursor += WEEK;
-        loop_cursor += 1;
     }
 
     TIME_CURSOR_OF.save(deps.storage, addr.clone(), &week_cursor)?;
@@ -732,7 +750,7 @@ fn calc_claim_amount(
             recipient: addr,
             amount: to_distribute,
             claim_period: week_cursor,
-            max_period: user_max_period,
+            max_period: user_lock_info.end,
         }],
     )?;
 
@@ -808,44 +826,37 @@ fn query_voting_supply_per_week(deps: Deps) -> StdResult<Vec<Uint128>> {
     Ok(result)
 }
 /// ## Description
-/// Returns information about the vesting configs in the [`ConfigResponse`] object.
+/// Returns the user fee amount by the timestamp
 fn query_user_balance(deps: Deps, _env: Env, user: String, timestamp: u64) -> StdResult<Uint128> {
     let config = CONFIG.load(deps.storage)?;
-    let user_addr = addr_validate_to_lower(deps.api, &user)?;
-    let max_user_epoch: u64 = 100; // TODO: use query below when it will be created
-                                   // let max_user_epoch = deps.querier.query_wasm_smart(
-                                   //     &config.voting_escrow,
-                                   //     &VotingQueryMsg::UserPointEpoch {
-                                   //         user: user.to_string(),
-                                   //     },
-                                   // )?;
-
-    let _epoch = find_timestamp_user_period(
-        deps,
-        config.voting_escrow,
-        user_addr,
-        timestamp,
-        max_user_epoch,
+    let user_voting_power: VotingPowerResponse = deps.querier.query_wasm_smart(
+        &config.voting_escrow,
+        &VotingQueryMsg::UserVotingPowerAt {
+            user,
+            time: timestamp,
+        },
     )?;
 
-    let pt = Point::default(); // TODO: use query below when it will be created
-                               // let pt: Point = deps.querier.query_wasm_smart(
-                               //     &voting_escrow,
-                               //     &VotingQueryMsg::UserPointHistory {
-                               //         user: user.to_string(),
-                               //         mid: epoch,
-                               //     },
-                               // )?;
+    let mut user_fee_balance = Uint128::zero();
 
-    let resp = max(
-        pt.bias
-            - pt.slope
-                .checked_mul((timestamp - pt.ts) as i128)
-                .ok_or_else(|| StdError::generic_err("Calculation error."))?,
-        0,
-    );
+    if !user_voting_power.voting_power.is_zero() {
+        if let Some(voting_supply_per_week) =
+            VOTING_SUPPLY_PER_WEEK.may_load(deps.storage, U64Key::from(timestamp))?
+        {
+            if let Some(tokens_per_week) =
+                TOKENS_PER_WEEK.may_load(deps.storage, U64Key::from(timestamp))?
+            {
+                user_fee_balance = user_fee_balance.checked_add(
+                    user_voting_power
+                        .voting_power
+                        .checked_mul(tokens_per_week)?
+                        .checked_div(voting_supply_per_week)?,
+                )?;
+            }
+        }
+    }
 
-    Ok(Uint128::from(resp as u128))
+    Ok(user_fee_balance)
 }
 
 /// ## Description

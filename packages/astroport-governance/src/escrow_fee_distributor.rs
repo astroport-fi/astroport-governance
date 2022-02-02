@@ -2,6 +2,11 @@ use cosmwasm_std::{Addr, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+pub const WEEK: u64 = 7 * 86400;
+pub const TOKEN_CHECKPOINT_DEADLINE: u64 = 86400;
+pub const MAX_LIMIT_OF_CLAIM: u64 = 10;
+pub const MAX_WEEKS: u64 = 20;
+
 /// ## Description
 /// This structure describes the basic settings for creating a contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
