@@ -115,21 +115,36 @@ fn checkpoint_total(
 
     // get last checkpoint
     let last_checkpoint = fetch_last_checkpoint(deps.as_ref(), &contract_addr, &cur_period_key)?;
-    let new_point = if let Some((_, point)) = last_checkpoint {
+    let new_point = if let Some((_, mut point)) = last_checkpoint {
+        // TODO: remove 'end' bc we do not use it in total VP calculation
         let end = new_end.unwrap_or(cur_period);
-        let scheduled_change = fetch_unapplied_slope_changes(deps.as_ref(), &cur_period_key)?
-            .iter()
-            .fold(Decimal::zero(), |acc, &change| acc + change);
         let last_slope_change = LAST_SLOPE_CHANGE
             .may_load(deps.as_ref().storage)?
             .unwrap_or(0);
         if last_slope_change < cur_period {
+            let scheduled_slope_changes =
+                fetch_unapplied_slope_changes(deps.as_ref(), last_slope_change, cur_period)?;
+            // recalculating passed points
+            for (recalc_period, scheduled_change) in scheduled_slope_changes {
+                point = Point {
+                    power: calc_voting_power(&point, recalc_period),
+                    start: recalc_period,
+                    slope: point.slope - scheduled_change,
+                    ..point
+                };
+                HISTORY.save(
+                    deps.storage,
+                    (contract_addr.clone(), U64Key::new(recalc_period)),
+                    &point,
+                )?
+            }
+
             LAST_SLOPE_CHANGE.save(deps.storage, &cur_period)?
         }
 
         Point {
             power: calc_voting_power(&point, cur_period) + add_voting_power,
-            slope: point.slope - old_slope + new_slope - scheduled_change,
+            slope: point.slope - old_slope + new_slope,
             start: cur_period,
             end,
         }
@@ -181,9 +196,12 @@ fn checkpoint(
 
         // cancel previously scheduled slope change
         let end_period_key = U64Key::new(point.end);
+        let last_slope_change = LAST_SLOPE_CHANGE
+            .may_load(deps.as_ref().storage)?
+            .unwrap_or(0);
         match SLOPE_CHANGES.may_load(deps.as_ref().storage, end_period_key.clone())? {
             // we do not need to schedule slope change in the past
-            Some(old_scheduled_change) if point.end >= cur_period => SLOPE_CHANGES.save(
+            Some(old_scheduled_change) if point.end > last_slope_change => SLOPE_CHANGES.save(
                 deps.storage,
                 end_period_key,
                 &(old_scheduled_change - point.slope),
@@ -216,17 +234,19 @@ fn checkpoint(
     };
 
     // schedule slope change
-    SLOPE_CHANGES.update(
-        deps.storage,
-        U64Key::new(new_point.end),
-        |slope_opt| -> StdResult<Decimal> {
-            if let Some(pslope) = slope_opt {
-                Ok(pslope + new_point.slope)
-            } else {
-                Ok(new_point.slope)
-            }
-        },
-    )?;
+    if !new_point.slope.is_zero() {
+        SLOPE_CHANGES.update(
+            deps.storage,
+            U64Key::new(new_point.end),
+            |slope_opt| -> StdResult<Decimal> {
+                if let Some(pslope) = slope_opt {
+                    Ok(pslope + new_point.slope)
+                } else {
+                    Ok(new_point.slope)
+                }
+            },
+        )?;
+    }
 
     HISTORY.save(deps.storage, (addr, cur_period_key), &new_point)?;
     checkpoint_total(

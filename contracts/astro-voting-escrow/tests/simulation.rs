@@ -223,16 +223,16 @@ impl Simulator {
 
     fn calc_total_balance_at(&mut self, period: usize) -> f32 {
         self.users.clone().iter().fold(0.0, |acc, user| {
-            acc + self.calc_user_balance_at(period, user)
+            acc + self.get_user_point_at(period, user).unwrap().amount
         })
     }
 }
 
 use proptest::prelude::*;
 
-const MAX_PERIOD: usize = 115;
+const MAX_PERIOD: usize = 105;
 const MAX_USERS: usize = 30;
-const MAX_EVENTS: usize = 1000;
+const MAX_EVENTS: usize = 2000;
 
 fn amount_strategy() -> impl Strategy<Value = f32> {
     (1f32..=100f32).prop_map(|val| (val * MULTIPLIER as f32).trunc() / MULTIPLIER as f32)
@@ -266,7 +266,7 @@ fn generate_cases() -> impl Strategy<Value = (Vec<String>, Vec<(usize, String, L
 
 proptest! {
     #[test]
-    #[ignore]
+    // #[ignore]
     fn run_simulations
     (
         case in generate_cases()
@@ -292,6 +292,14 @@ proptest! {
                 }
             }
             simulator.checkpoint_all_users();
+            let real_balance = simulator.calc_total_balance_at(period);
+            let contract_balance = simulator
+                .helper
+                .query_total_vp(&mut simulator.router)
+                .unwrap_or(0.0);
+            if (real_balance - contract_balance).abs() >= 10e-3 {
+                assert_eq!(real_balance, contract_balance)
+            };
             simulator.app_next_period()
         }
     }
@@ -300,16 +308,15 @@ proptest! {
 #[test]
 fn exact_simulation() {
     let case = (
-        ["ttluyo", "rvrhrsepkxbaflgmevy"],
+        ["ldkhermilmvyraejulwbstncitn", "jvudwihxjowfetdmmyz"],
         [
-            (1, "ttluyo", CreateLock(0.00332, 1814400)),
-            (1, "ttluyo", Withdraw),
-            (3, "ttluyo", Withdraw),
-            (4, "rvrhrsepkxbaflgmevy", CreateLock(1.31278, 604800)),
-            (5, "ttluyo", Withdraw),
-            (5, "rvrhrsepkxbaflgmevy", ExtendLock(0.00001)),
+            (2, "jvudwihxjowfetdmmyz", CreateLock(1000f32, 2035964)),
+            (2, "ldkhermilmvyraejulwbstncitn", CreateLock(58f32, 8851377)),
+            (6, "jvudwihxjowfetdmmyz", Withdraw),
+            (10, "jvudwihxjowfetdmmyz", CreateLock(83f32, 4394078)),
         ],
     );
+
     let mut events: Vec<Vec<(String, LockEvent)>> = vec![vec![]; MAX_PERIOD];
     let (users, events_tuples) = case;
     for (period, user, event) in events_tuples {
@@ -336,6 +343,14 @@ fn exact_simulation() {
             }
         }
         simulator.checkpoint_all_users();
+        let real_balance = simulator.calc_total_balance_at(period);
+        let contract_balance = simulator
+            .helper
+            .query_total_vp(&mut simulator.router)
+            .unwrap_or(0.0);
+        if (real_balance - contract_balance).abs() >= 10e-3 {
+            assert_eq!(real_balance, contract_balance)
+        };
         simulator.app_next_period()
     }
 }
