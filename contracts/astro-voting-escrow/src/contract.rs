@@ -328,7 +328,7 @@ fn withdraw(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, Cont
         });
         LOCKED.remove(deps.storage, sender.clone());
 
-        checkpoint(deps, env, sender, Some(Uint128::zero()), None)?;
+        // checkpoint(deps, env, sender, Some(Uint128::zero()), None)?;
 
         Ok(Response::default()
             .add_message(transfer_msg)
