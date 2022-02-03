@@ -304,7 +304,7 @@ fn voting_constant_decay() {
             router_ref.block_info().time.seconds() - 3 * WEEK,
         )
         .unwrap();
-    // TODO: assert_eq!(res, 5.76923);
+    assert_eq!(res, 5.76922);
     let res = helper
         .query_total_vp_at(
             router_ref,
@@ -400,7 +400,7 @@ fn voting_variable_decay() {
         .create_lock(router_ref, "user2", WEEK * 6, 50f32)
         .unwrap();
     let vp = helper.query_total_vp(router_ref).unwrap();
-    // TODO: assert_eq!(vp, 10.8173);
+    assert_eq!(vp, 10.81729);
 
     // going to the future
     router_ref.update_block(next_block);
