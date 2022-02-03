@@ -76,6 +76,8 @@ pub enum QueryMsg {
     FetchUserBalanceByTimestamp { user: String, timestamp: u64 },
     /// Returns the vector that contains voting supply per week
     VotingSupplyPerWeek {},
+    /// Returns the vector that contains tokens fee per week
+    FeeTokensPerWeek,
 }
 
 /// ## Description

@@ -14,7 +14,7 @@ use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_ow
 use astroport::querier::query_token_balance;
 use astroport_governance::escrow_fee_distributor::{
     Claimed, ConfigResponse, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg,
-    RecipientsPerWeekResponse, MAX_LIMIT_OF_CLAIM, MAX_WEEKS, TOKEN_CHECKPOINT_DEADLINE, WEEK,
+    RecipientsPerWeekResponse, MAX_LIMIT_OF_CLAIM, TOKEN_CHECKPOINT_DEADLINE, WEEK,
 };
 use astroport_governance_voting::astro_voting_escrow::{
     LockInfoResponse, QueryMsg as VotingQueryMsg, VotingPowerResponse,
@@ -207,7 +207,7 @@ fn calc_checkpoint_total_supply(mut deps: DepsMut, env: Env, config: &mut Config
         .ok_or_else(|| StdError::generic_err("Timestamp calculation error."))?;
     let mut time_cursor = config.time_cursor;
 
-    for _i in 1..MAX_WEEKS {
+    loop {
         if time_cursor > rounded_timestamp {
             break;
         } else {
@@ -442,7 +442,7 @@ fn calc_checkpoint_token(mut deps: DepsMut, env: Env, config: &mut Config) -> St
         .checked_mul(WEEK)
         .ok_or_else(|| StdError::generic_err("Timestamp calculation error."))?;
 
-    for _i in 1..MAX_WEEKS {
+    loop {
         if current_week >= env.block.time.seconds() {
             break;
         }
