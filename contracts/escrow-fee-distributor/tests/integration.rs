@@ -355,20 +355,8 @@ fn claim() {
     let user1 = Addr::unchecked(USER1.clone());
 
     let base_pack = init_astroport_test_package(router_ref).unwrap();
-    BaseAstroportTestPackage::mint(
-        router_ref,
-        owner.clone(),
-        base_pack.astro_token.clone().unwrap().address,
-        &user1,
-        200,
-    );
-    BaseAstroportTestPackage::check_balance(
-        router_ref,
-        &base_pack.astro_token.clone().unwrap().address,
-        &user1,
-        200,
-    );
 
+    // sets 100 ASTRO tokens to distributor (simulate receive astro from maker)
     BaseAstroportTestPackage::mint(
         router_ref,
         owner.clone(),
@@ -376,6 +364,8 @@ fn claim() {
         &base_pack.escrow_fee_distributor.clone().unwrap().address,
         100,
     );
+
+    // checks if distributor's ASTRO token balance is equal to 100
     BaseAstroportTestPackage::check_balance(
         router_ref,
         &base_pack.astro_token.clone().unwrap().address,
@@ -384,6 +374,8 @@ fn claim() {
     );
 
     let xastro_token = base_pack.get_staking_xastro(router_ref);
+
+    // sets 200 * 1000_000 xASTRO tokens to user1
     BaseAstroportTestPackage::mint(
         router_ref,
         base_pack.staking.clone().unwrap().address,
@@ -392,6 +384,7 @@ fn claim() {
         (200 * MULTIPLIER) as u128,
     );
 
+    // checks if user1's xASTRO token balance is equal to 200 * 1000_000
     BaseAstroportTestPackage::check_balance(
         router_ref,
         &xastro_token.clone(),
@@ -399,13 +392,16 @@ fn claim() {
         (200 * MULTIPLIER) as u128,
     );
 
+    // locks 100 vxASTRO from user1 for WEEK * 2
     base_pack
         .create_lock(router_ref, user1.clone(), WEEK * 2, 100)
         .unwrap();
 
+    // going to next week
     router_ref.update_block(next_block);
     router_ref.update_block(|b| b.time = b.time.plus_seconds(WEEK));
 
+    // allow checkpoint fee on the distributor
     router_ref
         .execute_contract(
             owner.clone(),
@@ -418,6 +414,7 @@ fn claim() {
         )
         .unwrap();
 
+    // claim all fee for user1 is equal to 100
     router_ref
         .execute_contract(
             user1.clone(),
@@ -427,6 +424,7 @@ fn claim() {
         )
         .unwrap();
 
+    // check if distributor ASTRO balance equal to 0
     BaseAstroportTestPackage::check_balance(
         router_ref,
         &base_pack.astro_token.clone().unwrap().address,
@@ -434,10 +432,11 @@ fn claim() {
         0,
     );
 
+    // check if user's token balance equal to 100
     BaseAstroportTestPackage::check_balance(
         router_ref,
         &base_pack.astro_token.clone().unwrap().address,
         &user1,
-        300,
+        100,
     );
 }

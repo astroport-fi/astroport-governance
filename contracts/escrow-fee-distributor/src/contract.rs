@@ -747,7 +747,7 @@ fn calc_claim_amount(
         &vec![Claimed {
             recipient: addr,
             amount: to_distribute,
-            claim_period: week_cursor,
+            claim_period: get_period(week_cursor),
             max_period: user_lock_info.end,
         }],
     )?;
