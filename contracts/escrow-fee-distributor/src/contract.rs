@@ -443,6 +443,10 @@ fn calc_checkpoint_token(mut deps: DepsMut, env: Env, config: &mut Config) -> St
         .ok_or_else(|| StdError::generic_err("Timestamp calculation error."))?;
 
     for _i in 1..MAX_WEEKS {
+        if current_week >= env.block.time.seconds() {
+            break;
+        }
+
         let next_week = current_week + WEEK;
         let current_period = get_period(current_week);
         let to_update = TOKENS_PER_WEEK.has(deps.storage, U64Key::from(current_period));
@@ -456,20 +460,12 @@ fn calc_checkpoint_token(mut deps: DepsMut, env: Env, config: &mut Config) -> St
                     to_distribute,
                     to_update,
                 )?;
-            } else if to_update {
+            } else {
                 let to_distribute = to_distribute
                     .checked_mul(
                         Uint128::from(env.block.time.seconds()) - Uint128::from(last_token_time),
                     )?
                     .checked_div(Uint128::from(since_last))?;
-                save_or_update_state(
-                    deps.branch(),
-                    &TOKENS_PER_WEEK,
-                    current_period,
-                    to_distribute,
-                    to_update,
-                )?;
-            } else {
                 save_or_update_state(
                     deps.branch(),
                     &TOKENS_PER_WEEK,
@@ -486,18 +482,11 @@ fn calc_checkpoint_token(mut deps: DepsMut, env: Env, config: &mut Config) -> St
                 to_distribute,
                 to_update,
             )?;
-        } else if to_update {
+        } else {
             let to_distribute = to_distribute
                 .checked_mul(Uint128::from(next_week) - Uint128::from(last_token_time))?
                 .checked_div(Uint128::from(since_last))?;
-            save_or_update_state(
-                deps.branch(),
-                &TOKENS_PER_WEEK,
-                current_period,
-                to_distribute,
-                to_update,
-            )?;
-        } else {
+
             save_or_update_state(
                 deps.branch(),
                 &TOKENS_PER_WEEK,
@@ -812,6 +801,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::Config {} => Ok(to_binary(&query_config(deps)?)?),
         QueryMsg::AstroRecipientsPerWeek {} => Ok(to_binary(&query_recipients_per_weeks(deps)?)?),
         QueryMsg::VotingSupplyPerWeek {} => Ok(to_binary(&query_voting_supply_per_week(deps)?)?),
+        QueryMsg::FeeTokensPerWeek {} => Ok(to_binary(&query_tokens_per_week(deps)?)?),
     }
 }
 
@@ -823,6 +813,16 @@ fn query_voting_supply_per_week(deps: Deps) -> StdResult<Vec<Uint128>> {
     }
     Ok(result)
 }
+
+fn query_tokens_per_week(deps: Deps) -> StdResult<Vec<Uint128>> {
+    let mut result: Vec<Uint128> = vec![];
+    for x in TOKENS_PER_WEEK.keys(deps.storage, None, None, Order::Ascending) {
+        let val = TOKENS_PER_WEEK.load(deps.storage, U64Key::from(x))?;
+        result.push(val);
+    }
+    Ok(result)
+}
+
 /// ## Description
 /// Returns the user fee amount by the timestamp
 fn query_user_balance(deps: Deps, _env: Env, user: String, timestamp: u64) -> StdResult<Uint128> {
