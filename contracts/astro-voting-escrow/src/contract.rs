@@ -187,10 +187,14 @@ fn checkpoint(
 
         // cancel previously scheduled slope change
         let end_period_key = U64Key::new(point.end);
-        if let Some(old_slope) =
-            SLOPE_CHANGES.may_load(deps.as_ref().storage, end_period_key.clone())?
-        {
-            SLOPE_CHANGES.save(deps.storage, end_period_key, &(old_slope - point.slope))?
+        match SLOPE_CHANGES.may_load(deps.as_ref().storage, end_period_key.clone())? {
+            // we do not need to schedule slope change in the past
+            Some(old_scheduled_change) if point.end >= cur_period => SLOPE_CHANGES.save(
+                deps.storage,
+                end_period_key,
+                &(old_scheduled_change - point.slope),
+            )?,
+            _ => (),
         }
 
         // we need to subtract it from total VP slope
