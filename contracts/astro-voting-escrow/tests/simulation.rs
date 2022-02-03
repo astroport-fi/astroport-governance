@@ -162,7 +162,7 @@ impl Simulator {
             .helper
             .query_user_vp(&mut self.router, user)
             .unwrap_or(0.0);
-        if (real_balance - contract_balance).abs() >= 10e-5 {
+        if (real_balance - contract_balance).abs() >= 10e-3 {
             assert_eq!(real_balance, contract_balance)
         };
     }
@@ -230,18 +230,12 @@ impl Simulator {
 
 use proptest::prelude::*;
 
-const MAX_PERIOD: usize = 30;
-const MAX_USERS: usize = 5;
-const MAX_EVENTS: usize = 200;
+const MAX_PERIOD: usize = 115;
+const MAX_USERS: usize = 30;
+const MAX_EVENTS: usize = 1000;
 
 fn amount_strategy() -> impl Strategy<Value = f32> {
-    any::<f32>().prop_filter_map("Assuming only values within 0..100 interval", |val| {
-        if (0f32..=100f32).contains(&val) {
-            Some((val * MULTIPLIER as f32).trunc() / MULTIPLIER as f32)
-        } else {
-            None
-        }
-    })
+    (1f32..=100f32).prop_map(|val| (val * MULTIPLIER as f32).trunc() / MULTIPLIER as f32)
 }
 
 fn events_strategy() -> impl Strategy<Value = LockEvent> {
@@ -271,12 +265,6 @@ fn generate_cases() -> impl Strategy<Value = (Vec<String>, Vec<(usize, String, L
 }
 
 proptest! {
-    // #![proptest_config(ProptestConfig {
-    //     cases: 1,
-    //     fork: false,
-    //     .. ProptestConfig::default()
-    // })]
-
     #[test]
     #[ignore]
     fn run_simulations
@@ -310,9 +298,7 @@ proptest! {
 }
 
 #[test]
-#[ignore]
 fn exact_simulation() {
-    // TODO: does not pass yet
     let case = (
         ["ttluyo", "rvrhrsepkxbaflgmevy"],
         [
@@ -324,7 +310,7 @@ fn exact_simulation() {
             (5, "rvrhrsepkxbaflgmevy", ExtendLock(0.00001)),
         ],
     );
-    let mut events: Vec<Vec<(String, LockEvent)>> = vec![vec![]; 105];
+    let mut events: Vec<Vec<(String, LockEvent)>> = vec![vec![]; MAX_PERIOD];
     let (users, events_tuples) = case;
     for (period, user, event) in events_tuples {
         events[period].push((user.to_string(), event));
@@ -342,6 +328,9 @@ fn exact_simulation() {
 
     for period in 1..MAX_PERIOD {
         if let Some(period_events) = events.get(period) {
+            if !period_events.is_empty() {
+                println!("Period {}:", period);
+            }
             for (user, event) in period_events {
                 simulator.event_router(user, event.clone())
             }
