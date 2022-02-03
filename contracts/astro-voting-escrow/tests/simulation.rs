@@ -266,7 +266,7 @@ fn generate_cases() -> impl Strategy<Value = (Vec<String>, Vec<(usize, String, L
 
 proptest! {
     #[test]
-    // #[ignore]
+    #[ignore]
     fn run_simulations
     (
         case in generate_cases()

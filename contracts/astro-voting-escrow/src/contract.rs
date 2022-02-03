@@ -106,7 +106,6 @@ fn checkpoint_total(
     add_voting_power: Option<Uint128>,
     old_slope: Decimal,
     new_slope: Decimal,
-    new_end: Option<u64>,
 ) -> StdResult<()> {
     let cur_period = get_period(env.block.time.seconds());
     let cur_period_key = U64Key::new(cur_period);
@@ -116,8 +115,6 @@ fn checkpoint_total(
     // get last checkpoint
     let last_checkpoint = fetch_last_checkpoint(deps.as_ref(), &contract_addr, &cur_period_key)?;
     let new_point = if let Some((_, mut point)) = last_checkpoint {
-        // TODO: remove 'end' bc we do not use it in total VP calculation
-        let end = new_end.unwrap_or(cur_period);
         let last_slope_change = LAST_SLOPE_CHANGE
             .may_load(deps.as_ref().storage)?
             .unwrap_or(0);
@@ -146,17 +143,14 @@ fn checkpoint_total(
             power: calc_voting_power(&point, cur_period) + add_voting_power,
             slope: point.slope - old_slope + new_slope,
             start: cur_period,
-            end,
+            ..point
         }
     } else {
-        // this error can't happen since this if-branch is intended for checkpoint creation
-        let end =
-            new_end.ok_or_else(|| StdError::generic_err("Checkpoint initialization error"))?;
         Point {
             power: add_voting_power,
             slope: new_slope,
             start: cur_period,
-            end,
+            end: 0,
         }
     };
     HISTORY.save(deps.storage, (contract_addr, cur_period_key), &new_point)
@@ -255,7 +249,6 @@ fn checkpoint(
         Some(add_voting_power),
         old_slope,
         new_point.slope,
-        new_end,
     )
 }
 
