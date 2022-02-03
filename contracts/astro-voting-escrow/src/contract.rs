@@ -16,7 +16,9 @@ use astroport_governance::astro_voting_escrow::{
 };
 
 use crate::error::ContractError;
-use crate::state::{Config, Lock, Point, CONFIG, HISTORY, LOCKED, SLOPE_CHANGES};
+use crate::state::{
+    Config, Lock, Point, CONFIG, HISTORY, LAST_SLOPE_CHANGE, LOCKED, SLOPE_CHANGES,
+};
 use crate::utils::{
     calc_boost, calc_voting_power, fetch_last_checkpoint, get_period, time_limits_check,
     xastro_token_check,
@@ -116,9 +118,20 @@ fn checkpoint_total(
     let last_checkpoint = fetch_last_checkpoint(deps.as_ref(), &contract_addr, &cur_period_key)?;
     let new_point = if let Some((_, point)) = last_checkpoint {
         let end = new_end.unwrap_or(cur_period);
-        let scheduled_change = SLOPE_CHANGES
-            .may_load(deps.storage, cur_period_key.clone())?
-            .unwrap_or_else(Decimal::zero);
+        let scheduled_change_opt = SLOPE_CHANGES.may_load(deps.storage, cur_period_key.clone())?;
+        let scheduled_change = if let Some(change) = scheduled_change_opt {
+            let last_slope_change = LAST_SLOPE_CHANGE
+                .may_load(deps.as_ref().storage)?
+                .unwrap_or(0);
+            if last_slope_change < cur_period {
+                LAST_SLOPE_CHANGE.save(deps.storage, &cur_period)?;
+                change
+            } else {
+                Decimal::zero()
+            }
+        } else {
+            Decimal::zero()
+        };
 
         Point {
             power: calc_voting_power(&point, cur_period) + add_voting_power,
@@ -326,9 +339,7 @@ fn withdraw(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, Cont
             })?,
             funds: vec![],
         });
-        LOCKED.remove(deps.storage, sender.clone());
-
-        // checkpoint(deps, env, sender, Some(Uint128::zero()), None)?;
+        LOCKED.remove(deps.storage, sender);
 
         Ok(Response::default()
             .add_message(transfer_msg)
