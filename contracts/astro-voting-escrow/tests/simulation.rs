@@ -1,4 +1,4 @@
-use crate::test_utils::{mock_app, Helper};
+use crate::test_utils::{mock_app, Helper, MULTIPLIER};
 use anyhow::Result;
 use astroport_voting_escrow::contract::{MAX_LOCK_TIME, WEEK};
 use cosmwasm_std::{Addr, Timestamp};
@@ -16,9 +16,9 @@ struct Point {
 
 #[derive(Clone, Debug)]
 enum LockEvent {
-    CreateLock(u128, u64),
+    CreateLock(f32, u64),
     IncreaseTime(u64),
-    ExtendLock(u128),
+    ExtendLock(f32),
     Withdraw,
 }
 
@@ -36,8 +36,10 @@ fn get_period(time: u64) -> u64 {
     time / WEEK
 }
 
-fn apply_boost(amount: u128, interval: u64) -> f32 {
-    (amount as f32 * 2.5 * interval as f32) / get_period(MAX_LOCK_TIME) as f32
+fn apply_boost(amount: f32, interval: u64) -> f32 {
+    let boosted = (amount * 2.5 * interval as f32) / get_period(MAX_LOCK_TIME) as f32;
+    // imitating Decimal fraction multiplication in the contract
+    (boosted * MULTIPLIER as f32).trunc() / MULTIPLIER as f32
 }
 
 impl Simulator {
@@ -66,11 +68,11 @@ impl Simulator {
             .update_block(|block| block.time = block.time.plus_seconds(WEEK));
     }
 
-    fn create_lock(&mut self, user: &str, amount: u128, interval: u64) -> Result<AppResponse> {
+    fn create_lock(&mut self, user: &str, amount: f32, interval: u64) -> Result<AppResponse> {
         let block_period = self.block_period();
         let periods_interval = get_period(interval);
         self.helper
-            .create_lock(&mut self.router, user, interval, amount as u64)
+            .create_lock(&mut self.router, user, interval, amount)
             .map(|response| {
                 self.add_point(
                     block_period as usize,
@@ -98,9 +100,9 @@ impl Simulator {
             })
     }
 
-    fn extend_lock(&mut self, user: &str, amount: u128) -> Result<AppResponse> {
+    fn extend_lock(&mut self, user: &str, amount: f32) -> Result<AppResponse> {
         self.helper
-            .extend_lock_amount(&mut self.router, user, amount as u64)
+            .extend_lock_amount(&mut self.router, user, amount)
             .map(|response| {
                 let cur_period = self.block_period() as usize;
                 let (user_balance, end) =
@@ -134,25 +136,21 @@ impl Simulator {
             LockEvent::CreateLock(amount, interval) => {
                 if let Err(err) = self.create_lock(user, amount, interval) {
                     dbg!(err);
-                    ()
                 }
             }
             LockEvent::IncreaseTime(interval) => {
                 if let Err(err) = self.increase_time(user, interval) {
                     dbg!(err);
-                    ()
                 }
             }
             LockEvent::ExtendLock(amount) => {
                 if let Err(err) = self.extend_lock(user, amount) {
                     dbg!(err);
-                    ()
                 }
             }
             LockEvent::Withdraw => {
                 if let Err(err) = self.withdraw(user) {
                     dbg!(err);
-                    ()
                 }
             }
         }
@@ -164,8 +162,7 @@ impl Simulator {
             .helper
             .query_user_vp(&mut self.router, user)
             .unwrap_or(0.0);
-        dbg!((real_balance - contract_balance).abs());
-        if !((real_balance - contract_balance).abs() < 10e-5) {
+        if (real_balance - contract_balance).abs() >= 10e-5 {
             assert_eq!(real_balance, contract_balance)
         };
     }
@@ -214,7 +211,7 @@ impl Simulator {
                 let prev_point = self
                     .get_user_point_at(period - 1, user)
                     .expect("We always need previous point!");
-                let dt = prev_point.end - (period as u64 - 1);
+                let dt = prev_point.end.saturating_sub(period as u64 - 1);
                 if dt == 0 {
                     0.0
                 } else {
@@ -233,16 +230,26 @@ impl Simulator {
 
 use proptest::prelude::*;
 
-const MAX_PERIOD: usize = 2;
-const MAX_USERS: usize = 2;
-const MAX_EVENTS: usize = 10;
+const MAX_PERIOD: usize = 30;
+const MAX_USERS: usize = 5;
+const MAX_EVENTS: usize = 200;
+
+fn amount_strategy() -> impl Strategy<Value = f32> {
+    any::<f32>().prop_filter_map("Assuming only values within 0..100 interval", |val| {
+        if (0f32..=100f32).contains(&val) {
+            Some((val * MULTIPLIER as f32).trunc() / MULTIPLIER as f32)
+        } else {
+            None
+        }
+    })
+}
 
 fn events_strategy() -> impl Strategy<Value = LockEvent> {
     prop_oneof![
         Just(LockEvent::Withdraw),
-        (0..100_u128).prop_map(LockEvent::ExtendLock),
+        amount_strategy().prop_map(LockEvent::ExtendLock),
         (0..MAX_LOCK_TIME).prop_map(LockEvent::IncreaseTime),
-        (0..100_u128, 0..MAX_LOCK_TIME).prop_map(|(a, b)| LockEvent::CreateLock(a, b)),
+        (amount_strategy(), 0..MAX_LOCK_TIME).prop_map(|(a, b)| LockEvent::CreateLock(a, b)),
     ]
 }
 
@@ -307,14 +314,14 @@ proptest! {
 fn exact_simulation() {
     // TODO: does not pass yet
     let case = (
-        ["oakjmzucckfflnhszmwilhtt"],
+        ["ttluyo", "rvrhrsepkxbaflgmevy"],
         [
-            (1, "oakjmzucckfflnhszmwilhtt", CreateLock(79, 56246400)),
-            (1, "oakjmzucckfflnhszmwilhtt", ExtendLock(62)),
-            (1, "oakjmzucckfflnhszmwilhtt", ExtendLock(30)),
-            (1, "oakjmzucckfflnhszmwilhtt", ExtendLock(17)),
-            (1, "oakjmzucckfflnhszmwilhtt", ExtendLock(13)),
-            (1, "oakjmzucckfflnhszmwilhtt", ExtendLock(29)),
+            (1, "ttluyo", CreateLock(0.00332, 1814400)),
+            (1, "ttluyo", Withdraw),
+            (3, "ttluyo", Withdraw),
+            (4, "rvrhrsepkxbaflgmevy", CreateLock(1.31278, 604800)),
+            (5, "ttluyo", Withdraw),
+            (5, "rvrhrsepkxbaflgmevy", ExtendLock(0.00001)),
         ],
     );
     let mut events: Vec<Vec<(String, LockEvent)>> = vec![vec![]; 105];

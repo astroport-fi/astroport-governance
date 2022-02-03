@@ -164,9 +164,9 @@ impl Helper {
         router: &mut TerraApp,
         user: &str,
         time: u64,
-        amount: u64,
+        amount: f32,
     ) -> Result<AppResponse> {
-        let amount = amount * MULTIPLIER;
+        let amount = (amount * MULTIPLIER as f32) as u64;
         let cw20msg = Cw20ExecuteMsg::Send {
             contract: self.voting_instance.to_string(),
             amount: Uint128::from(amount),
@@ -184,9 +184,9 @@ impl Helper {
         &self,
         router: &mut TerraApp,
         user: &str,
-        amount: u64,
+        amount: f32,
     ) -> Result<AppResponse> {
-        let amount = amount * MULTIPLIER;
+        let amount = (amount * MULTIPLIER as f32) as u64;
         let cw20msg = Cw20ExecuteMsg::Send {
             contract: self.voting_instance.to_string(),
             amount: Uint128::from(amount),

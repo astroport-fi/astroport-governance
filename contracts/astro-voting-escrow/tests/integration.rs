@@ -24,21 +24,21 @@ fn lock_unlock_logic() {
 
     // creating invalid voting escrow lock
     let res = helper
-        .create_lock(router_ref, "user", WEEK - 1, 1)
+        .create_lock(router_ref, "user", WEEK - 1, 1f32)
         .unwrap_err();
     assert_eq!(
         res.to_string(),
         "Lock time must be within the limits (week <= lock time < 2 years)"
     );
     let res = helper
-        .create_lock(router_ref, "user", MAX_LOCK_TIME + 1, 1)
+        .create_lock(router_ref, "user", MAX_LOCK_TIME + 1, 1f32)
         .unwrap_err();
     assert_eq!(
         res.to_string(),
         "Lock time must be within the limits (week <= lock time < 2 years)"
     );
     let res = helper
-        .create_lock(router_ref, "user", WEEK, 101)
+        .create_lock(router_ref, "user", WEEK, 101f32)
         .unwrap_err();
     assert_eq!(
         res.to_string(),
@@ -61,7 +61,7 @@ fn lock_unlock_logic() {
 
     // trying to extend lock amount which does not exist
     let res = helper
-        .extend_lock_amount(router_ref, "user", 1)
+        .extend_lock_amount(router_ref, "user", 1f32)
         .unwrap_err();
     assert_eq!(res.to_string(), "Lock does not exist");
 
@@ -71,7 +71,7 @@ fn lock_unlock_logic() {
 
     // creating valid voting escrow lock
     helper
-        .create_lock(router_ref, "user", WEEK * 2, 90)
+        .create_lock(router_ref, "user", WEEK * 2, 90f32)
         .unwrap();
     // check that 90 xASTRO were actually debited
     helper.check_xastro_balance(router_ref, "user", 10);
@@ -79,7 +79,7 @@ fn lock_unlock_logic() {
 
     // a user can have only one position in vxASTRO
     let res = helper
-        .create_lock(router_ref, "user", MAX_LOCK_TIME, 1)
+        .create_lock(router_ref, "user", MAX_LOCK_TIME, 1f32)
         .unwrap_err();
     assert_eq!(res.to_string(), "Lock already exists");
 
@@ -103,7 +103,7 @@ fn lock_unlock_logic() {
     );
 
     // adding more xASTRO to existing lock
-    helper.extend_lock_amount(router_ref, "user", 9).unwrap();
+    helper.extend_lock_amount(router_ref, "user", 9f32).unwrap();
     helper.check_xastro_balance(router_ref, "user", 1);
     helper.check_xastro_balance(router_ref, helper.voting_instance.as_str(), 99);
 
@@ -125,7 +125,7 @@ fn lock_unlock_logic() {
 
     // trying to add more xASTRO to expired lock
     let res = helper
-        .extend_lock_amount(router_ref, "user", 1)
+        .extend_lock_amount(router_ref, "user", 1f32)
         .unwrap_err();
     assert_eq!(
         res.to_string(),
@@ -151,7 +151,7 @@ fn lock_unlock_logic() {
 
     // check that the lock has disappeared
     let res = helper
-        .extend_lock_amount(router_ref, "user", 1)
+        .extend_lock_amount(router_ref, "user", 1f32)
         .unwrap_err();
     assert_eq!(res.to_string(), "Lock does not exist");
 }
@@ -223,7 +223,7 @@ fn new_lock_after_lock_expired() {
     helper.mint_xastro(router_ref, "user", 100);
 
     helper
-        .create_lock(router_ref, "user", WEEK * 5, 50)
+        .create_lock(router_ref, "user", WEEK * 5, 50f32)
         .unwrap();
 
     let vp = helper.query_user_vp(router_ref, "user").unwrap();
@@ -248,7 +248,7 @@ fn new_lock_after_lock_expired() {
     router_ref.update_block(|block| block.time = block.time.plus_seconds(WEEK * 3));
 
     helper
-        .create_lock(router_ref, "user", WEEK * 5, 100)
+        .create_lock(router_ref, "user", WEEK * 5, 100f32)
         .unwrap();
 
     let vp = helper.query_user_vp(router_ref, "user").unwrap();
@@ -269,7 +269,7 @@ fn voting_constant_decay() {
     helper.mint_xastro(router_ref, "user2", 50);
 
     helper
-        .create_lock(router_ref, "user", WEEK * 10, 30)
+        .create_lock(router_ref, "user", WEEK * 10, 30f32)
         .unwrap();
 
     let vp = helper.query_user_vp(router_ref, "user").unwrap();
@@ -333,7 +333,7 @@ fn voting_constant_decay() {
 
     // create lock for user2
     helper
-        .create_lock(router_ref, "user2", WEEK * 6, 50)
+        .create_lock(router_ref, "user2", WEEK * 6, 50f32)
         .unwrap();
 
     // check that we have locks from "user" and "user2"
@@ -388,7 +388,7 @@ fn voting_variable_decay() {
     helper.mint_xastro(router_ref, "user2", 100);
 
     helper
-        .create_lock(router_ref, "user", WEEK * 10, 30)
+        .create_lock(router_ref, "user", WEEK * 10, 30f32)
         .unwrap();
 
     // going to the future
@@ -397,7 +397,7 @@ fn voting_variable_decay() {
 
     // create lock for user2
     helper
-        .create_lock(router_ref, "user2", WEEK * 6, 50)
+        .create_lock(router_ref, "user2", WEEK * 6, 50f32)
         .unwrap();
     let vp = helper.query_total_vp(router_ref).unwrap();
     // TODO: assert_eq!(vp, 10.8173);
@@ -406,7 +406,9 @@ fn voting_variable_decay() {
     router_ref.update_block(next_block);
     router_ref.update_block(|block| block.time = block.time.plus_seconds(WEEK * 4));
 
-    helper.extend_lock_amount(router_ref, "user", 70).unwrap();
+    helper
+        .extend_lock_amount(router_ref, "user", 70f32)
+        .unwrap();
     helper
         .extend_lock_time(router_ref, "user2", WEEK * 10)
         .unwrap();
@@ -454,7 +456,7 @@ fn check_queries() {
 
     // creating valid voting escrow lock
     helper
-        .create_lock(router_ref, "user", WEEK * 2, 90)
+        .create_lock(router_ref, "user", WEEK * 2, 90f32)
         .unwrap();
     // check that 90 xASTRO were actually debited
     helper.check_xastro_balance(router_ref, "user", 10);
