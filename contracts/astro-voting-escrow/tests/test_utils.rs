@@ -200,6 +200,30 @@ impl Helper {
         )
     }
 
+    pub fn deposit_for(
+        &self,
+        router: &mut TerraApp,
+        from: &str,
+        to: &str,
+        amount: f32,
+    ) -> Result<AppResponse> {
+        let amount = (amount * MULTIPLIER as f32) as u64;
+        let cw20msg = Cw20ExecuteMsg::Send {
+            contract: self.voting_instance.to_string(),
+            amount: Uint128::from(amount),
+            msg: to_binary(&Cw20HookMsg::DepositFor {
+                user: to.to_string(),
+            })
+            .unwrap(),
+        };
+        router.execute_contract(
+            Addr::unchecked(from),
+            self.xastro_token.clone(),
+            &cw20msg,
+            &[],
+        )
+    }
+
     pub fn extend_lock_time(
         &self,
         router: &mut TerraApp,

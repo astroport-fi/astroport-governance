@@ -481,3 +481,31 @@ fn check_queries() {
             < Decimal::from_str("0.000001").unwrap()
     )
 }
+
+#[test]
+fn check_deposit_for() {
+    let mut router = mock_app();
+    let router_ref = &mut router;
+    let owner = Addr::unchecked("owner");
+    let helper = Helper::init(router_ref, owner);
+
+    // mint ASTRO, stake it and mint xASTRO
+    helper.mint_xastro(router_ref, "user1", 100);
+    helper.check_xastro_balance(router_ref, "user1", 100);
+    helper.mint_xastro(router_ref, "user2", 100);
+    helper.check_xastro_balance(router_ref, "user2", 100);
+
+    // 104 weeks ~ 2 years
+    helper
+        .create_lock(router_ref, "user1", 104 * WEEK, 50f32)
+        .unwrap();
+    let vp = helper.query_user_vp(router_ref, "user1").unwrap();
+    assert_eq!(125.0, vp);
+    helper
+        .deposit_for(router_ref, "user2", "user1", 50f32)
+        .unwrap();
+    let vp = helper.query_user_vp(router_ref, "user1").unwrap();
+    assert_eq!(250.0, vp);
+    helper.check_xastro_balance(router_ref, "user1", 50);
+    helper.check_xastro_balance(router_ref, "user2", 50);
+}

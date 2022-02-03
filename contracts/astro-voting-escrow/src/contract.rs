@@ -259,7 +259,14 @@ fn receive_cw20(
 ) -> Result<Response, ContractError> {
     match from_binary(&cw20_msg.msg)? {
         Cw20HookMsg::CreateLock { time } => create_lock(deps, env, info, cw20_msg, time),
-        Cw20HookMsg::ExtendLockAmount {} => extend_lock_amount(deps, env, info, cw20_msg),
+        Cw20HookMsg::ExtendLockAmount {} => {
+            let addr = addr_validate_to_lower(deps.as_ref().api, &cw20_msg.sender)?;
+            deposit_for(deps, env, info, cw20_msg.amount, addr)
+        }
+        Cw20HookMsg::DepositFor { user } => {
+            let addr = addr_validate_to_lower(deps.api, &user)?;
+            deposit_for(deps, env, info, cw20_msg.amount, addr)
+        }
     }
 }
 
@@ -293,15 +300,14 @@ fn create_lock(
     Ok(Response::default().add_attribute("action", "create_lock"))
 }
 
-fn extend_lock_amount(
+fn deposit_for(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    cw20_msg: Cw20ReceiveMsg,
+    amount: Uint128,
+    user: Addr,
 ) -> Result<Response, ContractError> {
     xastro_token_check(deps.as_ref(), info.sender)?;
-    let amount = cw20_msg.amount;
-    let user = addr_validate_to_lower(deps.as_ref().api, &cw20_msg.sender)?;
     LOCKED.update(deps.storage, user.clone(), |lock_opt| {
         if let Some(mut lock) = lock_opt {
             if lock.end <= get_period(env.block.time.seconds()) {
