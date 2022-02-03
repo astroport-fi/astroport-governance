@@ -8,7 +8,6 @@ use cosmwasm_std::{
 use cw2::set_contract_version;
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 use cw_storage_plus::{Bound, U64Key};
-use std::convert::TryInto;
 
 use astroport_governance::astro_voting_escrow::{
     Cw20HookMsg, ExecuteMsg, InstantiateMsg, LockInfoResponse, MigrateMsg, QueryMsg, UsersResponse,
@@ -20,8 +19,8 @@ use crate::state::{
     Config, Lock, Point, CONFIG, HISTORY, LAST_SLOPE_CHANGE, LOCKED, SLOPE_CHANGES,
 };
 use crate::utils::{
-    calc_boost, calc_voting_power, fetch_last_checkpoint, get_period, time_limits_check,
-    xastro_token_check,
+    calc_boost, calc_voting_power, deserialize_pair, fetch_last_checkpoint,
+    fetch_unapplied_slope_changes, get_period, time_limits_check, xastro_token_check,
 };
 
 /// Contract name that is used for migration.
@@ -118,20 +117,15 @@ fn checkpoint_total(
     let last_checkpoint = fetch_last_checkpoint(deps.as_ref(), &contract_addr, &cur_period_key)?;
     let new_point = if let Some((_, point)) = last_checkpoint {
         let end = new_end.unwrap_or(cur_period);
-        let scheduled_change_opt = SLOPE_CHANGES.may_load(deps.storage, cur_period_key.clone())?;
-        let scheduled_change = if let Some(change) = scheduled_change_opt {
-            let last_slope_change = LAST_SLOPE_CHANGE
-                .may_load(deps.as_ref().storage)?
-                .unwrap_or(0);
-            if last_slope_change < cur_period {
-                LAST_SLOPE_CHANGE.save(deps.storage, &cur_period)?;
-                change
-            } else {
-                Decimal::zero()
-            }
-        } else {
-            Decimal::zero()
-        };
+        let scheduled_change = fetch_unapplied_slope_changes(deps.as_ref(), &cur_period_key)?
+            .iter()
+            .fold(Decimal::zero(), |acc, &change| acc + change);
+        let last_slope_change = LAST_SLOPE_CHANGE
+            .may_load(deps.as_ref().storage)?
+            .unwrap_or(0);
+        if last_slope_change < cur_period {
+            LAST_SLOPE_CHANGE.save(deps.storage, &cur_period)?
+        }
 
         Point {
             power: calc_voting_power(&point, cur_period) + add_voting_power,
@@ -482,11 +476,7 @@ fn get_total_voting_power(
                 Some(Bound::Inclusive(period_key.wrapped)),
                 Order::Ascending,
             )
-            .filter_map(|item| {
-                let (period_serialized, lock) = item.ok()?;
-                let period_bytes: [u8; 8] = period_serialized.try_into().unwrap();
-                Some((u64::from_be_bytes(period_bytes), lock))
-            })
+            .filter_map(deserialize_pair)
             .collect();
         let mut init_point = point;
         for (recalc_period, scheduled_change) in scheduled_slope_changes {

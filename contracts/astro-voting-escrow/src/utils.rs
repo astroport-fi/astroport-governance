@@ -6,7 +6,7 @@ use cosmwasm_std::{
 use cw_storage_plus::{Bound, U64Key};
 use std::convert::TryInto;
 
-use crate::state::{Point, CONFIG, HISTORY};
+use crate::state::{Point, CONFIG, HISTORY, LAST_SLOPE_CHANGE, SLOPE_CHANGES};
 
 pub(crate) fn time_limits_check(time: u64) -> Result<(), ContractError> {
     if !(WEEK..=MAX_LOCK_TIME).contains(&time) {
@@ -93,4 +93,27 @@ pub(crate) fn fetch_last_checkpoint(
         )
         .last()
         .transpose()
+}
+
+pub(crate) fn deserialize_pair(pair: StdResult<Pair<Decimal>>) -> Option<(u64, Decimal)> {
+    let (period_serialized, change) = pair.ok()?;
+    let period_bytes: [u8; 8] = period_serialized.try_into().ok()?;
+    Some((u64::from_be_bytes(period_bytes), change))
+}
+
+pub(crate) fn fetch_unapplied_slope_changes(
+    deps: Deps,
+    cur_period_key: &U64Key,
+) -> StdResult<Vec<Decimal>> {
+    let last_period = LAST_SLOPE_CHANGE.may_load(deps.storage)?.unwrap_or(0);
+    let changes: Vec<_> = SLOPE_CHANGES
+        .range(
+            deps.storage,
+            Some(Bound::Exclusive(U64Key::new(last_period).wrapped)),
+            Some(Bound::Inclusive(cur_period_key.wrapped.clone())),
+            Order::Ascending,
+        )
+        .filter_map(|pair| Some(deserialize_pair(pair)?.1))
+        .collect();
+    Ok(changes)
 }
