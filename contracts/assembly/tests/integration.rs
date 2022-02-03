@@ -18,7 +18,7 @@ use cosmwasm_std::{
 };
 use cw20::{BalanceResponse, Cw20ExecuteMsg, MinterResponse};
 use terra_multi_test::{
-    AppBuilder, AppResponse, BankKeeper, ContractWrapper, Executor, TerraApp, TerraMock,
+    next_block, AppBuilder, AppResponse, BankKeeper, ContractWrapper, Executor, TerraApp, TerraMock,
 };
 
 const PROPOSAL_VOTING_PERIOD: u64 = 500;
@@ -478,11 +478,8 @@ fn proper_successful_proposal() {
 
     create_allocations(&mut app, token_addr, builder_unlock_addr, locked_balances);
 
-    // Skip 2 blocks
-    app.update_block(|bi| {
-        bi.height += 1;
-        bi.time = bi.time.plus_seconds(5);
-    });
+    // Skip block
+    app.update_block(next_block);
 
     // Create default proposal
     create_proposal(
@@ -757,11 +754,8 @@ fn proper_unsuccessful_proposal() {
         mint_tokens(&mut app, &xastro_addr, &Addr::unchecked(addr), xastro);
     }
 
-    // Skip 1 blocks
-    app.update_block(|bi| {
-        bi.height += 1;
-        bi.time = bi.time.plus_seconds(5);
-    });
+    // Skip block
+    app.update_block(next_block);
 
     // Create proposal
     create_proposal(

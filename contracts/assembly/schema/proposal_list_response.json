@@ -1,6 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "ProposalListResponse",
+  "description": "This structure describes proposal list response.",
   "type": "object",
   "required": [
     "proposal_count",
@@ -449,6 +450,8 @@
       }
     },
     "Proposal": {
+      "title": "Description",
+      "description": "This structure stores data for a proposal.",
       "type": "object",
       "required": [
         "against_power",
@@ -474,14 +477,14 @@
           ]
         },
         "against_voters": {
-          "description": "`Against` voters of proposal",
+          "description": "`Against` votes for the proposal",
           "type": "array",
           "items": {
             "$ref": "#/definitions/Addr"
           }
         },
         "deposit_amount": {
-          "description": "Deposit amount of proposal",
+          "description": "Amount of xASTRO deposited in order to post the proposal",
           "allOf": [
             {
               "$ref": "#/definitions/Uint128"
@@ -489,7 +492,7 @@
           ]
         },
         "description": {
-          "description": "Description of proposal",
+          "description": "Proposal description",
           "type": "string"
         },
         "end_block": {
@@ -507,21 +510,21 @@
           ]
         },
         "for_voters": {
-          "description": "`For` voters of proposal",
+          "description": "`For` votes for the proposal",
           "type": "array",
           "items": {
             "$ref": "#/definitions/Addr"
           }
         },
         "link": {
-          "description": "Link of proposal",
+          "description": "Proposal link",
           "type": [
             "string",
             "null"
           ]
         },
         "messages": {
-          "description": "Messages of proposal",
+          "description": "Proposal messages",
           "type": [
             "array",
             "null"
@@ -531,7 +534,7 @@
           }
         },
         "proposal_id": {
-          "description": "Unique ID of proposal",
+          "description": "Unique proposal ID",
           "allOf": [
             {
               "$ref": "#/definitions/Uint64"
@@ -545,7 +548,7 @@
           "minimum": 0.0
         },
         "status": {
-          "description": "Status of proposal",
+          "description": "Status of the proposal",
           "allOf": [
             {
               "$ref": "#/definitions/ProposalStatus"
@@ -553,7 +556,7 @@
           ]
         },
         "submitter": {
-          "description": "Submitter address of proposal",
+          "description": "The address of the proposal submitter",
           "allOf": [
             {
               "$ref": "#/definitions/Addr"
@@ -561,12 +564,14 @@
           ]
         },
         "title": {
-          "description": "Title of proposal",
+          "description": "Proposal title",
           "type": "string"
         }
       }
     },
     "ProposalMessage": {
+      "title": "Description",
+      "description": "This structure describes proposal message",
       "type": "object",
       "required": [
         "msg",
@@ -593,7 +598,7 @@
     },
     "ProposalStatus": {
       "title": "Description",
-      "description": "This enum describes available statuses for Proposal.",
+      "description": "This enum describes available statuses/states for a Proposal.",
       "type": "string",
       "enum": [
         "Active",

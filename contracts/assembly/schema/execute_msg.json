@@ -18,7 +18,7 @@
     },
     {
       "title": "Description",
-      "description": "Cast vote for an active propose.",
+      "description": "Cast a vote for an active proposal",
       "type": "object",
       "required": [
         "cast_vote"
@@ -52,7 +52,7 @@
     },
     {
       "title": "Description",
-      "description": "End proposal.",
+      "description": "Set the status of a proposal that expired",
       "type": "object",
       "required": [
         "end_proposal"
@@ -77,7 +77,7 @@
     },
     {
       "title": "Description",
-      "description": "Execute proposal messages",
+      "description": "Execute a successful proposal",
       "type": "object",
       "required": [
         "execute_proposal"
@@ -102,7 +102,7 @@
     },
     {
       "title": "Description",
-      "description": "Remove completed proposal in the proposal list.",
+      "description": "Remove a proposal that was already executed",
       "type": "object",
       "required": [
         "remove_completed_proposal"
@@ -127,7 +127,7 @@
     },
     {
       "title": "Description",
-      "description": "Update current assembly contract ## Executor Only assembly contract via passed proposal can execute it",
+      "description": "Update parameters in the Assembly contract ## Executor Only the Assembly contract is allowed to update its own parameters",
       "type": "object",
       "required": [
         "update_config"
@@ -181,6 +181,13 @@
     "UpdateConfig": {
       "type": "object",
       "properties": {
+        "builder_unlock_addr": {
+          "description": "Builder unlock contract address",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "proposal_effective_delay": {
           "description": "Proposal effective delay",
           "type": [
