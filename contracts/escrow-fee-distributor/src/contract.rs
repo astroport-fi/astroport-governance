@@ -655,24 +655,17 @@ fn calc_claim_amount(
     addr: Addr,
     last_token_time: u64,
 ) -> StdResult<Uint128> {
-    let user_voting_power: VotingPowerResponse = deps.querier.query_wasm_smart(
-        &config.voting_escrow,
-        &VotingQueryMsg::UserVotingPower {
-            user: addr.to_string(),
-        },
-    )?;
-
-    if user_voting_power.voting_power.is_zero() {
-        // No lock = no fees
-        return Ok(Uint128::zero());
-    }
-
     let user_lock_info: LockInfoResponse = deps.querier.query_wasm_smart(
         &config.voting_escrow,
         &VotingQueryMsg::LockInfo {
             user: addr.to_string(),
         },
     )?;
+
+    if user_lock_info.end == 0 {
+        // No lock = no fees
+        return Ok(Uint128::zero());
+    }
 
     let start_time = config.start_time;
     let mut week_cursor: u64;
