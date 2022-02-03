@@ -325,7 +325,8 @@ fn withdraw(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, Cont
         .may_load(deps.storage, sender.clone())?
         .ok_or(ContractError::LockDoesntExist {})?;
 
-    if lock.end > get_period(env.block.time.seconds()) {
+    let cur_period = get_period(env.block.time.seconds());
+    if lock.end > cur_period {
         Err(ContractError::LockHasNotExpired {})
     } else {
         let config = CONFIG.load(deps.storage)?;
@@ -337,7 +338,19 @@ fn withdraw(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, Cont
             })?,
             funds: vec![],
         });
-        LOCKED.remove(deps.storage, sender);
+        LOCKED.remove(deps.storage, sender.clone());
+
+        // we need to set point to eliminate the slope influence on a future lock
+        HISTORY.save(
+            deps.storage,
+            (sender, U64Key::new(cur_period)),
+            &Point {
+                power: Uint128::zero(),
+                start: cur_period,
+                end: cur_period,
+                slope: Decimal::zero(),
+            },
+        )?;
 
         Ok(Response::default()
             .add_message(transfer_msg)
