@@ -398,6 +398,9 @@ fn extend_lock_time(
     let block_time = env.block.time.seconds();
     // should not exceed MAX_LOCK_TIME
     time_limits_check(lock.end * WEEK + time - block_time)?;
+    if get_period(block_time) + get_period(time) < lock.end {
+        return Err(ContractError::LockTimeDecreaseError {});
+    }
     lock.end = get_period(block_time) + get_period(time);
     LOCKED.save(deps.storage, user.clone(), &lock)?;
 

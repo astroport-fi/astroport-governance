@@ -102,6 +102,12 @@ fn lock_unlock_logic() {
         "Lock time must be within the limits (week <= lock time < 2 years)"
     );
 
+    // trying to decrease lock time
+    let res = helper
+        .extend_lock_time(router_ref, "user", WEEK)
+        .unwrap_err();
+    assert_eq!(res.to_string(), "Lock time cannot be reduced");
+
     // adding more xASTRO to existing lock
     helper.extend_lock_amount(router_ref, "user", 9f32).unwrap();
     helper.check_xastro_balance(router_ref, "user", 1);
