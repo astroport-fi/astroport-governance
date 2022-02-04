@@ -46,11 +46,15 @@ pub enum QueryMsg {
     LockInfo { user: String },
 }
 
+/// ## Description
+/// This structure describes voting power response.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct VotingPowerResponse {
     pub voting_power: Uint128,
 }
 
+/// ## Description
+/// This structure describes lock information response.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct LockInfoResponse {
     pub amount: Uint128,
