@@ -2,9 +2,7 @@ mod test_utils;
 
 use crate::test_utils::{mock_app, Helper, MULTIPLIER};
 use astroport::token as astro;
-use astroport_governance::astro_voting_escrow::{
-    Cw20HookMsg, LockInfoResponse, QueryMsg, UsersResponse,
-};
+use astroport_governance::astro_voting_escrow::{Cw20HookMsg, LockInfoResponse, QueryMsg};
 use astroport_voting_escrow::contract::{MAX_LOCK_TIME, WEEK};
 use cosmwasm_std::{to_binary, Addr, Decimal, Uint128};
 use cw20::{Cw20ExecuteMsg, MinterResponse};
@@ -341,13 +339,6 @@ fn voting_constant_decay() {
     helper
         .create_lock(router_ref, "user2", WEEK * 6, 50f32)
         .unwrap();
-
-    // check that we have locks from "user" and "user2"
-    let res: UsersResponse = router_ref
-        .wrap()
-        .query_wasm_smart(helper.voting_instance.clone(), &QueryMsg::Users {})
-        .unwrap();
-    assert_eq!(vec!["user", "user2"], res.users);
 
     let vp = helper.query_user_vp(router_ref, "user").unwrap();
     assert_eq!(vp, 3.60576);

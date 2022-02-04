@@ -2,7 +2,7 @@ use std::env::current_dir;
 use std::fs::create_dir_all;
 
 use astroport_governance::astro_voting_escrow::{
-    ExecuteMsg, InstantiateMsg, LockInfoResponse, QueryMsg, UsersResponse, VotingPowerResponse,
+    ExecuteMsg, InstantiateMsg, LockInfoResponse, QueryMsg, VotingPowerResponse,
 };
 use cosmwasm_schema::{export_schema, remove_schemas, schema_for};
 
@@ -16,6 +16,5 @@ fn main() {
     export_schema(&schema_for!(ExecuteMsg), &out_dir);
     export_schema(&schema_for!(QueryMsg), &out_dir);
     export_schema(&schema_for!(VotingPowerResponse), &out_dir);
-    export_schema(&schema_for!(UsersResponse), &out_dir);
     export_schema(&schema_for!(LockInfoResponse), &out_dir);
 }

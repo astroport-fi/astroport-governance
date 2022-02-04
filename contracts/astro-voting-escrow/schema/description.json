@@ -86,18 +86,6 @@
     {
       "type": "object",
       "required": [
-        "users"
-      ],
-      "properties": {
-        "users": {
-          "type": "object"
-        }
-      },
-      "additionalProperties": false
-    },
-    {
-      "type": "object",
-      "required": [
         "lock_info"
       ],
       "properties": {

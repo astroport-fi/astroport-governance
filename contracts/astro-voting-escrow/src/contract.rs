@@ -10,7 +10,7 @@ use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 use cw_storage_plus::{Bound, U64Key};
 
 use astroport_governance::astro_voting_escrow::{
-    Cw20HookMsg, ExecuteMsg, InstantiateMsg, LockInfoResponse, MigrateMsg, QueryMsg, UsersResponse,
+    Cw20HookMsg, ExecuteMsg, InstantiateMsg, LockInfoResponse, MigrateMsg, QueryMsg,
     VotingPowerResponse,
 };
 
@@ -451,7 +451,6 @@ fn extend_lock_time(
 /// * **QueryMsg::UserVotingPower { user }** user's voting power at current block
 /// * **QueryMsg::TotalVotingPowerAt { time }** total voting power at specified time
 /// * **QueryMsg::UserVotingPowerAt { time }** user's voting power at specified time
-/// * **QueryMsg::Users {}** TODO: usersAt description
 /// * **QueryMsg::LockInfo { user }** user's lock information
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
@@ -466,7 +465,6 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::UserVotingPowerAt { user, time } => {
             to_binary(&get_user_voting_power(deps, env, user, Some(time))?)
         }
-        QueryMsg::Users {} => get_all_users(deps),
         QueryMsg::LockInfo { user } => to_binary(&get_user_lock_info(deps, user)?),
     }
 }
@@ -567,15 +565,6 @@ fn get_total_voting_power(
     };
 
     Ok(VotingPowerResponse { voting_power })
-}
-
-fn get_all_users(deps: Deps) -> StdResult<Binary> {
-    // TODO: change to *at behavior bc we need to know all locked users in particular period
-    let keys: Vec<_> = LOCKED
-        .keys(deps.storage, None, None, Order::Ascending)
-        .filter_map(|key| String::from_utf8(key).map_err(StdError::from).ok())
-        .collect();
-    to_binary(&UsersResponse { users: keys })
 }
 
 /// ## Description

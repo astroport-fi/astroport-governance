@@ -43,7 +43,6 @@ pub enum QueryMsg {
     TotalVotingPowerAt { time: u64 },
     UserVotingPower { user: String },
     UserVotingPowerAt { user: String, time: u64 },
-    Users {},
     LockInfo { user: String },
 }
 
@@ -58,11 +57,6 @@ pub struct LockInfoResponse {
     pub boost: Decimal,
     pub start: u64,
     pub end: u64,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct UsersResponse {
-    pub users: Vec<String>,
 }
 
 /// ## Description
