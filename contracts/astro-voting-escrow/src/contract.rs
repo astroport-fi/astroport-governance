@@ -28,7 +28,9 @@ const CONTRACT_NAME: &str = "astro-voting-escrow";
 /// Contract version that is used for migration.
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
+/// Seconds in one week. Constant is intended for period number calculation.
 pub const WEEK: u64 = 7 * 86400; // lock period is rounded down by week
+/// Seconds in 2 years which is maximum lock period.
 pub const MAX_LOCK_TIME: u64 = 2 * 365 * 86400; // 2 years (104 weeks)
 
 /// ## Description
@@ -74,18 +76,16 @@ pub fn instantiate(
 }
 
 /// ## Description
-/// Available the execute messages of the contract.
-/// ## Params
-/// * **deps** is the object of type [`Deps`].
+/// Parses execute message and route it to intended function. Returns [`Response`] if execution succeed
+/// or [`ContractError`] if error occurred.
+///  
+/// ## Execute messages
+/// * **ExecuteMsg::ExtendLockTime { time }** increase current lock time
 ///
-/// * **env** is the object of type [`Env`].
+/// * **ExecuteMsg::Receive(msg)** parse incoming message from the xASTRO token.
+/// msg should have [`Cw20ReceiveMsg`] type.
 ///
-/// * **info** is the object of type [`MessageInfo`].
-///
-/// * **msg** is the object of type [`ExecuteMsg`].
-///
-/// ## Queries
-///
+/// * **ExecuteMsg::Withdraw {}** withdraw whole amount from the current lock if it has expired
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
@@ -100,6 +100,12 @@ pub fn execute(
     }
 }
 
+/// ## Description
+/// Checkpoint total voting power for the current block period.
+/// The function fetches last available checkpoint, recalculates passed periods before the current period,
+/// applies slope changes, saves all recalculated periods in [`HISTORY`] by contract address key.
+/// The function returns Ok(()) in case of success or [`StdError`]
+/// in case of serialization/deserialization error.
 fn checkpoint_total(
     deps: DepsMut,
     env: Env,
@@ -150,12 +156,22 @@ fn checkpoint_total(
             power: add_voting_power,
             slope: new_slope,
             start: cur_period,
-            end: 0,
+            end: 0, // we don't use 'end' in total VP calculations
         }
     };
     HISTORY.save(deps.storage, (contract_addr, cur_period_key), &new_point)
 }
 
+/// ## Description
+/// Checkpoint user's voting power for the current block period.
+/// The function fetches last available checkpoint, calculates user's current voting power,
+/// applies slope changes based on add_amount and new_end parameters,
+/// schedules slope changes for total voting power
+/// and saves new checkpoint for current period in [`HISTORY`] by user's address key.
+/// If a user already has checkpoint for the current period then
+/// this function uses it as a latest avalible checkpoint.
+/// The function returns Ok(()) in case of success or [`StdError`]
+/// in case of serialization/deserialization error.
 fn checkpoint(
     deps: DepsMut,
     env: Env,
@@ -256,14 +272,6 @@ fn checkpoint(
 /// Receives a message of type [`Cw20ReceiveMsg`] and processes it depending on the received template.
 /// If the template is not found in the received message, then an [`ContractError`] is returned,
 /// otherwise returns the [`Response`] with the specified attributes if the operation was successful
-/// ## Params
-/// * **deps** is the object of type [`DepsMut`].
-///
-/// * **env** is the object of type [`Env`].
-///
-/// * **info** is the object of type [`MessageInfo`].
-///
-/// * **cw20_msg** is the object of type [`Cw20ReceiveMsg`].
 fn receive_cw20(
     deps: DepsMut,
     env: Env,
@@ -283,6 +291,13 @@ fn receive_cw20(
     }
 }
 
+/// ## Description
+/// Creates a lock for the user for specified time. The time value is in seconds.
+/// Checks that the user is locking xASTRO token.
+/// Evaluates that the time is within [`WEEK`]..[`MAX_LOCK_TIME`] limits.
+/// Creates lock if it doesn't exist and triggers [`checkpoint`].
+/// If lock is already exists, then an [`ContractError`] is returned,
+/// otherwise returns the [`Response`] with the specified attributes if the operation was successful
 fn create_lock(
     deps: DepsMut,
     env: Env,
@@ -313,6 +328,12 @@ fn create_lock(
     Ok(Response::default().add_attribute("action", "create_lock"))
 }
 
+/// ## Description
+/// Allows deposit on behalf of other address.
+/// Checks that the user is locking xASTRO token.
+/// Triggers [`checkpoint`].
+/// If lock is already exists, then an [`ContractError`] is returned,
+/// otherwise returns the [`Response`] with the specified attributes if the operation was successful
 fn deposit_for(
     deps: DepsMut,
     env: Env,
@@ -335,9 +356,13 @@ fn deposit_for(
     })?;
     checkpoint(deps, env, user, Some(amount), None)?;
 
-    Ok(Response::default().add_attribute("action", "extend_lock_amount"))
+    Ok(Response::default().add_attribute("action", "deposit_for"))
 }
 
+/// ## Description
+/// Withdraws whole amount of locked xASTRO.
+/// If lock doesn't exist or it has not yet expired, then an [`ContractError`] is returned,
+/// otherwise returns the [`Response`] with the specified attributes if the operation was successful
 fn withdraw(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, ContractError> {
     let sender = info.sender;
     let lock = LOCKED
@@ -377,6 +402,16 @@ fn withdraw(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, Cont
     }
 }
 
+/// ## Description
+/// Increases current lock time by specified time. The time value is in seconds.
+/// Evaluates that the time is within [`WEEK`]..[`MAX_LOCK_TIME`] limits,
+/// checks the lock time was not decreased and triggers [`checkpoint`].
+/// If lock doesn't exist or it expired, then an [`ContractError`] is returned,
+/// otherwise returns the [`Response`] with the specified attributes if the operation was successful
+/// ## Note
+/// The lock time is increased starting from the current block period.
+/// For example, at the period 0 user locked xASTRO for 3 weeks.
+/// In 1 week he increases time by 10 weeks thus unlock period becomes 11.
 fn extend_lock_time(
     deps: DepsMut,
     env: Env,
@@ -411,15 +446,13 @@ fn extend_lock_time(
 
 /// # Description
 /// Describes all query messages.
-/// # Params
-/// * **deps** is the object of type [`DepsMut`].
-///
-/// * **env** is the object of type [`Env`].
-///
-/// * **msg** is the object of type [`QueryMsg`].
-///
 /// ## Queries
-///
+/// * **QueryMsg::TotalVotingPower {}** total voting power at current block
+/// * **QueryMsg::UserVotingPower { user }** user's voting power at current block
+/// * **QueryMsg::TotalVotingPowerAt { time }** total voting power at specified time
+/// * **QueryMsg::UserVotingPowerAt { time }** user's voting power at specified time
+/// * **QueryMsg::Users {}** TODO: usersAt description
+/// * **QueryMsg::LockInfo { user }** user's lock information
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
@@ -438,6 +471,8 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     }
 }
 
+/// # Description
+/// Returns user's lock information in [`LockInfoResponse`] type.
 fn get_user_lock_info(deps: Deps, user: String) -> StdResult<LockInfoResponse> {
     let addr = addr_validate_to_lower(deps.api, &user)?;
     if let Some(lock) = LOCKED.may_load(deps.storage, addr)? {
@@ -453,6 +488,9 @@ fn get_user_lock_info(deps: Deps, user: String) -> StdResult<LockInfoResponse> {
     }
 }
 
+/// # Description
+/// Calculates user's voting power at the given time.
+/// If time is None then calculates voting power at the current block period.
 fn get_user_voting_power(
     deps: Deps,
     env: Env,
@@ -479,6 +517,9 @@ fn get_user_voting_power(
     Ok(VotingPowerResponse { voting_power })
 }
 
+/// # Description
+/// Calculates total voting power at the given time.
+/// If time is None then calculates voting power at the current block period.
 fn get_total_voting_power(
     deps: Deps,
     env: Env,
@@ -539,12 +580,6 @@ fn get_all_users(deps: Deps) -> StdResult<Binary> {
 
 /// ## Description
 /// Used for migration of contract. Returns the default object of type [`Response`].
-/// ## Params
-/// * **_deps** is the object of type [`Deps`].
-///
-/// * **_env** is the object of type [`Env`].
-///
-/// * **_msg** is the object of type [`MigrateMsg`].
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
     Ok(Response::default())
