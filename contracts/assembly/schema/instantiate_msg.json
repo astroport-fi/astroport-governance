@@ -1,18 +1,23 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "InstantiateMsg",
+  "description": "This structure describes the basic settings for creating an Assembly contract.",
   "type": "object",
   "required": [
+    "builder_unlock_addr",
     "proposal_effective_delay",
     "proposal_expiration_period",
     "proposal_required_deposit",
     "proposal_required_quorum",
     "proposal_required_threshold",
     "proposal_voting_period",
-    "staking_addr",
     "xastro_token_addr"
   ],
   "properties": {
+    "builder_unlock_addr": {
+      "description": "Address of builder unlock contract",
+      "type": "string"
+    },
     "proposal_effective_delay": {
       "description": "Proposal effective delay",
       "type": "integer",
@@ -50,10 +55,6 @@
       "type": "integer",
       "format": "uint64",
       "minimum": 0.0
-    },
-    "staking_addr": {
-      "description": "Address of staking contract",
-      "type": "string"
     },
     "xastro_token_addr": {
       "description": "Address of xASTRO token",

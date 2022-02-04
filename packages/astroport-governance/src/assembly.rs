@@ -261,8 +261,8 @@ impl Display for ProposalVoteOption {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ProposalVotesResponse {
     pub proposal_id: u64,
-    pub for_power: u128,
-    pub against_power: u128,
+    pub for_power: Uint128,
+    pub against_power: Uint128,
 }
 
 /// ## Description

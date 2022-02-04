@@ -28,3 +28,5 @@ terra-multi-test = {git = "https://github.com/astroport-fi/terra-plus.git", tag 
 astroport-token = {git = "https://github.com/astroport-fi/astroport.git", package = "astroport-token"}
 astroport-xastro-token = {git = "https://github.com/astroport-fi/astroport.git",package = "astroport-xastro-token"}
 astroport-staking = {git = "https://github.com/astroport-fi/astroport.git", package = "astroport-staking"}
+builder-unlock = {path = "../builder_unlock", default-features = false, version = "1.0.0"}
+anyhow = "1"

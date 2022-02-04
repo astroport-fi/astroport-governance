@@ -665,8 +665,8 @@ pub fn query_proposal_votes(deps: Deps, proposal_id: u64) -> StdResult<ProposalV
 
     Ok(ProposalVotesResponse {
         proposal_id,
-        for_power: proposal.for_power.u128(),
-        against_power: proposal.against_power.u128(),
+        for_power: proposal.for_power,
+        against_power: proposal.against_power,
     })
 }
 
