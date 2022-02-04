@@ -218,7 +218,7 @@ fn calc_checkpoint_total_supply(mut deps: DepsMut, env: Env, config: &mut Config
 
             let current_period = get_period(time_cursor);
             let to_update = VOTING_SUPPLY_PER_WEEK.has(deps.storage, U64Key::from(current_period));
-            save_or_update_state(
+            save_or_update_state_config(
                 deps.branch(),
                 &VOTING_SUPPLY_PER_WEEK,
                 current_period,
@@ -388,15 +388,15 @@ fn checkpoint_token(
     Ok(Response::new().add_attributes(vec![attr("action", "checkpoint_token")]))
 }
 
-fn save_or_update_state(
+fn save_or_update_state_config(
     deps: DepsMut,
-    distributor_state: &Map<U64Key, Uint128>,
+    config: &Map<U64Key, Uint128>,
     week_cursor: u64,
     amount: Uint128,
     to_update: bool,
 ) -> StdResult<()> {
     if to_update {
-        distributor_state.update(
+        config.update(
             deps.storage,
             U64Key::from(week_cursor),
             |cursor| -> StdResult<_> {
@@ -408,7 +408,7 @@ fn save_or_update_state(
             },
         )?;
     } else {
-        distributor_state.save(deps.storage, U64Key::from(week_cursor), &amount)?;
+        config.save(deps.storage, U64Key::from(week_cursor), &amount)?;
     }
 
     Ok(())
@@ -422,9 +422,8 @@ fn calc_checkpoint_token(mut deps: DepsMut, env: Env, config: &mut Config) -> St
         config.token.clone(),
         env.clone().contract.address,
     )?;
-    let to_distribute = distributor_balance.checked_sub(config.token_last_balance)?;
 
-    config.token_last_balance = distributor_balance;
+    let to_distribute = distributor_balance.checked_sub(config.token_last_balance)?;
     let mut last_token_time = config.last_token_time;
 
     let since_last = env
@@ -442,68 +441,63 @@ fn calc_checkpoint_token(mut deps: DepsMut, env: Env, config: &mut Config) -> St
         .checked_mul(WEEK)
         .ok_or_else(|| StdError::generic_err("Timestamp calculation error."))?;
 
+    let mut actual_distribute_amount = Uint128::zero();
     loop {
-        if current_week >= env.block.time.seconds() {
-            break;
-        }
-
         let next_week = current_week + WEEK;
         let current_period = get_period(current_week);
         let to_update = TOKENS_PER_WEEK.has(deps.storage, U64Key::from(current_period));
+        let mut amount_per_week = Uint128::zero();
 
         if env.clone().block.time.seconds() < next_week {
             if since_last == 0 && env.clone().block.time.seconds() == last_token_time {
-                save_or_update_state(
-                    deps.branch(),
-                    &TOKENS_PER_WEEK,
-                    current_period,
-                    to_distribute,
-                    to_update,
-                )?;
+                amount_per_week = to_distribute;
+                actual_distribute_amount += to_distribute;
             } else {
-                let to_distribute = to_distribute
+                amount_per_week = to_distribute
                     .checked_mul(
                         Uint128::from(env.block.time.seconds()) - Uint128::from(last_token_time),
                     )?
                     .checked_div(Uint128::from(since_last))?;
-                save_or_update_state(
-                    deps.branch(),
-                    &TOKENS_PER_WEEK,
-                    current_period,
-                    to_distribute,
-                    to_update,
-                )?;
+
+                actual_distribute_amount += amount_per_week;
             }
-        } else if since_last == 0 && next_week == last_token_time {
-            save_or_update_state(
+
+            save_or_update_state_config(
                 deps.branch(),
                 &TOKENS_PER_WEEK,
                 current_period,
-                to_distribute,
+                amount_per_week,
                 to_update,
             )?;
+            break;
+        } else if since_last == 0 && next_week == last_token_time {
+            amount_per_week = to_distribute;
+            actual_distribute_amount += amount_per_week;
         } else {
-            let to_distribute = to_distribute
+            amount_per_week = to_distribute
                 .checked_mul(Uint128::from(next_week) - Uint128::from(last_token_time))?
                 .checked_div(Uint128::from(since_last))?;
-
-            save_or_update_state(
-                deps.branch(),
-                &TOKENS_PER_WEEK,
-                current_period,
-                to_distribute,
-                to_update,
-            )?;
+            actual_distribute_amount += amount_per_week;
         }
+
+        save_or_update_state_config(
+            deps.branch(),
+            &TOKENS_PER_WEEK,
+            current_period,
+            amount_per_week,
+            to_update,
+        )?;
 
         last_token_time = next_week;
         current_week = next_week;
     }
 
+    config.token_last_balance =
+        distributor_balance.checked_sub(to_distribute.checked_sub(actual_distribute_amount)?)?;
     CHECKPOINT_TOKEN.save(
         deps.storage,
         U64Key::new(env.block.time.seconds()),
-        &to_distribute,
+        &actual_distribute_amount,
     )?;
 
     Ok(())
