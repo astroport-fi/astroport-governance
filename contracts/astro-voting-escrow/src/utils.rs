@@ -28,7 +28,7 @@ pub(crate) fn get_period(time: u64) -> u64 {
 /// Checks the sender is xASTRO token
 pub(crate) fn xastro_token_check(deps: Deps, sender: Addr) -> Result<(), ContractError> {
     let config = CONFIG.load(deps.storage)?;
-    if sender != config.xastro_token_addr {
+    if sender != config.deposit_token_addr {
         Err(ContractError::Unauthorized {})
     } else {
         Ok(())

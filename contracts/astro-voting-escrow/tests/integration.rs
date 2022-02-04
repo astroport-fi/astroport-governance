@@ -2,7 +2,9 @@ mod test_utils;
 
 use crate::test_utils::{mock_app, Helper, MULTIPLIER};
 use astroport::token as astro;
-use astroport_governance::astro_voting_escrow::{Cw20HookMsg, LockInfoResponse, QueryMsg};
+use astroport_governance::astro_voting_escrow::{
+    ConfigResponse, Cw20HookMsg, ExecuteMsg, LockInfoResponse, QueryMsg,
+};
 use astroport_voting_escrow::contract::{MAX_LOCK_TIME, WEEK};
 use cosmwasm_std::{to_binary, Addr, Decimal, Uint128};
 use cw20::{Cw20ExecuteMsg, MinterResponse};
@@ -505,4 +507,82 @@ fn check_deposit_for() {
     assert_eq!(250.0, vp);
     helper.check_xastro_balance(router_ref, "user1", 50);
     helper.check_xastro_balance(router_ref, "user2", 50);
+}
+
+#[test]
+fn check_update_owner() {
+    let mut app = mock_app();
+    let owner = Addr::unchecked("owner");
+    let helper = Helper::init(&mut app, owner);
+
+    let new_owner = String::from("new_owner");
+
+    // new owner
+    let msg = ExecuteMsg::ProposeNewOwner {
+        new_owner: new_owner.clone(),
+        expires_in: 100, // seconds
+    };
+
+    // unauthorized check
+    let err = app
+        .execute_contract(
+            Addr::unchecked("not_owner"),
+            helper.voting_instance.clone(),
+            &msg,
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(err.to_string(), "Generic error: Unauthorized");
+
+    // claim before proposal
+    let err = app
+        .execute_contract(
+            Addr::unchecked(new_owner.clone()),
+            helper.voting_instance.clone(),
+            &ExecuteMsg::ClaimOwnership {},
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.to_string(),
+        "Generic error: Ownership proposal not found"
+    );
+
+    // propose new owner
+    app.execute_contract(
+        Addr::unchecked("owner"),
+        helper.voting_instance.clone(),
+        &msg,
+        &[],
+    )
+    .unwrap();
+
+    // claim from invalid addr
+    let err = app
+        .execute_contract(
+            Addr::unchecked("invalid_addr"),
+            helper.voting_instance.clone(),
+            &ExecuteMsg::ClaimOwnership {},
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(err.to_string(), "Generic error: Unauthorized");
+
+    // claim ownership
+    app.execute_contract(
+        Addr::unchecked(new_owner.clone()),
+        helper.voting_instance.clone(),
+        &ExecuteMsg::ClaimOwnership {},
+        &[],
+    )
+    .unwrap();
+
+    // let's query the state
+    let msg = QueryMsg::Config {};
+    let res: ConfigResponse = app
+        .wrap()
+        .query_wasm_smart(&helper.voting_instance, &msg)
+        .unwrap();
+
+    assert_eq!(res.owner.to_string(), new_owner)
 }

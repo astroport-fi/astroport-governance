@@ -96,6 +96,7 @@ impl Helper {
         let voting_code_id = router.store_code(voting_contract);
 
         let msg = InstantiateMsg {
+            owner: owner.to_string(),
             deposit_token_addr: res.share_token_addr.to_string(),
         };
         let voting_instance = router

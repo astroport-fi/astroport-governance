@@ -1,3 +1,4 @@
+use astroport::common::OwnershipProposal;
 use cosmwasm_std::{Addr, Decimal, Uint128};
 use cw_storage_plus::{Item, Map, U64Key};
 use schemars::JsonSchema;
@@ -7,8 +8,10 @@ use serde::{Deserialize, Serialize};
 /// This structure describes the main control config of maker.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
+    /// contract address that used for settings control
+    pub owner: Addr,
     /// the xASTRO token contract address
-    pub xastro_token_addr: Addr,
+    pub deposit_token_addr: Addr,
 }
 
 /// ## Description
@@ -55,3 +58,7 @@ pub const SLOPE_CHANGES: Map<U64Key, Decimal> = Map::new("slope_changes");
 /// ## Description
 /// Last period when scheduled slope change was applied
 pub const LAST_SLOPE_CHANGE: Item<u64> = Item::new("last_slope_change");
+
+/// ## Description
+/// Contains a proposal to change ownership
+pub const OWNERSHIP_PROPOSAL: Item<OwnershipProposal> = Item::new("ownership_proposal");

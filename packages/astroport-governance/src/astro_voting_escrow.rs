@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 /// This structure describes the basic settings for creating a contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
+    pub owner: String,
     pub deposit_token_addr: String,
 }
 
@@ -22,6 +23,12 @@ pub enum ExecuteMsg {
     /// template.
     Receive(Cw20ReceiveMsg),
     Withdraw {},
+    ProposeNewOwner {
+        new_owner: String,
+        expires_in: u64,
+    },
+    DropOwnershipProposal {},
+    ClaimOwnership {},
 }
 
 /// ## Description
@@ -44,6 +51,7 @@ pub enum QueryMsg {
     UserVotingPower { user: String },
     UserVotingPowerAt { user: String, time: u64 },
     LockInfo { user: String },
+    Config {},
 }
 
 /// ## Description
@@ -61,6 +69,14 @@ pub struct LockInfoResponse {
     pub boost: Decimal,
     pub start: u64,
     pub end: u64,
+}
+
+/// ## Description
+/// This structure describes config response.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct ConfigResponse {
+    pub owner: String,
+    pub deposit_token_addr: String,
 }
 
 /// ## Description

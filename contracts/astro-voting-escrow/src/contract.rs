@@ -1,4 +1,5 @@
 use astroport::asset::addr_validate_to_lower;
+use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
@@ -10,13 +11,14 @@ use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 use cw_storage_plus::{Bound, U64Key};
 
 use astroport_governance::astro_voting_escrow::{
-    Cw20HookMsg, ExecuteMsg, InstantiateMsg, LockInfoResponse, MigrateMsg, QueryMsg,
-    VotingPowerResponse,
+    ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, LockInfoResponse, MigrateMsg,
+    QueryMsg, VotingPowerResponse,
 };
 
 use crate::error::ContractError;
 use crate::state::{
-    Config, Lock, Point, CONFIG, HISTORY, LAST_SLOPE_CHANGE, LOCKED, SLOPE_CHANGES,
+    Config, Lock, Point, CONFIG, HISTORY, LAST_SLOPE_CHANGE, LOCKED, OWNERSHIP_PROPOSAL,
+    SLOPE_CHANGES,
 };
 use crate::utils::{
     calc_boost, calc_voting_power, deserialize_pair, fetch_last_checkpoint,
@@ -55,7 +57,8 @@ pub fn instantiate(
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     let config = Config {
-        xastro_token_addr: addr_validate_to_lower(deps.api, &msg.deposit_token_addr)?,
+        owner: addr_validate_to_lower(deps.api, &msg.owner)?,
+        deposit_token_addr: addr_validate_to_lower(deps.api, &msg.deposit_token_addr)?,
     };
     CONFIG.save(deps.storage, &config)?;
 
@@ -86,6 +89,12 @@ pub fn instantiate(
 /// msg should have [`Cw20ReceiveMsg`] type.
 ///
 /// * **ExecuteMsg::Withdraw {}** withdraw whole amount from the current lock if it has expired
+///
+/// * **ExecuteMsg::ProposeNewOwner { owner, expires_in }** Creates a new request to change ownership.
+///
+/// * **ExecuteMsg::DropOwnershipProposal {}** Removes a request to change ownership.
+///
+/// * **ExecuteMsg::ClaimOwnership {}** Approves owner.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
@@ -97,6 +106,40 @@ pub fn execute(
         ExecuteMsg::ExtendLockTime { time } => extend_lock_time(deps, env, info, time),
         ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
         ExecuteMsg::Withdraw {} => withdraw(deps, env, info),
+        ExecuteMsg::ProposeNewOwner {
+            new_owner,
+            expires_in,
+        } => {
+            let config: Config = CONFIG.load(deps.storage)?;
+
+            propose_new_owner(
+                deps,
+                info,
+                env,
+                new_owner,
+                expires_in,
+                config.owner,
+                OWNERSHIP_PROPOSAL,
+            )
+            .map_err(|e| e.into())
+        }
+        ExecuteMsg::DropOwnershipProposal {} => {
+            let config: Config = CONFIG.load(deps.storage)?;
+
+            drop_ownership_proposal(deps, info, config.owner, OWNERSHIP_PROPOSAL)
+                .map_err(|e| e.into())
+        }
+        ExecuteMsg::ClaimOwnership {} => {
+            claim_ownership(deps, info, env, OWNERSHIP_PROPOSAL, |deps, new_owner| {
+                CONFIG.update::<_, StdError>(deps.storage, |mut v| {
+                    v.owner = new_owner;
+                    Ok(v)
+                })?;
+
+                Ok(())
+            })
+            .map_err(|e| e.into())
+        }
     }
 }
 
@@ -169,7 +212,7 @@ fn checkpoint_total(
 /// schedules slope changes for total voting power
 /// and saves new checkpoint for current period in [`HISTORY`] by user's address key.
 /// If a user already has checkpoint for the current period then
-/// this function uses it as a latest avalible checkpoint.
+/// this function uses it as a latest available checkpoint.
 /// The function returns Ok(()) in case of success or [`StdError`]
 /// in case of serialization/deserialization error.
 fn checkpoint(
@@ -375,7 +418,7 @@ fn withdraw(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, Cont
     } else {
         let config = CONFIG.load(deps.storage)?;
         let transfer_msg = CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: config.xastro_token_addr.to_string(),
+            contract_addr: config.deposit_token_addr.to_string(),
             msg: to_binary(&Cw20ExecuteMsg::Transfer {
                 recipient: sender.to_string(),
                 amount: lock.amount,
@@ -466,6 +509,13 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             to_binary(&get_user_voting_power(deps, env, user, Some(time))?)
         }
         QueryMsg::LockInfo { user } => to_binary(&get_user_lock_info(deps, user)?),
+        QueryMsg::Config {} => {
+            let config = CONFIG.load(deps.storage)?;
+            to_binary(&ConfigResponse {
+                owner: config.owner.to_string(),
+                deposit_token_addr: config.deposit_token_addr.to_string(),
+            })
+        }
     }
 }
 
