@@ -446,10 +446,10 @@ fn calc_checkpoint_token(mut deps: DepsMut, env: Env, config: &mut Config) -> St
         let next_week = current_week + WEEK;
         let current_period = get_period(current_week);
         let to_update = TOKENS_PER_WEEK.has(deps.storage, U64Key::from(current_period));
-        let mut amount_per_week = Uint128::zero();
+        let amount_per_week: Uint128;
 
         if env.clone().block.time.seconds() < next_week {
-            if since_last == 0 && env.clone().block.time.seconds() == last_token_time {
+            if since_last == 0 && env.block.time.seconds() == last_token_time {
                 amount_per_week = to_distribute;
                 actual_distribute_amount += to_distribute;
             } else {

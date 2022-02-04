@@ -9,6 +9,7 @@ const OWNER: &str = "owner";
 const EMERGENCY_RETURN: &str = "emergency_return";
 const USER1: &str = "user1";
 const USER2: &str = "user2";
+const USER3: &str = "user3";
 
 fn mock_app() -> TerraApp {
     let env = mock_env();
@@ -355,6 +356,7 @@ fn claim() {
     let owner = Addr::unchecked(OWNER.clone());
     let user1 = Addr::unchecked(USER1.clone());
     let user2 = Addr::unchecked(USER2.clone());
+    let user3 = Addr::unchecked(USER3.clone());
 
     let base_pack = init_astroport_test_package(router_ref).unwrap();
 
@@ -442,6 +444,16 @@ fn claim() {
             &[],
         )
         .unwrap();
+
+    // check if tokens per week is set
+    let resp: Vec<Uint128> = router_ref
+        .wrap()
+        .query_wasm_smart(
+            &base_pack.escrow_fee_distributor.clone().unwrap().address,
+            &QueryMsg::FeeTokensPerWeek {},
+        )
+        .unwrap();
+    assert_eq!(vec![Uint128::new(100)], resp);
 
     // going to the next week
     router_ref.update_block(next_block);
@@ -634,5 +646,58 @@ fn claim() {
         &base_pack.astro_token.clone().unwrap().address,
         &user2,
         665,
+    );
+
+    // sets 100 ASTRO tokens to distributor (simulate receive astro from maker)
+    BaseAstroportTestPackage::mint(
+        router_ref,
+        owner.clone(),
+        base_pack.astro_token.clone().unwrap().address,
+        &base_pack.escrow_fee_distributor.clone().unwrap().address,
+        100,
+    );
+
+    // sets 200 * 1000_000 xASTRO tokens to user3
+    BaseAstroportTestPackage::mint(
+        router_ref,
+        base_pack.staking.clone().unwrap().address,
+        xastro_token.clone(),
+        &user3,
+        (200 * MULTIPLIER) as u128,
+    );
+
+    // checks if user3's xASTRO token balance is equal to 200 * 1000_000
+    BaseAstroportTestPackage::check_balance(
+        router_ref,
+        &xastro_token.clone(),
+        &user3,
+        (200 * MULTIPLIER) as u128,
+    );
+
+    // locks 100 vxASTRO from user3 for WEEK
+    base_pack
+        .create_lock(router_ref, user3.clone(), WEEK, 100)
+        .unwrap();
+
+    // going to next week
+    router_ref.update_block(next_block);
+    router_ref.update_block(|b| b.time = b.time.plus_seconds(WEEK));
+
+    // checkpoint token
+    router_ref
+        .execute_contract(
+            user3.clone(),
+            base_pack.escrow_fee_distributor.clone().unwrap().address,
+            &ExecuteMsg::CheckpointToken {},
+            &[],
+        )
+        .unwrap();
+
+    // check if distributor's ASTRO balance equal to 103 = 3 (from previous checkpoint) - 100 ( current checkpoint )
+    BaseAstroportTestPackage::check_balance(
+        router_ref,
+        &base_pack.astro_token.clone().unwrap().address,
+        &base_pack.escrow_fee_distributor.clone().unwrap().address,
+        103,
     );
 }
