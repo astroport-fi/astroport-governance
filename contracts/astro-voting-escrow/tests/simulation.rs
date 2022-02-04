@@ -230,9 +230,9 @@ impl Simulator {
 
 use proptest::prelude::*;
 
-const MAX_PERIOD: usize = 105;
-const MAX_USERS: usize = 30;
-const MAX_EVENTS: usize = 2000;
+const MAX_PERIOD: usize = 10;
+const MAX_USERS: usize = 6;
+const MAX_EVENTS: usize = 100;
 
 fn amount_strategy() -> impl Strategy<Value = f32> {
     (1f32..=100f32).prop_map(|val| (val * MULTIPLIER as f32).trunc() / MULTIPLIER as f32)
@@ -266,7 +266,6 @@ fn generate_cases() -> impl Strategy<Value = (Vec<String>, Vec<(usize, String, L
 
 proptest! {
     #[test]
-    #[ignore]
     fn run_simulations
     (
         case in generate_cases()
