@@ -1,6 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "Cw20HookMsg",
+  "description": "This structure stores data for a CW20 hook message.",
   "oneOf": [
     {
       "type": "object",
@@ -470,6 +471,8 @@
       }
     },
     "ProposalMessage": {
+      "title": "Description",
+      "description": "This structure describes proposal message",
       "type": "object",
       "required": [
         "msg",

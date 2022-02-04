@@ -3,7 +3,7 @@
   "title": "QueryMsg",
   "oneOf": [
     {
-      "description": "Config returns the base setting of the assembly contract",
+      "description": "Config returns general parameters from the Assembly contract",
       "type": "object",
       "required": [
         "config"
@@ -16,7 +16,7 @@
       "additionalProperties": false
     },
     {
-      "description": "Proposals returns list of proposals",
+      "description": "Proposals returns the current list of proposals",
       "type": "object",
       "required": [
         "proposals"
@@ -47,7 +47,7 @@
       "additionalProperties": false
     },
     {
-      "description": "Proposal returns information about proposal",
+      "description": "Proposal returns information about a specific proposal",
       "type": "object",
       "required": [
         "proposal"
@@ -70,7 +70,7 @@
       "additionalProperties": false
     },
     {
-      "description": "Proposal returns information about proposal votes",
+      "description": "ProposalVotes returns information about the votes cast on a specific proposal",
       "type": "object",
       "required": [
         "proposal_votes"

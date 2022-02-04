@@ -3,6 +3,13 @@
   "title": "UpdateConfig",
   "type": "object",
   "properties": {
+    "builder_unlock_addr": {
+      "description": "Builder unlock contract address",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
     "proposal_effective_delay": {
       "description": "Proposal effective delay",
       "type": [
