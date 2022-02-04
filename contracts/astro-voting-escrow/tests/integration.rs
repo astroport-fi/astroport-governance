@@ -584,5 +584,5 @@ fn check_update_owner() {
         .query_wasm_smart(&helper.voting_instance, &msg)
         .unwrap();
 
-    assert_eq!(res.owner.to_string(), new_owner)
+    assert_eq!(res.owner, new_owner)
 }

@@ -1,7 +1,8 @@
 use crate::contract::{MAX_LOCK_TIME, WEEK};
 use crate::error::ContractError;
 use cosmwasm_std::{
-    Addr, Decimal, Deps, Fraction, Order, OverflowError, Pair, StdResult, Uint128, Uint256,
+    Addr, Decimal, Deps, Fraction, Order, OverflowError, Pair, StdError, StdResult, Uint128,
+    Uint256,
 };
 use cw_storage_plus::{Bound, U64Key};
 use std::convert::TryInto;
@@ -112,27 +113,28 @@ pub(crate) fn fetch_last_checkpoint(
 
 /// # Description
 /// Helper function for deserialization
-pub(crate) fn deserialize_pair(pair: StdResult<Pair<Decimal>>) -> Option<(u64, Decimal)> {
-    let (period_serialized, change) = pair.ok()?;
-    let period_bytes: [u8; 8] = period_serialized.try_into().ok()?;
-    Some((u64::from_be_bytes(period_bytes), change))
+pub(crate) fn deserialize_pair(pair: StdResult<Pair<Decimal>>) -> StdResult<(u64, Decimal)> {
+    let (period_serialized, change) = pair?;
+    let period_bytes: [u8; 8] = period_serialized
+        .try_into()
+        .map_err(|_| StdError::generic_err("Deserialization error"))?;
+    Ok((u64::from_be_bytes(period_bytes), change))
 }
 
 /// # Description
 /// Fetches all slope changes between last_slope_change and period.
-pub(crate) fn fetch_unapplied_slope_changes(
+pub(crate) fn fetch_slope_changes(
     deps: Deps,
     last_slope_change: u64,
     period: u64,
 ) -> StdResult<Vec<(u64, Decimal)>> {
-    let changes = SLOPE_CHANGES
+    SLOPE_CHANGES
         .range(
             deps.storage,
             Some(Bound::Exclusive(U64Key::new(last_slope_change).wrapped)),
             Some(Bound::Inclusive(U64Key::new(period).wrapped)),
             Order::Ascending,
         )
-        .filter_map(deserialize_pair)
-        .collect();
-    Ok(changes)
+        .map(deserialize_pair)
+        .collect()
 }

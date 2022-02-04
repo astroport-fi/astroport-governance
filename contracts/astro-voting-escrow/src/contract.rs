@@ -4,11 +4,11 @@ use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_ow
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     from_binary, to_binary, Addr, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo,
-    Order, Response, StdError, StdResult, Uint128, WasmMsg,
+    Response, StdError, StdResult, Uint128, WasmMsg,
 };
 use cw2::set_contract_version;
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
-use cw_storage_plus::{Bound, U64Key};
+use cw_storage_plus::U64Key;
 
 use astroport_governance::astro_voting_escrow::{
     ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, LockInfoResponse, MigrateMsg,
@@ -21,8 +21,8 @@ use crate::state::{
     SLOPE_CHANGES,
 };
 use crate::utils::{
-    calc_coefficient, calc_voting_power, deserialize_pair, fetch_last_checkpoint,
-    fetch_unapplied_slope_changes, get_period, time_limits_check, xastro_token_check,
+    calc_coefficient, calc_voting_power, fetch_last_checkpoint, fetch_slope_changes, get_period,
+    time_limits_check, xastro_token_check,
 };
 
 /// Contract name that is used for migration.
@@ -169,7 +169,7 @@ fn checkpoint_total(
             .unwrap_or(0);
         if last_slope_change < cur_period {
             let scheduled_slope_changes =
-                fetch_unapplied_slope_changes(deps.as_ref(), last_slope_change, cur_period)?;
+                fetch_slope_changes(deps.as_ref(), last_slope_change, cur_period)?;
             // recalculating passed points
             for (recalc_period, scheduled_change) in scheduled_slope_changes {
                 point = Point {
@@ -592,16 +592,7 @@ fn get_total_voting_power(
     let voting_power = if point.start == period {
         point.power
     } else {
-        let checkpoint_period_key = U64Key::new(point.start);
-        let scheduled_slope_changes: Vec<_> = SLOPE_CHANGES
-            .range(
-                deps.storage,
-                Some(Bound::Exclusive(checkpoint_period_key.wrapped)),
-                Some(Bound::Inclusive(period_key.wrapped)),
-                Order::Ascending,
-            )
-            .filter_map(deserialize_pair)
-            .collect();
+        let scheduled_slope_changes = fetch_slope_changes(deps, point.start, period)?;
         let mut init_point = point;
         for (recalc_period, scheduled_change) in scheduled_slope_changes {
             init_point = Point {
