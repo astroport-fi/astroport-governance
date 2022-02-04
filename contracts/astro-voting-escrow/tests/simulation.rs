@@ -254,7 +254,7 @@ fn generate_cases() -> impl Strategy<Value = (Vec<String>, Vec<(usize, String, L
             Just(users.clone()),
             prop::collection::vec(
                 (
-                    1..MAX_PERIOD,
+                    1..=MAX_PERIOD,
                     prop::sample::select(users),
                     events_strategy(),
                 ),
@@ -271,7 +271,7 @@ proptest! {
     (
         case in generate_cases()
     ) {
-        let mut events: Vec<Vec<(String, LockEvent)>> = vec![vec![]; MAX_PERIOD];
+        let mut events: Vec<Vec<(String, LockEvent)>> = vec![vec![]; MAX_PERIOD + 1];
         let (users, events_tuples) = case;
         for (period, user, event) in events_tuples {
             events[period].push((user, event));
@@ -285,7 +285,7 @@ proptest! {
         }
         simulator.app_next_period();
 
-        for period in 1..MAX_PERIOD {
+        for period in 1..=MAX_PERIOD {
             if let Some(period_events) = events.get(period) {
                 for (user, event) in period_events {
                     simulator.event_router(user, event.clone())
@@ -300,6 +300,17 @@ proptest! {
             if (real_balance - contract_balance).abs() >= 10e-3 {
                 assert_eq!(real_balance, contract_balance)
             };
+            // evaluate passed periods in history
+            for check_period in 1..period {
+                let real_balance = simulator.calc_total_balance_at(check_period);
+                let contract_balance = simulator
+                    .helper
+                    .query_total_vp_at(&mut simulator.router, check_period as u64 * WEEK)
+                    .unwrap_or(0.0);
+                if (real_balance - contract_balance).abs() >= 10e-3 {
+                    assert_eq!(real_balance, contract_balance)
+                };
+            }
             simulator.app_next_period()
         }
     }
@@ -317,7 +328,7 @@ fn exact_simulation() {
         ],
     );
 
-    let mut events: Vec<Vec<(String, LockEvent)>> = vec![vec![]; MAX_PERIOD];
+    let mut events: Vec<Vec<(String, LockEvent)>> = vec![vec![]; MAX_PERIOD + 1];
     let (users, events_tuples) = case;
     for (period, user, event) in events_tuples {
         events[period].push((user.to_string(), event));
@@ -333,7 +344,7 @@ fn exact_simulation() {
     }
     simulator.app_next_period();
 
-    for period in 1..MAX_PERIOD {
+    for period in 1..=MAX_PERIOD {
         if let Some(period_events) = events.get(period) {
             if !period_events.is_empty() {
                 println!("Period {}:", period);
@@ -351,6 +362,17 @@ fn exact_simulation() {
         if (real_balance - contract_balance).abs() >= 10e-3 {
             assert_eq!(real_balance, contract_balance)
         };
+        // evaluate passed periods in history
+        for check_period in 1..period {
+            let real_balance = simulator.calc_total_balance_at(check_period);
+            let contract_balance = simulator
+                .helper
+                .query_total_vp_at(&mut simulator.router, check_period as u64 * WEEK)
+                .unwrap_or(0.0);
+            if (real_balance - contract_balance).abs() >= 10e-3 {
+                assert_eq!(real_balance, contract_balance)
+            };
+        }
         simulator.app_next_period()
     }
 }
