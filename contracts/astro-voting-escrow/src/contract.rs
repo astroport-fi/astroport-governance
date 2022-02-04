@@ -17,12 +17,12 @@ use astroport_governance::astro_voting_escrow::{
 
 use crate::error::ContractError;
 use crate::state::{
-    Config, Lock, Point, CONFIG, HISTORY, LAST_SLOPE_CHANGE, LOCKED, OWNERSHIP_PROPOSAL,
+    Config, Lock, Point, BLACKLIST, CONFIG, HISTORY, LAST_SLOPE_CHANGE, LOCKED, OWNERSHIP_PROPOSAL,
     SLOPE_CHANGES,
 };
 use crate::utils::{
-    calc_coefficient, calc_voting_power, fetch_last_checkpoint, fetch_slope_changes, get_period,
-    time_limits_check, xastro_token_check,
+    blacklist_check, calc_coefficient, calc_voting_power, fetch_last_checkpoint,
+    fetch_slope_changes, get_period, time_limits_check, validate_addresses, xastro_token_check,
 };
 
 /// Contract name that is used for migration.
@@ -74,6 +74,7 @@ pub fn instantiate(
         (env.contract.address, U64Key::new(cur_period)),
         &point,
     )?;
+    BLACKLIST.save(deps.storage, &vec![])?;
 
     Ok(Response::default())
 }
@@ -140,6 +141,10 @@ pub fn execute(
             })
             .map_err(|e| e.into())
         }
+        ExecuteMsg::UpdateBlacklist {
+            append_addrs,
+            remove_addrs,
+        } => update_blacklist(deps, info, append_addrs, remove_addrs),
     }
 }
 
@@ -328,6 +333,8 @@ fn receive_cw20(
             deposit_for(deps, env, info, cw20_msg.amount, addr)
         }
         Cw20HookMsg::DepositFor { user } => {
+            let sender = addr_validate_to_lower(deps.api, &cw20_msg.sender)?;
+            blacklist_check(deps.as_ref(), &sender, "source")?;
             let addr = addr_validate_to_lower(deps.api, &user)?;
             deposit_for(deps, env, info, cw20_msg.amount, addr)
         }
@@ -350,8 +357,11 @@ fn create_lock(
 ) -> Result<Response, ContractError> {
     xastro_token_check(deps.as_ref(), info.sender)?;
     time_limits_check(time)?;
-    let amount = cw20_msg.amount;
+
     let user = addr_validate_to_lower(deps.as_ref().api, &cw20_msg.sender)?;
+    blacklist_check(deps.as_ref(), &user, "source")?;
+
+    let amount = cw20_msg.amount;
     let block_period = get_period(env.block.time.seconds());
     let end = block_period + get_period(time);
 
@@ -372,7 +382,7 @@ fn create_lock(
 }
 
 /// ## Description
-/// Allows deposit on behalf of other address.
+/// Deposits 'amount' tokens to 'user' lock.
 /// Checks that the user is locking xASTRO token.
 /// Triggers [`checkpoint`].
 /// If lock is already exists, then an [`ContractError`] is returned,
@@ -384,6 +394,7 @@ fn deposit_for(
     amount: Uint128,
     user: Addr,
 ) -> Result<Response, ContractError> {
+    blacklist_check(deps.as_ref(), &user, "target")?;
     xastro_token_check(deps.as_ref(), info.sender)?;
     LOCKED.update(deps.storage, user.clone(), |lock_opt| {
         if let Some(mut lock) = lock_opt {
@@ -408,6 +419,7 @@ fn deposit_for(
 /// otherwise returns the [`Response`] with the specified attributes if the operation was successful
 fn withdraw(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, ContractError> {
     let sender = info.sender;
+    blacklist_check(deps.as_ref(), &sender, "source")?;
     let lock = LOCKED
         .may_load(deps.storage, sender.clone())?
         .ok_or(ContractError::LockDoesntExist {})?;
@@ -462,6 +474,7 @@ fn extend_lock_time(
     time: u64,
 ) -> Result<Response, ContractError> {
     let user = info.sender;
+    blacklist_check(deps.as_ref(), &user, "source")?;
     let mut lock = LOCKED
         .load(deps.storage, user.clone())
         .map_err(|_| ContractError::LockDoesntExist {})?;
@@ -485,6 +498,48 @@ fn extend_lock_time(
     checkpoint(deps, env, user, None, Some(lock.end))?;
 
     Ok(Response::default().add_attribute("action", "extend_lock_time"))
+}
+
+/// ## Description
+/// Updates blacklist. Removes addresses given in 'remove_addrs' array
+/// and appends new addresses given in 'append_addrs'.
+/// Returns [`ContractError`] in case of (de/ser)ialization error or addresses validation error.
+fn update_blacklist(
+    deps: DepsMut,
+    info: MessageInfo,
+    append_addrs: Option<Vec<String>>,
+    remove_addrs: Option<Vec<String>>,
+) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+    // Permission check
+    if info.sender != config.owner {
+        return Err(ContractError::Unauthorized {});
+    }
+    let append_addrs = append_addrs.unwrap_or(vec![]);
+    let remove_addrs = remove_addrs.unwrap_or(vec![]);
+    let append = validate_addresses(deps.as_ref(), &append_addrs)?;
+    let remove = validate_addresses(deps.as_ref(), &remove_addrs)?;
+
+    BLACKLIST.update(deps.storage, |blacklist| -> StdResult<Vec<Addr>> {
+        let mut updated_blacklist: Vec<_> = blacklist
+            .into_iter()
+            .filter(|addr| !remove.contains(addr))
+            .collect();
+        updated_blacklist.extend(append);
+        Ok(updated_blacklist)
+    })?;
+
+    let mut attrs = vec![("action", "update_blacklist")];
+    let append_joined = append_addrs.join(",");
+    if !append_addrs.is_empty() {
+        attrs.push(("added_addresses", append_joined.as_str()))
+    }
+    let remove_joined = remove_addrs.join(",");
+    if !remove_addrs.is_empty() {
+        attrs.push(("removed_addresses", remove_joined.as_str()))
+    }
+
+    Ok(Response::default().add_attributes(attrs))
 }
 
 /// # Description

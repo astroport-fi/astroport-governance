@@ -28,4 +28,7 @@ pub enum ContractError {
 
     #[error("The lock expired. Withdraw and create new lock")]
     LockExpired {},
+
+    #[error("The {0} address is blacklisted")]
+    AddressBlacklisted(String),
 }

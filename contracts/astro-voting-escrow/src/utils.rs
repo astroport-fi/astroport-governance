@@ -1,5 +1,6 @@
 use crate::contract::{MAX_LOCK_TIME, WEEK};
 use crate::error::ContractError;
+use astroport::asset::addr_validate_to_lower;
 use cosmwasm_std::{
     Addr, Decimal, Deps, Fraction, Order, OverflowError, Pair, StdError, StdResult, Uint128,
     Uint256,
@@ -7,7 +8,7 @@ use cosmwasm_std::{
 use cw_storage_plus::{Bound, U64Key};
 use std::convert::TryInto;
 
-use crate::state::{Point, CONFIG, HISTORY, SLOPE_CHANGES};
+use crate::state::{Point, BLACKLIST, CONFIG, HISTORY, SLOPE_CHANGES};
 
 /// # Description
 /// Checks the time is within limits
@@ -31,6 +32,19 @@ pub(crate) fn xastro_token_check(deps: Deps, sender: Addr) -> Result<(), Contrac
     let config = CONFIG.load(deps.storage)?;
     if sender != config.deposit_token_addr {
         Err(ContractError::Unauthorized {})
+    } else {
+        Ok(())
+    }
+}
+
+pub(crate) fn blacklist_check(
+    deps: Deps,
+    addr: &Addr,
+    direction: &str,
+) -> Result<(), ContractError> {
+    let blacklist = BLACKLIST.load(deps.storage)?;
+    if blacklist.contains(addr) {
+        Err(ContractError::AddressBlacklisted(direction.to_string()))
     } else {
         Ok(())
     }
@@ -136,5 +150,15 @@ pub(crate) fn fetch_slope_changes(
             Order::Ascending,
         )
         .map(deserialize_pair)
+        .collect()
+}
+
+/// # Description
+/// Bulk validation and converting [`String`] -> [`Addr`] of array with addresses.
+/// If any address is invalid returns [`StdError`].
+pub(crate) fn validate_addresses(deps: Deps, addresses: &Vec<String>) -> StdResult<Vec<Addr>> {
+    addresses
+        .iter()
+        .map(|addr| addr_validate_to_lower(deps.api, addr))
         .collect()
 }

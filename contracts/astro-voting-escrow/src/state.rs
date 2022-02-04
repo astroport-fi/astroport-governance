@@ -62,3 +62,7 @@ pub const LAST_SLOPE_CHANGE: Item<u64> = Item::new("last_slope_change");
 /// ## Description
 /// Contains a proposal to change ownership
 pub const OWNERSHIP_PROPOSAL: Item<OwnershipProposal> = Item::new("ownership_proposal");
+
+/// ## Description
+/// Contains blacklisted addresses
+pub const BLACKLIST: Item<Vec<Addr>> = Item::new("blacklist");

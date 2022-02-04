@@ -29,6 +29,10 @@ pub enum ExecuteMsg {
     },
     DropOwnershipProposal {},
     ClaimOwnership {},
+    UpdateBlacklist {
+        append_addrs: Option<Vec<String>>,
+        remove_addrs: Option<Vec<String>>,
+    },
 }
 
 /// ## Description

@@ -6,7 +6,7 @@ use astroport_governance::astro_voting_escrow::{
     ConfigResponse, Cw20HookMsg, ExecuteMsg, LockInfoResponse, QueryMsg,
 };
 use astroport_voting_escrow::contract::{MAX_LOCK_TIME, WEEK};
-use cosmwasm_std::{to_binary, Addr, Decimal, Uint128};
+use cosmwasm_std::{attr, to_binary, Addr, Decimal, Uint128};
 use cw20::{Cw20ExecuteMsg, MinterResponse};
 use std::str::FromStr;
 use terra_multi_test::{next_block, ContractWrapper, Executor};
@@ -585,4 +585,147 @@ fn check_update_owner() {
         .unwrap();
 
     assert_eq!(res.owner, new_owner)
+}
+
+#[test]
+fn check_blacklist() {
+    let mut router = mock_app();
+    let router_ref = &mut router;
+    let owner = Addr::unchecked("owner");
+    let helper = Helper::init(router_ref, owner);
+
+    // mint ASTRO, stake it and mint xASTRO
+    helper.mint_xastro(router_ref, "user1", 100);
+    helper.mint_xastro(router_ref, "user2", 100);
+    helper.mint_xastro(router_ref, "user3", 100);
+
+    let msg = ExecuteMsg::UpdateBlacklist {
+        append_addrs: Some(vec!["user2".to_string()]),
+        remove_addrs: None,
+    };
+    // blacklisting user2
+    let res = router_ref
+        .execute_contract(
+            Addr::unchecked("owner"),
+            helper.voting_instance.clone(),
+            &msg,
+            &[],
+        )
+        .unwrap();
+    assert_eq!(
+        res.events[1].attributes[1],
+        attr("action", "update_blacklist")
+    );
+    assert_eq!(
+        res.events[1].attributes[2],
+        attr("added_addresses", "user2")
+    );
+
+    helper
+        .create_lock(router_ref, "user1", WEEK * 10, 50f32)
+        .unwrap();
+    // trying to create lock from blacklisted address
+    let err = helper
+        .create_lock(router_ref, "user2", WEEK * 10, 100f32)
+        .unwrap_err();
+    assert_eq!(err.to_string(), "The source address is blacklisted");
+    let err = helper
+        .deposit_for(router_ref, "user2", "user3", 50f32)
+        .unwrap_err();
+    assert_eq!(err.to_string(), "The source address is blacklisted");
+
+    // since user2 is blacklisted his xASTRO balance left unchanged
+    helper.check_xastro_balance(router_ref, "user2", 100);
+    // and he did not create lock in voting escrow thus we have no information
+    let err = helper.query_user_vp(router_ref, "user2").unwrap_err();
+    assert_eq!(
+        err.to_string(),
+        "Generic error: Querier contract error: Generic error: User is not found"
+    );
+
+    // going to the future
+    router_ref.update_block(next_block);
+    router_ref.update_block(|block| block.time = block.time.plus_seconds(2 * WEEK));
+
+    // user2 is still blacklisted
+    let err = helper
+        .create_lock(router_ref, "user2", WEEK * 10, 100f32)
+        .unwrap_err();
+    assert_eq!(err.to_string(), "The source address is blacklisted");
+
+    // blacklisting user1
+    let msg = ExecuteMsg::UpdateBlacklist {
+        append_addrs: Some(vec!["user1".to_string()]),
+        remove_addrs: None,
+    };
+    let res = router_ref
+        .execute_contract(
+            Addr::unchecked("owner"),
+            helper.voting_instance.clone(),
+            &msg,
+            &[],
+        )
+        .unwrap();
+    assert_eq!(
+        res.events[1].attributes[1],
+        attr("action", "update_blacklist")
+    );
+    assert_eq!(
+        res.events[1].attributes[2],
+        attr("added_addresses", "user1")
+    );
+
+    // user1 is now blacklisted
+    let err = helper
+        .extend_lock_time(router_ref, "user1", WEEK * 10)
+        .unwrap_err();
+    assert_eq!(err.to_string(), "The source address is blacklisted");
+    let err = helper
+        .extend_lock_amount(router_ref, "user1", 10f32)
+        .unwrap_err();
+    // TODO: assert_eq!(err.to_string(), "The source address is blacklisted");
+    let err = helper
+        .deposit_for(router_ref, "user2", "user1", 50f32)
+        .unwrap_err();
+    assert_eq!(err.to_string(), "The source address is blacklisted");
+    let err = helper
+        .deposit_for(router_ref, "user3", "user1", 50f32)
+        .unwrap_err();
+    assert_eq!(err.to_string(), "The target address is blacklisted");
+    // But still he has voting power
+    // TODO: should we nullify his voting power?
+    let vp = helper.query_user_vp(router_ref, "user1").unwrap();
+    assert!(vp > 0.0);
+
+    // going to the future to check user1 can not withdraw bc he was blacklisted
+    router_ref.update_block(next_block);
+    router_ref.update_block(|block| block.time = block.time.plus_seconds(20 * WEEK));
+
+    let err = helper.withdraw(router_ref, "user1").unwrap_err();
+    assert_eq!(err.to_string(), "The source address is blacklisted");
+
+    // removing user1 from blacklist
+    let msg = ExecuteMsg::UpdateBlacklist {
+        append_addrs: None,
+        remove_addrs: Some(vec!["user1".to_string()]),
+    };
+    let res = router_ref
+        .execute_contract(
+            Addr::unchecked("owner"),
+            helper.voting_instance.clone(),
+            &msg,
+            &[],
+        )
+        .unwrap();
+    assert_eq!(
+        res.events[1].attributes[1],
+        attr("action", "update_blacklist")
+    );
+    assert_eq!(
+        res.events[1].attributes[2],
+        attr("removed_addresses", "user1")
+    );
+
+    // now user1 can withdraw
+    helper.withdraw(router_ref, "user1").unwrap();
 }
