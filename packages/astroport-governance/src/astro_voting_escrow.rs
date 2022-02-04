@@ -66,7 +66,7 @@ pub struct VotingPowerResponse {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct LockInfoResponse {
     pub amount: Uint128,
-    pub boost: Decimal,
+    pub coefficient: Decimal,
     pub start: u64,
     pub end: u64,
 }

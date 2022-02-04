@@ -84,10 +84,10 @@ pub(crate) fn calc_voting_power(point: &Point, period: u64) -> Uint128 {
 }
 
 /// # Description
-/// Boost calculation where [`MAX_LOCK_TIME`] equals to 2.5 boost,
-/// MAX_LOCK_TIME/2 equals to 1.25 boost and so on.
-pub(crate) fn calc_boost(interval: u64) -> Decimal {
-    // boost = 2.5 * (end - start) / MAX_LOCK_TIME
+/// Coefficient calculation where [`MAX_LOCK_TIME`] equals to 2.5 coefficient,
+/// MAX_LOCK_TIME/2 equals to 1.25 and so on.
+pub(crate) fn calc_coefficient(interval: u64) -> Decimal {
+    // coefficient = 2.5 * (end - start) / MAX_LOCK_TIME
     Decimal::from_ratio(25_u64 * interval, get_period(MAX_LOCK_TIME) * 10)
 }
 

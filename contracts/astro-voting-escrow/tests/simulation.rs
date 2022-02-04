@@ -36,10 +36,10 @@ fn get_period(time: u64) -> u64 {
     time / WEEK
 }
 
-fn apply_boost(amount: f32, interval: u64) -> f32 {
-    let boosted = (amount * 2.5 * interval as f32) / get_period(MAX_LOCK_TIME) as f32;
+fn apply_coefficient(amount: f32, interval: u64) -> f32 {
+    let applied = (amount * 2.5 * interval as f32) / get_period(MAX_LOCK_TIME) as f32;
     // imitating Decimal fraction multiplication in the contract
-    (boosted * MULTIPLIER as f32).trunc() / MULTIPLIER as f32
+    (applied * MULTIPLIER as f32).trunc() / MULTIPLIER as f32
 }
 
 impl Simulator {
@@ -77,7 +77,7 @@ impl Simulator {
                 self.add_point(
                     block_period as usize,
                     user,
-                    apply_boost(amount, periods_interval),
+                    apply_coefficient(amount, periods_interval),
                     block_period + periods_interval,
                 );
                 response
@@ -114,7 +114,7 @@ impl Simulator {
                             .expect("We always need previous point!");
                         (self.calc_user_balance_at(cur_period, user), prev_point.end)
                     };
-                let vp = apply_boost(amount, end - cur_period as u64);
+                let vp = apply_coefficient(amount, end - cur_period as u64);
                 self.add_point(cur_period, user, user_balance + vp, end);
                 response
             })

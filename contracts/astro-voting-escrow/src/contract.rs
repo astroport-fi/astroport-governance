@@ -21,7 +21,7 @@ use crate::state::{
     SLOPE_CHANGES,
 };
 use crate::utils::{
-    calc_boost, calc_voting_power, deserialize_pair, fetch_last_checkpoint,
+    calc_coefficient, calc_voting_power, deserialize_pair, fetch_last_checkpoint,
     fetch_unapplied_slope_changes, get_period, time_limits_check, xastro_token_check,
 };
 
@@ -240,7 +240,7 @@ fn checkpoint(
                 Decimal::from_ratio(current_power, dt)
             } else {
                 // increase lock's amount or lock creation after withdrawal
-                add_voting_power = add_amount * calc_boost(dt);
+                add_voting_power = add_amount * calc_coefficient(dt);
                 Decimal::from_ratio(current_power + add_voting_power, dt)
             }
         } else {
@@ -276,7 +276,7 @@ fn checkpoint(
         let end =
             new_end.ok_or_else(|| StdError::generic_err("Checkpoint initialization error"))?;
         let dt = end - cur_period;
-        add_voting_power = add_amount * calc_boost(dt);
+        add_voting_power = add_amount * calc_coefficient(dt);
         let slope = Decimal::from_ratio(add_voting_power, dt);
         Point {
             power: add_voting_power,
@@ -526,7 +526,7 @@ fn get_user_lock_info(deps: Deps, user: String) -> StdResult<LockInfoResponse> {
     if let Some(lock) = LOCKED.may_load(deps.storage, addr)? {
         let resp = LockInfoResponse {
             amount: lock.amount,
-            boost: calc_boost(lock.end - lock.start),
+            coefficient: calc_coefficient(lock.end - lock.start),
             start: lock.start,
             end: lock.end,
         };

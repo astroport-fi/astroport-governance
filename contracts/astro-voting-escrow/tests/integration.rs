@@ -476,7 +476,7 @@ fn check_queries() {
     assert_eq!(user_lock.start, cur_period);
     assert_eq!(user_lock.end, cur_period + 2);
     assert!(
-        user_lock.boost - Decimal::from_str("0.048076").unwrap()
+        user_lock.coefficient - Decimal::from_str("0.048076").unwrap()
             < Decimal::from_str("0.000001").unwrap()
     )
 }
