@@ -37,9 +37,9 @@ fn get_period(time: u64) -> u64 {
 }
 
 fn apply_coefficient(amount: f32, interval: u64) -> f32 {
-    let applied = (amount * 2.5 * interval as f32) / get_period(MAX_LOCK_TIME) as f32;
+    let coeff = 1f32 + (1.5 * interval as f32) / get_period(MAX_LOCK_TIME) as f32;
     // imitating Decimal fraction multiplication in the contract
-    (applied * MULTIPLIER as f32).trunc() / MULTIPLIER as f32
+    (amount * coeff * MULTIPLIER as f32).trunc() / MULTIPLIER as f32
 }
 
 impl Simulator {

@@ -6,9 +6,8 @@ use astroport_governance::astro_voting_escrow::{
     ConfigResponse, Cw20HookMsg, ExecuteMsg, LockInfoResponse, QueryMsg,
 };
 use astroport_voting_escrow::contract::{MAX_LOCK_TIME, WEEK};
-use cosmwasm_std::{attr, to_binary, Addr, Decimal, Uint128};
+use cosmwasm_std::{attr, to_binary, Addr, Fraction, Uint128};
 use cw20::{Cw20ExecuteMsg, MinterResponse};
-use std::str::FromStr;
 use terra_multi_test::{next_block, ContractWrapper, Executor};
 
 #[test]
@@ -233,9 +232,9 @@ fn new_lock_after_lock_expired() {
         .unwrap();
 
     let vp = helper.query_user_vp(router_ref, "user").unwrap();
-    assert_eq!(vp, 6.00961);
+    assert_eq!(vp, 53.60576);
     let vp = helper.query_total_vp(router_ref).unwrap();
-    assert_eq!(vp, 6.00961);
+    assert_eq!(vp, 53.60576);
 
     // going to the future
     router_ref.update_block(next_block);
@@ -258,9 +257,9 @@ fn new_lock_after_lock_expired() {
         .unwrap();
 
     let vp = helper.query_user_vp(router_ref, "user").unwrap();
-    assert_eq!(vp, 12.01923);
+    assert_eq!(vp, 107.21153);
     let vp = helper.query_total_vp(router_ref).unwrap();
-    assert_eq!(vp, 12.01923);
+    assert_eq!(vp, 107.21153);
 }
 
 /// Plot for this case tests/plots/constant_decay.png
@@ -279,9 +278,9 @@ fn voting_constant_decay() {
         .unwrap();
 
     let vp = helper.query_user_vp(router_ref, "user").unwrap();
-    assert_eq!(vp, 7.21153);
+    assert_eq!(vp, 34.32692);
     let vp = helper.query_total_vp(router_ref).unwrap();
-    assert_eq!(vp, 7.21153);
+    assert_eq!(vp, 34.32692);
 
     // since user2 did not lock his xASTRO the contract does not have any information
     let err = helper.query_user_vp(router_ref, "user2").unwrap_err();
@@ -302,7 +301,7 @@ fn voting_constant_decay() {
             router_ref.block_info().time.seconds() - WEEK,
         )
         .unwrap();
-    assert_eq!(res, 4.32692);
+    assert_eq!(res, 20.59615);
     let res = helper
         .query_user_vp_at(
             router_ref,
@@ -310,14 +309,14 @@ fn voting_constant_decay() {
             router_ref.block_info().time.seconds() - 3 * WEEK,
         )
         .unwrap();
-    assert_eq!(res, 5.76922);
+    assert_eq!(res, 27.46154);
     let res = helper
         .query_total_vp_at(
             router_ref,
             router_ref.block_info().time.seconds() - 5 * WEEK,
         )
         .unwrap();
-    assert_eq!(res, 7.21153);
+    assert_eq!(res, 34.32692);
 
     // and even in the future
     let res = helper
@@ -327,7 +326,7 @@ fn voting_constant_decay() {
             router_ref.block_info().time.seconds() + WEEK,
         )
         .unwrap();
-    assert_eq!(res, 2.88461);
+    assert_eq!(res, 13.73077);
     let res = helper
         .query_user_vp_at(
             router_ref,
@@ -343,18 +342,18 @@ fn voting_constant_decay() {
         .unwrap();
 
     let vp = helper.query_user_vp(router_ref, "user").unwrap();
-    assert_eq!(vp, 3.60576);
+    assert_eq!(vp, 17.16346);
     let vp = helper.query_user_vp(router_ref, "user2").unwrap();
-    assert_eq!(vp, 7.21153);
+    assert_eq!(vp, 54.32692);
     let vp = helper.query_total_vp(router_ref).unwrap();
-    assert_eq!(vp, 10.81729);
+    assert_eq!(vp, 71.49038);
     let res = helper
         .query_total_vp_at(
             router_ref,
             router_ref.block_info().time.seconds() + 4 * WEEK,
         )
         .unwrap();
-    assert_eq!(res, 3.12499);
+    assert_eq!(res, 21.54167);
 
     // going to the future
     router_ref.update_block(next_block);
@@ -362,9 +361,9 @@ fn voting_constant_decay() {
     let vp = helper.query_user_vp(router_ref, "user").unwrap();
     assert_eq!(vp, 0.0);
     let vp = helper.query_user_vp(router_ref, "user2").unwrap();
-    assert_eq!(vp, 1.20192);
+    assert_eq!(vp, 9.05449);
     let vp = helper.query_total_vp(router_ref).unwrap();
-    assert_eq!(vp, 1.20192);
+    assert_eq!(vp, 9.05449);
 
     // going to the future
     router_ref.update_block(next_block);
@@ -399,7 +398,7 @@ fn voting_variable_decay() {
         .create_lock(router_ref, "user2", WEEK * 6, 50f32)
         .unwrap();
     let vp = helper.query_total_vp(router_ref).unwrap();
-    assert_eq!(vp, 10.81729);
+    assert_eq!(vp, 71.49038);
 
     // going to the future
     router_ref.update_block(next_block);
@@ -412,11 +411,11 @@ fn voting_variable_decay() {
         .extend_lock_time(router_ref, "user2", WEEK * 10)
         .unwrap();
     let vp = helper.query_user_vp(router_ref, "user").unwrap();
-    assert_eq!(vp, 2.40384);
+    assert_eq!(vp, 74.4423);
     let vp = helper.query_user_vp(router_ref, "user2").unwrap();
-    assert_eq!(vp, 2.40384);
+    assert_eq!(vp, 18.10897);
     let vp = helper.query_total_vp(router_ref).unwrap();
-    assert_eq!(vp, 4.80768);
+    assert_eq!(vp, 92.55128);
 
     let res = helper
         .query_user_vp_at(
@@ -425,11 +424,11 @@ fn voting_variable_decay() {
             router_ref.block_info().time.seconds() + 4 * WEEK,
         )
         .unwrap();
-    assert_eq!(res, 1.4423);
+    assert_eq!(res, 10.86538);
     let res = helper
         .query_total_vp_at(router_ref, router_ref.block_info().time.seconds() + WEEK)
         .unwrap();
-    assert_eq!(res, 2.16346);
+    assert_eq!(res, 16.29808);
 
     // going to the future
     router_ref.update_block(next_block);
@@ -437,9 +436,9 @@ fn voting_variable_decay() {
     let vp = helper.query_user_vp(router_ref, "user").unwrap();
     assert_eq!(vp, 0.0);
     let vp = helper.query_user_vp(router_ref, "user2").unwrap();
-    assert_eq!(vp, 2.16346);
+    assert_eq!(vp, 16.29807);
     let vp = helper.query_total_vp(router_ref).unwrap();
-    assert_eq!(vp, 2.16346);
+    assert_eq!(vp, 16.29808);
 }
 
 #[test]
@@ -475,10 +474,11 @@ fn check_queries() {
     assert_eq!(user_lock.amount.u128(), 90_u128 * MULTIPLIER as u128);
     assert_eq!(user_lock.start, cur_period);
     assert_eq!(user_lock.end, cur_period + 2);
-    assert!(
-        user_lock.coefficient - Decimal::from_str("0.048076").unwrap()
-            < Decimal::from_str("0.000001").unwrap()
-    )
+    let coeff =
+        user_lock.coefficient.numerator() as f32 / user_lock.coefficient.denominator() as f32;
+    if (coeff - 1.02884f32).abs() > 1e-5 {
+        assert_eq!(coeff, 1.02884f32)
+    }
 }
 
 #[test]
