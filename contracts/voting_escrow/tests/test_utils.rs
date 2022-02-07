@@ -1,6 +1,6 @@
 use anyhow::Result;
 use astroport::{staking as xastro, token as astro};
-use astroport_governance::astro_voting_escrow::{
+use astroport_governance::voting_escrow::{
     Cw20HookMsg, ExecuteMsg, InstantiateMsg, QueryMsg, VotingPowerResponse,
 };
 use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
@@ -88,9 +88,9 @@ impl Helper {
             .unwrap();
 
         let voting_contract = Box::new(ContractWrapper::new_with_empty(
-            astroport_voting_escrow::contract::execute,
-            astroport_voting_escrow::contract::instantiate,
-            astroport_voting_escrow::contract::query,
+            voting_escrow::contract::execute,
+            voting_escrow::contract::instantiate,
+            voting_escrow::contract::query,
         ));
 
         let voting_code_id = router.store_code(voting_contract);

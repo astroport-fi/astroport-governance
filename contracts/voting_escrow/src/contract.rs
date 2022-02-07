@@ -10,7 +10,7 @@ use cw2::set_contract_version;
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 use cw_storage_plus::U64Key;
 
-use astroport_governance::astro_voting_escrow::{
+use astroport_governance::voting_escrow::{
     ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, LockInfoResponse, MigrateMsg,
     QueryMsg, VotingPowerResponse,
 };

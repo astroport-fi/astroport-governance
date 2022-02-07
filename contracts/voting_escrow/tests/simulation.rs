@@ -1,10 +1,10 @@
 use crate::test_utils::{mock_app, Helper, MULTIPLIER};
 use anyhow::Result;
-use astroport_voting_escrow::contract::{MAX_LOCK_TIME, WEEK};
 use cosmwasm_std::{Addr, Timestamp};
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use terra_multi_test::{next_block, AppResponse, TerraApp};
+use voting_escrow::contract::{MAX_LOCK_TIME, WEEK};
 
 mod test_utils;
 

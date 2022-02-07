@@ -115,28 +115,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "astroport-voting-escrow"
-version = "1.0.0"
-dependencies = [
- "anyhow",
- "astroport 1.1.0",
- "astroport-governance",
- "astroport-staking",
- "astroport-token 1.0.0",
- "cosmwasm-schema",
- "cosmwasm-std",
- "cw-storage-plus 0.8.1",
- "cw2",
- "cw20",
- "proptest",
- "schemars",
- "serde",
- "terra-cosmwasm",
- "terra-multi-test 0.9.1 (git+https://github.com/astroport-fi/terra-plus.git)",
- "thiserror",
-]
-
-[[package]]
 name = "astroport-xastro-token"
 version = "1.0.0"
 source = "git+https://github.com/astroport-fi/astroport.git#a4bf79bff126fbcaba7ae64401e655f074422001"
@@ -1188,6 +1166,28 @@ name = "version_check"
 version = "0.9.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5fecdca9a5291cc2b8dcf7dc02453fee791a280f3743cb0905f8822ae463b3fe"
+
+[[package]]
+name = "voting-escrow"
+version = "1.0.0"
+dependencies = [
+ "anyhow",
+ "astroport 1.1.0",
+ "astroport-governance",
+ "astroport-staking",
+ "astroport-token 1.0.0",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-storage-plus 0.8.1",
+ "cw2",
+ "cw20",
+ "proptest",
+ "schemars",
+ "serde",
+ "terra-cosmwasm",
+ "terra-multi-test 0.9.1 (git+https://github.com/astroport-fi/terra-plus.git)",
+ "thiserror",
+]
 
 [[package]]
 name = "wait-timeout"
