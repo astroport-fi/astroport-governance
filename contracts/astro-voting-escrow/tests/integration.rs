@@ -628,11 +628,11 @@ fn check_blacklist() {
     let err = helper
         .create_lock(router_ref, "user2", WEEK * 10, 100f32)
         .unwrap_err();
-    assert_eq!(err.to_string(), "The source address is blacklisted");
+    assert_eq!(err.to_string(), "The user2 address is blacklisted");
     let err = helper
         .deposit_for(router_ref, "user2", "user3", 50f32)
         .unwrap_err();
-    assert_eq!(err.to_string(), "The source address is blacklisted");
+    assert_eq!(err.to_string(), "The user2 address is blacklisted");
 
     // since user2 is blacklisted his xASTRO balance left unchanged
     helper.check_xastro_balance(router_ref, "user2", 100);
@@ -651,7 +651,7 @@ fn check_blacklist() {
     let err = helper
         .create_lock(router_ref, "user2", WEEK * 10, 100f32)
         .unwrap_err();
-    assert_eq!(err.to_string(), "The source address is blacklisted");
+    assert_eq!(err.to_string(), "The user2 address is blacklisted");
 
     // blacklisting user1
     let msg = ExecuteMsg::UpdateBlacklist {
@@ -679,19 +679,19 @@ fn check_blacklist() {
     let err = helper
         .extend_lock_time(router_ref, "user1", WEEK * 10)
         .unwrap_err();
-    assert_eq!(err.to_string(), "The source address is blacklisted");
+    assert_eq!(err.to_string(), "The user1 address is blacklisted");
     let err = helper
         .extend_lock_amount(router_ref, "user1", 10f32)
         .unwrap_err();
-    // TODO: assert_eq!(err.to_string(), "The source address is blacklisted");
+    assert_eq!(err.to_string(), "The user1 address is blacklisted");
     let err = helper
         .deposit_for(router_ref, "user2", "user1", 50f32)
         .unwrap_err();
-    assert_eq!(err.to_string(), "The source address is blacklisted");
+    assert_eq!(err.to_string(), "The user2 address is blacklisted");
     let err = helper
         .deposit_for(router_ref, "user3", "user1", 50f32)
         .unwrap_err();
-    assert_eq!(err.to_string(), "The target address is blacklisted");
+    assert_eq!(err.to_string(), "The user1 address is blacklisted");
     // But still he has voting power
     // TODO: should we nullify his voting power?
     let vp = helper.query_user_vp(router_ref, "user1").unwrap();
@@ -702,7 +702,7 @@ fn check_blacklist() {
     router_ref.update_block(|block| block.time = block.time.plus_seconds(20 * WEEK));
 
     let err = helper.withdraw(router_ref, "user1").unwrap_err();
-    assert_eq!(err.to_string(), "The source address is blacklisted");
+    assert_eq!(err.to_string(), "The user1 address is blacklisted");
 
     // removing user1 from blacklist
     let msg = ExecuteMsg::UpdateBlacklist {

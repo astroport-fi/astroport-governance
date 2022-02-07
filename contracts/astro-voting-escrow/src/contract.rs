@@ -334,7 +334,7 @@ fn receive_cw20(
         }
         Cw20HookMsg::DepositFor { user } => {
             let sender = addr_validate_to_lower(deps.api, &cw20_msg.sender)?;
-            blacklist_check(deps.as_ref(), &sender, "source")?;
+            blacklist_check(deps.as_ref(), &sender)?;
             let addr = addr_validate_to_lower(deps.api, &user)?;
             deposit_for(deps, env, info, cw20_msg.amount, addr)
         }
@@ -359,7 +359,7 @@ fn create_lock(
     time_limits_check(time)?;
 
     let user = addr_validate_to_lower(deps.as_ref().api, &cw20_msg.sender)?;
-    blacklist_check(deps.as_ref(), &user, "source")?;
+    blacklist_check(deps.as_ref(), &user)?;
 
     let amount = cw20_msg.amount;
     let block_period = get_period(env.block.time.seconds());
@@ -394,7 +394,7 @@ fn deposit_for(
     amount: Uint128,
     user: Addr,
 ) -> Result<Response, ContractError> {
-    blacklist_check(deps.as_ref(), &user, "target")?;
+    blacklist_check(deps.as_ref(), &user)?;
     xastro_token_check(deps.as_ref(), info.sender)?;
     LOCKED.update(deps.storage, user.clone(), |lock_opt| {
         if let Some(mut lock) = lock_opt {
@@ -419,7 +419,7 @@ fn deposit_for(
 /// otherwise returns the [`Response`] with the specified attributes if the operation was successful
 fn withdraw(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, ContractError> {
     let sender = info.sender;
-    blacklist_check(deps.as_ref(), &sender, "source")?;
+    blacklist_check(deps.as_ref(), &sender)?;
     let lock = LOCKED
         .may_load(deps.storage, sender.clone())?
         .ok_or(ContractError::LockDoesntExist {})?;
@@ -474,7 +474,7 @@ fn extend_lock_time(
     time: u64,
 ) -> Result<Response, ContractError> {
     let user = info.sender;
-    blacklist_check(deps.as_ref(), &user, "source")?;
+    blacklist_check(deps.as_ref(), &user)?;
     let mut lock = LOCKED
         .load(deps.storage, user.clone())
         .map_err(|_| ContractError::LockDoesntExist {})?;
@@ -515,8 +515,8 @@ fn update_blacklist(
     if info.sender != config.owner {
         return Err(ContractError::Unauthorized {});
     }
-    let append_addrs = append_addrs.unwrap_or(vec![]);
-    let remove_addrs = remove_addrs.unwrap_or(vec![]);
+    let append_addrs = append_addrs.unwrap_or_default();
+    let remove_addrs = remove_addrs.unwrap_or_default();
     let append = validate_addresses(deps.as_ref(), &append_addrs)?;
     let remove = validate_addresses(deps.as_ref(), &remove_addrs)?;
 

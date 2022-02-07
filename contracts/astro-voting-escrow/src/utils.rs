@@ -37,14 +37,10 @@ pub(crate) fn xastro_token_check(deps: Deps, sender: Addr) -> Result<(), Contrac
     }
 }
 
-pub(crate) fn blacklist_check(
-    deps: Deps,
-    addr: &Addr,
-    direction: &str,
-) -> Result<(), ContractError> {
+pub(crate) fn blacklist_check(deps: Deps, addr: &Addr) -> Result<(), ContractError> {
     let blacklist = BLACKLIST.load(deps.storage)?;
     if blacklist.contains(addr) {
-        Err(ContractError::AddressBlacklisted(direction.to_string()))
+        Err(ContractError::AddressBlacklisted(addr.to_string()))
     } else {
         Ok(())
     }
@@ -156,7 +152,7 @@ pub(crate) fn fetch_slope_changes(
 /// # Description
 /// Bulk validation and converting [`String`] -> [`Addr`] of array with addresses.
 /// If any address is invalid returns [`StdError`].
-pub(crate) fn validate_addresses(deps: Deps, addresses: &Vec<String>) -> StdResult<Vec<Addr>> {
+pub(crate) fn validate_addresses(deps: Deps, addresses: &[String]) -> StdResult<Vec<Addr>> {
     addresses
         .iter()
         .map(|addr| addr_validate_to_lower(deps.api, addr))
