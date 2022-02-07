@@ -5,7 +5,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// ## Description
-/// This structure describes the main control config of maker.
+/// This structure describes the main control config of voting escrow contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
     /// contract address that used for settings control
