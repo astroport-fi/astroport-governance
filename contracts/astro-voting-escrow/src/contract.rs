@@ -459,14 +459,14 @@ fn withdraw(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, Cont
 
 /// ## Description
 /// Increases current lock time by specified time. The time value is in seconds.
-/// Evaluates that the time is within [`WEEK`]..[`MAX_LOCK_TIME`] limits,
-/// checks the lock time was not decreased and triggers [`checkpoint`].
+/// Evaluates that the time is within [`WEEK`]..[`MAX_LOCK_TIME`] limits
+/// and triggers [`checkpoint`].
 /// If lock doesn't exist or it expired, then an [`ContractError`] is returned,
 /// otherwise returns the [`Response`] with the specified attributes if the operation was successful
 /// ## Note
-/// The lock time is increased starting from the current block period.
+/// The time is added to lock's end.
 /// For example, at the period 0 user locked xASTRO for 3 weeks.
-/// In 1 week he increases time by 10 weeks thus unlock period becomes 11.
+/// In 1 week he increases time by 10 weeks thus unlock period becomes 13.
 fn extend_lock_time(
     deps: DepsMut,
     env: Env,
@@ -486,13 +486,9 @@ fn extend_lock_time(
         return Err(ContractError::LockExpired {});
     };
 
-    let block_time = env.block.time.seconds();
     // should not exceed MAX_LOCK_TIME
-    time_limits_check(lock.end * WEEK + time - block_time)?;
-    if get_period(block_time) + get_period(time) < lock.end {
-        return Err(ContractError::LockTimeDecreaseError {});
-    }
-    lock.end = get_period(block_time) + get_period(time);
+    time_limits_check(lock.end * WEEK + time - env.block.time.seconds())?;
+    lock.end += get_period(time);
     LOCKED.save(deps.storage, user.clone(), &lock)?;
 
     checkpoint(deps, env, user, None, Some(lock.end))?;
