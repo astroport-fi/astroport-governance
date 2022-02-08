@@ -89,6 +89,7 @@ impl Simulator {
             .extend_lock_time(&mut self.router, user, interval)
             .map(|response| {
                 let cur_period = self.block_period() as usize;
+                let periods_interval = get_period(interval);
                 let (user_balance, end) =
                     if let Some(point) = self.get_user_point_at(cur_period, user) {
                         (point.amount, point.end)
@@ -98,7 +99,13 @@ impl Simulator {
                             .expect("We always need previous point!");
                         (self.calc_user_balance_at(cur_period, user), prev_point.end)
                     };
-                self.add_point(cur_period, user, user_balance, end + get_period(interval));
+                let dt = end + periods_interval - cur_period as u64;
+                self.add_point(
+                    cur_period,
+                    user,
+                    apply_coefficient(user_balance, dt),
+                    end + periods_interval,
+                );
                 response
             })
     }
