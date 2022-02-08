@@ -114,9 +114,9 @@ pub(crate) fn fetch_last_checkpoint(
             deps.storage,
             None,
             Some(Bound::Inclusive(period_key.wrapped.clone())),
-            Order::Ascending,
+            Order::Descending,
         )
-        .last()
+        .next()
         .transpose()
 }
 
