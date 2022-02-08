@@ -10,15 +10,15 @@ mod test_utils;
 
 #[derive(Clone, Default, Debug)]
 struct Point {
-    amount: f32,
+    amount: f64,
     end: u64,
 }
 
 #[derive(Clone, Debug)]
 enum LockEvent {
-    CreateLock(f32, u64),
+    CreateLock(f64, u64),
     IncreaseTime(u64),
-    ExtendLock(f32),
+    ExtendLock(f64),
     Withdraw,
 }
 
@@ -36,10 +36,10 @@ fn get_period(time: u64) -> u64 {
     time / WEEK
 }
 
-fn apply_coefficient(amount: f32, interval: u64) -> f32 {
-    let coeff = 1f32 + (1.5 * interval as f32) / get_period(MAX_LOCK_TIME) as f32;
+fn apply_coefficient(amount: f64, interval: u64) -> f64 {
+    let coeff = 1f64 + (1.5 * interval as f64) / get_period(MAX_LOCK_TIME) as f64;
     // imitating Decimal fraction multiplication in the contract
-    (amount * coeff * MULTIPLIER as f32).trunc() / MULTIPLIER as f32
+    (amount * coeff * MULTIPLIER as f64).trunc() / MULTIPLIER as f64
 }
 
 impl Simulator {
@@ -68,11 +68,11 @@ impl Simulator {
             .update_block(|block| block.time = block.time.plus_seconds(WEEK));
     }
 
-    fn create_lock(&mut self, user: &str, amount: f32, interval: u64) -> Result<AppResponse> {
+    fn create_lock(&mut self, user: &str, amount: f64, interval: u64) -> Result<AppResponse> {
         let block_period = self.block_period();
         let periods_interval = get_period(interval);
         self.helper
-            .create_lock(&mut self.router, user, interval, amount)
+            .create_lock(&mut self.router, user, interval, amount as f32)
             .map(|response| {
                 self.add_point(
                     block_period as usize,
@@ -110,9 +110,9 @@ impl Simulator {
             })
     }
 
-    fn extend_lock(&mut self, user: &str, amount: f32) -> Result<AppResponse> {
+    fn extend_lock(&mut self, user: &str, amount: f64) -> Result<AppResponse> {
         self.helper
-            .extend_lock_amount(&mut self.router, user, amount)
+            .extend_lock_amount(&mut self.router, user, amount as f32)
             .map(|response| {
                 let cur_period = self.block_period() as usize;
                 let (user_balance, end) =
@@ -171,7 +171,7 @@ impl Simulator {
         let contract_balance = self
             .helper
             .query_user_vp(&mut self.router, user)
-            .unwrap_or(0.0);
+            .unwrap_or(0.0) as f64;
         if (real_balance - contract_balance).abs() >= 10e-3 {
             assert_eq!(real_balance, contract_balance)
         };
@@ -187,7 +187,7 @@ impl Simulator {
         })
     }
 
-    fn add_point<T: Into<String>>(&mut self, period: usize, user: T, amount: f32, end: u64) {
+    fn add_point<T: Into<String>>(&mut self, period: usize, user: T, amount: f64, end: u64) {
         let map = &mut self.points[period];
         map.extend(vec![(user.into(), Point { amount, end })]);
     }
@@ -214,7 +214,7 @@ impl Simulator {
         }
     }
 
-    fn calc_user_balance_at(&mut self, period: usize, user: &str) -> f32 {
+    fn calc_user_balance_at(&mut self, period: usize, user: &str) -> f64 {
         match self.get_user_point_at(period, user) {
             Some(point) => point.amount,
             None => {
@@ -225,13 +225,13 @@ impl Simulator {
                 if dt == 0 {
                     0.0
                 } else {
-                    prev_point.amount - prev_point.amount / dt as f32
+                    prev_point.amount - prev_point.amount / dt as f64
                 }
             }
         }
     }
 
-    fn calc_total_balance_at(&mut self, period: usize) -> f32 {
+    fn calc_total_balance_at(&mut self, period: usize) -> f64 {
         self.users.clone().iter().fold(0.0, |acc, user| {
             acc + self.get_user_point_at(period, user).unwrap().amount
         })
@@ -244,8 +244,8 @@ const MAX_PERIOD: usize = 10;
 const MAX_USERS: usize = 6;
 const MAX_EVENTS: usize = 100;
 
-fn amount_strategy() -> impl Strategy<Value = f32> {
-    (1f32..=100f32).prop_map(|val| (val * MULTIPLIER as f32).trunc() / MULTIPLIER as f32)
+fn amount_strategy() -> impl Strategy<Value = f64> {
+    (1f64..=100f64).prop_map(|val| (val * MULTIPLIER as f64).trunc() / MULTIPLIER as f64)
 }
 
 fn events_strategy() -> impl Strategy<Value = LockEvent> {
@@ -305,7 +305,7 @@ proptest! {
             let contract_balance = simulator
                 .helper
                 .query_total_vp(&mut simulator.router)
-                .unwrap_or(0.0);
+                .unwrap_or(0.0) as f64;
             if (real_balance - contract_balance).abs() >= 10e-3 {
                 assert_eq!(real_balance, contract_balance)
             };
@@ -315,7 +315,7 @@ proptest! {
                 let contract_balance = simulator
                     .helper
                     .query_total_vp_at(&mut simulator.router, check_period as u64 * WEEK)
-                    .unwrap_or(0.0);
+                    .unwrap_or(0.0) as f64;
                 if (real_balance - contract_balance).abs() >= 10e-3 {
                     assert_eq!(real_balance, contract_balance)
                 };
@@ -328,12 +328,35 @@ proptest! {
 #[test]
 fn exact_simulation() {
     let case = (
-        ["ldkhermilmvyraejulwbstncitn", "jvudwihxjowfetdmmyz"],
+        ["vgtaypvgpajywnccskgqngackgxlwqko"],
         [
-            (2, "jvudwihxjowfetdmmyz", CreateLock(1000f32, 2035964)),
-            (2, "ldkhermilmvyraejulwbstncitn", CreateLock(58f32, 8851377)),
-            (6, "jvudwihxjowfetdmmyz", Withdraw),
-            (10, "jvudwihxjowfetdmmyz", CreateLock(83f32, 4394078)),
+            (2, "vgtaypvgpajywnccskgqngackgxlwqko", IncreaseTime(1814400)),
+            (3, "vgtaypvgpajywnccskgqngackgxlwqko", ExtendLock(94.91173)),
+            (2, "vgtaypvgpajywnccskgqngackgxlwqko", IncreaseTime(3628800)),
+            (6, "vgtaypvgpajywnccskgqngackgxlwqko", IncreaseTime(3628800)),
+            (
+                1,
+                "vgtaypvgpajywnccskgqngackgxlwqko",
+                CreateLock(40.798203, 16934400),
+            ),
+            (7, "vgtaypvgpajywnccskgqngackgxlwqko", IncreaseTime(604800)),
+            (
+                1,
+                "vgtaypvgpajywnccskgqngackgxlwqko",
+                IncreaseTime(10281600),
+            ),
+            (3, "vgtaypvgpajywnccskgqngackgxlwqko", ExtendLock(74.26012)),
+            (1, "vgtaypvgpajywnccskgqngackgxlwqko", ExtendLock(63.38993)),
+            (
+                1,
+                "vgtaypvgpajywnccskgqngackgxlwqko",
+                IncreaseTime(17273197),
+            ),
+            (4, "vgtaypvgpajywnccskgqngackgxlwqko", IncreaseTime(4578129)),
+            (9, "vgtaypvgpajywnccskgqngackgxlwqko", ExtendLock(40.453003)),
+            (1, "vgtaypvgpajywnccskgqngackgxlwqko", ExtendLock(76.63571)),
+            (2, "vgtaypvgpajywnccskgqngackgxlwqko", ExtendLock(36.695534)),
+            (5, "vgtaypvgpajywnccskgqngackgxlwqko", ExtendLock(27.781044)),
         ],
     );
 
@@ -367,7 +390,7 @@ fn exact_simulation() {
         let contract_balance = simulator
             .helper
             .query_total_vp(&mut simulator.router)
-            .unwrap_or(0.0);
+            .unwrap_or(0.0) as f64;
         if (real_balance - contract_balance).abs() >= 10e-3 {
             assert_eq!(real_balance, contract_balance)
         };
@@ -377,7 +400,7 @@ fn exact_simulation() {
             let contract_balance = simulator
                 .helper
                 .query_total_vp_at(&mut simulator.router, check_period as u64 * WEEK)
-                .unwrap_or(0.0);
+                .unwrap_or(0.0) as f64;
             if (real_balance - contract_balance).abs() >= 10e-3 {
                 assert_eq!(real_balance, contract_balance)
             };
