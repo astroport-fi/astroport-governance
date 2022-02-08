@@ -326,7 +326,7 @@ fn receive_cw20(
     info: MessageInfo,
     cw20_msg: Cw20ReceiveMsg,
 ) -> Result<Response, ContractError> {
-    xastro_token_check(deps.as_ref(), info.sender.clone())?;
+    xastro_token_check(deps.as_ref(), info.sender)?;
     let sender = addr_validate_to_lower(deps.api, &cw20_msg.sender)?;
     blacklist_check(deps.as_ref(), &sender)?;
 
@@ -507,6 +507,10 @@ fn update_blacklist(
     let remove_addrs = remove_addrs.unwrap_or_default();
     let append = validate_addresses(deps.as_ref(), &append_addrs)?;
     let remove = validate_addresses(deps.as_ref(), &remove_addrs)?;
+
+    if append.is_empty() && remove.is_empty() {
+        return Err(StdError::generic_err("Append and remove arrays are empty").into());
+    }
 
     BLACKLIST.update(deps.storage, |blacklist| -> StdResult<Vec<Addr>> {
         let mut updated_blacklist: Vec<_> = blacklist

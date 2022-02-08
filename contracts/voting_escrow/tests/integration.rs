@@ -594,6 +594,24 @@ fn check_blacklist() {
     helper.mint_xastro(router_ref, "user3", 100);
 
     let msg = ExecuteMsg::UpdateBlacklist {
+        append_addrs: None,
+        remove_addrs: None,
+    };
+    // trying to execute with empty arrays
+    let err = router_ref
+        .execute_contract(
+            Addr::unchecked("owner"),
+            helper.voting_instance.clone(),
+            &msg,
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.to_string(),
+        "Generic error: Append and remove arrays are empty"
+    );
+
+    let msg = ExecuteMsg::UpdateBlacklist {
         append_addrs: Some(vec!["user2".to_string()]),
         remove_addrs: None,
     };
