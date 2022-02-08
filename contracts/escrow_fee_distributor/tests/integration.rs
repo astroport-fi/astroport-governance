@@ -1,6 +1,7 @@
 use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
 use cosmwasm_std::{attr, Addr, StdResult, Uint128};
 
+use astroport_escrow_fee_distributor::utils::get_period;
 use astroport_governance::escrow_fee_distributor::{ConfigResponse, ExecuteMsg, QueryMsg, WEEK};
 use astroport_tests::base::{BaseAstroportTestInitMessage, BaseAstroportTestPackage, MULTIPLIER};
 use terra_multi_test::{next_block, AppBuilder, BankKeeper, Executor, TerraApp, TerraMock};
@@ -342,7 +343,15 @@ fn test_checkpoint_total_supply() {
     // checks if voting supply per week is set to zero
     let resp_config: Vec<Uint128> = router_ref
         .wrap()
-        .query_wasm_smart(&escrow_fee_distributor, &QueryMsg::VotingSupplyPerWeek {})
+        .query_wasm_smart(
+            &escrow_fee_distributor,
+            &QueryMsg::VotingSupplyPerWeek {
+                start_after: Option::from(get_period(
+                    router_ref.block_info().time.seconds() - WEEK,
+                )),
+                limit: None,
+            },
+        )
         .unwrap();
 
     let voting_supply: Vec<Uint128> = vec![Uint128::new(0); 1];
@@ -483,7 +492,10 @@ fn claim() {
         .wrap()
         .query_wasm_smart(
             &base_pack.escrow_fee_distributor.clone().unwrap().address,
-            &QueryMsg::VotingSupplyPerWeek {},
+            &QueryMsg::VotingSupplyPerWeek {
+                start_after: None,
+                limit: None,
+            },
         )
         .unwrap();
     assert_eq!(vec![Uint128::new(1442307), Uint128::new(721153),], resp);

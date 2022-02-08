@@ -70,12 +70,13 @@ pub enum ExecuteMsg {
 pub enum QueryMsg {
     /// Returns controls settings that specified in custom [`ConfigResponse`] structure.
     Config {},
-    /// Returns information about who gets ASTRO fees every week
-    AstroRecipientsPerWeek {},
     /// Returns the vxAstro balance for user at timestamp
     FetchUserBalanceByTimestamp { user: String, timestamp: u64 },
     /// Returns the vector that contains voting supply per week
-    VotingSupplyPerWeek {},
+    VotingSupplyPerWeek {
+        start_after: Option<u64>,
+        limit: Option<u64>,
+    },
     /// Returns the vector that contains tokens fee per week
     FeeTokensPerWeek,
 }
@@ -92,7 +93,7 @@ pub struct ConfigResponse {
     pub voting_escrow: Addr,
     /// Address to transfer `token` balance to, if this contract is killed
     pub emergency_return: Addr,
-    /// Epoch time for fee distribution to start
+    /// Period time for fee distribution to start
     pub start_time: u64,
     pub last_token_time: u64,
     pub time_cursor: u64,
@@ -133,14 +134,4 @@ pub struct Claimed {
     pub amount: Uint128,
     pub claim_period: u64,
     pub max_period: u64,
-}
-
-/// ## Description
-/// A custom struct for each query response.
-#[derive(Serialize, Default, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct Point {
-    pub bias: i128,
-    pub slope: i128,
-    pub ts: u64,
-    pub blk: u64,
 }

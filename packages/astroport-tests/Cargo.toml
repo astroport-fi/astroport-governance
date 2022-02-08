@@ -22,7 +22,7 @@ cosmwasm-schema = "0.16.0"
 terra-multi-test = {git = "https://github.com/astroport-fi/terra-plus.git", tag = "v0.9.1-terra"}
 astroport = {git = "https://github.com/astroport-fi/astroport.git", branch = "master", package = "astroport"}
 astroport-token = {git = "https://github.com/astroport-fi/astroport.git", package = "astroport-token"}
-astroport-escrow-fee-distributor = {path = "../../contracts/escrow-fee-distributor", default-features = false, package = "astroport-escrow-fee-distributor"}
+astroport-escrow-fee-distributor = {path = "../../contracts/escrow_fee_distributor", default-features = false, package = "astroport-escrow-fee-distributor"}
 astroport-governance = { path = "../astroport-governance", default-features = false, version = "1.0.0"}
 astroport-governance-voting = { git = "https://github.com/astroport-fi/astroport-governance.git", package = "astroport-governance", branch = "feat/astro_voting_escrow"}
 astroport-staking = { git = "https://github.com/astroport-fi/astroport.git", package = "astroport-staking" }
