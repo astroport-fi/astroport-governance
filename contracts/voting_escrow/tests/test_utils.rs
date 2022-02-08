@@ -10,7 +10,7 @@ use terra_multi_test::{
     AppBuilder, AppResponse, BankKeeper, ContractWrapper, Executor, TerraApp, TerraMock,
 };
 
-pub const MULTIPLIER: u64 = 100000;
+pub const MULTIPLIER: u64 = 1000000;
 
 pub struct Helper {
     pub owner: Addr,
