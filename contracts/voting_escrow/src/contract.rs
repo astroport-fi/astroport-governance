@@ -326,17 +326,17 @@ fn receive_cw20(
     info: MessageInfo,
     cw20_msg: Cw20ReceiveMsg,
 ) -> Result<Response, ContractError> {
+    xastro_token_check(deps.as_ref(), info.sender.clone())?;
+    let sender = addr_validate_to_lower(deps.api, &cw20_msg.sender)?;
+    blacklist_check(deps.as_ref(), &sender)?;
+
     match from_binary(&cw20_msg.msg)? {
-        Cw20HookMsg::CreateLock { time } => create_lock(deps, env, info, cw20_msg, time),
-        Cw20HookMsg::ExtendLockAmount {} => {
-            let addr = addr_validate_to_lower(deps.as_ref().api, &cw20_msg.sender)?;
-            deposit_for(deps, env, info, cw20_msg.amount, addr)
-        }
+        Cw20HookMsg::CreateLock { time } => create_lock(deps, env, sender, cw20_msg.amount, time),
+        Cw20HookMsg::ExtendLockAmount {} => deposit_for(deps, env, cw20_msg.amount, sender),
         Cw20HookMsg::DepositFor { user } => {
-            let sender = addr_validate_to_lower(deps.api, &cw20_msg.sender)?;
-            blacklist_check(deps.as_ref(), &sender)?;
             let addr = addr_validate_to_lower(deps.api, &user)?;
-            deposit_for(deps, env, info, cw20_msg.amount, addr)
+            blacklist_check(deps.as_ref(), &addr)?;
+            deposit_for(deps, env, cw20_msg.amount, addr)
         }
     }
 }
@@ -351,17 +351,12 @@ fn receive_cw20(
 fn create_lock(
     deps: DepsMut,
     env: Env,
-    info: MessageInfo,
-    cw20_msg: Cw20ReceiveMsg,
+    user: Addr,
+    amount: Uint128,
     time: u64,
 ) -> Result<Response, ContractError> {
-    xastro_token_check(deps.as_ref(), info.sender)?;
     time_limits_check(time)?;
 
-    let user = addr_validate_to_lower(deps.as_ref().api, &cw20_msg.sender)?;
-    blacklist_check(deps.as_ref(), &user)?;
-
-    let amount = cw20_msg.amount;
     let block_period = get_period(env.block.time.seconds());
     let end = block_period + get_period(time);
 
@@ -390,12 +385,9 @@ fn create_lock(
 fn deposit_for(
     deps: DepsMut,
     env: Env,
-    info: MessageInfo,
     amount: Uint128,
     user: Addr,
 ) -> Result<Response, ContractError> {
-    blacklist_check(deps.as_ref(), &user)?;
-    xastro_token_check(deps.as_ref(), info.sender)?;
     LOCKED.update(deps.storage, user.clone(), |lock_opt| {
         if let Some(mut lock) = lock_opt {
             if lock.end <= get_period(env.block.time.seconds()) {
