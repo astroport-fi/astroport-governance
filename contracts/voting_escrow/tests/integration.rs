@@ -709,12 +709,12 @@ fn check_blacklist() {
     let vp = helper.query_user_vp(router_ref, "user1").unwrap();
     assert!(vp > 0.0);
 
-    // going to the future to check user1 can not withdraw bc he was blacklisted
+    // going to the future
     router_ref.update_block(next_block);
     router_ref.update_block(|block| block.time = block.time.plus_seconds(20 * WEEK));
 
-    let err = helper.withdraw(router_ref, "user1").unwrap_err();
-    assert_eq!(err.to_string(), "The user1 address is blacklisted");
+    // the only option available for blacklisted user is to withdraw funds if lock expired
+    helper.withdraw(router_ref, "user1").unwrap();
 
     // removing user1 from blacklist
     let msg = ExecuteMsg::UpdateBlacklist {
@@ -738,6 +738,8 @@ fn check_blacklist() {
         attr("removed_addresses", "user1")
     );
 
-    // now user1 can withdraw
-    helper.withdraw(router_ref, "user1").unwrap();
+    // now user1 can create new lock
+    helper
+        .create_lock(router_ref, "user1", WEEK, 10f32)
+        .unwrap();
 }

@@ -411,7 +411,6 @@ fn deposit_for(
 /// otherwise returns the [`Response`] with the specified attributes if the operation was successful
 fn withdraw(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, ContractError> {
     let sender = info.sender;
-    blacklist_check(deps.as_ref(), &sender)?;
     let lock = LOCKED
         .may_load(deps.storage, sender.clone())?
         .ok_or(ContractError::LockDoesntExist {})?;
