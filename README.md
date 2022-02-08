@@ -1,5 +1,7 @@
 # Astroport Governance
 
+[![codecov](https://codecov.io/gh/astroport-fi/astroport-governance/branch/main/graph/badge.svg?token=WDA8WEI7MI)](https://codecov.io/gh/astroport-fi/astroport-governance)
+
 This repo contains Astroport Governance related contracts.
 
 ## Contracts
