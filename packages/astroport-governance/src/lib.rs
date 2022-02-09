@@ -2,6 +2,7 @@ pub mod assembly;
 pub mod asset;
 pub mod builder_unlock;
 pub mod querier;
+pub mod voting_escrow;
 
 #[allow(clippy::all)]
 mod uints {
