@@ -277,11 +277,8 @@ fn voting_constant_decay() {
     assert_eq!(vp, 34.326923);
 
     // since user2 did not lock his xASTRO the contract does not have any information
-    let err = helper.query_user_vp(router_ref, "user2").unwrap_err();
-    assert_eq!(
-        err.to_string(),
-        "Generic error: Querier contract error: Generic error: User is not found"
-    );
+    let vp = helper.query_user_vp(router_ref, "user2").unwrap();
+    assert_eq!(vp, 0.0);
 
     // going to the future
     router_ref.update_block(next_block);
@@ -649,11 +646,8 @@ fn check_blacklist() {
     // since user2 is blacklisted his xASTRO balance left unchanged
     helper.check_xastro_balance(router_ref, "user2", 100);
     // and he did not create lock in voting escrow thus we have no information
-    let err = helper.query_user_vp(router_ref, "user2").unwrap_err();
-    assert_eq!(
-        err.to_string(),
-        "Generic error: Querier contract error: Generic error: User is not found"
-    );
+    let vp = helper.query_user_vp(router_ref, "user2").unwrap();
+    assert_eq!(vp, 0.0);
 
     // going to the future
     router_ref.update_block(next_block);

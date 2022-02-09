@@ -601,18 +601,22 @@ fn get_user_voting_power(
 
     let last_checkpoint = fetch_last_checkpoint(deps, &user, &period_key)?;
 
-    let (_, point) = last_checkpoint.ok_or_else(|| StdError::generic_err("User is not found"))?;
-
-    // the point right in this period was found
-    let voting_power = if point.start == period {
-        point.power
+    if let Some(point) = last_checkpoint.map(|(_, point)| point) {
+        // the point right in this period was found
+        let voting_power = if point.start == period {
+            point.power
+        } else {
+            // the point before this period was found thus we can calculate VP in the period
+            // we are interested in
+            calc_voting_power(&point, period)
+        };
+        Ok(VotingPowerResponse { voting_power })
     } else {
-        // the point before this period was found thus we can calculate VP in the period
-        // we are interested in
-        calc_voting_power(&point, period)
-    };
-
-    Ok(VotingPowerResponse { voting_power })
+        // user not found
+        Ok(VotingPowerResponse {
+            voting_power: Uint128::zero(),
+        })
+    }
 }
 
 /// # Description
