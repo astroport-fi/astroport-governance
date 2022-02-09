@@ -9,10 +9,10 @@ use cosmwasm_std::{
 use cw2::set_contract_version;
 use cw20::{
     BalanceResponse, Cw20ExecuteMsg, Cw20ReceiveMsg, Logo, LogoInfo, MarketingInfoResponse,
+    TokenInfoResponse,
 };
 use cw20_base::contract::{
     execute_update_marketing, execute_upload_logo, query_download_logo, query_marketing_info,
-    query_token_info,
 };
 use cw20_base::state::{MinterData, TokenInfo, LOGO, MARKETING_INFO, TOKEN_INFO};
 use cw_storage_plus::U64Key;
@@ -620,7 +620,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             })
         }
         QueryMsg::Balance { address } => to_binary(&get_user_balance(deps, env, address)?),
-        QueryMsg::TokenInfo {} => to_binary(&query_token_info(deps)?),
+        QueryMsg::TokenInfo {} => to_binary(&query_token_info(deps, env)?),
         QueryMsg::MarketingInfo {} => to_binary(&query_marketing_info(deps)?),
         QueryMsg::DownloadLogo {} => to_binary(&query_download_logo(deps)?),
     }
@@ -720,6 +720,18 @@ fn get_total_voting_power(
     };
 
     Ok(VotingPowerResponse { voting_power })
+}
+
+pub fn query_token_info(deps: Deps, env: Env) -> StdResult<TokenInfoResponse> {
+    let info = TOKEN_INFO.load(deps.storage)?;
+    let total_vp = get_total_voting_power(deps, env, None)?;
+    let res = TokenInfoResponse {
+        name: info.name,
+        symbol: info.symbol,
+        decimals: info.decimals,
+        total_supply: total_vp.voting_power,
+    };
+    Ok(res)
 }
 
 /// ## Description
