@@ -1,6 +1,6 @@
 use cosmwasm_std::{
-    attr, entry_point, to_binary, Addr, Attribute, Binary, CosmosMsg, Deps, DepsMut, Env,
-    MessageInfo, Order, Response, StdError, StdResult, Uint128, WasmMsg,
+    attr, entry_point, from_binary, to_binary, Addr, Attribute, Binary, Deps, DepsMut, Env,
+    MessageInfo, Order, Response, StdError, StdResult, Uint128,
 };
 
 use crate::error::ContractError;
@@ -13,13 +13,13 @@ use astroport::asset::addr_validate_to_lower;
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::querier::query_token_balance;
 use astroport_governance::escrow_fee_distributor::{
-    Claimed, ConfigResponse, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg, MAX_LIMIT_OF_CLAIM,
-    TOKEN_CHECKPOINT_DEADLINE, WEEK,
+    Claimed, ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg,
+    MAX_LIMIT_OF_CLAIM, TOKEN_CHECKPOINT_DEADLINE, WEEK,
 };
 use astroport_governance_voting::astro_voting_escrow::{
     LockInfoResponse, QueryMsg as VotingQueryMsg, VotingPowerResponse,
 };
-use cw20::Cw20ExecuteMsg;
+use cw20::Cw20ReceiveMsg;
 
 use cw2::set_contract_version;
 use cw_storage_plus::{Bound, Map, U64Key};
@@ -57,8 +57,7 @@ pub fn instantiate(
             start_time: t,
             last_token_time: t,
             time_cursor: t,
-            can_checkpoint_token: false,
-            is_killed: false,
+            checkpoint_token_enabled: false,
             max_limit_accounts_of_claim: MAX_LIMIT_OF_CLAIM,
             token_last_balance: Uint128::new(0),
         },
@@ -116,10 +115,6 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     let config: Config = CONFIG.load(deps.storage)?;
-    if config.is_killed {
-        return Err(ContractError::ContractIsKilled {});
-    }
-
     match msg {
         ExecuteMsg::ProposeNewOwner { owner, expires_in } => propose_new_owner(
             deps,
@@ -147,23 +142,47 @@ pub fn execute(
             .map_err(|e| e.into())
         }
         ExecuteMsg::CheckpointTotalSupply {} => checkpoint_total_supply(deps, env),
-        ExecuteMsg::Burn { token_address } => burn(deps, env, info, token_address),
-        ExecuteMsg::KillMe {} => kill_me(deps, env, info),
-        ExecuteMsg::RecoverBalance { token_address } => {
-            recover_balance(deps.as_ref(), env, info, token_address)
-        }
         ExecuteMsg::Claim { recipient } => claim(deps, env, info, recipient),
         ExecuteMsg::ClaimMany { receivers } => claim_many(deps, env, receivers),
         ExecuteMsg::CheckpointToken {} => checkpoint_token(deps, env, info),
         ExecuteMsg::UpdateConfig {
             max_limit_accounts_of_claim,
-            can_checkpoint_token,
+            checkpoint_token_enabled,
         } => update_config(
             deps,
             info,
             max_limit_accounts_of_claim,
-            can_checkpoint_token,
+            checkpoint_token_enabled,
         ),
+        ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
+    }
+}
+
+/// ## Description
+/// Receives a message of type [`Cw20ReceiveMsg`] and processes it depending on the received template.
+/// If the template is not found in the received message, then an [`ContractError`] is returned,
+/// otherwise returns the [`Response`] with the specified attributes if the operation was successful
+fn receive_cw20(
+    mut deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    cw20_msg: Cw20ReceiveMsg,
+) -> Result<Response, ContractError> {
+    match from_binary(&cw20_msg.msg)? {
+        Cw20HookMsg::Burn {} => {
+            let mut config: Config = CONFIG.load(deps.storage)?;
+            if info.sender != config.astro_token {
+                return Err(ContractError::Unauthorized {});
+            }
+            if config.checkpoint_token_enabled
+                && (env.block.time.seconds() > config.last_token_time + TOKEN_CHECKPOINT_DEADLINE)
+            {
+                calc_checkpoint_token(deps.branch(), env, &mut config)?;
+            }
+
+            CONFIG.save(deps.storage, &config)?;
+            Ok(Response::new())
+        }
     }
 }
 
@@ -206,132 +225,6 @@ fn calc_checkpoint_total_supply(mut deps: DepsMut, env: Env, config: &mut Config
     config.time_cursor = time_cursor;
     Ok(())
 }
-/// ## Description
-/// Receive tokens into the contract and trigger a token checkpoint.
-/// Returns the [`Response`] with the specified attributes if the operation was successful,
-/// otherwise returns the [`ContractError`].
-///
-/// ## Params
-/// * **token_address** is the object of type [`String`]. Address of the coin being received.
-fn burn(
-    mut deps: DepsMut,
-    env: Env,
-    info: MessageInfo,
-    token_address: String,
-) -> Result<Response, ContractError> {
-    let token_addr = addr_validate_to_lower(deps.api, &token_address)?;
-    let mut config: Config = CONFIG.load(deps.storage)?;
-
-    if token_addr != config.astro_token {
-        return Err(ContractError::TokenAddressIsWrong {});
-    }
-
-    let balance = query_token_balance(&deps.querier, token_addr.clone(), info.sender.clone())?;
-
-    let messages: Vec<CosmosMsg> = vec![CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: token_addr.to_string(),
-        msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
-            owner: info.sender.to_string(),
-            recipient: env.contract.address.to_string(),
-            amount: balance,
-        })?,
-        funds: vec![],
-    })];
-
-    if config.can_checkpoint_token
-        && (env.block.time.seconds() > config.last_token_time + TOKEN_CHECKPOINT_DEADLINE)
-    {
-        calc_checkpoint_token(deps.branch(), env, &mut config)?;
-    }
-
-    CONFIG.save(deps.storage, &config)?;
-
-    Ok(Response::new()
-        .add_attributes(vec![
-            attr("action", "burn"),
-            attr("amount", balance.to_string()),
-        ])
-        .add_messages(messages))
-}
-
-/// ## Description
-/// Kill the contract. Killing transfers the entire token balance to the emergency return address
-/// and blocks the ability to claim or burn. The contract cannot be unkilled.
-/// Returns the [`Response`] with the specified attributes if the operation was successful,
-/// otherwise returns the [`ContractError`].
-fn kill_me(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, ContractError> {
-    let mut config: Config = CONFIG.load(deps.storage)?;
-
-    if info.sender != config.owner {
-        return Err(ContractError::Unauthorized {});
-    }
-
-    config.is_killed = true;
-
-    let current_balance = query_token_balance(
-        &deps.querier,
-        config.astro_token.clone(),
-        env.contract.address,
-    )?;
-
-    let transfer_msg = transfer_token_amount(
-        config.astro_token.clone(),
-        config.emergency_return_addr.clone(),
-        current_balance,
-    )?;
-
-    CONFIG.save(deps.storage, &config)?;
-
-    Ok(Response::new()
-        .add_attributes(vec![
-            attr("action", "kill_me"),
-            attr("transferred_balance", current_balance.to_string()),
-            attr("recipient", config.emergency_return_addr.to_string()),
-        ])
-        .add_messages(transfer_msg))
-}
-
-/// ## Description
-/// Recover tokens from this contract, tokens are sent to the emergency return address.
-/// Returns the [`Response`] with the specified attributes if the operation was successful,
-/// otherwise returns the [`ContractError`].
-///
-/// ## Params
-/// * **token_address** Address of the coin being recover.
-fn recover_balance(
-    deps: Deps,
-    env: Env,
-    info: MessageInfo,
-    token_address: String,
-) -> Result<Response, ContractError> {
-    let token_addr = addr_validate_to_lower(deps.api, &token_address)?;
-
-    let config: Config = CONFIG.load(deps.storage)?;
-
-    if info.sender != config.owner {
-        return Err(ContractError::Unauthorized {});
-    }
-
-    if token_addr != config.astro_token {
-        return Err(ContractError::TokenAddressIsWrong {});
-    }
-
-    let current_balance =
-        query_token_balance(&deps.querier, token_addr.clone(), env.contract.address)?;
-    let transfer_msg = transfer_token_amount(
-        token_addr,
-        config.emergency_return_addr.clone(),
-        current_balance,
-    )?;
-
-    Ok(Response::new()
-        .add_attributes(vec![
-            attr("action", "recover_balance"),
-            attr("balance", current_balance.to_string()),
-            attr("recipient", config.emergency_return_addr.to_string()),
-        ])
-        .add_messages(transfer_msg))
-}
 
 /// ## Description
 /// Update the token checkpoint. Returns the [`Response`] with the specified attributes if the
@@ -344,7 +237,7 @@ fn checkpoint_token(
     let mut config: Config = CONFIG.load(deps.storage)?;
 
     if info.sender != config.owner
-        && (!config.can_checkpoint_token
+        && (!config.checkpoint_token_enabled
             || env.block.time.seconds() < (config.last_token_time + TOKEN_CHECKPOINT_DEADLINE))
     {
         return Err(ContractError::CheckpointTokenIsNotAvailable {});
@@ -476,7 +369,7 @@ pub fn claim(
 
     let mut last_token_time = config.last_token_time;
 
-    if config.can_checkpoint_token
+    if config.checkpoint_token_enabled
         && (env.block.time.seconds() > last_token_time + TOKEN_CHECKPOINT_DEADLINE)
     {
         calc_checkpoint_token(deps.branch(), env.clone(), &mut config)?;
@@ -537,7 +430,7 @@ fn claim_many(
 
     let mut last_token_time = config.last_token_time;
 
-    if config.can_checkpoint_token
+    if config.checkpoint_token_enabled
         && (env.block.time.seconds() > last_token_time + TOKEN_CHECKPOINT_DEADLINE)
     {
         calc_checkpoint_token(deps.branch(), env.clone(), &mut config)?;
@@ -676,7 +569,7 @@ fn update_config(
     deps: DepsMut,
     info: MessageInfo,
     max_limit_accounts_of_claim: Option<u64>,
-    can_checkpoint_token: Option<bool>,
+    checkpoint_token_enabled: Option<bool>,
 ) -> Result<Response, ContractError> {
     let mut attributes = vec![attr("action", "update_config")];
     let mut config: Config = CONFIG.load(deps.storage)?;
@@ -685,11 +578,11 @@ fn update_config(
         return Err(ContractError::Unauthorized {});
     }
 
-    if let Some(can_checkpoint_token) = can_checkpoint_token {
-        config.can_checkpoint_token = can_checkpoint_token;
+    if let Some(checkpoint_token_enabled) = checkpoint_token_enabled {
+        config.checkpoint_token_enabled = checkpoint_token_enabled;
         attributes.push(Attribute::new(
-            "can_checkpoint_token",
-            can_checkpoint_token.to_string(),
+            "checkpoint_token_enabled",
+            checkpoint_token_enabled.to_string(),
         ));
     };
 
@@ -811,8 +704,7 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
         start_time: config.start_time,
         last_token_time: config.last_token_time,
         time_cursor: config.time_cursor,
-        can_checkpoint_token: config.can_checkpoint_token,
-        is_killed: config.is_killed,
+        checkpoint_token_enabled: config.checkpoint_token_enabled,
         max_limit_accounts_of_claim: config.max_limit_accounts_of_claim,
     };
 

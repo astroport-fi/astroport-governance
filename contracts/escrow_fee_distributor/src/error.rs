@@ -17,9 +17,6 @@ pub enum ContractError {
     #[error("Amount is not available!")]
     AmountIsNotAvailable {},
 
-    #[error("Token address is wrong!")]
-    TokenAddressIsWrong {},
-
     #[error("Contract is killed!")]
     ContractIsKilled {},
 

@@ -1,4 +1,5 @@
 use cosmwasm_std::{Addr, Uint128};
+use cw20::Cw20ReceiveMsg;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -48,19 +49,15 @@ pub enum ExecuteMsg {
     ClaimMany {
         receivers: Vec<String>,
     },
-    RecoverBalance {
-        token_address: String,
-    },
-    KillMe {},
-    Burn {
-        token_address: String,
-    },
     CheckpointTotalSupply {},
     UpdateConfig {
         max_limit_accounts_of_claim: Option<u64>,
-        /// Enables or disables the ability to set a checkpoint token
-        can_checkpoint_token: Option<bool>,
+        /// Enables or disables the ability to set a checkpoint token for everyone
+        checkpoint_token_enabled: Option<bool>,
     },
+    /// Receive receives a message of type [`Cw20ReceiveMsg`] and processes it depending on the
+    /// received template.
+    Receive(Cw20ReceiveMsg),
 }
 
 /// ## Description
@@ -101,8 +98,7 @@ pub struct ConfigResponse {
     pub last_token_time: u64,
     pub time_cursor: u64,
     /// makes it possible for everyone to call
-    pub can_checkpoint_token: bool,
-    pub is_killed: bool,
+    pub checkpoint_token_enabled: bool,
     pub max_limit_accounts_of_claim: u64,
 }
 
@@ -111,13 +107,6 @@ pub struct ConfigResponse {
 /// We currently take no arguments for migrations.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct MigrateMsg {}
-
-/// ## Description
-/// A custom struct for each query response that returns the vector of the recipients for distributed astro per week.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct RecipientsPerWeekResponse {
-    pub recipients: Vec<Addr>,
-}
 
 /// ## Description
 /// A custom struct for each query response that returns the vector of the recipients for
@@ -137,4 +126,13 @@ pub struct Claimed {
     pub amount: Uint128,
     pub claim_period: u64,
     pub max_period: u64,
+}
+
+/// ## Description
+/// This structure describes custom hooks for the CW20.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum Cw20HookMsg {
+    /// Receive tokens into the contract and trigger a token checkpoint.
+    Burn {},
 }

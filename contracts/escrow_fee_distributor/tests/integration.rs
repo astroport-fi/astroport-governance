@@ -1,12 +1,14 @@
 use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
-use cosmwasm_std::{attr, Addr, StdResult, Uint128};
+use cosmwasm_std::{attr, to_binary, Addr, StdResult, Uint128};
 
 use astroport_escrow_fee_distributor::utils::get_period;
-use astroport_governance::escrow_fee_distributor::{ConfigResponse, ExecuteMsg, QueryMsg, WEEK};
-use astroport_tests::base::{
-    check_balance, increase_allowance, mint, BaseAstroportTestInitMessage,
-    BaseAstroportTestPackage, MULTIPLIER,
+use astroport_governance::escrow_fee_distributor::{
+    ConfigResponse, Cw20HookMsg, ExecuteMsg, QueryMsg, WEEK,
 };
+use astroport_tests::base::{
+    check_balance, mint, BaseAstroportTestInitMessage, BaseAstroportTestPackage, MULTIPLIER,
+};
+use cw20::Cw20ExecuteMsg;
 use terra_multi_test::{next_block, AppBuilder, BankKeeper, Executor, TerraApp, TerraMock};
 
 const OWNER: &str = "owner";
@@ -14,6 +16,7 @@ const EMERGENCY_RETURN: &str = "emergency_return";
 const USER1: &str = "user1";
 const USER2: &str = "user2";
 const USER3: &str = "user3";
+const MAKER: &str = "maker";
 
 fn mock_app() -> TerraApp {
     let env = mock_env();
@@ -70,122 +73,9 @@ fn instantiation() {
     );
     assert_eq!(time_point, resp.last_token_time);
     assert_eq!(time_point, resp.start_time);
-    assert_eq!(false, resp.can_checkpoint_token);
+    assert_eq!(false, resp.checkpoint_token_enabled);
     assert_eq!(time_point, resp.time_cursor);
-    assert_eq!(false, resp.is_killed);
     assert_eq!(10u64, resp.max_limit_accounts_of_claim);
-}
-
-#[test]
-fn test_kill_me() {
-    let mut router = mock_app();
-    let router_ref = &mut router;
-    let owner = Addr::unchecked("owner");
-    let emergency_return = Addr::unchecked("emergency_return");
-
-    let base_pack = init_astroport_test_package(router_ref).unwrap();
-    let escrow_fee_distributor = base_pack.escrow_fee_distributor.clone().unwrap().address;
-
-    let resp: ConfigResponse = router_ref
-        .wrap()
-        .query_wasm_smart(&escrow_fee_distributor.clone(), &QueryMsg::Config {})
-        .unwrap();
-
-    assert_eq!(false, resp.is_killed);
-
-    // Try to kill contract from anyone
-    let err = router_ref
-        .execute_contract(
-            Addr::unchecked("not_owner"),
-            escrow_fee_distributor.clone(),
-            &ExecuteMsg::KillMe {},
-            &[],
-        )
-        .unwrap_err();
-
-    assert_eq!("Unauthorized", err.to_string());
-
-    mint(
-        router_ref,
-        owner.clone(),
-        base_pack.astro_token.clone().unwrap().address,
-        &escrow_fee_distributor.clone(),
-        100u128,
-    );
-
-    // check if escrow_fee_distributor ASTRO balance is 100
-    check_balance(
-        router_ref,
-        &base_pack.astro_token.clone().unwrap().address,
-        &escrow_fee_distributor.clone(),
-        100u128,
-    );
-
-    // check if emergency_return ASTRO balance is 0
-    check_balance(
-        router_ref,
-        &base_pack.astro_token.clone().unwrap().address,
-        &emergency_return,
-        0u128,
-    );
-
-    let resp = router_ref
-        .execute_contract(
-            owner.clone(),
-            escrow_fee_distributor.clone(),
-            &ExecuteMsg::KillMe {},
-            &[],
-        )
-        .unwrap();
-
-    // check if escrow_fee_distributor ASTRO balance is 0
-    check_balance(
-        router_ref,
-        &base_pack.astro_token.clone().unwrap().address,
-        &escrow_fee_distributor.clone(),
-        0u128,
-    );
-
-    // check if emergency_return ASTRO balance is 100
-    check_balance(
-        router_ref,
-        &base_pack.astro_token.clone().unwrap().address,
-        &emergency_return.clone(),
-        100u128,
-    );
-
-    assert_eq!(
-        vec![
-            attr("action", "kill_me"),
-            attr("transferred_balance", "100"),
-            attr("recipient", emergency_return.to_string()),
-        ],
-        vec![
-            resp.events[1].attributes[1].clone(),
-            resp.events[1].attributes[2].clone(),
-            resp.events[1].attributes[3].clone(),
-        ]
-    );
-
-    let resp: ConfigResponse = router_ref
-        .wrap()
-        .query_wasm_smart(&escrow_fee_distributor.clone(), &QueryMsg::Config {})
-        .unwrap();
-
-    assert_eq!(true, resp.is_killed);
-
-    // try call operation on the killed contract
-    let resp = router_ref
-        .execute_contract(
-            owner.clone(),
-            escrow_fee_distributor.clone(),
-            &ExecuteMsg::Burn {
-                token_address: base_pack.astro_token.unwrap().address.to_string(),
-            },
-            &[],
-        )
-        .unwrap_err();
-    assert_eq!("Contract is killed!", resp.to_string());
 }
 
 #[test]
@@ -193,7 +83,7 @@ fn test_burn() {
     let mut router = mock_app();
     let router_ref = &mut router;
     let owner = Addr::unchecked(OWNER.clone());
-    let user1 = Addr::unchecked(USER1.clone());
+    let maker = Addr::unchecked(MAKER.clone());
 
     let base_pack = init_astroport_test_package(router_ref).unwrap();
 
@@ -202,7 +92,7 @@ fn test_burn() {
         router_ref,
         owner.clone(),
         base_pack.astro_token.clone().unwrap().address,
-        &user1,
+        &maker,
         100u128,
     );
 
@@ -210,7 +100,7 @@ fn test_burn() {
     check_balance(
         router_ref,
         &base_pack.astro_token.clone().unwrap().address,
-        &user1,
+        &maker,
         100u128,
     );
 
@@ -222,21 +112,23 @@ fn test_burn() {
         0u128,
     );
 
-    increase_allowance(
-        router_ref,
-        user1.clone(),
-        base_pack.escrow_fee_distributor.clone().unwrap().address,
-        base_pack.astro_token.clone().unwrap().address,
-        Uint128::new(100),
-    );
+    // try to enter Alice's 100 ASTRO for 100 xASTRO
+    let msg = Cw20ExecuteMsg::Send {
+        contract: base_pack
+            .escrow_fee_distributor
+            .clone()
+            .unwrap()
+            .address
+            .to_string(),
+        msg: to_binary(&Cw20HookMsg::Burn {}).unwrap(),
+        amount: Uint128::from(100u128),
+    };
 
-    let resp = router_ref
+    router_ref
         .execute_contract(
-            user1.clone(),
-            base_pack.escrow_fee_distributor.clone().unwrap().address,
-            &ExecuteMsg::Burn {
-                token_address: base_pack.astro_token.clone().unwrap().address.to_string(),
-            },
+            maker.clone(),
+            base_pack.astro_token.clone().unwrap().address,
+            &msg,
             &[],
         )
         .unwrap();
@@ -253,16 +145,8 @@ fn test_burn() {
     check_balance(
         router_ref,
         &base_pack.astro_token.clone().unwrap().address,
-        &user1.clone(),
+        &maker.clone(),
         0u128,
-    );
-
-    assert_eq!(
-        vec![attr("action", "burn"), attr("amount", "100"),],
-        vec![
-            resp.events[1].attributes[1].clone(),
-            resp.events[1].attributes[2].clone(),
-        ]
     );
 }
 
@@ -282,7 +166,7 @@ fn test_update_config() {
         .unwrap();
 
     assert_eq!(10u64, resp.max_limit_accounts_of_claim);
-    assert_eq!(false, resp.can_checkpoint_token);
+    assert_eq!(false, resp.checkpoint_token_enabled);
 
     // check if anyone can't update configs
     let err = router_ref
@@ -291,7 +175,7 @@ fn test_update_config() {
             escrow_fee_distributor.clone(),
             &ExecuteMsg::UpdateConfig {
                 max_limit_accounts_of_claim: Some(20u64),
-                can_checkpoint_token: Some(true),
+                checkpoint_token_enabled: Some(true),
             },
             &[],
         )
@@ -305,7 +189,7 @@ fn test_update_config() {
             escrow_fee_distributor.clone(),
             &ExecuteMsg::UpdateConfig {
                 max_limit_accounts_of_claim: Some(20u64),
-                can_checkpoint_token: Some(true),
+                checkpoint_token_enabled: Some(true),
             },
             &[],
         )
@@ -317,12 +201,12 @@ fn test_update_config() {
         .unwrap();
 
     assert_eq!(20u64, resp_config.max_limit_accounts_of_claim);
-    assert_eq!(true, resp_config.can_checkpoint_token);
+    assert_eq!(true, resp_config.checkpoint_token_enabled);
 
     assert_eq!(
         vec![
             attr("action", "update_config"),
-            attr("can_checkpoint_token", "true"),
+            attr("checkpoint_token_enabled", "true"),
             attr("max_limit_accounts_of_claim", "20"),
         ],
         vec![
@@ -543,7 +427,7 @@ fn claim() {
             base_pack.escrow_fee_distributor.clone().unwrap().address,
             &ExecuteMsg::UpdateConfig {
                 max_limit_accounts_of_claim: None,
-                can_checkpoint_token: Option::from(true),
+                checkpoint_token_enabled: Option::from(true),
             },
             &[],
         )

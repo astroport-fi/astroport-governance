@@ -31,9 +31,8 @@ fn proper_initialization() {
             start_time: 0,
             last_token_time: 0,
             time_cursor: 0,
-            can_checkpoint_token: false,
-            is_killed: false,
-            max_limit_accounts_of_claim: 10
+            max_limit_accounts_of_claim: 10,
+            checkpoint_token_enabled: false
         }
     );
 }
