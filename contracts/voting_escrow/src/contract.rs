@@ -241,13 +241,14 @@ fn checkpoint(
         let current_power = calc_voting_power(&point, cur_period);
         let new_slope = if dt != 0 {
             if end > point.end && add_amount.is_zero() {
-                // this is extend_lock_time. Current VP is being boosted
-                let new_voting_power = current_power * calc_coefficient(dt);
-                // new_voting_power should be always > current_power. saturating_sub just in case
+                // this is extend_lock_time. Recalculating user's VP
+                let lock = LOCKED.load(deps.storage, addr.clone())?;
+                let new_voting_power = lock.amount * calc_coefficient(dt);
+                // new_voting_power should be always >= current_power. saturating_sub just in case
                 add_voting_power = new_voting_power.saturating_sub(current_power);
                 Decimal::from_ratio(new_voting_power, dt)
             } else {
-                // increase lock's amount or lock creation after withdrawal
+                // this is increase lock's amount or lock creation after withdrawal
                 add_voting_power = add_amount * calc_coefficient(dt);
                 Decimal::from_ratio(current_power + add_voting_power, dt)
             }

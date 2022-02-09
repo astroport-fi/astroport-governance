@@ -27,6 +27,8 @@ use LockEvent::*;
 struct Simulator {
     // points history (history[period][user] = point)
     points: Vec<HashMap<String, Point>>,
+    // current locked amount per user
+    locked: HashMap<String, f64>,
     users: Vec<String>,
     helper: Helper,
     router: TerraApp,
@@ -47,6 +49,7 @@ impl Simulator {
         let mut router = mock_app();
         Self {
             points: vec![HashMap::new(); 10000],
+            locked: Default::default(),
             users: users.iter().cloned().map(|user| user.into()).collect(),
             helper: Helper::init(&mut router, Addr::unchecked("owner")),
             router,
@@ -80,6 +83,7 @@ impl Simulator {
                     apply_coefficient(amount, periods_interval),
                     block_period + periods_interval,
                 );
+                self.locked.extend(vec![(user.to_string(), amount)]);
                 response
             })
     }
@@ -90,20 +94,20 @@ impl Simulator {
             .map(|response| {
                 let cur_period = self.block_period() as usize;
                 let periods_interval = get_period(interval);
-                let (user_balance, end) =
-                    if let Some(point) = self.get_user_point_at(cur_period, user) {
-                        (point.amount, point.end)
-                    } else {
-                        let prev_point = self
-                            .get_prev_point(user)
-                            .expect("We always need previous point!");
-                        (self.calc_user_balance_at(cur_period, user), prev_point.end)
-                    };
+                let end = if let Some(point) = self.get_user_point_at(cur_period, user) {
+                    point.end
+                } else {
+                    let prev_point = self
+                        .get_prev_point(user)
+                        .expect("We always need previous point!");
+                    prev_point.end
+                };
                 let dt = end + periods_interval - cur_period as u64;
+                let amount = self.locked.get(user).unwrap().to_owned();
                 self.add_point(
                     cur_period,
                     user,
-                    apply_coefficient(user_balance, dt),
+                    apply_coefficient(amount, dt),
                     end + periods_interval,
                 );
                 response
@@ -126,6 +130,8 @@ impl Simulator {
                     };
                 let vp = apply_coefficient(amount, end - cur_period as u64);
                 self.add_point(cur_period, user, user_balance + vp, end);
+                let lock = self.locked.get_mut(user).unwrap();
+                *lock += amount;
                 response
             })
     }
@@ -136,6 +142,7 @@ impl Simulator {
             .map(|response| {
                 let cur_period = self.block_period();
                 self.add_point(cur_period as usize, user, 0.0, cur_period);
+                self.locked.remove(user);
                 response
             })
     }
