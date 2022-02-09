@@ -78,14 +78,14 @@ pub fn instantiate(
     };
     HISTORY.save(
         deps.storage,
-        (env.contract.address, U64Key::new(cur_period)),
+        (env.contract.address.clone(), U64Key::new(cur_period)),
         &point,
     )?;
     BLACKLIST.save(deps.storage, &vec![])?;
 
     let mint = match msg.mint {
         Some(m) => Some(MinterData {
-            minter: addr_validate_to_lower(deps.api, &m.minter)?,
+            minter: env.contract.address,
             cap: m.cap,
         }),
         None => None,
