@@ -1,5 +1,5 @@
 use cosmwasm_std::{Decimal, Uint128};
-use cw20::{Cw20ReceiveMsg, Logo, MinterResponse};
+use cw20::{Cw20ReceiveMsg, Logo};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -21,8 +21,6 @@ pub struct InstantiateMsg {
     pub owner: String,
     /// xASTRO token address
     pub deposit_token_addr: String,
-    /// Minting controls specified in a [`MinterResponse`] structure
-    pub mint: Option<MinterResponse>,
     /// Marketing info
     pub marketing: Option<InstantiateMarketingInfo>,
 }

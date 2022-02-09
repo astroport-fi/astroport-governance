@@ -98,7 +98,6 @@ impl Helper {
         let msg = InstantiateMsg {
             owner: owner.to_string(),
             deposit_token_addr: res.share_token_addr.to_string(),
-            mint: None,
             marketing: None,
         };
         let voting_instance = router

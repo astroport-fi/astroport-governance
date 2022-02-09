@@ -83,14 +83,6 @@ pub fn instantiate(
     )?;
     BLACKLIST.save(deps.storage, &vec![])?;
 
-    let mint = match msg.mint {
-        Some(m) => Some(MinterData {
-            minter: env.contract.address,
-            cap: m.cap,
-        }),
-        None => None,
-    };
-
     if let Some(marketing) = msg.marketing {
         let logo = if let Some(logo) = marketing.logo {
             LOGO.save(deps.storage, &logo)?;
@@ -121,7 +113,10 @@ pub fn instantiate(
         symbol: "vxASTRO".to_string(),
         decimals: 6,
         total_supply: Uint128::zero(),
-        mint,
+        mint: Some(MinterData {
+            minter: env.contract.address,
+            cap: None,
+        }),
     };
 
     TOKEN_INFO.save(deps.storage, &data)?;
