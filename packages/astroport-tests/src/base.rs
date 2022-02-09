@@ -195,9 +195,9 @@ impl BaseAstroportTestPackage {
 
         let init_msg = EscrowFeeDistributorInstantiateMsg {
             owner: owner.to_string(),
-            token: self.astro_token.clone().unwrap().address.to_string(),
-            voting_escrow: self.voting_escrow.clone().unwrap().address.to_string(),
-            emergency_return: emergency_return.to_string(),
+            astro_token: self.astro_token.clone().unwrap().address.to_string(),
+            voting_escrow_addr: self.voting_escrow.clone().unwrap().address.to_string(),
+            emergency_return_addr: emergency_return.to_string(),
             start_time: start_time.unwrap_or_default(),
         };
 
@@ -216,68 +216,6 @@ impl BaseAstroportTestPackage {
             address: escrow_fee_distributor_instance,
             code_id: escrow_fee_distributor_code_id,
         })
-    }
-
-    pub fn mint(router: &mut TerraApp, owner: Addr, token_instance: Addr, to: &Addr, amount: u128) {
-        let msg = cw20::Cw20ExecuteMsg::Mint {
-            recipient: to.to_string(),
-            amount: Uint128::from(amount),
-        };
-
-        let res = router
-            .execute_contract(owner, token_instance, &msg, &[])
-            .unwrap();
-        assert_eq!(res.events[1].attributes[1], attr("action", "mint"));
-        assert_eq!(res.events[1].attributes[2], attr("to", String::from(to)));
-        assert_eq!(
-            res.events[1].attributes[3],
-            attr("amount", Uint128::from(amount))
-        );
-    }
-
-    pub fn check_balance(
-        app: &mut TerraApp,
-        token_addr: &Addr,
-        contract_addr: &Addr,
-        expected: u128,
-    ) {
-        let msg = Cw20QueryMsg::Balance {
-            address: contract_addr.to_string(),
-        };
-        let res: StdResult<BalanceResponse> = app.wrap().query_wasm_smart(token_addr, &msg);
-        assert_eq!(res.unwrap().balance, Uint128::from(expected));
-    }
-
-    pub fn increase_allowance(
-        router: &mut TerraApp,
-        owner: Addr,
-        spender: Addr,
-        token: Addr,
-        amount: Uint128,
-    ) {
-        let msg = cw20::Cw20ExecuteMsg::IncreaseAllowance {
-            spender: spender.to_string(),
-            amount,
-            expires: None,
-        };
-
-        let res = router
-            .execute_contract(owner.clone(), token, &msg, &[])
-            .unwrap();
-
-        assert_eq!(
-            res.events[1].attributes[1],
-            attr("action", "increase_allowance")
-        );
-        assert_eq!(
-            res.events[1].attributes[2],
-            attr("owner", owner.to_string())
-        );
-        assert_eq!(
-            res.events[1].attributes[3],
-            attr("spender", spender.to_string())
-        );
-        assert_eq!(res.events[1].attributes[4], attr("amount", amount));
     }
 
     pub fn create_lock(
@@ -384,4 +322,61 @@ impl BaseAstroportTestPackage {
             )
             .map(|vp: VotingPowerResponse| vp.voting_power.u128() as f32 / MULTIPLIER as f32)
     }
+}
+
+pub fn mint(router: &mut TerraApp, owner: Addr, token_instance: Addr, to: &Addr, amount: u128) {
+    let msg = cw20::Cw20ExecuteMsg::Mint {
+        recipient: to.to_string(),
+        amount: Uint128::from(amount),
+    };
+
+    let res = router
+        .execute_contract(owner, token_instance, &msg, &[])
+        .unwrap();
+    assert_eq!(res.events[1].attributes[1], attr("action", "mint"));
+    assert_eq!(res.events[1].attributes[2], attr("to", String::from(to)));
+    assert_eq!(
+        res.events[1].attributes[3],
+        attr("amount", Uint128::from(amount))
+    );
+}
+
+pub fn check_balance(app: &mut TerraApp, token_addr: &Addr, contract_addr: &Addr, expected: u128) {
+    let msg = Cw20QueryMsg::Balance {
+        address: contract_addr.to_string(),
+    };
+    let res: StdResult<BalanceResponse> = app.wrap().query_wasm_smart(token_addr, &msg);
+    assert_eq!(res.unwrap().balance, Uint128::from(expected));
+}
+
+pub fn increase_allowance(
+    router: &mut TerraApp,
+    owner: Addr,
+    spender: Addr,
+    token: Addr,
+    amount: Uint128,
+) {
+    let msg = cw20::Cw20ExecuteMsg::IncreaseAllowance {
+        spender: spender.to_string(),
+        amount,
+        expires: None,
+    };
+
+    let res = router
+        .execute_contract(owner.clone(), token, &msg, &[])
+        .unwrap();
+
+    assert_eq!(
+        res.events[1].attributes[1],
+        attr("action", "increase_allowance")
+    );
+    assert_eq!(
+        res.events[1].attributes[2],
+        attr("owner", owner.to_string())
+    );
+    assert_eq!(
+        res.events[1].attributes[3],
+        attr("spender", spender.to_string())
+    );
+    assert_eq!(res.events[1].attributes[4], attr("amount", amount));
 }

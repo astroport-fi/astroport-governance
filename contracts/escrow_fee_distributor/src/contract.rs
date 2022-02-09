@@ -51,9 +51,9 @@ pub fn instantiate(
         deps.storage,
         &Config {
             owner: addr_validate_to_lower(deps.api, &msg.owner)?,
-            token: addr_validate_to_lower(deps.api, &msg.token)?,
-            voting_escrow: addr_validate_to_lower(deps.api, &msg.voting_escrow)?,
-            emergency_return: addr_validate_to_lower(deps.api, &msg.emergency_return)?,
+            astro_token: addr_validate_to_lower(deps.api, &msg.astro_token)?,
+            voting_escrow_addr: addr_validate_to_lower(deps.api, &msg.voting_escrow_addr)?,
+            emergency_return_addr: addr_validate_to_lower(deps.api, &msg.emergency_return_addr)?,
             start_time: t,
             last_token_time: t,
             time_cursor: t,
@@ -115,39 +115,27 @@ pub fn execute(
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
+    let config: Config = CONFIG.load(deps.storage)?;
+    if config.is_killed {
+        return Err(ContractError::ContractIsKilled {});
+    }
+
     match msg {
-        ExecuteMsg::ProposeNewOwner { owner, expires_in } => {
-            let config: Config = CONFIG.load(deps.storage)?;
-            if config.is_killed {
-                return Err(ContractError::ContractIsKilled {});
-            }
-
-            propose_new_owner(
-                deps,
-                info,
-                env,
-                owner,
-                expires_in,
-                config.owner,
-                OWNERSHIP_PROPOSAL,
-            )
-            .map_err(|e| e.into())
-        }
+        ExecuteMsg::ProposeNewOwner { owner, expires_in } => propose_new_owner(
+            deps,
+            info,
+            env,
+            owner,
+            expires_in,
+            config.owner,
+            OWNERSHIP_PROPOSAL,
+        )
+        .map_err(|e| e.into()),
         ExecuteMsg::DropOwnershipProposal {} => {
-            let config: Config = CONFIG.load(deps.storage)?;
-            if config.is_killed {
-                return Err(ContractError::ContractIsKilled {});
-            }
-
             drop_ownership_proposal(deps, info, config.owner, OWNERSHIP_PROPOSAL)
                 .map_err(|e| e.into())
         }
         ExecuteMsg::ClaimOwnership {} => {
-            let config: Config = CONFIG.load(deps.storage)?;
-            if config.is_killed {
-                return Err(ContractError::ContractIsKilled {});
-            }
-
             claim_ownership(deps, info, env, OWNERSHIP_PROPOSAL, |deps, new_owner| {
                 CONFIG.update::<_, StdError>(deps.storage, |mut v| {
                     v.owner = new_owner;
@@ -200,7 +188,7 @@ fn calc_checkpoint_total_supply(mut deps: DepsMut, env: Env, config: &mut Config
             break;
         } else {
             let total_voting_power_per_week: VotingPowerResponse = deps.querier.query_wasm_smart(
-                &config.voting_escrow,
+                &config.voting_escrow_addr,
                 &VotingQueryMsg::TotalVotingPowerAt { time: time_cursor },
             )?;
 
@@ -234,11 +222,7 @@ fn burn(
     let token_addr = addr_validate_to_lower(deps.api, &token_address)?;
     let mut config: Config = CONFIG.load(deps.storage)?;
 
-    if config.is_killed {
-        return Err(ContractError::ContractIsKilled {});
-    }
-
-    if token_addr != config.token {
+    if token_addr != config.astro_token {
         return Err(ContractError::TokenAddressIsWrong {});
     }
 
@@ -284,12 +268,15 @@ fn kill_me(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, Contr
 
     config.is_killed = true;
 
-    let current_balance =
-        query_token_balance(&deps.querier, config.token.clone(), env.contract.address)?;
+    let current_balance = query_token_balance(
+        &deps.querier,
+        config.astro_token.clone(),
+        env.contract.address,
+    )?;
 
     let transfer_msg = transfer_token_amount(
-        config.token.clone(),
-        config.emergency_return.clone(),
+        config.astro_token.clone(),
+        config.emergency_return_addr.clone(),
         current_balance,
     )?;
 
@@ -299,7 +286,7 @@ fn kill_me(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, Contr
         .add_attributes(vec![
             attr("action", "kill_me"),
             attr("transferred_balance", current_balance.to_string()),
-            attr("recipient", config.emergency_return.to_string()),
+            attr("recipient", config.emergency_return_addr.to_string()),
         ])
         .add_messages(transfer_msg))
 }
@@ -321,28 +308,27 @@ fn recover_balance(
 
     let config: Config = CONFIG.load(deps.storage)?;
 
-    if config.is_killed {
-        return Err(ContractError::ContractIsKilled {});
-    }
-
     if info.sender != config.owner {
         return Err(ContractError::Unauthorized {});
     }
 
-    if token_addr != config.token {
+    if token_addr != config.astro_token {
         return Err(ContractError::TokenAddressIsWrong {});
     }
 
     let current_balance =
         query_token_balance(&deps.querier, token_addr.clone(), env.contract.address)?;
-    let transfer_msg =
-        transfer_token_amount(token_addr, config.emergency_return.clone(), current_balance)?;
+    let transfer_msg = transfer_token_amount(
+        token_addr,
+        config.emergency_return_addr.clone(),
+        current_balance,
+    )?;
 
     Ok(Response::new()
         .add_attributes(vec![
             attr("action", "recover_balance"),
             attr("balance", current_balance.to_string()),
-            attr("recipient", config.emergency_return.to_string()),
+            attr("recipient", config.emergency_return_addr.to_string()),
         ])
         .add_messages(transfer_msg))
 }
@@ -356,10 +342,6 @@ fn checkpoint_token(
     info: MessageInfo,
 ) -> Result<Response, ContractError> {
     let mut config: Config = CONFIG.load(deps.storage)?;
-
-    if config.is_killed {
-        return Err(ContractError::ContractIsKilled {});
-    }
 
     if info.sender != config.owner
         && (!config.can_checkpoint_token
@@ -400,7 +382,7 @@ fn save_or_update_state_config(
 fn calc_checkpoint_token(mut deps: DepsMut, env: Env, config: &mut Config) -> StdResult<()> {
     let distributor_balance = query_token_balance(
         &deps.querier,
-        config.token.clone(),
+        config.astro_token.clone(),
         env.contract.address.clone(),
     )?;
 
@@ -488,10 +470,6 @@ pub fn claim(
 
     let mut config: Config = CONFIG.load(deps.storage)?;
 
-    if config.is_killed {
-        return Err(ContractError::ContractIsKilled {});
-    }
-
     if env.block.time.seconds() >= config.time_cursor {
         calc_checkpoint_total_supply(deps.branch(), env.clone(), &mut config)?;
     }
@@ -516,8 +494,11 @@ pub fn claim(
 
     let mut transfer_msg = vec![];
     if !claim_amount.is_zero() {
-        transfer_msg =
-            transfer_token_amount(config.token.clone(), recipient_addr.clone(), claim_amount)?;
+        transfer_msg = transfer_token_amount(
+            config.astro_token.clone(),
+            recipient_addr.clone(),
+            claim_amount,
+        )?;
         config.token_last_balance -= claim_amount;
     };
 
@@ -545,8 +526,9 @@ fn claim_many(
     receivers: Vec<String>,
 ) -> Result<Response, ContractError> {
     let mut config: Config = CONFIG.load(deps.storage)?;
-    if config.is_killed {
-        return Err(ContractError::ContractIsKilled {});
+
+    if receivers.len() > config.max_limit_accounts_of_claim as usize {
+        return Err(ContractError::ExceededAccountLimitOfClaim {});
     }
 
     if env.block.time.seconds() >= config.time_cursor {
@@ -562,11 +544,7 @@ fn claim_many(
         last_token_time = env.block.time.seconds();
     }
 
-    last_token_time = last_token_time
-        .checked_div(WEEK)
-        .ok_or_else(|| StdError::generic_err("Timestamp calculation error."))?
-        .checked_mul(WEEK)
-        .ok_or_else(|| StdError::generic_err("Timestamp calculation error."))?;
+    last_token_time = last_token_time / WEEK * WEEK;
 
     let mut total = Uint128::zero();
     let mut transfer_msg = vec![];
@@ -582,7 +560,7 @@ fn claim_many(
 
         if !claim_amount.is_zero() {
             transfer_msg.extend(transfer_token_amount(
-                config.token.clone(),
+                config.astro_token.clone(),
                 receiver_addr,
                 claim_amount,
             )?);
@@ -613,7 +591,7 @@ fn calc_claim_amount(
     last_token_time: u64,
 ) -> StdResult<Uint128> {
     let user_lock_info: LockInfoResponse = deps.querier.query_wasm_smart(
-        &config.voting_escrow,
+        &config.voting_escrow_addr,
         &VotingQueryMsg::LockInfo {
             user: addr.to_string(),
         },
@@ -625,12 +603,9 @@ fn calc_claim_amount(
     }
 
     let start_time = config.start_time;
-    let mut week_cursor: u64;
-    if let Some(w_cursor) = TIME_CURSOR_OF.may_load(deps.storage, addr.clone())? {
-        week_cursor = w_cursor;
-    } else {
-        week_cursor = 0;
-    }
+    let mut week_cursor = TIME_CURSOR_OF
+        .may_load(deps.storage, addr.clone())?
+        .unwrap_or_default();
 
     if week_cursor < start_time {
         week_cursor = start_time;
@@ -652,7 +627,7 @@ fn calc_claim_amount(
         }
 
         let user_voting_power: VotingPowerResponse = deps.querier.query_wasm_smart(
-            &config.voting_escrow,
+            &config.voting_escrow_addr,
             &VotingQueryMsg::UserVotingPowerAt {
                 user: addr.to_string(),
                 time: week_cursor,
@@ -703,12 +678,8 @@ fn update_config(
     max_limit_accounts_of_claim: Option<u64>,
     can_checkpoint_token: Option<bool>,
 ) -> Result<Response, ContractError> {
-    let mut attributes = vec![attr("action", "set_config")];
+    let mut attributes = vec![attr("action", "update_config")];
     let mut config: Config = CONFIG.load(deps.storage)?;
-
-    if config.is_killed {
-        return Err(ContractError::ContractIsKilled {});
-    }
 
     if info.sender != config.owner {
         return Err(ContractError::Unauthorized {});
@@ -746,13 +717,18 @@ fn update_config(
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::FetchUserBalanceByTimestamp { user, timestamp } => {
-            Ok(to_binary(&query_user_balance(deps, env, user, timestamp)?)?)
+            to_binary(&query_user_balance(deps, env, user, timestamp)?)
         }
-        QueryMsg::Config {} => Ok(to_binary(&query_config(deps)?)?),
-        QueryMsg::VotingSupplyPerWeek { start_after, limit } => Ok(to_binary(
-            &query_voting_supply_per_week(deps, start_after, limit)?,
+        QueryMsg::Config {} => to_binary(&query_config(deps)?),
+        QueryMsg::VotingSupplyPerWeek { start_after, limit } => to_binary(&query_per_week(
+            deps,
+            &VOTING_SUPPLY_PER_WEEK,
+            start_after,
+            limit,
         )?),
-        QueryMsg::FeeTokensPerWeek {} => Ok(to_binary(&query_tokens_per_week(deps)?)?),
+        QueryMsg::FeeTokensPerWeek { start_after, limit } => {
+            to_binary(&query_per_week(deps, &TOKENS_PER_WEEK, start_after, limit)?)
+        }
     }
 }
 
@@ -763,8 +739,9 @@ const MAX_LIMIT: u64 = 30;
 /// The default limit for reading pairs from a [`PAIRS`]
 const DEFAULT_LIMIT: u64 = 10;
 
-fn query_voting_supply_per_week(
+fn query_per_week(
     deps: Deps,
+    config: &Map<U64Key, Uint128>,
     start_after: Option<u64>,
     limit: Option<u64>,
 ) -> StdResult<Vec<Uint128>> {
@@ -776,23 +753,14 @@ fn query_voting_supply_per_week(
         start = None;
     }
 
-    Ok(VOTING_SUPPLY_PER_WEEK
+    Ok(config
         .range(deps.storage, start, None, Order::Ascending)
         .take(limit)
         .map(|item| {
-            let (_, voting_supply) = item.unwrap();
-            voting_supply
+            let (_, week_value) = item.unwrap();
+            week_value
         })
         .collect())
-}
-
-fn query_tokens_per_week(deps: Deps) -> StdResult<Vec<Uint128>> {
-    let mut result: Vec<Uint128> = vec![];
-    for x in TOKENS_PER_WEEK.keys(deps.storage, None, None, Order::Ascending) {
-        let val = TOKENS_PER_WEEK.load(deps.storage, U64Key::from(x))?;
-        result.push(val);
-    }
-    Ok(result)
 }
 
 /// ## Description
@@ -800,7 +768,7 @@ fn query_tokens_per_week(deps: Deps) -> StdResult<Vec<Uint128>> {
 fn query_user_balance(deps: Deps, _env: Env, user: String, timestamp: u64) -> StdResult<Uint128> {
     let config = CONFIG.load(deps.storage)?;
     let user_voting_power: VotingPowerResponse = deps.querier.query_wasm_smart(
-        &config.voting_escrow,
+        &config.voting_escrow_addr,
         &VotingQueryMsg::UserVotingPowerAt {
             user,
             time: timestamp,
@@ -837,9 +805,9 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
 
     let resp = ConfigResponse {
         owner: config.owner,
-        token: config.token,
-        voting_escrow: config.voting_escrow,
-        emergency_return: config.emergency_return,
+        astro_token: config.astro_token,
+        voting_escrow_addr: config.voting_escrow_addr,
+        emergency_return_addr: config.emergency_return_addr,
         start_time: config.start_time,
         last_token_time: config.last_token_time,
         time_cursor: config.time_cursor,

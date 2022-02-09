@@ -22,6 +22,9 @@ pub enum ContractError {
 
     #[error("Contract is killed!")]
     ContractIsKilled {},
+
+    #[error("Exceeded account limit for claim operation!")]
+    ExceededAccountLimitOfClaim {},
 }
 
 impl From<OverflowError> for ContractError {

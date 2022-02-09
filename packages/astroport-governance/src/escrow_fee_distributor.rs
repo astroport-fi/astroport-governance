@@ -14,11 +14,11 @@ pub struct InstantiateMsg {
     /// Admin address
     pub owner: String,
     /// Fee token address
-    pub token: String,
+    pub astro_token: String,
     /// VotingEscrow contract address
-    pub voting_escrow: String,
+    pub voting_escrow_addr: String,
     /// Address to transfer `token` balance to, if this contract is killed
-    pub emergency_return: String,
+    pub emergency_return_addr: String,
     /// Epoch time for fee distribution to start
     pub start_time: u64,
 }
@@ -78,7 +78,10 @@ pub enum QueryMsg {
         limit: Option<u64>,
     },
     /// Returns the vector that contains tokens fee per week
-    FeeTokensPerWeek,
+    FeeTokensPerWeek {
+        start_after: Option<u64>,
+        limit: Option<u64>,
+    },
 }
 
 /// ## Description
@@ -88,11 +91,11 @@ pub struct ConfigResponse {
     /// Admin address
     pub owner: Addr,
     /// Fee token address
-    pub token: Addr,
+    pub astro_token: Addr,
     /// VotingEscrow contract address
-    pub voting_escrow: Addr,
+    pub voting_escrow_addr: Addr,
     /// Address to transfer `token` balance to, if this contract is killed
-    pub emergency_return: Addr,
+    pub emergency_return_addr: Addr,
     /// Period time for fee distribution to start
     pub start_time: u64,
     pub last_token_time: u64,

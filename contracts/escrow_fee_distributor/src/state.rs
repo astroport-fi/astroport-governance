@@ -14,11 +14,11 @@ pub struct Config {
     /// address of ownership
     pub owner: Addr,
     /// Fee token address
-    pub token: Addr,
+    pub astro_token: Addr,
     /// VotingEscrow contract address
-    pub voting_escrow: Addr,
+    pub voting_escrow_addr: Addr,
     /// Address to transfer `token` balance to, if this contract is killed
-    pub emergency_return: Addr,
+    pub emergency_return_addr: Addr,
     /// Epoch time for fee distribution to start
     pub start_time: u64,
     pub last_token_time: u64,
@@ -35,23 +35,24 @@ pub struct Config {
 pub const CONFIG: Item<Config> = Item::new("config");
 
 /// ## Description
-/// Stores config at the given key
+/// Stores config at the given key. Contains information about the amount of commission accrued
+/// to the user in Astro tokens.
 pub const CHECKPOINT_TOKEN: Map<U64Key, Uint128> = Map::new("checkpoint_token");
 
 /// ## Description
-/// Stores config at the given key
+/// Stores config at the given key. Contains information about voting supply per week.
 pub const VOTING_SUPPLY_PER_WEEK: Map<U64Key, Uint128> = Map::new("voting_supply_per_week");
 
 /// ## Description
-/// Stores config at the given key
+/// Stores config at the given key. Contains information about distributed tokens per week.
 pub const TOKENS_PER_WEEK: Map<U64Key, Uint128> = Map::new("tokens_per_week");
 
 /// ## Description
-/// Stores config at the given key
+/// Stores config at the given key. Contains information about the last week of commission issuance.
 pub const TIME_CURSOR_OF: Map<Addr, u64> = Map::new("time_cursor_of");
 
 /// ## Description
-/// Stores config at the given key
+/// Stores config at the given key. Contains information about the claim operation.
 pub const CLAIMED: Item<Vec<Claimed>> = Item::new("claimed");
 
 /// ## Description

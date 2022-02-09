@@ -10,9 +10,9 @@ fn proper_initialization() {
 
     let msg = InstantiateMsg {
         owner: "owner".to_string(),
-        token: "token".to_string(),
-        voting_escrow: "voting_escrow".to_string(),
-        emergency_return: "emergency_return".to_string(),
+        astro_token: "token".to_string(),
+        voting_escrow_addr: "voting_escrow".to_string(),
+        emergency_return_addr: "emergency_return".to_string(),
         start_time: 0,
     };
 
@@ -25,9 +25,9 @@ fn proper_initialization() {
             .unwrap(),
         ConfigResponse {
             owner: Addr::unchecked("owner"),
-            token: Addr::unchecked("token"),
-            voting_escrow: Addr::unchecked("voting_escrow"),
-            emergency_return: Addr::unchecked("emergency_return"),
+            astro_token: Addr::unchecked("token"),
+            voting_escrow_addr: Addr::unchecked("voting_escrow"),
+            emergency_return_addr: Addr::unchecked("emergency_return"),
             start_time: 0,
             last_token_time: 0,
             time_cursor: 0,
