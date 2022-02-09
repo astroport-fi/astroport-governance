@@ -7,7 +7,14 @@ use cosmwasm_std::{
     Response, StdError, StdResult, Uint128, WasmMsg,
 };
 use cw2::set_contract_version;
-use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
+use cw20::{
+    BalanceResponse, Cw20ExecuteMsg, Cw20ReceiveMsg, Logo, LogoInfo, MarketingInfoResponse,
+    TokenInfoResponse,
+};
+use cw20_base::contract::{
+    execute_update_marketing, execute_upload_logo, query_download_logo, query_marketing_info,
+};
+use cw20_base::state::{MinterData, TokenInfo, LOGO, MARKETING_INFO, TOKEN_INFO};
 use cw_storage_plus::U64Key;
 
 use astroport_governance::voting_escrow::{
@@ -71,10 +78,48 @@ pub fn instantiate(
     };
     HISTORY.save(
         deps.storage,
-        (env.contract.address, U64Key::new(cur_period)),
+        (env.contract.address.clone(), U64Key::new(cur_period)),
         &point,
     )?;
     BLACKLIST.save(deps.storage, &vec![])?;
+
+    if let Some(marketing) = msg.marketing {
+        let logo = if let Some(logo) = marketing.logo {
+            LOGO.save(deps.storage, &logo)?;
+
+            match logo {
+                Logo::Url(url) => Some(LogoInfo::Url(url)),
+                Logo::Embedded(_) => Some(LogoInfo::Embedded),
+            }
+        } else {
+            None
+        };
+
+        let data = MarketingInfoResponse {
+            project: marketing.project,
+            description: marketing.description,
+            marketing: marketing
+                .marketing
+                .map(|addr| addr_validate_to_lower(deps.api, &addr))
+                .transpose()?,
+            logo,
+        };
+        MARKETING_INFO.save(deps.storage, &data)?;
+    }
+
+    // Store token info
+    let data = TokenInfo {
+        name: "vxASTRO".to_string(),
+        symbol: "vxASTRO".to_string(),
+        decimals: 6,
+        total_supply: Uint128::zero(),
+        mint: Some(MinterData {
+            minter: env.contract.address,
+            cap: None,
+        }),
+    };
+
+    TOKEN_INFO.save(deps.storage, &data)?;
 
     Ok(Response::default())
 }
@@ -145,6 +190,15 @@ pub fn execute(
             append_addrs,
             remove_addrs,
         } => update_blacklist(deps, info, append_addrs, remove_addrs),
+        ExecuteMsg::UpdateMarketing {
+            project,
+            description,
+            marketing,
+        } => execute_update_marketing(deps, env, info, project, description, marketing)
+            .map_err(|e| e.into()),
+        ExecuteMsg::UploadLogo(logo) => {
+            execute_upload_logo(deps, env, info, logo).map_err(|e| e.into())
+        }
     }
 }
 
@@ -566,6 +620,10 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
                 deposit_token_addr: config.deposit_token_addr.to_string(),
             })
         }
+        QueryMsg::Balance { address } => to_binary(&get_user_balance(deps, env, address)?),
+        QueryMsg::TokenInfo {} => to_binary(&query_token_info(deps, env)?),
+        QueryMsg::MarketingInfo {} => to_binary(&query_marketing_info(deps)?),
+        QueryMsg::DownloadLogo {} => to_binary(&query_download_logo(deps)?),
     }
 }
 
@@ -619,6 +677,13 @@ fn get_user_voting_power(
     }
 }
 
+fn get_user_balance(deps: Deps, env: Env, user: String) -> StdResult<BalanceResponse> {
+    let vp_response = get_user_voting_power(deps, env, user, None)?;
+    Ok(BalanceResponse {
+        balance: vp_response.voting_power,
+    })
+}
+
 /// # Description
 /// Calculates total voting power at the given time.
 /// If time is None then calculates voting power at the current block period.
@@ -660,6 +725,18 @@ fn get_total_voting_power(
     };
 
     Ok(VotingPowerResponse { voting_power })
+}
+
+pub fn query_token_info(deps: Deps, env: Env) -> StdResult<TokenInfoResponse> {
+    let info = TOKEN_INFO.load(deps.storage)?;
+    let total_vp = get_total_voting_power(deps, env, None)?;
+    let res = TokenInfoResponse {
+        name: info.name,
+        symbol: info.symbol,
+        decimals: info.decimals,
+        total_supply: total_vp.voting_power,
+    };
+    Ok(res)
 }
 
 /// ## Description

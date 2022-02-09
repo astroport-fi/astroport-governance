@@ -1,4 +1,5 @@
 use cosmwasm_std::StdError;
+use cw20_base::ContractError as cw20baseError;
 use thiserror::Error;
 
 /// ## Description
@@ -7,6 +8,9 @@ use thiserror::Error;
 pub enum ContractError {
     #[error("{0}")]
     Std(#[from] StdError),
+
+    #[error("{0}")]
+    Cw20Base(#[from] cw20baseError),
 
     #[error("Unauthorized")]
     Unauthorized {},

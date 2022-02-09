@@ -1,14 +1,28 @@
 use cosmwasm_std::{Decimal, Uint128};
-use cw20::Cw20ReceiveMsg;
+use cw20::{Cw20ReceiveMsg, Logo};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+
+/// ## Description
+/// This structure describes marketing info.
+#[derive(Serialize, Deserialize, JsonSchema, Debug, Clone, PartialEq)]
+pub struct InstantiateMarketingInfo {
+    pub project: Option<String>,
+    pub description: Option<String>,
+    pub marketing: Option<String>,
+    pub logo: Option<Logo>,
+}
 
 /// ## Description
 /// This structure describes the basic settings for creating a contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
+    /// contract owner
     pub owner: String,
+    /// xASTRO token address
     pub deposit_token_addr: String,
+    /// Marketing info
+    pub marketing: Option<InstantiateMarketingInfo>,
 }
 
 /// ## Description
@@ -33,6 +47,15 @@ pub enum ExecuteMsg {
         append_addrs: Option<Vec<String>>,
         remove_addrs: Option<Vec<String>>,
     },
+    UpdateMarketing {
+        /// A URL pointing to the project behind this token.
+        project: Option<String>,
+        /// A longer description of the token and it's utility. Designed for tooltips or such
+        description: Option<String>,
+        /// The address (if any) who can update this data structure
+        marketing: Option<String>,
+    },
+    UploadLogo(Logo),
 }
 
 /// ## Description
@@ -50,6 +73,10 @@ pub enum Cw20HookMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
+    Balance { address: String },
+    TokenInfo {},
+    MarketingInfo {},
+    DownloadLogo {},
     TotalVotingPower {},
     TotalVotingPowerAt { time: u64 },
     UserVotingPower { user: String },

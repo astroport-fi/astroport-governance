@@ -98,6 +98,7 @@ impl Helper {
         let msg = InstantiateMsg {
             owner: owner.to_string(),
             deposit_token_addr: res.share_token_addr.to_string(),
+            marketing: None,
         };
         let voting_instance = router
             .instantiate_contract(
