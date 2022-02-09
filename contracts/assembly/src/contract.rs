@@ -14,6 +14,9 @@ use astroport_governance::assembly::{
 };
 
 use astroport::xastro_token::QueryMsg as XAstroTokenQueryMsg;
+use astroport_governance::builder_unlock::msg::{
+    AllocationResponse, QueryMsg as BuilderUnlockQueryMsg, StateResponse,
+};
 
 use crate::error::ContractError;
 use crate::state::{CONFIG, PROPOSALS, PROPOSAL_COUNT};
@@ -56,6 +59,7 @@ pub fn instantiate(
 
     let config = Config {
         xastro_token_addr: addr_validate_to_lower(deps.api, &msg.xastro_token_addr)?,
+        builder_unlock_addr: addr_validate_to_lower(deps.api, &msg.builder_unlock_addr)?,
         proposal_voting_period: msg.proposal_voting_period,
         proposal_effective_delay: msg.proposal_effective_delay,
         proposal_expiration_period: msg.proposal_expiration_period,
@@ -529,38 +533,37 @@ pub fn update_config(
         return Err(ContractError::Unauthorized {});
     }
 
-    config.xastro_token_addr = updated_config
-        .xastro_token_addr
-        .map(|addr| addr_validate_to_lower(deps.api, &addr))
-        .transpose()?
-        .unwrap_or(config.xastro_token_addr);
+    if let Some(xastro_token_addr) = updated_config.xastro_token_addr {
+        config.xastro_token_addr = addr_validate_to_lower(deps.api, &xastro_token_addr)?;
+    }
 
-    config.proposal_voting_period = updated_config
-        .proposal_voting_period
-        .unwrap_or(config.proposal_voting_period);
+    if let Some(builder_unlock_addr) = updated_config.builder_unlock_addr {
+        config.builder_unlock_addr = addr_validate_to_lower(deps.api, &builder_unlock_addr)?;
+    }
 
-    config.proposal_effective_delay = updated_config
-        .proposal_effective_delay
-        .unwrap_or(config.proposal_effective_delay);
+    if let Some(proposal_voting_period) = updated_config.proposal_voting_period {
+        config.proposal_voting_period = proposal_voting_period;
+    }
 
-    config.proposal_expiration_period = updated_config
-        .proposal_expiration_period
-        .unwrap_or(config.proposal_expiration_period);
+    if let Some(proposal_effective_delay) = updated_config.proposal_effective_delay {
+        config.proposal_effective_delay = proposal_effective_delay;
+    }
 
-    config.proposal_required_deposit = updated_config
-        .proposal_required_deposit
-        .map(Uint128::from)
-        .unwrap_or(config.proposal_required_deposit);
+    if let Some(proposal_expiration_period) = updated_config.proposal_expiration_period {
+        config.proposal_expiration_period = proposal_expiration_period;
+    }
 
-    config.proposal_required_quorum = updated_config
-        .proposal_required_quorum
-        .map(Decimal::percent)
-        .unwrap_or(config.proposal_required_quorum);
+    if let Some(proposal_required_deposit) = updated_config.proposal_required_deposit {
+        config.proposal_required_deposit = Uint128::from(proposal_required_deposit);
+    }
 
-    config.proposal_required_threshold = updated_config
-        .proposal_required_threshold
-        .map(Decimal::percent)
-        .unwrap_or(config.proposal_required_threshold);
+    if let Some(proposal_required_quorum) = updated_config.proposal_required_quorum {
+        config.proposal_required_quorum = Decimal::percent(proposal_required_quorum);
+    }
+
+    if let Some(proposal_required_threshold) = updated_config.proposal_required_threshold {
+        config.proposal_required_threshold = Decimal::percent(proposal_required_threshold);
+    }
 
     config.validate()?;
 
@@ -662,8 +665,8 @@ pub fn query_proposal_votes(deps: Deps, proposal_id: u64) -> StdResult<ProposalV
 
     Ok(ProposalVotesResponse {
         proposal_id,
-        for_power: proposal.for_power.u128(),
-        against_power: proposal.against_power.u128(),
+        for_power: proposal.for_power,
+        against_power: proposal.against_power,
     })
 }
 
@@ -681,12 +684,24 @@ pub fn calc_voting_power(deps: &DepsMut, sender: String, block: u64) -> StdResul
     let xastro_amount: BalanceResponse = deps.querier.query_wasm_smart(
         config.xastro_token_addr,
         &XAstroTokenQueryMsg::BalanceAt {
-            address: sender,
+            address: sender.clone(),
             block,
         },
     )?;
 
-    Ok(xastro_amount.balance)
+    let mut total = xastro_amount.balance;
+
+    let locked_amount: AllocationResponse = deps.querier.query_wasm_smart(
+        config.builder_unlock_addr,
+        &BuilderUnlockQueryMsg::Allocation { account: sender },
+    )?;
+
+    if !locked_amount.params.amount.is_zero() {
+        total = total
+            .checked_add(locked_amount.params.amount - locked_amount.status.astro_withdrawn)?;
+    }
+
+    Ok(total)
 }
 
 /// ## Description
@@ -698,10 +713,16 @@ pub fn calc_voting_power(deps: &DepsMut, sender: String, block: u64) -> StdResul
 pub fn calc_total_voting_power_at(deps: &DepsMut, block: u64) -> StdResult<Uint128> {
     let config = CONFIG.load(deps.storage)?;
 
+    // Total xASTRO supply at a specified block
     let total_supply: Uint128 = deps.querier.query_wasm_smart(
         config.xastro_token_addr,
         &XAstroTokenQueryMsg::TotalSupplyAt { block },
     )?;
 
-    Ok(total_supply)
+    // Total builder locked
+    let builder_state: StateResponse = deps
+        .querier
+        .query_wasm_smart(config.builder_unlock_addr, &BuilderUnlockQueryMsg::State {})?;
+
+    Ok(total_supply + builder_state.remaining_astro_tokens)
 }
