@@ -776,7 +776,7 @@ fn get_total_voting_power(
     Ok(VotingPowerResponse { voting_power })
 }
 
-pub fn query_token_info(deps: Deps, env: Env) -> StdResult<TokenInfoResponse> {
+fn query_token_info(deps: Deps, env: Env) -> StdResult<TokenInfoResponse> {
     let info = TOKEN_INFO.load(deps.storage)?;
     let total_vp = get_total_voting_power(deps, env, None)?;
     let res = TokenInfoResponse {

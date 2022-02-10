@@ -590,36 +590,16 @@ fn check_blacklist() {
     helper.mint_xastro(router_ref, "user2", 100);
     helper.mint_xastro(router_ref, "user3", 100);
 
-    let msg = ExecuteMsg::UpdateBlacklist {
-        append_addrs: None,
-        remove_addrs: None,
-    };
     // trying to execute with empty arrays
-    let err = router_ref
-        .execute_contract(
-            Addr::unchecked("owner"),
-            helper.voting_instance.clone(),
-            &msg,
-            &[],
-        )
-        .unwrap_err();
+    let err = helper.update_blacklist(router_ref, None, None).unwrap_err();
     assert_eq!(
         err.to_string(),
         "Generic error: Append and remove arrays are empty"
     );
 
-    let msg = ExecuteMsg::UpdateBlacklist {
-        append_addrs: Some(vec!["user2".to_string()]),
-        remove_addrs: None,
-    };
     // blacklisting user2
-    let res = router_ref
-        .execute_contract(
-            Addr::unchecked("owner"),
-            helper.voting_instance.clone(),
-            &msg,
-            &[],
-        )
+    let res = helper
+        .update_blacklist(router_ref, Some(vec!["user2".to_string()]), None)
         .unwrap();
     assert_eq!(
         res.events[1].attributes[1],
@@ -660,17 +640,8 @@ fn check_blacklist() {
     assert_eq!(err.to_string(), "The user2 address is blacklisted");
 
     // blacklisting user1
-    let msg = ExecuteMsg::UpdateBlacklist {
-        append_addrs: Some(vec!["user1".to_string()]),
-        remove_addrs: None,
-    };
-    let res = router_ref
-        .execute_contract(
-            Addr::unchecked("owner"),
-            helper.voting_instance.clone(),
-            &msg,
-            &[],
-        )
+    let res = helper
+        .update_blacklist(router_ref, Some(vec!["user1".to_string()]), None)
         .unwrap();
     assert_eq!(
         res.events[1].attributes[1],
@@ -722,17 +693,8 @@ fn check_blacklist() {
     helper.withdraw(router_ref, "user1").unwrap();
 
     // removing user1 from blacklist
-    let msg = ExecuteMsg::UpdateBlacklist {
-        append_addrs: None,
-        remove_addrs: Some(vec!["user1".to_string()]),
-    };
-    let res = router_ref
-        .execute_contract(
-            Addr::unchecked("owner"),
-            helper.voting_instance.clone(),
-            &msg,
-            &[],
-        )
+    let res = helper
+        .update_blacklist(router_ref, None, Some(vec!["user1".to_string()]))
         .unwrap();
     assert_eq!(
         res.events[1].attributes[1],
