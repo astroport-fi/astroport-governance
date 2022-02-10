@@ -249,6 +249,18 @@ impl Helper {
         )
     }
 
+    pub fn blacklist(&self, router: &mut TerraApp, user: &str) -> Result<AppResponse> {
+        router.execute_contract(
+            Addr::unchecked("owner"),
+            self.voting_instance.clone(),
+            &ExecuteMsg::UpdateBlacklist {
+                append_addrs: Some(vec![user.to_string()]),
+                remove_addrs: None,
+            },
+            &[],
+        )
+    }
+
     pub fn query_user_vp(&self, router: &mut TerraApp, user: &str) -> StdResult<f32> {
         router
             .wrap()

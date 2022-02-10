@@ -15,14 +15,15 @@ struct Point {
 }
 
 #[derive(Clone, Debug)]
-enum LockEvent {
+enum Event {
     CreateLock(f64, u64),
     IncreaseTime(u64),
     ExtendLock(f64),
     Withdraw,
+    Blacklist,
 }
 
-use LockEvent::*;
+use Event::*;
 
 struct Simulator {
     // points history (history[period][user] = point)
@@ -147,26 +148,41 @@ impl Simulator {
             })
     }
 
-    fn event_router(&mut self, user: &str, event: LockEvent) {
+    fn append2blacklist(&mut self, user: &str) -> Result<AppResponse> {
+        self.helper
+            .blacklist(&mut self.router, user)
+            .map(|response| {
+                let cur_period = self.block_period();
+                self.add_point(cur_period as usize, user, 0.0, cur_period);
+                response
+            })
+    }
+
+    fn event_router(&mut self, user: &str, event: Event) {
         println!("User {} Event {:?}", user, event);
         match event {
-            LockEvent::CreateLock(amount, interval) => {
+            Event::CreateLock(amount, interval) => {
                 if let Err(err) = self.create_lock(user, amount, interval) {
                     dbg!(err);
                 }
             }
-            LockEvent::IncreaseTime(interval) => {
+            Event::IncreaseTime(interval) => {
                 if let Err(err) = self.increase_time(user, interval) {
                     dbg!(err);
                 }
             }
-            LockEvent::ExtendLock(amount) => {
+            Event::ExtendLock(amount) => {
                 if let Err(err) = self.extend_lock(user, amount) {
                     dbg!(err);
                 }
             }
-            LockEvent::Withdraw => {
+            Event::Withdraw => {
                 if let Err(err) = self.withdraw(user) {
+                    dbg!(err);
+                }
+            }
+            Event::Blacklist => {
+                if let Err(err) = self.append2blacklist(user) {
                     dbg!(err);
                 }
             }
@@ -255,16 +271,17 @@ fn amount_strategy() -> impl Strategy<Value = f64> {
     (1f64..=100f64).prop_map(|val| (val * MULTIPLIER as f64).trunc() / MULTIPLIER as f64)
 }
 
-fn events_strategy() -> impl Strategy<Value = LockEvent> {
+fn events_strategy() -> impl Strategy<Value = Event> {
     prop_oneof![
-        Just(LockEvent::Withdraw),
-        amount_strategy().prop_map(LockEvent::ExtendLock),
-        (0..MAX_LOCK_TIME).prop_map(LockEvent::IncreaseTime),
-        (amount_strategy(), 0..MAX_LOCK_TIME).prop_map(|(a, b)| LockEvent::CreateLock(a, b)),
+        Just(Event::Withdraw),
+        Just(Event::Blacklist),
+        amount_strategy().prop_map(Event::ExtendLock),
+        (0..MAX_LOCK_TIME).prop_map(Event::IncreaseTime),
+        (amount_strategy(), 0..MAX_LOCK_TIME).prop_map(|(a, b)| Event::CreateLock(a, b)),
     ]
 }
 
-fn generate_cases() -> impl Strategy<Value = (Vec<String>, Vec<(usize, String, LockEvent)>)> {
+fn generate_cases() -> impl Strategy<Value = (Vec<String>, Vec<(usize, String, Event)>)> {
     let users_strategy = prop::collection::vec("[a-z]{4,32}", 1..MAX_USERS);
     users_strategy.prop_flat_map(|users| {
         (
@@ -287,7 +304,7 @@ proptest! {
     (
         case in generate_cases()
     ) {
-        let mut events: Vec<Vec<(String, LockEvent)>> = vec![vec![]; MAX_PERIOD + 1];
+        let mut events: Vec<Vec<(String, Event)>> = vec![vec![]; MAX_PERIOD + 1];
         let (users, events_tuples) = case;
         for (period, user, event) in events_tuples {
             events[period].push((user, event));
@@ -335,39 +352,17 @@ proptest! {
 #[test]
 fn exact_simulation() {
     let case = (
-        ["vgtaypvgpajywnccskgqngackgxlwqko"],
+        ["juqgboowsqprzrhahcqb", "eipcy"],
         [
-            (2, "vgtaypvgpajywnccskgqngackgxlwqko", IncreaseTime(1814400)),
-            (3, "vgtaypvgpajywnccskgqngackgxlwqko", ExtendLock(94.91173)),
-            (2, "vgtaypvgpajywnccskgqngackgxlwqko", IncreaseTime(3628800)),
-            (6, "vgtaypvgpajywnccskgqngackgxlwqko", IncreaseTime(3628800)),
-            (
-                1,
-                "vgtaypvgpajywnccskgqngackgxlwqko",
-                CreateLock(40.798203, 16934400),
-            ),
-            (7, "vgtaypvgpajywnccskgqngackgxlwqko", IncreaseTime(604800)),
-            (
-                1,
-                "vgtaypvgpajywnccskgqngackgxlwqko",
-                IncreaseTime(10281600),
-            ),
-            (3, "vgtaypvgpajywnccskgqngackgxlwqko", ExtendLock(74.26012)),
-            (1, "vgtaypvgpajywnccskgqngackgxlwqko", ExtendLock(63.38993)),
-            (
-                1,
-                "vgtaypvgpajywnccskgqngackgxlwqko",
-                IncreaseTime(17273197),
-            ),
-            (4, "vgtaypvgpajywnccskgqngackgxlwqko", IncreaseTime(4578129)),
-            (9, "vgtaypvgpajywnccskgqngackgxlwqko", ExtendLock(40.453003)),
-            (1, "vgtaypvgpajywnccskgqngackgxlwqko", ExtendLock(76.63571)),
-            (2, "vgtaypvgpajywnccskgqngackgxlwqko", ExtendLock(36.695534)),
-            (5, "vgtaypvgpajywnccskgqngackgxlwqko", ExtendLock(27.781044)),
+            (3, "juqgboowsqprzrhahcqb", Blacklist),
+            (1, "eipcy", CreateLock(65.279624, 7862522)),
+            (7, "juqgboowsqprzrhahcqb", Blacklist),
+            (2, "juqgboowsqprzrhahcqb", CreateLock(81.395287, 5129908)),
+            (5, "eipcy", Blacklist),
         ],
     );
 
-    let mut events: Vec<Vec<(String, LockEvent)>> = vec![vec![]; MAX_PERIOD + 1];
+    let mut events: Vec<Vec<(String, Event)>> = vec![vec![]; MAX_PERIOD + 1];
     let (users, events_tuples) = case;
     for (period, user, event) in events_tuples {
         events[period].push((user.to_string(), event));
@@ -399,6 +394,7 @@ fn exact_simulation() {
             .query_total_vp(&mut simulator.router)
             .unwrap_or(0.0) as f64;
         if (real_balance - contract_balance).abs() >= 10e-3 {
+            println!("Assert failed at period {}", period);
             assert_eq!(real_balance, contract_balance)
         };
         // evaluate passed periods in history

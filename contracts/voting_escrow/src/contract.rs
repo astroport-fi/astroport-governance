@@ -224,7 +224,6 @@ fn checkpoint_total(
     // get last checkpoint
     let last_checkpoint = fetch_last_checkpoint(deps.as_ref(), &contract_addr, &cur_period_key)?;
     let new_point = if let Some((_, mut point)) = last_checkpoint {
-        point.power -= reduce_power.unwrap_or_default();
         let last_slope_change = LAST_SLOPE_CHANGE
             .may_load(deps.as_ref().storage)?
             .unwrap_or(0);
@@ -249,8 +248,11 @@ fn checkpoint_total(
             LAST_SLOPE_CHANGE.save(deps.storage, &cur_period)?
         }
 
+        let new_power = (calc_voting_power(&point, cur_period) + add_voting_power)
+            .saturating_sub(reduce_power.unwrap_or_default());
+
         Point {
-            power: calc_voting_power(&point, cur_period) + add_voting_power,
+            power: new_power,
             slope: point.slope - old_slope + new_slope,
             start: cur_period,
             ..point
@@ -543,8 +545,15 @@ fn update_blacklist(
     }
     let append_addrs = append_addrs.unwrap_or_default();
     let remove_addrs = remove_addrs.unwrap_or_default();
-    let append = validate_addresses(deps.as_ref(), &append_addrs)?;
-    let remove = validate_addresses(deps.as_ref(), &remove_addrs)?;
+    let blacklist = BLACKLIST.load(deps.storage)?;
+    let append: Vec<_> = validate_addresses(deps.as_ref(), &append_addrs)?
+        .into_iter()
+        .filter(|addr| !blacklist.contains(addr))
+        .collect();
+    let remove: Vec<_> = validate_addresses(deps.as_ref(), &remove_addrs)?
+        .into_iter()
+        .filter(|addr| blacklist.contains(addr))
+        .collect();
 
     if append.is_empty() && remove.is_empty() {
         return Err(StdError::generic_err("Append and remove arrays are empty").into());
@@ -552,15 +561,9 @@ fn update_blacklist(
 
     let cur_period = get_period(env.block.time.seconds());
     let cur_period_key = U64Key::new(cur_period);
-    let mut reduce_total_vp = Uint128::zero();
     for addr in append.iter() {
         let last_checkpoint = fetch_last_checkpoint(deps.as_ref(), addr, &cur_period_key)?;
         if let Some((_, point)) = last_checkpoint {
-            cancel_scheduled_slope(deps.branch(), point.slope, point.end)?;
-            // accumulating user's contributions in the total VP
-            reduce_total_vp += calc_voting_power(&point, cur_period);
-            // schedule slope change at the current period
-            schedule_slope_change(deps.branch(), point.slope, cur_period)?;
             // we need to set new point with zero power and zero slope
             HISTORY.save(
                 deps.storage,
@@ -572,19 +575,25 @@ fn update_blacklist(
                     end: cur_period,
                 },
             )?;
-        }
-    }
 
-    if !append.is_empty() {
-        // triggering total VP recalculation
-        checkpoint_total(
-            deps.branch(),
-            env,
-            None,
-            Some(reduce_total_vp),
-            Decimal::zero(),
-            Decimal::zero(),
-        )?;
+            // user's contributions in the total VP
+            let reduce_total_vp = calc_voting_power(&point, cur_period);
+            // user's contribution is already zero. skipping him
+            if reduce_total_vp.is_zero() {
+                continue;
+            }
+            cancel_scheduled_slope(deps.branch(), point.slope, point.end)?;
+
+            // triggering total VP recalculation
+            checkpoint_total(
+                deps.branch(),
+                env.clone(),
+                None,
+                Some(reduce_total_vp),
+                point.slope,
+                Decimal::zero(),
+            )?;
+        }
     }
 
     BLACKLIST.update(deps.storage, |blacklist| -> StdResult<Vec<Addr>> {

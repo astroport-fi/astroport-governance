@@ -120,16 +120,6 @@ pub(crate) fn fetch_last_checkpoint(
         .transpose()
 }
 
-/// # Description
-/// Helper function for deserialization
-pub(crate) fn deserialize_pair(pair: StdResult<Pair<Decimal>>) -> StdResult<(u64, Decimal)> {
-    let (period_serialized, change) = pair?;
-    let period_bytes: [u8; 8] = period_serialized
-        .try_into()
-        .map_err(|_| StdError::generic_err("Deserialization error"))?;
-    Ok((u64::from_be_bytes(period_bytes), change))
-}
-
 pub(crate) fn cancel_scheduled_slope(deps: DepsMut, slope: Decimal, period: u64) -> StdResult<()> {
     let end_period_key = U64Key::new(period);
     let last_slope_change = LAST_SLOPE_CHANGE
@@ -137,11 +127,19 @@ pub(crate) fn cancel_scheduled_slope(deps: DepsMut, slope: Decimal, period: u64)
         .unwrap_or(0);
     match SLOPE_CHANGES.may_load(deps.as_ref().storage, end_period_key.clone())? {
         // we do not need to schedule slope change in the past
-        Some(old_scheduled_change) if period > last_slope_change => SLOPE_CHANGES.save(
-            deps.storage,
-            end_period_key,
-            &(old_scheduled_change - slope),
-        ),
+        Some(old_scheduled_change) if period > last_slope_change => {
+            let new_slope = old_scheduled_change - slope;
+            if !new_slope.is_zero() {
+                SLOPE_CHANGES.save(
+                    deps.storage,
+                    end_period_key,
+                    &(old_scheduled_change - slope),
+                )
+            } else {
+                SLOPE_CHANGES.remove(deps.storage, end_period_key);
+                Ok(())
+            }
+        }
         _ => Ok(()),
     }
 }
@@ -164,6 +162,16 @@ pub(crate) fn schedule_slope_change(deps: DepsMut, slope: Decimal, period: u64) 
     } else {
         Ok(())
     }
+}
+
+/// # Description
+/// Helper function for deserialization
+pub(crate) fn deserialize_pair(pair: StdResult<Pair<Decimal>>) -> StdResult<(u64, Decimal)> {
+    let (period_serialized, change) = pair?;
+    let period_bytes: [u8; 8] = period_serialized
+        .try_into()
+        .map_err(|_| StdError::generic_err("Deserialization error"))?;
+    Ok((u64::from_be_bytes(period_bytes), change))
 }
 
 /// # Description
