@@ -698,10 +698,21 @@ fn check_blacklist() {
         .deposit_for(router_ref, "user3", "user1", 50f32)
         .unwrap_err();
     assert_eq!(err.to_string(), "The user1 address is blacklisted");
-    // But still he has voting power
-    // TODO: should we nullify his voting power?
+    // the user1 doesn't have VP from now
     let vp = helper.query_user_vp(router_ref, "user1").unwrap();
-    assert!(vp > 0.0);
+    assert_eq!(vp, 0.0);
+    // but we has VP in the past
+    let vp = helper
+        .query_user_vp_at(
+            router_ref,
+            "user1",
+            router_ref.block_info().time.seconds() - WEEK,
+        )
+        .unwrap();
+    assert_eq!(vp, 51.490383);
+    // total VP should be zero as well since there was only one position from user1
+    let vp = helper.query_total_vp(router_ref).unwrap();
+    assert_eq!(vp, 0.0);
 
     // going to the future
     router_ref.update_block(next_block);

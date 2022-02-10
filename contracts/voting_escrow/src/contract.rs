@@ -25,11 +25,11 @@ use astroport_governance::voting_escrow::{
 use crate::error::ContractError;
 use crate::state::{
     Config, Lock, Point, BLACKLIST, CONFIG, HISTORY, LAST_SLOPE_CHANGE, LOCKED, OWNERSHIP_PROPOSAL,
-    SLOPE_CHANGES,
 };
 use crate::utils::{
-    blacklist_check, calc_coefficient, calc_voting_power, fetch_last_checkpoint,
-    fetch_slope_changes, get_period, time_limits_check, validate_addresses, xastro_token_check,
+    blacklist_check, calc_coefficient, calc_voting_power, cancel_scheduled_slope,
+    fetch_last_checkpoint, fetch_slope_changes, get_period, schedule_slope_change,
+    time_limits_check, validate_addresses, xastro_token_check,
 };
 
 /// Contract name that is used for migration.
@@ -189,7 +189,7 @@ pub fn execute(
         ExecuteMsg::UpdateBlacklist {
             append_addrs,
             remove_addrs,
-        } => update_blacklist(deps, info, append_addrs, remove_addrs),
+        } => update_blacklist(deps, env, info, append_addrs, remove_addrs),
         ExecuteMsg::UpdateMarketing {
             project,
             description,
@@ -212,6 +212,7 @@ fn checkpoint_total(
     deps: DepsMut,
     env: Env,
     add_voting_power: Option<Uint128>,
+    reduce_power: Option<Uint128>,
     old_slope: Decimal,
     new_slope: Decimal,
 ) -> StdResult<()> {
@@ -223,6 +224,7 @@ fn checkpoint_total(
     // get last checkpoint
     let last_checkpoint = fetch_last_checkpoint(deps.as_ref(), &contract_addr, &cur_period_key)?;
     let new_point = if let Some((_, mut point)) = last_checkpoint {
+        point.power -= reduce_power.unwrap_or_default();
         let last_slope_change = LAST_SLOPE_CHANGE
             .may_load(deps.as_ref().storage)?
             .unwrap_or(0);
@@ -275,7 +277,7 @@ fn checkpoint_total(
 /// The function returns Ok(()) in case of success or [`StdError`]
 /// in case of serialization/deserialization error.
 fn checkpoint(
-    deps: DepsMut,
+    mut deps: DepsMut,
     env: Env,
     addr: Addr,
     add_amount: Option<Uint128>,
@@ -311,19 +313,7 @@ fn checkpoint(
         };
 
         // cancel previously scheduled slope change
-        let end_period_key = U64Key::new(point.end);
-        let last_slope_change = LAST_SLOPE_CHANGE
-            .may_load(deps.as_ref().storage)?
-            .unwrap_or(0);
-        match SLOPE_CHANGES.may_load(deps.as_ref().storage, end_period_key.clone())? {
-            // we do not need to schedule slope change in the past
-            Some(old_scheduled_change) if point.end > last_slope_change => SLOPE_CHANGES.save(
-                deps.storage,
-                end_period_key,
-                &(old_scheduled_change - point.slope),
-            )?,
-            _ => (),
-        }
+        cancel_scheduled_slope(deps.branch(), point.slope, point.end)?;
 
         // we need to subtract it from total VP slope
         old_slope = point.slope;
@@ -350,25 +340,14 @@ fn checkpoint(
     };
 
     // schedule slope change
-    if !new_point.slope.is_zero() {
-        SLOPE_CHANGES.update(
-            deps.storage,
-            U64Key::new(new_point.end),
-            |slope_opt| -> StdResult<Decimal> {
-                if let Some(pslope) = slope_opt {
-                    Ok(pslope + new_point.slope)
-                } else {
-                    Ok(new_point.slope)
-                }
-            },
-        )?;
-    }
+    schedule_slope_change(deps.branch(), new_point.slope, new_point.end)?;
 
     HISTORY.save(deps.storage, (addr, cur_period_key), &new_point)?;
     checkpoint_total(
         deps,
         env,
         Some(add_voting_power),
+        None,
         old_slope,
         new_point.slope,
     )
@@ -547,10 +526,12 @@ fn extend_lock_time(
 
 /// ## Description
 /// Updates blacklist. Removes addresses given in 'remove_addrs' array
-/// and appends new addresses given in 'append_addrs'.
+/// and appends new addresses given in 'append_addrs'. Nullifies user's VP and
+/// cancels his contribution in the total VP.
 /// Returns [`ContractError`] in case of (de/ser)ialization error or addresses validation error.
 fn update_blacklist(
-    deps: DepsMut,
+    mut deps: DepsMut,
+    env: Env,
     info: MessageInfo,
     append_addrs: Option<Vec<String>>,
     remove_addrs: Option<Vec<String>>,
@@ -567,6 +548,43 @@ fn update_blacklist(
 
     if append.is_empty() && remove.is_empty() {
         return Err(StdError::generic_err("Append and remove arrays are empty").into());
+    }
+
+    let cur_period = get_period(env.block.time.seconds());
+    let cur_period_key = U64Key::new(cur_period);
+    let mut reduce_total_vp = Uint128::zero();
+    for addr in append.iter() {
+        let last_checkpoint = fetch_last_checkpoint(deps.as_ref(), addr, &cur_period_key)?;
+        if let Some((_, point)) = last_checkpoint {
+            cancel_scheduled_slope(deps.branch(), point.slope, point.end)?;
+            // accumulating user's contributions in the total VP
+            reduce_total_vp += calc_voting_power(&point, cur_period);
+            // schedule slope change at the current period
+            schedule_slope_change(deps.branch(), point.slope, cur_period)?;
+            // we need to set new point with zero power and zero slope
+            HISTORY.save(
+                deps.storage,
+                (addr.clone(), cur_period_key.clone()),
+                &Point {
+                    power: Uint128::zero(),
+                    slope: Decimal::zero(),
+                    start: cur_period,
+                    end: cur_period,
+                },
+            )?;
+        }
+    }
+
+    if !append.is_empty() {
+        // triggering total VP recalculation
+        checkpoint_total(
+            deps.branch(),
+            env,
+            None,
+            Some(reduce_total_vp),
+            Decimal::zero(),
+            Decimal::zero(),
+        )?;
     }
 
     BLACKLIST.update(deps.storage, |blacklist| -> StdResult<Vec<Addr>> {

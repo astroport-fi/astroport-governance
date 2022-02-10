@@ -2,13 +2,13 @@ use crate::contract::{MAX_LOCK_TIME, WEEK};
 use crate::error::ContractError;
 use astroport::asset::addr_validate_to_lower;
 use cosmwasm_std::{
-    Addr, Decimal, Deps, Fraction, Order, OverflowError, Pair, StdError, StdResult, Uint128,
-    Uint256,
+    Addr, Decimal, Deps, DepsMut, Fraction, Order, OverflowError, Pair, StdError, StdResult,
+    Uint128, Uint256,
 };
 use cw_storage_plus::{Bound, U64Key};
 use std::convert::TryInto;
 
-use crate::state::{Point, BLACKLIST, CONFIG, HISTORY, SLOPE_CHANGES};
+use crate::state::{Point, BLACKLIST, CONFIG, HISTORY, LAST_SLOPE_CHANGE, SLOPE_CHANGES};
 
 /// # Description
 /// Checks the time is within limits
@@ -128,6 +128,42 @@ pub(crate) fn deserialize_pair(pair: StdResult<Pair<Decimal>>) -> StdResult<(u64
         .try_into()
         .map_err(|_| StdError::generic_err("Deserialization error"))?;
     Ok((u64::from_be_bytes(period_bytes), change))
+}
+
+pub(crate) fn cancel_scheduled_slope(deps: DepsMut, slope: Decimal, period: u64) -> StdResult<()> {
+    let end_period_key = U64Key::new(period);
+    let last_slope_change = LAST_SLOPE_CHANGE
+        .may_load(deps.as_ref().storage)?
+        .unwrap_or(0);
+    match SLOPE_CHANGES.may_load(deps.as_ref().storage, end_period_key.clone())? {
+        // we do not need to schedule slope change in the past
+        Some(old_scheduled_change) if period > last_slope_change => SLOPE_CHANGES.save(
+            deps.storage,
+            end_period_key,
+            &(old_scheduled_change - slope),
+        ),
+        _ => Ok(()),
+    }
+}
+
+pub(crate) fn schedule_slope_change(deps: DepsMut, slope: Decimal, period: u64) -> StdResult<()> {
+    if !slope.is_zero() {
+        SLOPE_CHANGES
+            .update(
+                deps.storage,
+                U64Key::new(period),
+                |slope_opt| -> StdResult<Decimal> {
+                    if let Some(pslope) = slope_opt {
+                        Ok(pslope + slope)
+                    } else {
+                        Ok(slope)
+                    }
+                },
+            )
+            .map(|_| ())
+    } else {
+        Ok(())
+    }
 }
 
 /// # Description
