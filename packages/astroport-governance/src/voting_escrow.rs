@@ -19,6 +19,8 @@ pub struct InstantiateMarketingInfo {
 pub struct InstantiateMsg {
     /// contract owner
     pub owner: String,
+    /// an address that can update the blacklist
+    pub guardian_addr: String,
     /// xASTRO token address
     pub deposit_token_addr: String,
     /// Marketing info
