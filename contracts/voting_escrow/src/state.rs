@@ -10,6 +10,8 @@ use serde::{Deserialize, Serialize};
 pub struct Config {
     /// contract address that used for settings control
     pub owner: Addr,
+    /// an address that can update the blacklist
+    pub guardian_addr: Addr,
     /// the xASTRO token contract address
     pub deposit_token_addr: Addr,
 }
