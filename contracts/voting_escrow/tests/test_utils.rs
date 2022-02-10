@@ -249,13 +249,18 @@ impl Helper {
         )
     }
 
-    pub fn blacklist(&self, router: &mut TerraApp, user: &str) -> Result<AppResponse> {
+    pub fn update_blacklist(
+        &self,
+        router: &mut TerraApp,
+        append_addrs: Option<Vec<String>>,
+        remove_addrs: Option<Vec<String>>,
+    ) -> Result<AppResponse> {
         router.execute_contract(
             Addr::unchecked("owner"),
             self.voting_instance.clone(),
             &ExecuteMsg::UpdateBlacklist {
-                append_addrs: Some(vec![user.to_string()]),
-                remove_addrs: None,
+                append_addrs,
+                remove_addrs,
             },
             &[],
         )

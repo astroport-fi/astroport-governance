@@ -595,12 +595,25 @@ fn update_blacklist(
         // triggering total VP recalculation
         checkpoint_total(
             deps.branch(),
-            env,
+            env.clone(),
             None,
             Some(reduce_total_vp),
             old_slopes,
             Decimal::zero(),
         )?;
+    }
+
+    for addr in remove.iter() {
+        let lock_opt = LOCKED.may_load(deps.storage, addr.clone())?;
+        if let Some(Lock { amount, end, .. }) = lock_opt {
+            checkpoint(
+                deps.branch(),
+                env.clone(),
+                addr.clone(),
+                Some(amount),
+                Some(end),
+            )?;
+        }
     }
 
     BLACKLIST.update(deps.storage, |blacklist| -> StdResult<Vec<Addr>> {

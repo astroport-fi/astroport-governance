@@ -21,6 +21,7 @@ enum Event {
     ExtendLock(f64),
     Withdraw,
     Blacklist,
+    Recover,
 }
 
 use Event::*;
@@ -28,8 +29,8 @@ use Event::*;
 struct Simulator {
     // points history (history[period][user] = point)
     points: Vec<HashMap<String, Point>>,
-    // current locked amount per user
-    locked: HashMap<String, f64>,
+    // current user's lock (amount, end)
+    locked: HashMap<String, (f64, u64)>,
     users: Vec<String>,
     helper: Helper,
     router: TerraApp,
@@ -84,7 +85,10 @@ impl Simulator {
                     apply_coefficient(amount, periods_interval),
                     block_period + periods_interval,
                 );
-                self.locked.extend(vec![(user.to_string(), amount)]);
+                self.locked.extend(vec![(
+                    user.to_string(),
+                    (amount, block_period + periods_interval),
+                )]);
                 response
             })
     }
@@ -104,7 +108,9 @@ impl Simulator {
                     prev_point.end
                 };
                 let dt = end + periods_interval - cur_period as u64;
-                let amount = self.locked.get(user).unwrap().to_owned();
+                let lock = self.locked.get_mut(user).unwrap();
+                lock.1 += periods_interval;
+                let amount = lock.0.to_owned();
                 self.add_point(
                     cur_period,
                     user,
@@ -131,8 +137,8 @@ impl Simulator {
                     };
                 let vp = apply_coefficient(amount, end - cur_period as u64);
                 self.add_point(cur_period, user, user_balance + vp, end);
-                let lock = self.locked.get_mut(user).unwrap();
-                *lock += amount;
+                let mut lock = self.locked.get_mut(user).unwrap();
+                lock.0 += amount;
                 response
             })
     }
@@ -150,10 +156,28 @@ impl Simulator {
 
     fn append2blacklist(&mut self, user: &str) -> Result<AppResponse> {
         self.helper
-            .blacklist(&mut self.router, user)
+            .update_blacklist(&mut self.router, Some(vec![user.to_string()]), None)
             .map(|response| {
                 let cur_period = self.block_period();
                 self.add_point(cur_period as usize, user, 0.0, cur_period);
+                response
+            })
+    }
+
+    fn remove_from_blacklist(&mut self, user: &str) -> Result<AppResponse> {
+        self.helper
+            .update_blacklist(&mut self.router, None, Some(vec![user.to_string()]))
+            .map(|response| {
+                let cur_period = self.block_period() as usize;
+                if let Some((amount, end)) = self.locked.get(user).copied() {
+                    let dt = end.saturating_sub(cur_period as u64);
+                    let new_amount = if dt != 0 {
+                        apply_coefficient(amount, dt)
+                    } else {
+                        0.0
+                    };
+                    self.add_point(cur_period, user, new_amount, end);
+                }
                 response
             })
     }
@@ -183,6 +207,11 @@ impl Simulator {
             }
             Event::Blacklist => {
                 if let Err(err) = self.append2blacklist(user) {
+                    dbg!(err);
+                }
+            }
+            Event::Recover => {
+                if let Err(err) = self.remove_from_blacklist(user) {
                     dbg!(err);
                 }
             }
@@ -275,6 +304,7 @@ fn events_strategy() -> impl Strategy<Value = Event> {
     prop_oneof![
         Just(Event::Withdraw),
         Just(Event::Blacklist),
+        Just(Event::Recover),
         amount_strategy().prop_map(Event::ExtendLock),
         (0..MAX_LOCK_TIME).prop_map(Event::IncreaseTime),
         (amount_strategy(), 0..MAX_LOCK_TIME).prop_map(|(a, b)| Event::CreateLock(a, b)),
@@ -352,13 +382,12 @@ proptest! {
 #[test]
 fn exact_simulation() {
     let case = (
-        ["juqgboowsqprzrhahcqb", "eipcy"],
+        ["bpcy"],
         [
-            (3, "juqgboowsqprzrhahcqb", Blacklist),
-            (1, "eipcy", CreateLock(65.279624, 7862522)),
-            (7, "juqgboowsqprzrhahcqb", Blacklist),
-            (2, "juqgboowsqprzrhahcqb", CreateLock(81.395287, 5129908)),
-            (5, "eipcy", Blacklist),
+            (1, "bpcy", CreateLock(100.0, 3024000)),
+            (2, "bpcy", IncreaseTime(3024000)),
+            (3, "bpcy", Blacklist),
+            (3, "bpcy", Recover),
         ],
     );
 
