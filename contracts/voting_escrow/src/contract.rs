@@ -561,6 +561,8 @@ fn update_blacklist(
 
     let cur_period = get_period(env.block.time.seconds());
     let cur_period_key = U64Key::new(cur_period);
+    let mut reduce_total_vp = Uint128::zero(); // accumulator for total VP reduce
+    let mut old_slopes = Decimal::zero(); // accumulator for old slopes
     for addr in append.iter() {
         let last_checkpoint = fetch_last_checkpoint(deps.as_ref(), addr, &cur_period_key)?;
         if let Some((_, point)) = last_checkpoint {
@@ -576,24 +578,29 @@ fn update_blacklist(
                 },
             )?;
 
-            // user's contributions in the total VP
-            let reduce_total_vp = calc_voting_power(&point, cur_period);
+            let cur_power = calc_voting_power(&point, cur_period);
             // user's contribution is already zero. skipping him
-            if reduce_total_vp.is_zero() {
+            if cur_power.is_zero() {
                 continue;
             }
-            cancel_scheduled_slope(deps.branch(), point.slope, point.end)?;
 
-            // triggering total VP recalculation
-            checkpoint_total(
-                deps.branch(),
-                env.clone(),
-                None,
-                Some(reduce_total_vp),
-                point.slope,
-                Decimal::zero(),
-            )?;
+            // user's contribution in the total VP
+            reduce_total_vp += cur_power;
+            old_slopes = old_slopes + point.slope;
+            cancel_scheduled_slope(deps.branch(), point.slope, point.end)?;
         }
+    }
+
+    if !reduce_total_vp.is_zero() || !old_slopes.is_zero() {
+        // triggering total VP recalculation
+        checkpoint_total(
+            deps.branch(),
+            env,
+            None,
+            Some(reduce_total_vp),
+            old_slopes,
+            Decimal::zero(),
+        )?;
     }
 
     BLACKLIST.update(deps.storage, |blacklist| -> StdResult<Vec<Addr>> {
