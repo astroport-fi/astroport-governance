@@ -65,6 +65,7 @@ pub fn instantiate(
 
     let config = Config {
         owner: addr_validate_to_lower(deps.api, &msg.owner)?,
+        guardian_addr: addr_validate_to_lower(deps.api, &msg.guardian_addr)?,
         deposit_token_addr: addr_validate_to_lower(deps.api, &msg.deposit_token_addr)?,
     };
     CONFIG.save(deps.storage, &config)?;
@@ -557,7 +558,7 @@ fn update_blacklist(
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
     // Permission check
-    if info.sender != config.owner {
+    if info.sender != config.owner && info.sender != config.guardian_addr {
         return Err(ContractError::Unauthorized {});
     }
     let append_addrs = append_addrs.unwrap_or_default();

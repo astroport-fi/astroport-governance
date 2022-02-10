@@ -659,14 +659,14 @@ fn check_blacklist() {
         .unwrap_err();
     assert_eq!(err.to_string(), "The user2 address is blacklisted");
 
-    // blacklisting user1
+    // blacklisting user1 by guardian_addr
     let msg = ExecuteMsg::UpdateBlacklist {
         append_addrs: Some(vec!["user1".to_string()]),
         remove_addrs: None,
     };
     let res = router_ref
         .execute_contract(
-            Addr::unchecked("owner"),
+            Addr::unchecked("guardian"),
             helper.voting_instance.clone(),
             &msg,
             &[],
