@@ -300,10 +300,12 @@ fn checkpoint(
         let new_slope = if dt != 0 {
             if end > point.end && add_amount.is_zero() {
                 // this is extend_lock_time. Recalculating user's VP
-                let lock = LOCKED.load(deps.storage, addr.clone())?;
+                let mut lock = LOCKED.load(deps.storage, addr.clone())?;
                 let new_voting_power = lock.amount * calc_coefficient(dt);
                 // new_voting_power should be always >= current_power. saturating_sub just in case
                 add_voting_power = new_voting_power.saturating_sub(current_power);
+                lock.start = cur_period;
+                LOCKED.save(deps.storage, addr.clone(), &lock)?;
                 Decimal::from_ratio(new_voting_power, dt)
             } else {
                 // this is increase lock's amount or lock creation after withdrawal
