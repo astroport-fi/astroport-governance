@@ -13,6 +13,8 @@ pub const MAX_PROPOSAL_REQUIRED_PERCENTAGE: u64 = 100;
 pub struct InstantiateMsg {
     /// Address of xASTRO token
     pub xastro_token_addr: String,
+    /// Address of vxASTRO token
+    pub vxastro_token_addr: String,
     /// Address of builder unlock contract
     pub builder_unlock_addr: String,
     /// Proposal voting period
@@ -103,6 +105,8 @@ pub enum Cw20HookMsg {
 pub struct Config {
     /// xASTRO token address
     pub xastro_token_addr: Addr,
+    /// vxASTRO token address
+    pub vxastro_token_addr: Addr,
     /// Builder unlock contract address
     pub builder_unlock_addr: Addr,
     /// Proposal voting period
@@ -146,6 +150,8 @@ impl Config {
 pub struct UpdateConfig {
     /// xASTRO token address
     pub xastro_token_addr: Option<String>,
+    /// vxASTRO token address
+    pub vxastro_token_addr: Option<String>,
     /// Builder unlock contract address
     pub builder_unlock_addr: Option<String>,
     /// Proposal voting period
@@ -182,6 +188,8 @@ pub struct Proposal {
     pub against_voters: Vec<Addr>,
     /// Start block of proposal
     pub start_block: u64,
+    /// Start time of proposal
+    pub start_time: u64,
     /// End block of proposal
     pub end_block: u64,
     /// Proposal title
