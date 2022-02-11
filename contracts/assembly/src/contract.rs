@@ -586,7 +586,7 @@ pub fn update_config(
 ///
 /// * **QueryMsg::Proposals { start, limit }** Returns a [`ProposalListResponse`] according to the specified input parameters.
 ///
-/// * **QueryMsg::Proposal { proposal_id }** Returns an array that contains [`PairInfo`] items
+/// * **QueryMsg::Proposal { proposal_id }** Returns a [`Proposal`] according to the specified `proposal_id`.
 ///
 /// * **QueryMsg::ProposalVotes { proposal_id }** Returns proposal vote counts that are stored in the [`ProposalVotesResponse`] structure.
 #[cfg_attr(not(feature = "library"), entry_point)]
