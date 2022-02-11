@@ -2,13 +2,13 @@ use crate::contract::{MAX_LOCK_TIME, WEEK};
 use crate::error::ContractError;
 use astroport::asset::addr_validate_to_lower;
 use cosmwasm_std::{
-    Addr, Decimal, Deps, Fraction, Order, OverflowError, Pair, StdError, StdResult, Uint128,
-    Uint256,
+    Addr, Decimal, Deps, DepsMut, Fraction, Order, OverflowError, Pair, StdError, StdResult,
+    Uint128, Uint256,
 };
 use cw_storage_plus::{Bound, U64Key};
 use std::convert::TryInto;
 
-use crate::state::{Point, BLACKLIST, CONFIG, HISTORY, SLOPE_CHANGES};
+use crate::state::{Point, BLACKLIST, CONFIG, HISTORY, LAST_SLOPE_CHANGE, SLOPE_CHANGES};
 
 /// # Description
 /// Checks the time is within limits
@@ -118,6 +118,50 @@ pub(crate) fn fetch_last_checkpoint(
         )
         .next()
         .transpose()
+}
+
+pub(crate) fn cancel_scheduled_slope(deps: DepsMut, slope: Decimal, period: u64) -> StdResult<()> {
+    let end_period_key = U64Key::new(period);
+    let last_slope_change = LAST_SLOPE_CHANGE
+        .may_load(deps.as_ref().storage)?
+        .unwrap_or(0);
+    match SLOPE_CHANGES.may_load(deps.as_ref().storage, end_period_key.clone())? {
+        // we do not need to schedule slope change in the past
+        Some(old_scheduled_change) if period > last_slope_change => {
+            let new_slope = old_scheduled_change - slope;
+            if !new_slope.is_zero() {
+                SLOPE_CHANGES.save(
+                    deps.storage,
+                    end_period_key,
+                    &(old_scheduled_change - slope),
+                )
+            } else {
+                SLOPE_CHANGES.remove(deps.storage, end_period_key);
+                Ok(())
+            }
+        }
+        _ => Ok(()),
+    }
+}
+
+pub(crate) fn schedule_slope_change(deps: DepsMut, slope: Decimal, period: u64) -> StdResult<()> {
+    if !slope.is_zero() {
+        SLOPE_CHANGES
+            .update(
+                deps.storage,
+                U64Key::new(period),
+                |slope_opt| -> StdResult<Decimal> {
+                    if let Some(pslope) = slope_opt {
+                        Ok(pslope + slope)
+                    } else {
+                        Ok(slope)
+                    }
+                },
+            )
+            .map(|_| ())
+    } else {
+        Ok(())
+    }
 }
 
 /// # Description

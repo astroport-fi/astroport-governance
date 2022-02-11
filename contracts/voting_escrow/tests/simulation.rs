@@ -15,20 +15,22 @@ struct Point {
 }
 
 #[derive(Clone, Debug)]
-enum LockEvent {
+enum Event {
     CreateLock(f64, u64),
     IncreaseTime(u64),
     ExtendLock(f64),
     Withdraw,
+    Blacklist,
+    Recover,
 }
 
-use LockEvent::*;
+use Event::*;
 
 struct Simulator {
     // points history (history[period][user] = point)
     points: Vec<HashMap<String, Point>>,
-    // current locked amount per user
-    locked: HashMap<String, f64>,
+    // current user's lock (amount, end)
+    locked: HashMap<String, (f64, u64)>,
     users: Vec<String>,
     helper: Helper,
     router: TerraApp,
@@ -83,7 +85,10 @@ impl Simulator {
                     apply_coefficient(amount, periods_interval),
                     block_period + periods_interval,
                 );
-                self.locked.extend(vec![(user.to_string(), amount)]);
+                self.locked.extend(vec![(
+                    user.to_string(),
+                    (amount, block_period + periods_interval),
+                )]);
                 response
             })
     }
@@ -103,7 +108,9 @@ impl Simulator {
                     prev_point.end
                 };
                 let dt = end + periods_interval - cur_period as u64;
-                let amount = self.locked.get(user).unwrap().to_owned();
+                let lock = self.locked.get_mut(user).unwrap();
+                lock.1 += periods_interval;
+                let amount = lock.0.to_owned();
                 self.add_point(
                     cur_period,
                     user,
@@ -130,8 +137,8 @@ impl Simulator {
                     };
                 let vp = apply_coefficient(amount, end - cur_period as u64);
                 self.add_point(cur_period, user, user_balance + vp, end);
-                let lock = self.locked.get_mut(user).unwrap();
-                *lock += amount;
+                let mut lock = self.locked.get_mut(user).unwrap();
+                lock.0 += amount;
                 response
             })
     }
@@ -147,26 +154,64 @@ impl Simulator {
             })
     }
 
-    fn event_router(&mut self, user: &str, event: LockEvent) {
+    fn append2blacklist(&mut self, user: &str) -> Result<AppResponse> {
+        self.helper
+            .update_blacklist(&mut self.router, Some(vec![user.to_string()]), None)
+            .map(|response| {
+                let cur_period = self.block_period();
+                self.add_point(cur_period as usize, user, 0.0, cur_period);
+                response
+            })
+    }
+
+    fn remove_from_blacklist(&mut self, user: &str) -> Result<AppResponse> {
+        self.helper
+            .update_blacklist(&mut self.router, None, Some(vec![user.to_string()]))
+            .map(|response| {
+                let cur_period = self.block_period() as usize;
+                if let Some((amount, end)) = self.locked.get(user).copied() {
+                    let dt = end.saturating_sub(cur_period as u64);
+                    let new_amount = if dt != 0 {
+                        apply_coefficient(amount, dt)
+                    } else {
+                        0.0
+                    };
+                    self.add_point(cur_period, user, new_amount, end);
+                }
+                response
+            })
+    }
+
+    fn event_router(&mut self, user: &str, event: Event) {
         println!("User {} Event {:?}", user, event);
         match event {
-            LockEvent::CreateLock(amount, interval) => {
+            Event::CreateLock(amount, interval) => {
                 if let Err(err) = self.create_lock(user, amount, interval) {
                     dbg!(err);
                 }
             }
-            LockEvent::IncreaseTime(interval) => {
+            Event::IncreaseTime(interval) => {
                 if let Err(err) = self.increase_time(user, interval) {
                     dbg!(err);
                 }
             }
-            LockEvent::ExtendLock(amount) => {
+            Event::ExtendLock(amount) => {
                 if let Err(err) = self.extend_lock(user, amount) {
                     dbg!(err);
                 }
             }
-            LockEvent::Withdraw => {
+            Event::Withdraw => {
                 if let Err(err) = self.withdraw(user) {
+                    dbg!(err);
+                }
+            }
+            Event::Blacklist => {
+                if let Err(err) = self.append2blacklist(user) {
+                    dbg!(err);
+                }
+            }
+            Event::Recover => {
+                if let Err(err) = self.remove_from_blacklist(user) {
                     dbg!(err);
                 }
             }
@@ -255,16 +300,18 @@ fn amount_strategy() -> impl Strategy<Value = f64> {
     (1f64..=100f64).prop_map(|val| (val * MULTIPLIER as f64).trunc() / MULTIPLIER as f64)
 }
 
-fn events_strategy() -> impl Strategy<Value = LockEvent> {
+fn events_strategy() -> impl Strategy<Value = Event> {
     prop_oneof![
-        Just(LockEvent::Withdraw),
-        amount_strategy().prop_map(LockEvent::ExtendLock),
-        (0..MAX_LOCK_TIME).prop_map(LockEvent::IncreaseTime),
-        (amount_strategy(), 0..MAX_LOCK_TIME).prop_map(|(a, b)| LockEvent::CreateLock(a, b)),
+        Just(Event::Withdraw),
+        Just(Event::Blacklist),
+        Just(Event::Recover),
+        amount_strategy().prop_map(Event::ExtendLock),
+        (0..MAX_LOCK_TIME).prop_map(Event::IncreaseTime),
+        (amount_strategy(), 0..MAX_LOCK_TIME).prop_map(|(a, b)| Event::CreateLock(a, b)),
     ]
 }
 
-fn generate_cases() -> impl Strategy<Value = (Vec<String>, Vec<(usize, String, LockEvent)>)> {
+fn generate_cases() -> impl Strategy<Value = (Vec<String>, Vec<(usize, String, Event)>)> {
     let users_strategy = prop::collection::vec("[a-z]{4,32}", 1..MAX_USERS);
     users_strategy.prop_flat_map(|users| {
         (
@@ -287,7 +334,7 @@ proptest! {
     (
         case in generate_cases()
     ) {
-        let mut events: Vec<Vec<(String, LockEvent)>> = vec![vec![]; MAX_PERIOD + 1];
+        let mut events: Vec<Vec<(String, Event)>> = vec![vec![]; MAX_PERIOD + 1];
         let (users, events_tuples) = case;
         for (period, user, event) in events_tuples {
             events[period].push((user, event));
@@ -335,39 +382,16 @@ proptest! {
 #[test]
 fn exact_simulation() {
     let case = (
-        ["vgtaypvgpajywnccskgqngackgxlwqko"],
+        ["bpcy"],
         [
-            (2, "vgtaypvgpajywnccskgqngackgxlwqko", IncreaseTime(1814400)),
-            (3, "vgtaypvgpajywnccskgqngackgxlwqko", ExtendLock(94.91173)),
-            (2, "vgtaypvgpajywnccskgqngackgxlwqko", IncreaseTime(3628800)),
-            (6, "vgtaypvgpajywnccskgqngackgxlwqko", IncreaseTime(3628800)),
-            (
-                1,
-                "vgtaypvgpajywnccskgqngackgxlwqko",
-                CreateLock(40.798203, 16934400),
-            ),
-            (7, "vgtaypvgpajywnccskgqngackgxlwqko", IncreaseTime(604800)),
-            (
-                1,
-                "vgtaypvgpajywnccskgqngackgxlwqko",
-                IncreaseTime(10281600),
-            ),
-            (3, "vgtaypvgpajywnccskgqngackgxlwqko", ExtendLock(74.26012)),
-            (1, "vgtaypvgpajywnccskgqngackgxlwqko", ExtendLock(63.38993)),
-            (
-                1,
-                "vgtaypvgpajywnccskgqngackgxlwqko",
-                IncreaseTime(17273197),
-            ),
-            (4, "vgtaypvgpajywnccskgqngackgxlwqko", IncreaseTime(4578129)),
-            (9, "vgtaypvgpajywnccskgqngackgxlwqko", ExtendLock(40.453003)),
-            (1, "vgtaypvgpajywnccskgqngackgxlwqko", ExtendLock(76.63571)),
-            (2, "vgtaypvgpajywnccskgqngackgxlwqko", ExtendLock(36.695534)),
-            (5, "vgtaypvgpajywnccskgqngackgxlwqko", ExtendLock(27.781044)),
+            (1, "bpcy", CreateLock(100.0, 3024000)),
+            (2, "bpcy", IncreaseTime(3024000)),
+            (3, "bpcy", Blacklist),
+            (3, "bpcy", Recover),
         ],
     );
 
-    let mut events: Vec<Vec<(String, LockEvent)>> = vec![vec![]; MAX_PERIOD + 1];
+    let mut events: Vec<Vec<(String, Event)>> = vec![vec![]; MAX_PERIOD + 1];
     let (users, events_tuples) = case;
     for (period, user, event) in events_tuples {
         events[period].push((user.to_string(), event));
@@ -399,6 +423,7 @@ fn exact_simulation() {
             .query_total_vp(&mut simulator.router)
             .unwrap_or(0.0) as f64;
         if (real_balance - contract_balance).abs() >= 10e-3 {
+            println!("Assert failed at period {}", period);
             assert_eq!(real_balance, contract_balance)
         };
         // evaluate passed periods in history
