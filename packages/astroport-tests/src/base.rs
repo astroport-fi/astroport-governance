@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use astroport::staking;
 use astroport::token::InstantiateMsg as AstroTokenInstantiateMsg;
 use astroport_governance::escrow_fee_distributor::InstantiateMsg as EscrowFeeDistributorInstantiateMsg;
-use astroport_governance_voting::astro_voting_escrow::{
+use astroport_governance_voting::voting_escrow::{
     Cw20HookMsg, ExecuteMsg, InstantiateMsg as AstroVotingEscrowInstantiateMsg, QueryMsg,
     VotingPowerResponse,
 };
@@ -157,6 +157,8 @@ impl BaseAstroportTestPackage {
         let voting_code_id = router.store_code(voting_contract);
 
         let msg = AstroVotingEscrowInstantiateMsg {
+            guardian_addr: "guardian".to_string(),
+            marketing: None,
             owner: owner.to_string(),
             deposit_token_addr: self.get_staking_xastro(router).to_string(),
         };

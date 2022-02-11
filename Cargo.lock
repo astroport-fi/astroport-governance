@@ -13,8 +13,8 @@ name = "astro-assembly"
 version = "1.0.0"
 dependencies = [
  "anyhow",
- "astroport 1.1.0",
- "astroport-governance",
+ "astroport 1.2.0 (git+https://github.com/astroport-fi/astroport.git)",
+ "astroport-governance 1.0.0",
  "astroport-staking",
  "astroport-token 1.0.0 (git+https://github.com/astroport-fi/astroport.git)",
  "astroport-xastro-token",
@@ -78,7 +78,7 @@ version = "1.0.0"
 dependencies = [
  "astroport 0.3.1",
  "astroport-governance 1.0.0",
- "astroport-governance 1.0.0 (git+https://github.com/astroport-fi/astroport-governance.git?branch=feat/astro_voting_escrow)",
+ "astroport-governance 1.0.0 (git+https://github.com/astroport-fi/astroport-governance.git?branch=main)",
  "astroport-tests",
  "astroport-token 1.0.0 (git+https://github.com/astroport-fi/astroport.git?branch=master)",
  "cosmwasm-schema",
@@ -88,7 +88,7 @@ dependencies = [
  "cw20",
  "schemars",
  "serde",
- "terra-multi-test 0.9.1",
+ "terra-multi-test 0.9.1 (git+https://github.com/astroport-fi/terra-plus.git?tag=v0.9.1-terra)",
  "thiserror",
 ]
 
@@ -108,7 +108,7 @@ dependencies = [
 [[package]]
 name = "astroport-governance"
 version = "1.0.0"
-source = "git+https://github.com/astroport-fi/astroport-governance.git?branch=feat/astro_voting_escrow#570b6a6168feb400ff08297b8506017476c3a4c4"
+source = "git+https://github.com/astroport-fi/astroport-governance.git?branch=main#046e8f65eb4e671033c77ef36b3cce2ffb759828"
 dependencies = [
  "cosmwasm-std",
  "cw20",
@@ -142,17 +142,17 @@ dependencies = [
  "astroport 1.2.0 (git+https://github.com/astroport-fi/astroport.git?branch=master)",
  "astroport-escrow-fee-distributor",
  "astroport-governance 1.0.0",
- "astroport-governance 1.0.0 (git+https://github.com/astroport-fi/astroport-governance.git?branch=feat/astro_voting_escrow)",
+ "astroport-governance 1.0.0 (git+https://github.com/astroport-fi/astroport-governance.git?branch=main)",
  "astroport-staking",
  "astroport-token 1.0.0 (git+https://github.com/astroport-fi/astroport.git)",
- "astroport-voting-escrow",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw20",
  "schemars",
  "serde",
  "terra-cosmwasm",
- "terra-multi-test 0.9.1",
+ "terra-multi-test 0.9.1 (git+https://github.com/astroport-fi/terra-plus.git?tag=v0.9.1-terra)",
+ "voting-escrow 1.0.0 (git+https://github.com/astroport-fi/astroport-governance.git?branch=main)",
 ]
 
 [[package]]
@@ -183,23 +183,6 @@ dependencies = [
  "schemars",
  "serde",
  "snafu",
-]
-
-[[package]]
-name = "astroport-voting-escrow"
-version = "1.0.0"
-source = "git+https://github.com/astroport-fi/astroport-governance.git?branch=feat/astro_voting_escrow#570b6a6168feb400ff08297b8506017476c3a4c4"
-dependencies = [
- "astroport 1.2.0 (git+https://github.com/astroport-fi/astroport.git)",
- "astroport-governance 1.0.0 (git+https://github.com/astroport-fi/astroport-governance.git?branch=feat/astro_voting_escrow)",
- "cosmwasm-std",
- "cw-storage-plus 0.8.1",
- "cw2",
- "cw20",
- "schemars",
- "serde",
- "terra-cosmwasm",
- "thiserror",
 ]
 
 [[package]]
@@ -1260,10 +1243,10 @@ name = "voting-escrow"
 version = "1.0.0"
 dependencies = [
  "anyhow",
- "astroport 1.1.0",
- "astroport-governance",
+ "astroport 1.2.0 (git+https://github.com/astroport-fi/astroport.git)",
+ "astroport-governance 1.0.0",
  "astroport-staking",
- "astroport-token 1.0.0",
+ "astroport-token 1.0.0 (git+https://github.com/astroport-fi/astroport.git)",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 0.8.1",
@@ -1275,6 +1258,24 @@ dependencies = [
  "serde",
  "terra-cosmwasm",
  "terra-multi-test 0.9.1 (git+https://github.com/astroport-fi/terra-plus.git)",
+ "thiserror",
+]
+
+[[package]]
+name = "voting-escrow"
+version = "1.0.0"
+source = "git+https://github.com/astroport-fi/astroport-governance.git?branch=main#046e8f65eb4e671033c77ef36b3cce2ffb759828"
+dependencies = [
+ "astroport 1.2.0 (git+https://github.com/astroport-fi/astroport.git)",
+ "astroport-governance 1.0.0 (git+https://github.com/astroport-fi/astroport-governance.git?branch=main)",
+ "cosmwasm-std",
+ "cw-storage-plus 0.8.1",
+ "cw2",
+ "cw20",
+ "cw20-base",
+ "schemars",
+ "serde",
+ "terra-cosmwasm",
  "thiserror",
 ]
 

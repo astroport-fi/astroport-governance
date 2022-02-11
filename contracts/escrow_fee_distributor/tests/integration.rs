@@ -394,7 +394,7 @@ fn claim() {
             },
         )
         .unwrap();
-    assert_eq!(vec![Uint128::new(1442307), Uint128::new(721153),], resp);
+    assert_eq!(vec![Uint128::new(30865384), Uint128::new(15432692),], resp);
 
     // check if distributor's ASTRO balance equal to 1000
     check_balance(
