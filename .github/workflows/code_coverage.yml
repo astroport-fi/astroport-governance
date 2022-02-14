@@ -1,17 +1,13 @@
-name: Contract tests and checks
+name: Code coverage
 
 on:
-  pull_request:
   push:
     branches:
       - main
 
-env:
-  CARGO_TERM_COLOR: always
-
 jobs:
-  test_and_check:
-    name: Test and check
+  code-coverage:
+    name: Code coverage
     runs-on: ubuntu-latest
 
     steps:
@@ -20,7 +16,7 @@ jobs:
         with:
           access_token: ${{ github.token }}
 
-      - name: Checkout sources
+      - name: Checkout repository
         uses: actions/checkout@v2
       - uses: actions/cache@v2
         with:
@@ -36,28 +32,17 @@ jobs:
       - name: Install stable toolchain
         uses: actions-rs/toolchain@v1
         with:
-          profile: minimal
-          toolchain: 1.55.0
+          toolchain: stable
           override: true
-          components: rustfmt, clippy
 
-      - name: Run tests
-        uses: actions-rs/cargo@v1
+      - name: Run cargo-tarpaulin
+        uses: actions-rs/tarpaulin@v0.1
         with:
-          command: test
-          args: --no-fail-fast --locked
-        env:
-          RUST_BACKTRACE: 1
+          version: '0.15.0'
+          args: '-- --test-threads 1'
 
-      - name: Run cargo clippy
-        uses: actions-rs/cargo@v1
+      - name: Upload to codecov.io
+        uses: codecov/codecov-action@v2
         with:
-          command: clippy
-          args: -- -D warnings
-          
-      - name: Run cargo fmt
-        uses: actions-rs/cargo@v1
-        with:
-          command: fmt
-          args: --all -- --check
-
+          token: ${{secrets.CODECOV_TOKEN}}
+          fail_ci_if_error: true

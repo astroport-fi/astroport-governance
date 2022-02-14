@@ -17,7 +17,7 @@ use astroport_governance::escrow_fee_distributor::{
     Claimed, ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg,
     MAX_LIMIT_OF_CLAIM, TOKEN_CHECKPOINT_DEADLINE, WEEK,
 };
-use astroport_governance_voting::astro_voting_escrow::{
+use astroport_governance_voting::voting_escrow::{
     LockInfoResponse, QueryMsg as VotingQueryMsg, VotingPowerResponse,
 };
 use cw20::Cw20ReceiveMsg;
