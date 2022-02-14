@@ -8,7 +8,8 @@ use crate::state::{
     Config, CHECKPOINT_TOKEN, CLAIMED, CONFIG, OWNERSHIP_PROPOSAL, TIME_CURSOR_OF, TOKENS_PER_WEEK,
     VOTING_SUPPLY_PER_WEEK,
 };
-use crate::utils::{get_period, transfer_token_amount};
+
+use crate::utils::{get_period, save_or_update_state_config, transfer_token_amount};
 use astroport::asset::addr_validate_to_lower;
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::querier::query_token_balance;
@@ -247,27 +248,6 @@ fn checkpoint_token(
     CONFIG.save(deps.storage, &config)?;
 
     Ok(Response::new().add_attributes(vec![attr("action", "checkpoint_token")]))
-}
-
-fn save_or_update_state_config(
-    deps: DepsMut,
-    config: &Map<U64Key, Uint128>,
-    week_cursor: u64,
-    amount: Uint128,
-) -> StdResult<()> {
-    config.update(
-        deps.storage,
-        U64Key::from(week_cursor),
-        |cursor| -> StdResult<_> {
-            if let Some(cursor_value) = cursor {
-                Ok(cursor_value + amount)
-            } else {
-                Ok(amount)
-            }
-        },
-    )?;
-
-    Ok(())
 }
 
 /// ## Description
