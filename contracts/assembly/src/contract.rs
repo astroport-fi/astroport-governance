@@ -1,4 +1,3 @@
-use std::str::FromStr;
 use cosmwasm_std::{
     attr, entry_point, from_binary, to_binary, Addr, Binary, CosmosMsg, Decimal, Deps, DepsMut,
     Env, MessageInfo, Order, Response, StdResult, Uint128, Uint64, WasmMsg,
@@ -6,6 +5,7 @@ use cosmwasm_std::{
 use cw2::set_contract_version;
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20ReceiveMsg};
 use cw_storage_plus::{Bound, U64Key};
+use std::str::FromStr;
 
 use astroport::asset::addr_validate_to_lower;
 use astroport_governance::assembly::{

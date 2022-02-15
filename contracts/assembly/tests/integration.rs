@@ -1,8 +1,8 @@
-use std::str::FromStr;
 use astroport::{
     token::InstantiateMsg as TokenInstantiateMsg,
     xastro_token::InstantiateMsg as XAstroInstantiateMsg, xastro_token::QueryMsg as XAstroQueryMsg,
 };
+use std::str::FromStr;
 
 use astroport_governance::assembly::{
     Config, Cw20HookMsg, ExecuteMsg, InstantiateMsg, Proposal, ProposalListResponse,
