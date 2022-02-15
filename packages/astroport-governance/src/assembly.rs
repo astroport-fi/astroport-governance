@@ -24,9 +24,9 @@ pub struct InstantiateMsg {
     /// Proposal required deposit
     pub proposal_required_deposit: Uint128,
     /// Proposal required quorum
-    pub proposal_required_quorum: u64,
+    pub proposal_required_quorum: String,
     /// Proposal required threshold
-    pub proposal_required_threshold: u64,
+    pub proposal_required_threshold: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -157,9 +157,9 @@ pub struct UpdateConfig {
     /// Proposal required deposit
     pub proposal_required_deposit: Option<u128>,
     /// Proposal required quorum
-    pub proposal_required_quorum: Option<u64>,
+    pub proposal_required_quorum: Option<String>,
     /// Proposal required threshold
-    pub proposal_required_threshold: Option<u64>,
+    pub proposal_required_threshold: Option<String>,
 }
 
 /// ## Description
