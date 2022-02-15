@@ -7,12 +7,13 @@ The Assembly contract allows xASTRO and vxASTRO holders as well as Initial Astro
 ```json
 {
   "xastro_token_addr": "terra...",
+  "builder_unlock_addr": "terra...",
   "proposal_voting_period": 123,
   "proposal_effective_delay": 123,
   "proposal_expiration_period": 123,
-  "proposal_required_deposit": 123,
-  "proposal_required_quorum": 12,
-  "proposal_required_threshold": 12
+  "proposal_required_deposit": "123",
+  "proposal_required_quorum": "0.55",
+  "proposal_required_threshold": "0.55"
 }
 ```
 
@@ -89,12 +90,13 @@ Update contract parameters. Only the Assembly is allowed to update its own param
 {
   "update_config": {
     "xastro_token_addr": "terra...",
+    "builder_unlock_addr": "terra...",
     "proposal_voting_period": 123,
     "proposal_effective_delay": 123,
     "proposal_expiration_period": 123,
-    "proposal_required_deposit": 123,
-    "proposal_required_quorum": 12,
-    "proposal_required_threshold": 12
+    "proposal_required_deposit": "123",
+    "proposal_required_quorum": "0.55",
+    "proposal_required_threshold": "0.55"
   }
 }
 ```

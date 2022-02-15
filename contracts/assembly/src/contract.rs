@@ -5,6 +5,7 @@ use cosmwasm_std::{
 use cw2::set_contract_version;
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20ReceiveMsg};
 use cw_storage_plus::{Bound, U64Key};
+use std::str::FromStr;
 
 use astroport::asset::addr_validate_to_lower;
 use astroport_governance::assembly::{
@@ -64,8 +65,8 @@ pub fn instantiate(
         proposal_effective_delay: msg.proposal_effective_delay,
         proposal_expiration_period: msg.proposal_expiration_period,
         proposal_required_deposit: msg.proposal_required_deposit,
-        proposal_required_quorum: Decimal::percent(msg.proposal_required_quorum),
-        proposal_required_threshold: Decimal::percent(msg.proposal_required_threshold),
+        proposal_required_quorum: Decimal::from_str(&msg.proposal_required_quorum)?,
+        proposal_required_threshold: Decimal::from_str(&msg.proposal_required_threshold)?,
     };
 
     config.validate()?;
@@ -558,11 +559,11 @@ pub fn update_config(
     }
 
     if let Some(proposal_required_quorum) = updated_config.proposal_required_quorum {
-        config.proposal_required_quorum = Decimal::percent(proposal_required_quorum);
+        config.proposal_required_quorum = Decimal::from_str(&proposal_required_quorum)?;
     }
 
     if let Some(proposal_required_threshold) = updated_config.proposal_required_threshold {
-        config.proposal_required_threshold = Decimal::percent(proposal_required_threshold);
+        config.proposal_required_threshold = Decimal::from_str(&proposal_required_threshold)?;
     }
 
     config.validate()?;
