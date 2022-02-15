@@ -1,3 +1,4 @@
+use std::str::FromStr;
 use astroport::{
     token::InstantiateMsg as TokenInstantiateMsg,
     xastro_token::InstantiateMsg as XAstroInstantiateMsg, xastro_token::QueryMsg as XAstroQueryMsg,
@@ -25,8 +26,8 @@ const PROPOSAL_VOTING_PERIOD: u64 = 500;
 const PROPOSAL_EFFECTIVE_DELAY: u64 = 50;
 const PROPOSAL_EXPIRATION_PERIOD: u64 = 400;
 const PROPOSAL_REQUIRED_DEPOSIT: u128 = 1000u128;
-const PROPOSAL_REQUIRED_QUORUM: u64 = 55;
-const PROPOSAL_REQUIRED_THRESHOLD: u64 = 60;
+const PROPOSAL_REQUIRED_QUORUM: &str = "0.55";
+const PROPOSAL_REQUIRED_THRESHOLD: &str = "0.60";
 
 #[test]
 fn proper_contract_instantiation() {
@@ -54,8 +55,8 @@ fn proper_contract_instantiation() {
         proposal_effective_delay: PROPOSAL_EFFECTIVE_DELAY,
         proposal_expiration_period: PROPOSAL_EXPIRATION_PERIOD,
         proposal_required_deposit: Uint128::from(PROPOSAL_REQUIRED_DEPOSIT),
-        proposal_required_quorum: PROPOSAL_REQUIRED_QUORUM,
-        proposal_required_threshold: PROPOSAL_REQUIRED_THRESHOLD,
+        proposal_required_quorum: String::from(PROPOSAL_REQUIRED_QUORUM),
+        proposal_required_threshold: String::from(PROPOSAL_REQUIRED_THRESHOLD),
     };
 
     // Try to instantiate assembly with wrong threshold
@@ -64,7 +65,7 @@ fn proper_contract_instantiation() {
             assembly_code,
             owner.clone(),
             &InstantiateMsg {
-                proposal_required_threshold: 40,
+                proposal_required_threshold: "0.4".to_string(),
                 ..assembly_default_instantiate_msg.clone()
             },
             &[],
@@ -83,7 +84,7 @@ fn proper_contract_instantiation() {
             assembly_code,
             owner.clone(),
             &InstantiateMsg {
-                proposal_required_threshold: 110,
+                proposal_required_threshold: "1.1".to_string(),
                 ..assembly_default_instantiate_msg.clone()
             },
             &[],
@@ -102,7 +103,7 @@ fn proper_contract_instantiation() {
             assembly_code,
             owner.clone(),
             &InstantiateMsg {
-                proposal_required_quorum: 110,
+                proposal_required_quorum: "1.1".to_string(),
                 ..assembly_default_instantiate_msg.clone()
             },
             &[],
@@ -143,11 +144,11 @@ fn proper_contract_instantiation() {
     );
     assert_eq!(
         res.proposal_required_quorum,
-        Decimal::percent(PROPOSAL_REQUIRED_QUORUM)
+        Decimal::from_str(PROPOSAL_REQUIRED_QUORUM).unwrap()
     );
     assert_eq!(
         res.proposal_required_threshold,
-        Decimal::percent(PROPOSAL_REQUIRED_THRESHOLD)
+        Decimal::from_str(PROPOSAL_REQUIRED_THRESHOLD).unwrap()
     );
 }
 
@@ -1003,8 +1004,8 @@ fn instantiate_assembly_contract(
         proposal_effective_delay: PROPOSAL_EFFECTIVE_DELAY,
         proposal_expiration_period: PROPOSAL_EXPIRATION_PERIOD,
         proposal_required_deposit: Uint128::new(PROPOSAL_REQUIRED_DEPOSIT),
-        proposal_required_quorum: PROPOSAL_REQUIRED_QUORUM,
-        proposal_required_threshold: PROPOSAL_REQUIRED_THRESHOLD,
+        proposal_required_quorum: String::from(PROPOSAL_REQUIRED_QUORUM),
+        proposal_required_threshold: String::from(PROPOSAL_REQUIRED_THRESHOLD),
     };
 
     router
