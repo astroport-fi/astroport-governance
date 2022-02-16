@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use astroport::staking;
 use astroport::token::InstantiateMsg as AstroTokenInstantiateMsg;
 use astroport_governance::escrow_fee_distributor::InstantiateMsg as EscrowFeeDistributorInstantiateMsg;
-use astroport_governance_voting::voting_escrow::{
+use astroport_governance::voting_escrow::{
     Cw20HookMsg, ExecuteMsg, InstantiateMsg as AstroVotingEscrowInstantiateMsg, QueryMsg,
     VotingPowerResponse,
 };
