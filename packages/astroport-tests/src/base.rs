@@ -14,7 +14,7 @@ use terra_multi_test::{AppResponse, ContractWrapper, Executor, TerraApp};
 
 use anyhow::Result;
 
-pub const MULTIPLIER: u64 = 100000;
+pub const MULTIPLIER: u64 = 1_000_000;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -327,6 +327,7 @@ impl BaseAstroportTestPackage {
 }
 
 pub fn mint(router: &mut TerraApp, owner: Addr, token_instance: Addr, to: &Addr, amount: u128) {
+    let amount = amount * MULTIPLIER as u128;
     let msg = cw20::Cw20ExecuteMsg::Mint {
         recipient: to.to_string(),
         amount: Uint128::from(amount),

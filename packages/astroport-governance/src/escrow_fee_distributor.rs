@@ -3,11 +3,6 @@ use cw20::Cw20ReceiveMsg;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-pub const WEEK: u64 = 7 * 86400;
-pub const TOKEN_CHECKPOINT_DEADLINE: u64 = 86400;
-pub const MAX_LIMIT_OF_CLAIM: u64 = 10;
-pub const MAX_WEEKS: u64 = 20;
-
 /// ## Description
 /// This structure describes the basic settings for creating a contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -49,7 +44,6 @@ pub enum ExecuteMsg {
     ClaimMany {
         receivers: Vec<String>,
     },
-    CheckpointTotalSupply {},
     UpdateConfig {
         max_limit_accounts_of_claim: Option<u64>,
         /// Enables or disables the ability to set a checkpoint token for everyone
@@ -115,17 +109,6 @@ pub struct MigrateMsg {}
 pub struct CheckpointToken {
     pub time: u64,
     pub tokens: Uint128,
-}
-
-/// ## Description
-/// A custom struct for each query response that returns the vector of the recipients
-/// who claimed astro.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct Claimed {
-    pub recipient: Addr,
-    pub amount: Uint128,
-    pub claim_period: u64,
-    pub max_period: u64,
 }
 
 /// ## Description

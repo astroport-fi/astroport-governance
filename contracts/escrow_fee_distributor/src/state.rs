@@ -3,7 +3,6 @@ use serde::{Deserialize, Serialize};
 
 use astroport::common::OwnershipProposal;
 
-use astroport_governance::escrow_fee_distributor::Claimed;
 use cosmwasm_std::{Addr, Uint128};
 use cw_storage_plus::{Item, Map, U64Key};
 
@@ -39,20 +38,12 @@ pub const CONFIG: Item<Config> = Item::new("config");
 pub const CHECKPOINT_TOKEN: Map<U64Key, Uint128> = Map::new("checkpoint_token");
 
 /// ## Description
-/// Stores config at the given key. Contains information about voting supply per week.
-pub const VOTING_SUPPLY_PER_WEEK: Map<U64Key, Uint128> = Map::new("voting_supply_per_week");
-
-/// ## Description
 /// Stores config at the given key. Contains information about distributed tokens per week.
 pub const TOKENS_PER_WEEK: Map<U64Key, Uint128> = Map::new("tokens_per_week");
 
 /// ## Description
 /// Stores config at the given key. Contains information about the last week of commission issuance.
 pub const TIME_CURSOR_OF: Map<Addr, u64> = Map::new("time_cursor_of");
-
-/// ## Description
-/// Stores config at the given key. Contains information about the claim operation.
-pub const CLAIMED: Item<Vec<Claimed>> = Item::new("claimed");
 
 /// ## Description
 /// Contains proposal for change ownership.

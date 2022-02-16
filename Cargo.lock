@@ -78,7 +78,6 @@ version = "1.0.0"
 dependencies = [
  "astroport 0.3.1",
  "astroport-governance 1.0.0",
- "astroport-governance 1.0.0 (git+https://github.com/astroport-fi/astroport-governance.git?branch=main)",
  "astroport-tests",
  "astroport-token 1.0.0 (git+https://github.com/astroport-fi/astroport.git?branch=master)",
  "cosmwasm-schema",

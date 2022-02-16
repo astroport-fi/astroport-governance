@@ -11,9 +11,6 @@ pub enum ContractError {
     #[error("Unauthorized")]
     Unauthorized {},
 
-    #[error("Checkpoint token is not available!")]
-    CheckpointTokenIsNotAvailable {},
-
     #[error("Amount is not available!")]
     AmountIsNotAvailable {},
 

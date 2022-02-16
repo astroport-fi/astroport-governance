@@ -1,5 +1,4 @@
 use crate::error::ContractError;
-use astroport_governance::escrow_fee_distributor::WEEK;
 use cosmwasm_std::{to_binary, Addr, CosmosMsg, DepsMut, StdResult, Uint128, WasmMsg};
 use cw20::Cw20ExecuteMsg;
 use cw_storage_plus::{Map, U64Key};
@@ -28,14 +27,8 @@ pub fn transfer_token_amount(
 }
 
 /// ## Description
-/// Returns the week number.
-pub fn get_period(time: u64) -> u64 {
-    time / WEEK
-}
-
-/// ## Description
 /// Create or update item with specified parameters in the map
-pub fn save_or_update_state_config(
+pub fn increase_amount_at_week_cursor(
     deps: DepsMut,
     config: &Map<U64Key, Uint128>,
     week_cursor: u64,
