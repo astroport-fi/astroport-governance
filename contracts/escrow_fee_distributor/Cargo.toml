@@ -15,16 +15,16 @@ library = []
 [dependencies]
 cw2 = { version = "0.8" }
 cw20 = { version = "0.8" }
-cosmwasm-std = { version = "0.16.2" }
+cosmwasm-std = { version = "0.16" }
 cw-storage-plus = {version = "0.8.0", features = ['iterator']}
 schemars = "0.8.1"
-serde = { version = "1.0.125", default-features = false, features = ["derive"] }
+serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 astroport = {git = "https://github.com/astroport-fi/astroport.git", tag = "v1.0.0"}
-thiserror = { version = "1.0.24" }
+thiserror = { version = "1.0.20" }
 astroport-governance = { path = "../../packages/astroport-governance", default-features = false, version = "1.0.0"}
 
 [dev-dependencies]
-cosmwasm-schema = { version = "0.16.2", default-features = false  }
+cosmwasm-schema = { version = "0.16.0", default-features = false  }
 terra-multi-test = {git = "https://github.com/astroport-fi/terra-plus.git", tag = "v0.9.1-terra"}
 astroport-token = {git = "https://github.com/astroport-fi/astroport.git", branch = "master", package = "astroport-token"}
 astroport-tests = {path = "../../packages/astroport-tests", package = "astroport-tests"}

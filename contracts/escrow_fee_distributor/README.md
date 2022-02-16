@@ -1,7 +1,6 @@
 # Astroport Escrow fee distributor
 
-
----
+Distributes the commission between users for the locked period.
 
 ## InstantiateMsg
 
@@ -24,8 +23,46 @@ Claims the amount from Escrow fee distributor for transfer to the recipient. Fie
 ```json
 {
   "claim": {
-    "recipient": "terra...",
-    "amount": "123"
+    "recipient": "terra..."
+  }
+}
+```
+
+### `claim_many`
+
+Claims the amount from Escrow fee distributor for transfer to the receivers.
+
+```json
+{
+  "claim": {
+    "receivers": ["terra...", "terra..."]
+  }
+}
+```
+
+### `update_config`
+
+Updates general settings. Fields are optional.
+
+```json
+{
+  "claim": {
+    "max_limit_accounts_of_claim": 2,
+    "checkpoint_token_enabled": false
+  }
+}
+```
+
+### `receive`
+
+Receives a commission in the form of Astro, which will be distributed among users.
+
+```json
+{
+  "receive": {
+    "sender": "terra...",
+    "amount": "123",
+    "msg": "<base64_encoded_json_string>"
   }
 }
 ```
@@ -87,12 +124,45 @@ Returns the information about the escrow fee distributor contract
 }
 ```
 
-### `astro_recipients_per_week`
+### `fetch_user_balance_by_timestamp`
 
-Returns the list of accounts who will get ASTRO fees every week
+Returns a commission amount in the form of Astro for user at timestamp
 
 ```json
 {
-  "astro_recipients_per_week": {}
+  "fetch_user_balance_by_timestamp": {
+    "user": "user1",
+    "timestamp": 4567
+  }
+}
+```
+
+### `voting_supply_per_week`
+
+Returns the vector that contains voting supply per week.
+`start_after` is a day in seconds
+`limit` is a number of weeks 
+
+```json
+{
+  "voting_supply_per_week": {
+    "start_after": 1645015524,
+    "limit": 3
+  }
+}
+```
+
+### `fee_tokens_per_week`
+
+Returns the vector that contains the amount of commission per week.
+`start_after` is a day in seconds
+`limit` is a number of weeks
+
+```json
+{
+  "fee_tokens_per_week": {
+    "start_after": 1645015524,
+    "limit": 3
+  }
 }
 ```
