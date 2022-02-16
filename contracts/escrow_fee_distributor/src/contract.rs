@@ -254,9 +254,6 @@ fn calc_checkpoint_token(mut deps: DepsMut, env: Env, config: &mut Config) -> St
                 amount_per_week,
             )?;
             break;
-        } else if since_last == 0 {
-            amount_per_week = to_distribute;
-            actual_distribute_amount += amount_per_week;
         } else {
             amount_per_week = to_distribute
                 .checked_mul(Uint128::from(next_week) - Uint128::from(last_token_time))?
