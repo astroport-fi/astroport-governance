@@ -12,17 +12,21 @@ This repo contains Astroport Governance related contracts.
 | [`assembly`](contracts/assembly) | The Astral Assembly governance contract |
 | [`treasury`](contracts/treasury) | The Astroport DAO Treasury contract |
 
-## Running this contract
+## Building Contracts
 
-You will need Rust 1.44.1+ with wasm32-unknown-unknown target installed.
+You will need Rust 1.58.1+ with wasm32-unknown-unknown target installed.
 
-For a production-ready (compressed) build, run the following command from the repository's root:
+You can run unit tests for each contract directory via:
 
 ```
-docker run --rm -v "$(pwd)":/code \
-  --mount type=volume,source="$(basename "$(pwd)")_cache",target=/code/target \
-  --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
-  cosmwasm/workspace-optimizer:0.12.3
+cargo test
 ```
 
-The optimized contracts are generated in the `artifacts/` directory.
+#### For a production-ready (compressed) build:
+Run the following from the repository root
+
+```
+./scripts/build_release.sh
+```
+
+The optimized contracts are generated in the artifacts/ directory.

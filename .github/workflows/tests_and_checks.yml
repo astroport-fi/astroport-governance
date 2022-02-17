@@ -4,7 +4,7 @@ on:
   pull_request:
   push:
     branches:
-      - master
+      - main
 
 env:
   CARGO_TERM_COLOR: always
@@ -40,11 +40,6 @@ jobs:
           toolchain: 1.55.0
           override: true
           components: rustfmt, clippy
-
-      - name: Set up Python
-        uses: actions/setup-python@v2
-        with:
-          python-version: 3.9.7
 
       - name: Run tests
         uses: actions-rs/cargo@v1
