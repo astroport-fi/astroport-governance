@@ -27,6 +27,7 @@ cosmwasm-schema = { version = "0.16.0", default-features = false }
 terra-multi-test = {git = "https://github.com/astroport-fi/terra-plus.git", tag = "v0.9.1-terra"}
 astroport-token = {git = "https://github.com/astroport-fi/astroport.git", package = "astroport-token"}
 astroport-xastro-token = {git = "https://github.com/astroport-fi/astroport.git",package = "astroport-xastro-token"}
+voting-escrow = { path= "../voting_escrow", default-features = false, version = "1.0.0" }
 astroport-staking = {git = "https://github.com/astroport-fi/astroport.git", package = "astroport-staking"}
 builder-unlock = {path = "../builder_unlock", default-features = false, version = "1.0.0"}
 anyhow = "1"
