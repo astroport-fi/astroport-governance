@@ -146,7 +146,6 @@ pub fn execute(
         }
         ExecuteMsg::Claim { recipient } => claim(deps, env, info, recipient),
         ExecuteMsg::ClaimMany { receivers } => claim_many(deps, env, receivers),
-        ExecuteMsg::CheckpointToken {} => checkpoint_token(deps, env, info),
         ExecuteMsg::UpdateConfig {
             max_limit_accounts_of_claim,
             checkpoint_token_enabled,
@@ -176,111 +175,12 @@ fn receive_cw20(
             if info.sender != config.astro_token {
                 return Err(ContractError::Unauthorized {});
             }
-            if config.checkpoint_token_enabled
-                && (env.block.time.seconds() > config.last_token_time + TOKEN_CHECKPOINT_DEADLINE)
-            {
-                calc_checkpoint_token(deps.branch(), env, &mut config)?;
-                CONFIG.save(deps.storage, &config)?;
-            }
+
+            // TODO: increment amount for current period in TOKENS_PER_WEEK
 
             Ok(Response::new())
         }
     }
-}
-
-/// ## Description
-/// Update the token checkpoint. Returns the [`Response`] with the specified attributes if the
-/// operation was successful, otherwise returns the [`ContractError`].
-fn checkpoint_token(
-    mut deps: DepsMut,
-    env: Env,
-    info: MessageInfo,
-) -> Result<Response, ContractError> {
-    let mut config: Config = CONFIG.load(deps.storage)?;
-
-    if info.sender != config.owner
-        && (!config.checkpoint_token_enabled
-            || env.block.time.seconds() < (config.last_token_time + TOKEN_CHECKPOINT_DEADLINE))
-    {
-        return Err(ContractError::Unauthorized {});
-    }
-
-    calc_checkpoint_token(deps.branch(), env, &mut config)?;
-    CONFIG.save(deps.storage, &config)?;
-
-    Ok(Response::new().add_attributes(vec![attr("action", "checkpoint_token")]))
-}
-
-/// ## Description
-/// Calculates the total number of tokens to be distributed in a given week.
-fn calc_checkpoint_token(mut deps: DepsMut, env: Env, config: &mut Config) -> StdResult<()> {
-    let distributor_balance = query_token_balance(
-        &deps.querier,
-        config.astro_token.clone(),
-        env.contract.address.clone(),
-    )?;
-
-    let to_distribute = distributor_balance.checked_sub(config.token_last_balance)?;
-    let mut last_token_time = config.last_token_time;
-
-    let since_last = env.block.time.seconds() - last_token_time;
-
-    config.last_token_time = env.block.time.seconds();
-
-    let mut current_week = last_token_time / WEEK * WEEK; // week alignment
-
-    let mut actual_distribute_amount = Uint128::zero();
-    loop {
-        let next_week = current_week + WEEK;
-        let current_period = get_period(current_week);
-        let amount_per_week: Uint128;
-
-        if env.block.time.seconds() <= next_week {
-            if since_last == 0 {
-                amount_per_week = to_distribute;
-                actual_distribute_amount += amount_per_week;
-            } else {
-                amount_per_week = to_distribute
-                    .checked_mul(Uint128::from(env.block.time.seconds() - last_token_time))?
-                    .checked_div(Uint128::from(since_last))?;
-
-                actual_distribute_amount += amount_per_week;
-            }
-
-            increase_amount_at_week_cursor(
-                deps.branch(),
-                &TOKENS_PER_WEEK,
-                current_period,
-                amount_per_week,
-            )?;
-            break;
-        } else {
-            amount_per_week = to_distribute
-                .checked_mul(Uint128::from(next_week) - Uint128::from(last_token_time))?
-                .checked_div(Uint128::from(since_last))?;
-            actual_distribute_amount += amount_per_week;
-        }
-
-        increase_amount_at_week_cursor(
-            deps.branch(),
-            &TOKENS_PER_WEEK,
-            current_period,
-            amount_per_week,
-        )?;
-
-        last_token_time = next_week;
-        current_week = next_week;
-    }
-
-    config.token_last_balance =
-        distributor_balance.checked_sub(to_distribute.checked_sub(actual_distribute_amount)?)?;
-    CHECKPOINT_TOKEN.save(
-        deps.storage,
-        U64Key::new(env.block.time.seconds()),
-        &actual_distribute_amount,
-    )?;
-
-    Ok(())
 }
 
 /// ## Description
@@ -301,7 +201,11 @@ pub fn claim(
 
     let mut config: Config = CONFIG.load(deps.storage)?;
 
-    try_calc_checkpoint_token(deps.branch(), env, &mut config)?;
+    // TODO: check LAST_CLAIM_PERIOD for user, if no - get from vx contract
+    // TODO: iterate for last_period -> current_period - 1 and calculate total reward
+    // TODO: send total reward to user
+    // TODO: increment LAST_CLAIM_PERIOD for user
+
 
     let last_token_time = config.last_token_time / WEEK * WEEK; // week alignment
 
