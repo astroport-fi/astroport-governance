@@ -443,7 +443,8 @@ fn query_fee_per_week(
 ) -> StdResult<Vec<Uint128>> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
     let start = start_after
-        .map(|timestamp| Bound::Exclusive(U64Key::from(get_period(timestamp)).joined_key()));
+        .map(|timestamp| U64Key::from(get_period(timestamp)).joined_key())
+        .map(Bound::Exclusive);
 
     Ok(TOKENS_PER_WEEK
         .range(deps.storage, start, None, Order::Ascending)
