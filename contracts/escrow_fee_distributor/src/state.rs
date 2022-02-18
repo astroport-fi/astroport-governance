@@ -10,7 +10,7 @@ use cw_storage_plus::{Item, Map, U64Key};
 /// This structure describes the main control config of distributor contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
-    /// address of ownership
+    /// Owner address
     pub owner: Addr,
     /// Fee token address
     pub astro_token: Addr,
@@ -27,11 +27,11 @@ pub struct Config {
 pub const CONFIG: Item<Config> = Item::new("config");
 
 /// ## Description
-/// Stores config at the given key. Contains information about distributed tokens per week.
+/// Contains information about distributed tokens per week.
 pub const TOKENS_PER_WEEK: Map<U64Key, Uint128> = Map::new("tokens_per_week");
 
 /// ## Description
-/// Stores config at the given key. Contains information about the last week of commission issuance.
+/// Contains information about the last week of commission issuance.
 pub const CLAIM_FROM_PERIOD: Map<Addr, u64> = Map::new("claim_from_period");
 
 /// ## Description

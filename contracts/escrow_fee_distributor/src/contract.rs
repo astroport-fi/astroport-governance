@@ -448,9 +448,9 @@ fn query_fee_per_week(
     Ok(TOKENS_PER_WEEK
         .range(deps.storage, start, None, Order::Ascending)
         .take(limit)
-        .map(|item| {
-            let (_, week_value) = item.unwrap();
-            week_value
+        .map(|week| {
+            let (_, fee_amount) = week.unwrap();
+            fee_amount
         })
         .collect())
 }

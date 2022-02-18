@@ -1,7 +1,6 @@
 use crate::error::ContractError;
-use cosmwasm_std::{to_binary, Addr, CosmosMsg, DepsMut, StdResult, Uint128, WasmMsg};
+use cosmwasm_std::{to_binary, Addr, CosmosMsg, Uint128, WasmMsg};
 use cw20::Cw20ExecuteMsg;
-use cw_storage_plus::{Map, U64Key};
 
 /// ## Description
 /// Transfer amount of token.
@@ -24,27 +23,4 @@ pub fn transfer_token_amount(
     };
 
     Ok(messages)
-}
-
-/// ## Description
-/// Create or update item with specified parameters in the map
-pub fn increase_amount_at_week_cursor(
-    deps: DepsMut,
-    config: &Map<U64Key, Uint128>,
-    week_cursor: u64,
-    amount: Uint128,
-) -> StdResult<()> {
-    config.update(
-        deps.storage,
-        U64Key::from(week_cursor),
-        |cursor| -> StdResult<_> {
-            if let Some(cursor_value) = cursor {
-                Ok(cursor_value + amount)
-            } else {
-                Ok(amount)
-            }
-        },
-    )?;
-
-    Ok(())
 }

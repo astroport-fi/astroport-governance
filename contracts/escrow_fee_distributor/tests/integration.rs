@@ -266,7 +266,7 @@ fn check_if_user_exists_after_withdraw() {
         200,
     );
 
-    // locks 100 xASTRO from user1 for WEEK * 2
+    // create lock for user1 for one week
     base_pack
         .create_lock(router_ref, user1.clone(), WEEK, 200)
         .unwrap();
@@ -335,12 +335,12 @@ fn claim_without_fee_on_distributor() {
         200,
     );
 
-    // locks 100 xASTRO from user1 for WEEK * 104
+    // create lock for user1 for WEEK * 104
     base_pack
         .create_lock(router_ref, user1.clone(), WEEK * 104, 200)
         .unwrap();
 
-    // locks 100 xASTRO from user2 for WEEK * 104
+    // create lock for user2 for WEEK * 104
     base_pack
         .create_lock(router_ref, user2.clone(), WEEK * 104, 200)
         .unwrap();
@@ -417,12 +417,12 @@ fn claim_max_period() {
         200,
     );
 
-    // locks 200 xASTRO from user1 for WEEK * 104
+    // create lock for user1 for WEEK * 104
     base_pack
         .create_lock(router_ref, user1.clone(), WEEK * 104, 200)
         .unwrap();
 
-    // locks 200 xASTRO from user2 for WEEK * 104
+    // create lock for user2 for WEEK * 104
     base_pack
         .create_lock(router_ref, user2.clone(), WEEK * 104, 200)
         .unwrap();
@@ -571,8 +571,8 @@ fn claim_multiple_users() {
 
     let xastro_token = base_pack.get_staking_xastro(router_ref);
 
-    // sets 200_000_000 xASTRO tokens to users
     for user in [user1.clone(), user2.clone(), user3.clone(), user4.clone()] {
+        // sets 200_000_000 xASTRO tokens to users
         mint(
             router_ref,
             base_pack.staking.clone().unwrap().address,
@@ -589,7 +589,7 @@ fn claim_multiple_users() {
             200 * MULTIPLIER as u128,
         );
 
-        // locks 100 xASTRO from user for WEEK * 2
+        // create lock for user for WEEK * 2
         base_pack
             .create_lock(router_ref, user.clone(), WEEK * 2, 100)
             .unwrap();
@@ -837,7 +837,7 @@ fn is_claim_enabled() {
             200 * MULTIPLIER as u128,
         );
 
-        // locks 100 xASTRO from user for WEEK * 3
+        // create lock for user for WEEK * 3
         base_pack
             .create_lock(router_ref, user.clone(), WEEK * 3, 100)
             .unwrap();

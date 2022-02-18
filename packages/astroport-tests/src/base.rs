@@ -52,7 +52,7 @@ impl BaseAstroportTestPackage {
         base_pack.init_astro_token(router, msg.owner.clone());
         base_pack.init_staking(router, msg.owner.clone());
         base_pack.init_voting_escrow(router, msg.owner.clone());
-        base_pack.init_escrow_fee_distributor(router, msg.owner.clone());
+        base_pack.init_escrow_fee_distributor(router, msg.owner);
         base_pack
     }
 
