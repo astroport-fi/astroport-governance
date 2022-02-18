@@ -129,22 +129,6 @@ Returns a commission amount in the form of Astro for user at timestamp.
 }
 ```
 
-### `voting_supply_per_week`
-
-Returns the vector that contains voting supply per week.
-
-`start_after` a day in seconds.
-`limit` a number of weeks. 
-
-```json
-{
-  "voting_supply_per_week": {
-    "start_after": 1645015524,
-    "limit": 3
-  }
-}
-```
-
 ### `fee_tokens_per_week`
 
 Returns the vector that contains the amount of commission per week.

@@ -6,7 +6,9 @@ use astroport_governance::utils::{get_period, WEEK};
 use astroport_governance::escrow_fee_distributor::{
     ConfigResponse, Cw20HookMsg, ExecuteMsg, QueryMsg,
 };
-use astroport_governance::voting_escrow::{LockInfoResponse, QueryMsg as VotingEscrowQueryMsg};
+use astroport_governance::voting_escrow::{
+    LockInfoResponse, QueryMsg as VotingEscrowQueryMsg, VotingPowerResponse,
+};
 
 use astroport_tests::base::{
     check_balance, mint, BaseAstroportTestInitMessage, BaseAstroportTestPackage, MULTIPLIER,
@@ -646,20 +648,16 @@ fn claim_multiple_users() {
     assert_eq!(vec![Uint128::new(100_000_000)], resp);
 
     // check if voting supply per week is set
-    let resp: Vec<Uint128> = router_ref
+    let resp: VotingPowerResponse = router_ref
         .wrap()
         .query_wasm_smart(
-            &base_pack.escrow_fee_distributor.clone().unwrap().address,
-            &QueryMsg::VotingSupplyPerWeek {
-                start_after: None,
-                limit: Some(2),
+            &base_pack.voting_escrow.clone().unwrap().address,
+            &VotingEscrowQueryMsg::TotalVotingPowerAt {
+                time: router_ref.block_info().time.seconds(),
             },
         )
         .unwrap();
-    assert_eq!(
-        vec![Uint128::new(411_538_460), Uint128::new(205_769_230)],
-        resp
-    );
+    assert_eq!(Uint128::new(411_538_460), resp.voting_power);
 
     // going to the next week
     router_ref.update_block(next_block);
@@ -893,26 +891,6 @@ fn is_claim_enabled() {
         )
         .unwrap();
     assert_eq!(vec![Uint128::new(100_000_000)], resp);
-
-    // check if voting supply per week is set
-    let resp: Vec<Uint128> = router_ref
-        .wrap()
-        .query_wasm_smart(
-            &base_pack.escrow_fee_distributor.clone().unwrap().address,
-            &QueryMsg::VotingSupplyPerWeek {
-                start_after: None,
-                limit: Some(3),
-            },
-        )
-        .unwrap();
-    assert_eq!(
-        vec![
-            Uint128::new(208_653_846),
-            Uint128::new(139_102_564),
-            Uint128::new(69_551_282)
-        ],
-        resp
-    );
 
     // going to the next week
     router_ref.update_block(next_block);

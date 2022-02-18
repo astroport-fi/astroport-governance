@@ -59,11 +59,6 @@ pub enum QueryMsg {
     Config {},
     /// Returns a commission amount in the form of Astro for user at timestamp
     UserFeeAmountPerWeek { user: String, timestamp: u64 },
-    /// Returns the vector that contains voting supply per week
-    VotingSupplyPerWeek {
-        start_after: Option<u64>,
-        limit: Option<u64>,
-    },
     /// Returns the vector that contains tokens fee per week
     FeeTokensPerWeek {
         start_after: Option<u64>,

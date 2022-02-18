@@ -13,7 +13,7 @@ use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_ow
 use astroport_governance::escrow_fee_distributor::{
     ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg,
 };
-use astroport_governance::utils::{get_period, get_time_by_period, MAX_LIMIT_OF_CLAIM, WEEK};
+use astroport_governance::utils::{get_period, get_time_by_period, MAX_LIMIT_OF_CLAIM};
 
 use astroport_governance::voting_escrow::{
     LockInfoResponse, QueryMsg as VotingQueryMsg, VotingPowerResponse,
@@ -380,9 +380,6 @@ fn update_config(
 /// * **QueryMsg::Config {}** Returns the base controls configs that contains in the [`Config`]
 /// object.
 ///
-/// * **QueryMsg::VotingSupplyPerWeek { start_after, limit }** Returns the vector with the voting
-/// supply by week with specified parameters.
-///
 /// * **QueryMsg::FeeTokensPerWeek { start_after, limit }** Returns the vector with the amount of
 /// tokens for the week distribution with specified parameters.
 ///
@@ -393,9 +390,6 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             to_binary(&query_user_balance(deps, env, user, timestamp)?)
         }
         QueryMsg::Config {} => to_binary(&query_config(deps)?),
-        QueryMsg::VotingSupplyPerWeek { start_after, limit } => to_binary(
-            &query_voting_supply_per_week(deps, env, start_after, limit)?,
-        ),
         QueryMsg::FeeTokensPerWeek { start_after, limit } => {
             to_binary(&query_fee_per_week(deps, start_after, limit)?)
         }
@@ -408,31 +402,6 @@ const MAX_LIMIT: u64 = 30;
 
 /// The default limit for reading pairs from a [`PAIRS`]
 const DEFAULT_LIMIT: u64 = 10;
-
-/// ## Description
-/// Returns voting supply per week.
-fn query_voting_supply_per_week(
-    deps: Deps,
-    env: Env,
-    start_after: Option<u64>,
-    limit: Option<u64>,
-) -> StdResult<Vec<Uint128>> {
-    let config = CONFIG.load(deps.storage)?;
-    let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-    let mut start_after = start_after.unwrap_or_else(|| env.block.time.seconds());
-
-    let mut result: Vec<Uint128> = vec![];
-    for _i in 0..limit {
-        let total_voting_power: VotingPowerResponse = deps.querier.query_wasm_smart(
-            &config.voting_escrow_addr,
-            &VotingQueryMsg::TotalVotingPowerAt { time: start_after },
-        )?;
-        start_after += WEEK;
-        result.push(total_voting_power.voting_power);
-    }
-
-    Ok(result)
-}
 
 /// ## Description
 /// Returns the amount of distribution of tokens for the week.
