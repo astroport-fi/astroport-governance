@@ -21,6 +21,7 @@ const USER1: &str = "user1";
 const USER2: &str = "user2";
 const USER3: &str = "user3";
 const USER4: &str = "user4";
+const USER5: &str = "user5";
 const MAKER: &str = "maker";
 
 fn mock_app() -> TerraApp {
@@ -139,7 +140,7 @@ fn test_receive_tokens() {
             )
             .unwrap();
 
-        // going to the last week
+        // going to the next week
         router_ref.update_block(next_block);
         router_ref.update_block(|b| b.time = b.time.plus_seconds(WEEK));
     }
@@ -268,7 +269,7 @@ fn check_if_user_exists_after_withdraw() {
         200,
     );
 
-    // create lock for user1 for one week
+    // create lock for user1 for WEEK
     base_pack
         .create_lock(router_ref, user1.clone(), WEEK, 200)
         .unwrap();
@@ -371,7 +372,7 @@ fn claim_without_fee_on_distributor() {
         )
         .unwrap();
 
-    // check if user1's token balance equal to 0
+    // check if user1's ASTRO balance equal to 0
     check_balance(
         router_ref,
         &base_pack.astro_token.clone().unwrap().address,
@@ -379,7 +380,7 @@ fn claim_without_fee_on_distributor() {
         0,
     );
 
-    // check if user2's token balance equal to 0
+    // check if user2's ASTRO balance equal to 0
     check_balance(
         router_ref,
         &base_pack.astro_token.clone().unwrap().address,
@@ -429,7 +430,7 @@ fn claim_max_period() {
         .create_lock(router_ref, user2.clone(), WEEK * 104, 200)
         .unwrap();
 
-    // mint 1000_000_000 ASTRO to maker
+    // mint 100_000_000 ASTRO to maker
     mint(
         router_ref,
         owner.clone(),
@@ -438,7 +439,7 @@ fn claim_max_period() {
         100,
     );
 
-    // try to send 100_000_000 ASTRO from maker to distributor for first period
+    // try to send 100_000_000 ASTRO from maker to distributor for the first period
     let msg = Cw20ExecuteMsg::Send {
         contract: base_pack
             .escrow_fee_distributor
@@ -463,7 +464,7 @@ fn claim_max_period() {
     router_ref.update_block(next_block);
     router_ref.update_block(|b| b.time = b.time.plus_seconds(WEEK));
 
-    // mint 1000_000_000 ASTRO to maker
+    // mint 100_000_000 ASTRO to maker
     mint(
         router_ref,
         owner.clone(),
@@ -472,7 +473,7 @@ fn claim_max_period() {
         100,
     );
 
-    // try to send 100_000_000 ASTRO from maker to distributor for second period
+    // try to send 100_000_000 ASTRO from maker to distributor for the second period
     let msg = Cw20ExecuteMsg::Send {
         contract: base_pack
             .escrow_fee_distributor
@@ -493,11 +494,11 @@ fn claim_max_period() {
         )
         .unwrap();
 
-    // going to the last week
+    // going to the week after user end lock period
     router_ref.update_block(next_block);
     router_ref.update_block(|b| b.time = b.time.plus_seconds(WEEK * 105));
 
-    // check if tokens for first and second weeks equal to 100_000_000
+    // check if tokens for the first and the second weeks equal to 100_000_000
     let resp: Vec<Uint128> = router_ref
         .wrap()
         .query_wasm_smart(
@@ -533,7 +534,7 @@ fn claim_max_period() {
         )
         .unwrap();
 
-    // check if user1's token balance equal to 100_000_000
+    // check if user1's ASTRO balance equal to 100_000_000
     check_balance(
         router_ref,
         &base_pack.astro_token.clone().unwrap().address,
@@ -541,7 +542,7 @@ fn claim_max_period() {
         100_000_000,
     );
 
-    // check if user2's token balance equal to 100_000_000
+    // check if user2's ASTRO balance equal to 100_000_000
     check_balance(
         router_ref,
         &base_pack.astro_token.clone().unwrap().address,
@@ -568,6 +569,7 @@ fn claim_multiple_users() {
     let user2 = Addr::unchecked(USER2.clone());
     let user3 = Addr::unchecked(USER3.clone());
     let user4 = Addr::unchecked(USER4.clone());
+    let user5 = Addr::unchecked(USER5.clone());
 
     let base_pack = init_astroport_test_package(router_ref).unwrap();
 
@@ -583,7 +585,7 @@ fn claim_multiple_users() {
             200,
         );
 
-        // checks if user's xASTRO token balance is equal to 200 * 1000_000
+        // checks if user's xASTRO balance is equal to 200 * 1000_000
         check_balance(
             router_ref,
             &xastro_token.clone(),
@@ -626,7 +628,7 @@ fn claim_multiple_users() {
         )
         .unwrap();
 
-    // checks if distributor's ASTRO token balance is equal to 100_000_000
+    // checks if distributor's ASTRO balance is equal to 100_000_000
     check_balance(
         router_ref,
         &base_pack.astro_token.clone().unwrap().address,
@@ -634,7 +636,7 @@ fn claim_multiple_users() {
         100 * MULTIPLIER as u128,
     );
 
-    // check if tokens are set to 100_000_000
+    // check if tokens per week are set to 100_000_000
     let resp: Vec<Uint128> = router_ref
         .wrap()
         .query_wasm_smart(
@@ -647,7 +649,7 @@ fn claim_multiple_users() {
         .unwrap();
     assert_eq!(vec![Uint128::new(100_000_000)], resp);
 
-    // check if voting supply per week is set
+    // check if voting supply per week is available
     let resp: VotingPowerResponse = router_ref
         .wrap()
         .query_wasm_smart(
@@ -692,6 +694,27 @@ fn claim_multiple_users() {
         err.to_string()
     );
 
+    mint(
+        router_ref,
+        base_pack.staking.clone().unwrap().address,
+        xastro_token.clone(),
+        &user5,
+        200,
+    );
+
+    // checks if user5's xASTRO balance is equal to 200 * 1000_000
+    check_balance(
+        router_ref,
+        &xastro_token.clone(),
+        &user5,
+        200 * MULTIPLIER as u128,
+    );
+
+    // create lock for user5 for WEEK * 2
+    base_pack
+        .create_lock(router_ref, user5.clone(), WEEK * 2, 100)
+        .unwrap();
+
     // claim for all users
     router_ref
         .execute_contract(
@@ -703,13 +726,14 @@ fn claim_multiple_users() {
                     user2.to_string(),
                     user3.to_string(),
                     user4.to_string(),
+                    user5.to_string(),
                 ],
             },
             &[],
         )
         .unwrap();
 
-    // checks if user's xASTRO token balance is equal to 25 * 1_000_000
+    // checks if user's ASTRO balance is equal to 100 / 4 = 25 * 1_000_000
     for user in [user1.clone(), user2.clone(), user3.clone(), user4.clone()] {
         check_balance(
             router_ref,
@@ -718,6 +742,14 @@ fn claim_multiple_users() {
             25 * MULTIPLIER as u128,
         );
     }
+
+    // checks if user5's ASTRO balance is equal to 0. Cannot claim for current period
+    check_balance(
+        router_ref,
+        &base_pack.astro_token.clone().unwrap().address,
+        &user5,
+        0,
+    );
 
     // check if distributor's ASTRO balance equal to 0
     check_balance(
@@ -731,7 +763,7 @@ fn claim_multiple_users() {
     router_ref.update_block(next_block);
     router_ref.update_block(|b| b.time = b.time.plus_seconds(WEEK));
 
-    // sends 900_000_000 ASTRO from maker to distributor for third period
+    // sends 900_000_000 ASTRO from maker to distributor for the third period
     let msg = Cw20ExecuteMsg::Send {
         contract: base_pack
             .escrow_fee_distributor
@@ -768,7 +800,7 @@ fn claim_multiple_users() {
         resp
     );
 
-    // try to claim for all users after their lock period
+    // try to claim for all users for current period
     router_ref
         .execute_contract(
             user1.clone(),
@@ -779,13 +811,14 @@ fn claim_multiple_users() {
                     user2.to_string(),
                     user3.to_string(),
                     user4.to_string(),
+                    user5.to_string(),
                 ],
             },
             &[],
         )
         .unwrap();
 
-    // checks if user's xASTRO token balance is equal to 25 * 1_000_000
+    // checks if user's ASTRO token balance still equal to 100 / 4 = 25 * 1_000_000
     for user in [user1.clone(), user2.clone(), user3.clone(), user4.clone()] {
         check_balance(
             router_ref,
@@ -795,12 +828,68 @@ fn claim_multiple_users() {
         );
     }
 
-    // check if distributor's ASTRO balance equal to 900_000_000
+    // checks if user5's ASTRO balance equal to 0 for the first week of lock
+    check_balance(
+        router_ref,
+        &base_pack.astro_token.clone().unwrap().address,
+        &user5,
+        0,
+    );
+
+    // check if distributor's ASTRO balance still equal to 900_000_000
     check_balance(
         router_ref,
         &base_pack.astro_token.clone().unwrap().address,
         &base_pack.escrow_fee_distributor.clone().unwrap().address,
         900_000_000,
+    );
+
+    // going to next week
+    router_ref.update_block(next_block);
+    router_ref.update_block(|b| b.time = b.time.plus_seconds(WEEK));
+
+    // try to claim for all users
+    router_ref
+        .execute_contract(
+            user1.clone(),
+            base_pack.escrow_fee_distributor.clone().unwrap().address,
+            &ExecuteMsg::ClaimMany {
+                receivers: vec![
+                    user1.to_string(),
+                    user2.to_string(),
+                    user3.to_string(),
+                    user4.to_string(),
+                    user5.to_string(),
+                ],
+            },
+            &[],
+        )
+        .unwrap();
+
+    // checks if user's ASTRO balance is still equal to 25 * 100_000_000.
+    for user in [user1.clone(), user2.clone(), user3.clone(), user4.clone()] {
+        check_balance(
+            router_ref,
+            &base_pack.astro_token.clone().unwrap().address,
+            &user,
+            25 * MULTIPLIER as u128,
+        );
+    }
+
+    // checks if user5's ASTRO balance equal to 900_000_000 for the second week of lock
+    check_balance(
+        router_ref,
+        &base_pack.astro_token.clone().unwrap().address,
+        &user5,
+        900_000_000,
+    );
+
+    // check if distributor's ASTRO balance still equal to 0
+    check_balance(
+        router_ref,
+        &base_pack.astro_token.clone().unwrap().address,
+        &base_pack.escrow_fee_distributor.clone().unwrap().address,
+        0,
     );
 }
 
@@ -871,7 +960,7 @@ fn is_claim_enabled() {
         )
         .unwrap();
 
-    // checks if distributor's ASTRO token balance is equal to 100_000_000
+    // checks if distributor's ASTRO balance is equal to 100_000_000
     check_balance(
         router_ref,
         &base_pack.astro_token.clone().unwrap().address,
@@ -991,7 +1080,7 @@ fn is_claim_enabled() {
         )
         .unwrap();
 
-    // checks if user's xASTRO token balance is equal to 25 * 1_000_000
+    // checks if user's ASTRO token balance is equal to 25 * 1_000_000
     for user in [user1.clone(), user2.clone()] {
         check_balance(
             router_ref,
