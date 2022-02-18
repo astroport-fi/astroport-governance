@@ -7,10 +7,10 @@ Distributes the commission between users for the locked period.
 ```json
 {
   "owner": "terra...",
-  "token": "terra...",
+  "astro_token": "terra...",
   "voting_escrow": "terra...",
-  "emergency_return": "terra...",
-  "start_time": 1333
+  "max_limit_accounts_of_claim": 7,
+  "is_claim_disabled": false
 }
 ```
 
@@ -48,7 +48,7 @@ Updates general settings. Fields are optional.
 {
   "claim": {
     "max_limit_accounts_of_claim": 2,
-    "checkpoint_token_enabled": false
+    "is_claim_disabled": false
   }
 }
 ```
@@ -64,16 +64,6 @@ Receives a commission in the form of Astro, which will be distributed among user
     "amount": "123",
     "msg": "<base64_encoded_json_string>"
   }
-}
-```
-
-### `checkpoint_token`
-
-Calculates the total number of tokens to be distributed in a given week.
-
-```json
-{
-  "checkpoint_token": {}
 }
 ```
 
@@ -124,15 +114,17 @@ Returns the information about the escrow fee distributor contract
 }
 ```
 
-### `fetch_user_balance_by_timestamp`
+### `user_fee_amount_per_week`
 
-Returns a commission amount in the form of Astro for user at timestamp
+Returns a commission amount in the form of Astro for user at timestamp.
+
+`timestamp` a day cursor in seconds.
 
 ```json
 {
-  "fetch_user_balance_by_timestamp": {
+  "user_fee_amount_per_week": {
     "user": "user1",
-    "timestamp": 4567
+    "timestamp": 1645113644
   }
 }
 ```
@@ -140,8 +132,9 @@ Returns a commission amount in the form of Astro for user at timestamp
 ### `voting_supply_per_week`
 
 Returns the vector that contains voting supply per week.
-`start_after` is a day in seconds
-`limit` is a number of weeks 
+
+`start_after` a day in seconds.
+`limit` a number of weeks. 
 
 ```json
 {
@@ -155,8 +148,9 @@ Returns the vector that contains voting supply per week.
 ### `fee_tokens_per_week`
 
 Returns the vector that contains the amount of commission per week.
-`start_after` is a day in seconds
-`limit` is a number of weeks
+
+`start_after` a day in seconds.
+`limit` a number of weeks.
 
 ```json
 {

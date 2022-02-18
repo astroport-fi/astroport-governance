@@ -37,8 +37,6 @@ pub struct BaseAstroportTestPackage {
 #[serde(rename_all = "snake_case")]
 pub struct BaseAstroportTestInitMessage {
     pub owner: Addr,
-    pub emergency_return: Addr,
-    pub start_time: Option<u64>,
 }
 
 impl BaseAstroportTestPackage {
@@ -54,12 +52,7 @@ impl BaseAstroportTestPackage {
         base_pack.init_astro_token(router, msg.owner.clone());
         base_pack.init_staking(router, msg.owner.clone());
         base_pack.init_voting_escrow(router, msg.owner.clone());
-        base_pack.init_escrow_fee_distributor(
-            router,
-            msg.owner.clone(),
-            msg.emergency_return,
-            msg.start_time,
-        );
+        base_pack.init_escrow_fee_distributor(router, msg.owner.clone());
         base_pack
     }
 
@@ -180,13 +173,7 @@ impl BaseAstroportTestPackage {
         })
     }
 
-    pub fn init_escrow_fee_distributor(
-        &mut self,
-        router: &mut TerraApp,
-        owner: Addr,
-        emergency_return: Addr,
-        start_time: Option<u64>,
-    ) {
+    pub fn init_escrow_fee_distributor(&mut self, router: &mut TerraApp, owner: Addr) {
         let escrow_fee_distributor_contract = Box::new(ContractWrapper::new_with_empty(
             astroport_escrow_fee_distributor::contract::execute,
             astroport_escrow_fee_distributor::contract::instantiate,
@@ -199,8 +186,8 @@ impl BaseAstroportTestPackage {
             owner: owner.to_string(),
             astro_token: self.astro_token.clone().unwrap().address.to_string(),
             voting_escrow_addr: self.voting_escrow.clone().unwrap().address.to_string(),
-            emergency_return_addr: emergency_return.to_string(),
-            start_time: start_time.unwrap_or_default(),
+            max_limit_accounts_of_claim: None,
+            is_claim_disabled: None,
         };
 
         let escrow_fee_distributor_instance = router

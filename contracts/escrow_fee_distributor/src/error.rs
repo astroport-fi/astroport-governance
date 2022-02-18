@@ -11,14 +11,11 @@ pub enum ContractError {
     #[error("Unauthorized")]
     Unauthorized {},
 
-    #[error("Amount is not available!")]
-    AmountIsNotAvailable {},
-
-    #[error("Contract is killed!")]
-    ContractIsKilled {},
-
     #[error("Exceeded account limit for claim operation!")]
     ExceededAccountLimitOfClaim {},
+
+    #[error("Claim is not available!")]
+    ClaimIsNotAvailable {},
 }
 
 impl From<OverflowError> for ContractError {

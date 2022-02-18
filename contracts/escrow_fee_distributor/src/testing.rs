@@ -12,8 +12,8 @@ fn proper_initialization() {
         owner: "owner".to_string(),
         astro_token: "token".to_string(),
         voting_escrow_addr: "voting_escrow".to_string(),
-        emergency_return_addr: "emergency_return".to_string(),
-        start_time: 0,
+        max_limit_accounts_of_claim: None,
+        is_claim_disabled: None,
     };
 
     let env = mock_env();
@@ -27,12 +27,8 @@ fn proper_initialization() {
             owner: Addr::unchecked("owner"),
             astro_token: Addr::unchecked("token"),
             voting_escrow_addr: Addr::unchecked("voting_escrow"),
-            emergency_return_addr: Addr::unchecked("emergency_return"),
-            start_time: 0,
-            last_token_time: 0,
-            time_cursor: 0,
             max_limit_accounts_of_claim: 10,
-            checkpoint_token_enabled: false
+            is_claim_disabled: false
         }
     );
 }

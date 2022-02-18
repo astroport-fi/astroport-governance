@@ -4,20 +4,16 @@ use cosmwasm_std::{
 };
 
 use crate::error::ContractError;
-use crate::state::{
-    Config, CHECKPOINT_TOKEN, CONFIG, OWNERSHIP_PROPOSAL, TIME_CURSOR_OF, TOKENS_PER_WEEK,
-};
+use crate::state::{Config, CLAIM_FROM_PERIOD, CONFIG, OWNERSHIP_PROPOSAL, TOKENS_PER_WEEK};
 
-use crate::utils::{increase_amount_at_week_cursor, transfer_token_amount};
+use crate::utils::transfer_token_amount;
 use astroport::asset::addr_validate_to_lower;
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
-use astroport::querier::query_token_balance;
+
 use astroport_governance::escrow_fee_distributor::{
     ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg,
 };
-use astroport_governance::utils::{
-    get_period, MAX_LIMIT_OF_CLAIM, TOKEN_CHECKPOINT_DEADLINE, WEEK,
-};
+use astroport_governance::utils::{get_period, get_time_by_period, MAX_LIMIT_OF_CLAIM, WEEK};
 
 use astroport_governance::voting_escrow::{
     LockInfoResponse, QueryMsg as VotingQueryMsg, VotingPowerResponse,
@@ -25,7 +21,7 @@ use astroport_governance::voting_escrow::{
 use cw20::Cw20ReceiveMsg;
 
 use cw2::set_contract_version;
-use cw_storage_plus::{Bound, U64Key};
+use cw_storage_plus::{Bound, PrimaryKey, U64Key};
 
 /// Contract name that is used for migration.
 const CONTRACT_NAME: &str = "astroport-escrow_fee_distributor";
@@ -48,21 +44,16 @@ pub fn instantiate(
 ) -> StdResult<Response> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    let t = msg.start_time / WEEK * WEEK; // week alignment
-
     CONFIG.save(
         deps.storage,
         &Config {
             owner: addr_validate_to_lower(deps.api, &msg.owner)?,
             astro_token: addr_validate_to_lower(deps.api, &msg.astro_token)?,
             voting_escrow_addr: addr_validate_to_lower(deps.api, &msg.voting_escrow_addr)?,
-            emergency_return_addr: addr_validate_to_lower(deps.api, &msg.emergency_return_addr)?,
-            start_time: t,
-            last_token_time: t,
-            time_cursor: t,
-            checkpoint_token_enabled: false,
-            max_limit_accounts_of_claim: MAX_LIMIT_OF_CLAIM,
-            token_last_balance: Uint128::new(0),
+            is_claim_disabled: msg.is_claim_disabled.unwrap_or(false),
+            max_limit_accounts_of_claim: msg
+                .max_limit_accounts_of_claim
+                .unwrap_or(MAX_LIMIT_OF_CLAIM),
         },
     )?;
 
@@ -71,16 +62,6 @@ pub fn instantiate(
 
 /// ## Description
 /// Available the execute messages of the contract.
-///
-/// ## Params
-/// * **deps** is the object of type [`Deps`].
-///
-/// * **env** is the object of type [`Env`].
-///
-/// * **info** is the object of type [`MessageInfo`].
-///
-/// * **msg** is the object of type [`ExecuteMsg`].
-///
 /// ## Queries
 /// * **ExecuteMsg::ProposeNewOwner { owner, expires_in }** Creates a request to change ownership.
 ///
@@ -88,28 +69,17 @@ pub fn instantiate(
 ///
 /// * **ExecuteMsg::ClaimOwnership {}** Approves ownership.
 ///
-/// * **ExecuteMsg::CheckpointTotalSupply {}** Update the vxAstro total supply checkpoint.
-///
-/// * **ExecuteMsg::Burn { token_address }** Receive tokens into the contract and trigger a token
-/// checkpoint.
-///
-/// * **ExecuteMsg::KillMe {}** Kill the contract. Killing transfers the entire token balance to
-/// the emergency return address and blocks the ability to claim or burn. The contract cannot be
-/// unkilled.
-///
-/// * **ExecuteMsg::RecoverBalance { token_address }** Recover tokens from this contract,
-/// tokens are sent to the emergency return address.
-///
-/// * **ExecuteMsg::ToggleAllowCheckpointToken {}** Enables or disables the ability to set
-/// a checkpoint token.
-///
 /// * **ExecuteMsg::Claim { recipient }** Claims the tokens from distributor for transfer
 /// to the recipient.
 ///
 /// * **ExecuteMsg::ClaimMany { receivers }**  Make multiple fee claims in a single call.
 ///
-/// * **ExecuteMsg::CheckpointToken {}** Calculates the total number of tokens to be distributed
-/// in a given week.
+/// * **ExecuteMsg::Receive(msg)** parse incoming message from the ASTRO token.
+/// msg should have [`Cw20ReceiveMsg`] type.
+///
+/// * **ExecuteMsg::UpdateConfig { max_limit_accounts_of_claim, is_claim_disabled}** Updates
+/// general settings. Returns an [`ContractError`] on failure or the following [`Config`]
+/// data will be updated if successful.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
@@ -148,13 +118,8 @@ pub fn execute(
         ExecuteMsg::ClaimMany { receivers } => claim_many(deps, env, receivers),
         ExecuteMsg::UpdateConfig {
             max_limit_accounts_of_claim,
-            checkpoint_token_enabled,
-        } => update_config(
-            deps,
-            info,
-            max_limit_accounts_of_claim,
-            checkpoint_token_enabled,
-        ),
+            is_claim_disabled,
+        } => update_config(deps, info, max_limit_accounts_of_claim, is_claim_disabled),
         ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
     }
 }
@@ -164,19 +129,31 @@ pub fn execute(
 /// If the template is not found in the received message, then an [`ContractError`] is returned,
 /// otherwise returns the [`Response`] with the specified attributes if the operation was successful
 fn receive_cw20(
-    mut deps: DepsMut,
+    deps: DepsMut,
     env: Env,
     info: MessageInfo,
     cw20_msg: Cw20ReceiveMsg,
 ) -> Result<Response, ContractError> {
     match from_binary(&cw20_msg.msg)? {
-        Cw20HookMsg::Burn {} => {
-            let mut config: Config = CONFIG.load(deps.storage)?;
+        Cw20HookMsg::ReceiveTokens {} => {
+            let config: Config = CONFIG.load(deps.storage)?;
             if info.sender != config.astro_token {
                 return Err(ContractError::Unauthorized {});
             }
 
-            // TODO: increment amount for current period in TOKENS_PER_WEEK
+            let curr_period = get_period(env.block.time.seconds());
+
+            TOKENS_PER_WEEK.update(
+                deps.storage,
+                U64Key::new(curr_period),
+                |period| -> StdResult<_> {
+                    if let Some(tokens_amount) = period {
+                        Ok(tokens_amount + cw20_msg.amount)
+                    } else {
+                        Ok(cw20_msg.amount)
+                    }
+                },
+            )?;
 
             Ok(Response::new())
         }
@@ -199,34 +176,19 @@ pub fn claim(
         &recipient.unwrap_or_else(|| info.sender.to_string()),
     )?;
 
-    let mut config: Config = CONFIG.load(deps.storage)?;
+    let config: Config = CONFIG.load(deps.storage)?;
 
-    // TODO: check LAST_CLAIM_PERIOD for user, if no - get from vx contract
-    // TODO: iterate for last_period -> current_period - 1 and calculate total reward
-    // TODO: send total reward to user
-    // TODO: increment LAST_CLAIM_PERIOD for user
+    if config.is_claim_disabled {
+        return Err(ContractError::ClaimIsNotAvailable {});
+    }
 
-
-    let last_token_time = config.last_token_time / WEEK * WEEK; // week alignment
-
-    let claim_amount = calc_claim_amount(
-        deps.branch(),
-        config.clone(),
-        recipient_addr.clone(),
-        last_token_time,
-    )?;
+    let claim_amount = calc_claim_amount(deps.branch(), env, info.sender, config.clone())?;
 
     let mut transfer_msg = vec![];
     if !claim_amount.is_zero() {
-        transfer_msg = transfer_token_amount(
-            config.astro_token.clone(),
-            recipient_addr.clone(),
-            claim_amount,
-        )?;
-        config.token_last_balance -= claim_amount;
+        transfer_msg =
+            transfer_token_amount(config.astro_token, recipient_addr.clone(), claim_amount)?;
     };
-
-    CONFIG.save(deps.storage, &config)?;
 
     let response = Response::new()
         .add_attributes(vec![
@@ -249,26 +211,26 @@ fn claim_many(
     env: Env,
     receivers: Vec<String>,
 ) -> Result<Response, ContractError> {
-    let mut config: Config = CONFIG.load(deps.storage)?;
+    let config: Config = CONFIG.load(deps.storage)?;
+
+    if config.is_claim_disabled {
+        return Err(ContractError::ClaimIsNotAvailable {});
+    }
 
     if receivers.len() > config.max_limit_accounts_of_claim as usize {
         return Err(ContractError::ExceededAccountLimitOfClaim {});
     }
 
-    try_calc_checkpoint_token(deps.branch(), env.clone(), &mut config)?;
-
-    let last_token_time = config.last_token_time / WEEK * WEEK; // week alignment
-
-    let mut total = Uint128::zero();
+    let mut claim_total_amount = Uint128::zero();
     let mut transfer_msg = vec![];
 
     for receiver in receivers {
         let receiver_addr = addr_validate_to_lower(deps.api, &receiver)?;
         let claim_amount = calc_claim_amount(
             deps.branch(),
-            config.clone(),
+            env.clone(),
             receiver_addr.clone(),
-            last_token_time,
+            config.clone(),
         )?;
 
         if !claim_amount.is_zero() {
@@ -277,104 +239,99 @@ fn claim_many(
                 receiver_addr,
                 claim_amount,
             )?);
-            total += claim_amount;
+            claim_total_amount += claim_amount;
         };
-    }
-
-    if !total.is_zero()
-        || (config.checkpoint_token_enabled
-            && (env.block.time.seconds() > config.last_token_time + TOKEN_CHECKPOINT_DEADLINE))
-    {
-        config.token_last_balance -= total;
-        CONFIG.save(deps.storage, &config)?;
     }
 
     let response = Response::new()
         .add_attributes(vec![
             attr("action", "claim_many"),
-            attr("amount", total.to_string()),
+            attr("amount", claim_total_amount.to_string()),
         ])
         .add_messages(transfer_msg);
 
     Ok(response)
 }
 
-fn try_calc_checkpoint_token(mut deps: DepsMut, env: Env, config: &mut Config) -> StdResult<()> {
-    if config.checkpoint_token_enabled
-        && (env.block.time.seconds() > config.last_token_time + TOKEN_CHECKPOINT_DEADLINE)
-    {
-        calc_checkpoint_token(deps.branch(), env, config)?;
-    }
-
-    Ok(())
-}
-
 /// ## Description
 /// Calculation amount of claim.
 fn calc_claim_amount(
     deps: DepsMut,
+    env: Env,
+    receiver: Addr,
     config: Config,
-    addr: Addr,
-    last_token_time: u64,
 ) -> StdResult<Uint128> {
     let user_lock_info: LockInfoResponse = deps.querier.query_wasm_smart(
         &config.voting_escrow_addr,
         &VotingQueryMsg::LockInfo {
-            user: addr.to_string(),
+            user: receiver.to_string(),
         },
     )?;
 
-    let mut week_cursor = TIME_CURSOR_OF
-        .may_load(deps.storage, addr.clone())?
-        .unwrap_or(config.start_time);
+    let mut claim_period = CLAIM_FROM_PERIOD
+        .may_load(deps.storage, receiver.clone())?
+        .unwrap_or(user_lock_info.start);
 
-    if week_cursor >= last_token_time {
-        return Ok(Uint128::zero());
-    }
-
+    let current_period = get_period(env.block.time.seconds());
+    let lock_end_period = user_lock_info.end;
     let mut claim_amount: Uint128 = Default::default();
+
     loop {
-        if week_cursor >= last_token_time {
+        // user cannot claim for current period
+        if claim_period >= current_period {
             break;
         }
 
-        let current_period = get_period(week_cursor);
-        if current_period >= user_lock_info.end {
+        // user cannot claim higher than his max lock period
+        if claim_period > lock_end_period {
             break;
         }
 
         let user_voting_power: VotingPowerResponse = deps.querier.query_wasm_smart(
             &config.voting_escrow_addr,
             &VotingQueryMsg::UserVotingPowerAt {
-                user: addr.to_string(),
-                time: week_cursor,
+                user: receiver.to_string(),
+                time: get_time_by_period(claim_period),
             },
         )?;
 
         let total_voting_power: VotingPowerResponse = deps.querier.query_wasm_smart(
             &config.voting_escrow_addr,
-            &VotingQueryMsg::TotalVotingPowerAt { time: week_cursor },
+            &VotingQueryMsg::TotalVotingPowerAt {
+                time: get_time_by_period(claim_period),
+            },
         )?;
 
         if user_voting_power.voting_power > Uint128::zero() {
-            if let Some(tokens_per_week) =
-                TOKENS_PER_WEEK.may_load(deps.storage, U64Key::from(current_period))?
-            {
-                claim_amount = claim_amount.checked_add(
-                    user_voting_power
-                        .voting_power
-                        .checked_mul(tokens_per_week)?
-                        .checked_div(total_voting_power.voting_power)?,
-                )?;
-            }
+            claim_amount = claim_amount.checked_add(calculate_user_balance_per_week(
+                deps.as_ref(),
+                claim_period,
+                user_voting_power.voting_power,
+                total_voting_power.voting_power,
+            )?)?;
         }
 
-        week_cursor += WEEK;
+        claim_period += 1;
     }
 
-    TIME_CURSOR_OF.save(deps.storage, addr, &week_cursor)?;
+    CLAIM_FROM_PERIOD.save(deps.storage, receiver, &claim_period)?;
 
     Ok(claim_amount)
+}
+
+/// ## Description
+/// Returns user amount for specified period
+fn calculate_user_balance_per_week(
+    deps: Deps,
+    period: u64,
+    user_vp: Uint128,
+    total_vp: Uint128,
+) -> StdResult<Uint128> {
+    let tokens_per_week = TOKENS_PER_WEEK
+        .may_load(deps.storage, U64Key::from(period))?
+        .unwrap_or_default();
+
+    Ok(user_vp.multiply_ratio(tokens_per_week, total_vp))
 }
 
 /// ## Description
@@ -384,7 +341,7 @@ fn update_config(
     deps: DepsMut,
     info: MessageInfo,
     max_limit_accounts_of_claim: Option<u64>,
-    checkpoint_token_enabled: Option<bool>,
+    is_claim_disabled: Option<bool>,
 ) -> Result<Response, ContractError> {
     let mut attributes = vec![attr("action", "update_config")];
     let mut config: Config = CONFIG.load(deps.storage)?;
@@ -393,11 +350,11 @@ fn update_config(
         return Err(ContractError::Unauthorized {});
     }
 
-    if let Some(checkpoint_token_enabled) = checkpoint_token_enabled {
-        config.checkpoint_token_enabled = checkpoint_token_enabled;
+    if let Some(is_claim_disabled) = is_claim_disabled {
+        config.is_claim_disabled = is_claim_disabled;
         attributes.push(Attribute::new(
-            "checkpoint_token_enabled",
-            checkpoint_token_enabled.to_string(),
+            "is_claim_disabled",
+            is_claim_disabled.to_string(),
         ));
     };
 
@@ -417,20 +374,28 @@ fn update_config(
 /// ## Description
 /// Available the query messages of the contract.
 /// ## Queries
-/// * **QueryMsg::Config {}** Returns the base controls configs that contains in the [`Config`] object.
+/// * **QueryMsg::UserFeeAmountPerWeek { user, timestamp }** Returns the user fee amount by
+/// the timestamp.
 ///
-/// * **QueryMsg::AstroRecipientsPerWeek {}** Returns the list of accounts who will get ASTRO fees
-/// every week in the [`RecipientsPerWeekResponse`] object.
+/// * **QueryMsg::Config {}** Returns the base controls configs that contains in the [`Config`]
+/// object.
+///
+/// * **QueryMsg::VotingSupplyPerWeek { start_after, limit }** Returns the vector with the voting
+/// supply by week with specified parameters.
+///
+/// * **QueryMsg::FeeTokensPerWeek { start_after, limit }** Returns the vector with the amount of
+/// tokens for the week distribution with specified parameters.
+///
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::FetchUserBalanceByTimestamp { user, timestamp } => {
+        QueryMsg::UserFeeAmountPerWeek { user, timestamp } => {
             to_binary(&query_user_balance(deps, env, user, timestamp)?)
         }
         QueryMsg::Config {} => to_binary(&query_config(deps)?),
-        QueryMsg::VotingSupplyPerWeek { start_after, limit } => {
-            to_binary(&query_per_week(deps, start_after, limit)?)
-        }
+        QueryMsg::VotingSupplyPerWeek { start_after, limit } => to_binary(
+            &query_voting_supply_per_week(deps, env, start_after, limit)?,
+        ),
         QueryMsg::FeeTokensPerWeek { start_after, limit } => {
             to_binary(&query_fee_per_week(deps, start_after, limit)?)
         }
@@ -444,14 +409,17 @@ const MAX_LIMIT: u64 = 30;
 /// The default limit for reading pairs from a [`PAIRS`]
 const DEFAULT_LIMIT: u64 = 10;
 
-fn query_per_week(
+/// ## Description
+/// Returns voting supply per week.
+fn query_voting_supply_per_week(
     deps: Deps,
+    env: Env,
     start_after: Option<u64>,
     limit: Option<u64>,
 ) -> StdResult<Vec<Uint128>> {
     let config = CONFIG.load(deps.storage)?;
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-    let mut start_after = start_after.unwrap_or(config.time_cursor);
+    let mut start_after = start_after.unwrap_or_else(|| env.block.time.seconds());
 
     let mut result: Vec<Uint128> = vec![];
     for _i in 0..limit {
@@ -466,18 +434,16 @@ fn query_per_week(
     Ok(result)
 }
 
+/// ## Description
+/// Returns the amount of distribution of tokens for the week.
 fn query_fee_per_week(
     deps: Deps,
     start_after: Option<u64>,
     limit: Option<u64>,
 ) -> StdResult<Vec<Uint128>> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-    let start;
-    if let Some(start_after) = start_after {
-        start = Some(Bound::Exclusive(U64Key::from(start_after).wrapped));
-    } else {
-        start = None;
-    }
+    let start = start_after
+        .map(|timestamp| Bound::Exclusive(U64Key::from(get_period(timestamp)).joined_key()));
 
     Ok(TOKENS_PER_WEEK
         .range(deps.storage, start, None, Order::Ascending)
@@ -488,6 +454,7 @@ fn query_fee_per_week(
         })
         .collect())
 }
+
 /// ## Description
 /// Returns the user fee amount by the timestamp
 fn query_user_balance(deps: Deps, _env: Env, user: String, timestamp: u64) -> StdResult<Uint128> {
@@ -505,19 +472,14 @@ fn query_user_balance(deps: Deps, _env: Env, user: String, timestamp: u64) -> St
         &VotingQueryMsg::TotalVotingPowerAt { time: timestamp },
     )?;
 
-    let mut user_fee_balance = Uint128::zero();
     let current_period = get_period(timestamp);
 
-    if let Some(tokens_per_week) =
-        TOKENS_PER_WEEK.may_load(deps.storage, U64Key::from(current_period))?
-    {
-        user_fee_balance = user_fee_balance.checked_add(
-            user_voting_power
-                .voting_power
-                .checked_mul(tokens_per_week)?
-                .checked_div(total_voting_power.voting_power)?,
-        )?;
-    }
+    let user_fee_balance = calculate_user_balance_per_week(
+        deps,
+        current_period,
+        user_voting_power.voting_power,
+        total_voting_power.voting_power,
+    )?;
 
     Ok(user_fee_balance)
 }
@@ -531,11 +493,7 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
         owner: config.owner,
         astro_token: config.astro_token,
         voting_escrow_addr: config.voting_escrow_addr,
-        emergency_return_addr: config.emergency_return_addr,
-        start_time: config.start_time,
-        last_token_time: config.last_token_time,
-        time_cursor: config.time_cursor,
-        checkpoint_token_enabled: config.checkpoint_token_enabled,
+        is_claim_disabled: config.is_claim_disabled,
         max_limit_accounts_of_claim: config.max_limit_accounts_of_claim,
     };
 
