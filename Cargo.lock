@@ -28,6 +28,7 @@ dependencies = [
  "serde",
  "terra-multi-test 0.9.1 (git+https://github.com/astroport-fi/terra-plus.git?tag=v0.9.1-terra)",
  "thiserror",
+ "voting-escrow",
 ]
 
 [[package]]

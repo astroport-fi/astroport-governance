@@ -5,6 +5,7 @@ use cosmwasm_std::{
 use cw2::set_contract_version;
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20ReceiveMsg};
 use cw_storage_plus::{Bound, U64Key};
+use std::str::FromStr;
 
 use astroport::asset::addr_validate_to_lower;
 use astroport_governance::assembly::{
@@ -17,6 +18,7 @@ use astroport::xastro_token::QueryMsg as XAstroTokenQueryMsg;
 use astroport_governance::builder_unlock::msg::{
     AllocationResponse, QueryMsg as BuilderUnlockQueryMsg, StateResponse,
 };
+use astroport_governance::voting_escrow::{QueryMsg as VotingEscrowQueryMsg, VotingPowerResponse};
 
 use crate::error::ContractError;
 use crate::state::{CONFIG, PROPOSALS, PROPOSAL_COUNT};
@@ -59,13 +61,14 @@ pub fn instantiate(
 
     let config = Config {
         xastro_token_addr: addr_validate_to_lower(deps.api, &msg.xastro_token_addr)?,
+        vxastro_token_addr: addr_validate_to_lower(deps.api, &msg.vxastro_token_addr)?,
         builder_unlock_addr: addr_validate_to_lower(deps.api, &msg.builder_unlock_addr)?,
         proposal_voting_period: msg.proposal_voting_period,
         proposal_effective_delay: msg.proposal_effective_delay,
         proposal_expiration_period: msg.proposal_expiration_period,
         proposal_required_deposit: msg.proposal_required_deposit,
-        proposal_required_quorum: Decimal::percent(msg.proposal_required_quorum),
-        proposal_required_threshold: Decimal::percent(msg.proposal_required_threshold),
+        proposal_required_quorum: Decimal::from_str(&msg.proposal_required_quorum)?,
+        proposal_required_threshold: Decimal::from_str(&msg.proposal_required_threshold)?,
     };
 
     config.validate()?;
@@ -253,6 +256,7 @@ pub fn submit_proposal(
             for_voters: Vec::new(),
             against_voters: Vec::new(),
             start_block: env.block.height,
+            start_time: env.block.time.seconds(),
             end_block: env.block.height + config.proposal_voting_period,
             title,
             description,
@@ -312,7 +316,7 @@ pub fn cast_vote(
         return Err(ContractError::UserAlreadyVoted {});
     }
 
-    let voting_power = calc_voting_power(&deps, info.sender.to_string(), proposal.start_block)?;
+    let voting_power = calc_voting_power(&deps, info.sender.to_string(), &proposal)?;
 
     if voting_power.is_zero() {
         return Err(ContractError::NoVotingPower {});
@@ -373,7 +377,7 @@ pub fn end_proposal(
     let against_votes = proposal.against_power;
     let total_votes = for_votes + against_votes;
 
-    let total_voting_power = calc_total_voting_power_at(&deps, proposal.start_block - 1)?;
+    let total_voting_power = calc_total_voting_power_at(&deps, &proposal)?;
 
     let mut proposal_quorum: Decimal = Decimal::zero();
     let mut proposal_threshold: Decimal = Decimal::zero();
@@ -537,6 +541,10 @@ pub fn update_config(
         config.xastro_token_addr = addr_validate_to_lower(deps.api, &xastro_token_addr)?;
     }
 
+    if let Some(vxastro_token_addr) = updated_config.vxastro_token_addr {
+        config.vxastro_token_addr = addr_validate_to_lower(deps.api, &vxastro_token_addr)?;
+    }
+
     if let Some(builder_unlock_addr) = updated_config.builder_unlock_addr {
         config.builder_unlock_addr = addr_validate_to_lower(deps.api, &builder_unlock_addr)?;
     }
@@ -558,11 +566,11 @@ pub fn update_config(
     }
 
     if let Some(proposal_required_quorum) = updated_config.proposal_required_quorum {
-        config.proposal_required_quorum = Decimal::percent(proposal_required_quorum);
+        config.proposal_required_quorum = Decimal::from_str(&proposal_required_quorum)?;
     }
 
     if let Some(proposal_required_threshold) = updated_config.proposal_required_threshold {
-        config.proposal_required_threshold = Decimal::percent(proposal_required_threshold);
+        config.proposal_required_threshold = Decimal::from_str(&proposal_required_threshold)?;
     }
 
     config.validate()?;
@@ -677,15 +685,19 @@ pub fn query_proposal_votes(deps: Deps, proposal_id: u64) -> StdResult<ProposalV
 ///
 /// * **sender** is the object of type [`String`].
 ///
-/// * **block** is the Terra block height.
-pub fn calc_voting_power(deps: &DepsMut, sender: String, block: u64) -> StdResult<Uint128> {
+/// * **proposal** is the object of type [`Proposal`].
+pub fn calc_voting_power(
+    deps: &DepsMut,
+    sender: String,
+    proposal: &Proposal,
+) -> StdResult<Uint128> {
     let config = CONFIG.load(deps.storage)?;
 
     let xastro_amount: BalanceResponse = deps.querier.query_wasm_smart(
         config.xastro_token_addr,
         &XAstroTokenQueryMsg::BalanceAt {
             address: sender.clone(),
-            block,
+            block: proposal.start_block,
         },
     )?;
 
@@ -693,12 +705,26 @@ pub fn calc_voting_power(deps: &DepsMut, sender: String, block: u64) -> StdResul
 
     let locked_amount: AllocationResponse = deps.querier.query_wasm_smart(
         config.builder_unlock_addr,
-        &BuilderUnlockQueryMsg::Allocation { account: sender },
+        &BuilderUnlockQueryMsg::Allocation {
+            account: sender.clone(),
+        },
     )?;
 
     if !locked_amount.params.amount.is_zero() {
         total = total
             .checked_add(locked_amount.params.amount - locked_amount.status.astro_withdrawn)?;
+    }
+
+    let vxastro_amount: VotingPowerResponse = deps.querier.query_wasm_smart(
+        config.vxastro_token_addr,
+        &VotingEscrowQueryMsg::UserVotingPowerAt {
+            user: sender,
+            time: proposal.start_time - 1,
+        },
+    )?;
+
+    if !vxastro_amount.voting_power.is_zero() {
+        total = total.checked_add(vxastro_amount.voting_power)?;
     }
 
     Ok(total)
@@ -709,14 +735,16 @@ pub fn calc_voting_power(deps: &DepsMut, sender: String, block: u64) -> StdResul
 /// ## Params
 /// * **deps** is the object of type [`DepsMut`].
 ///
-/// * **block** is the Terra block height.
-pub fn calc_total_voting_power_at(deps: &DepsMut, block: u64) -> StdResult<Uint128> {
+/// * **proposal** is the object of type [`Proposal`].
+pub fn calc_total_voting_power_at(deps: &DepsMut, proposal: &Proposal) -> StdResult<Uint128> {
     let config = CONFIG.load(deps.storage)?;
 
     // Total xASTRO supply at a specified block
-    let total_supply: Uint128 = deps.querier.query_wasm_smart(
+    let mut total: Uint128 = deps.querier.query_wasm_smart(
         config.xastro_token_addr,
-        &XAstroTokenQueryMsg::TotalSupplyAt { block },
+        &XAstroTokenQueryMsg::TotalSupplyAt {
+            block: proposal.start_block - 1,
+        },
     )?;
 
     // Total builder locked
@@ -724,5 +752,21 @@ pub fn calc_total_voting_power_at(deps: &DepsMut, block: u64) -> StdResult<Uint1
         .querier
         .query_wasm_smart(config.builder_unlock_addr, &BuilderUnlockQueryMsg::State {})?;
 
-    Ok(total_supply + builder_state.remaining_astro_tokens)
+    if !builder_state.remaining_astro_tokens.is_zero() {
+        total = total.checked_add(builder_state.remaining_astro_tokens)?;
+    }
+
+    // Total vxAstro
+    let vxastro: VotingPowerResponse = deps.querier.query_wasm_smart(
+        config.vxastro_token_addr,
+        &VotingEscrowQueryMsg::TotalVotingPowerAt {
+            time: proposal.start_time - 1,
+        },
+    )?;
+
+    if !vxastro.voting_power.is_zero() {
+        total = total.checked_add(vxastro.voting_power)?;
+    }
+
+    Ok(total)
 }

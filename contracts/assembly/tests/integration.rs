@@ -2,12 +2,18 @@ use astroport::{
     token::InstantiateMsg as TokenInstantiateMsg,
     xastro_token::InstantiateMsg as XAstroInstantiateMsg, xastro_token::QueryMsg as XAstroQueryMsg,
 };
+use std::str::FromStr;
 
 use astroport_governance::assembly::{
     Config, Cw20HookMsg, ExecuteMsg, InstantiateMsg, Proposal, ProposalListResponse,
     ProposalMessage, ProposalStatus, ProposalVoteOption, ProposalVotesResponse, QueryMsg,
     UpdateConfig,
 };
+
+use astroport_governance::voting_escrow::{
+    Cw20HookMsg as VXAstroCw20HookMsg, InstantiateMsg as VXAstroInstantiateMsg,
+};
+
 use astroport_governance::builder_unlock::msg::{
     InstantiateMsg as BuilderUnlockInstantiateMsg, ReceiveMsg as BuilderUnlockReceiveMsg,
 };
@@ -20,13 +26,14 @@ use cw20::{BalanceResponse, Cw20ExecuteMsg, MinterResponse};
 use terra_multi_test::{
     next_block, AppBuilder, AppResponse, BankKeeper, ContractWrapper, Executor, TerraApp, TerraMock,
 };
+use voting_escrow::contract::WEEK;
 
 const PROPOSAL_VOTING_PERIOD: u64 = 500;
 const PROPOSAL_EFFECTIVE_DELAY: u64 = 50;
 const PROPOSAL_EXPIRATION_PERIOD: u64 = 400;
 const PROPOSAL_REQUIRED_DEPOSIT: u128 = 1000u128;
-const PROPOSAL_REQUIRED_QUORUM: u64 = 55;
-const PROPOSAL_REQUIRED_THRESHOLD: u64 = 60;
+const PROPOSAL_REQUIRED_QUORUM: &str = "0.50";
+const PROPOSAL_REQUIRED_THRESHOLD: &str = "0.60";
 
 #[test]
 fn proper_contract_instantiation() {
@@ -37,6 +44,7 @@ fn proper_contract_instantiation() {
     // Instantiate needed contracts
     let token_addr = instantiate_astro_token(&mut app, &owner);
     let xastro_token_addr = instantiate_xastro_token(&mut app, &owner);
+    let vxastro_token_addr = instantiate_vxastro_token(&mut app, &owner, &xastro_token_addr);
     let builder_unlock_addr = instantiate_builder_unlock_contract(&mut app, &owner, &token_addr);
 
     let assembly_contract = Box::new(ContractWrapper::new_with_empty(
@@ -49,13 +57,14 @@ fn proper_contract_instantiation() {
 
     let assembly_default_instantiate_msg = InstantiateMsg {
         xastro_token_addr: xastro_token_addr.to_string(),
+        vxastro_token_addr: vxastro_token_addr.to_string(),
         builder_unlock_addr: builder_unlock_addr.to_string(),
         proposal_voting_period: PROPOSAL_VOTING_PERIOD,
         proposal_effective_delay: PROPOSAL_EFFECTIVE_DELAY,
         proposal_expiration_period: PROPOSAL_EXPIRATION_PERIOD,
         proposal_required_deposit: Uint128::from(PROPOSAL_REQUIRED_DEPOSIT),
-        proposal_required_quorum: PROPOSAL_REQUIRED_QUORUM,
-        proposal_required_threshold: PROPOSAL_REQUIRED_THRESHOLD,
+        proposal_required_quorum: String::from(PROPOSAL_REQUIRED_QUORUM),
+        proposal_required_threshold: String::from(PROPOSAL_REQUIRED_THRESHOLD),
     };
 
     // Try to instantiate assembly with wrong threshold
@@ -64,7 +73,7 @@ fn proper_contract_instantiation() {
             assembly_code,
             owner.clone(),
             &InstantiateMsg {
-                proposal_required_threshold: 40,
+                proposal_required_threshold: "0.4".to_string(),
                 ..assembly_default_instantiate_msg.clone()
             },
             &[],
@@ -83,7 +92,7 @@ fn proper_contract_instantiation() {
             assembly_code,
             owner.clone(),
             &InstantiateMsg {
-                proposal_required_threshold: 110,
+                proposal_required_threshold: "1.1".to_string(),
                 ..assembly_default_instantiate_msg.clone()
             },
             &[],
@@ -102,7 +111,7 @@ fn proper_contract_instantiation() {
             assembly_code,
             owner.clone(),
             &InstantiateMsg {
-                proposal_required_quorum: 110,
+                proposal_required_quorum: "1.1".to_string(),
                 ..assembly_default_instantiate_msg.clone()
             },
             &[],
@@ -143,11 +152,11 @@ fn proper_contract_instantiation() {
     );
     assert_eq!(
         res.proposal_required_quorum,
-        Decimal::percent(PROPOSAL_REQUIRED_QUORUM)
+        Decimal::from_str(PROPOSAL_REQUIRED_QUORUM).unwrap()
     );
     assert_eq!(
         res.proposal_required_threshold,
-        Decimal::percent(PROPOSAL_REQUIRED_THRESHOLD)
+        Decimal::from_str(PROPOSAL_REQUIRED_THRESHOLD).unwrap()
     );
 }
 
@@ -158,7 +167,7 @@ fn proper_proposal_submitting() {
     let owner = Addr::unchecked("owner");
     let user = Addr::unchecked("user1");
 
-    let (_, xastro_addr, _, assembly_addr) = instantiate_contracts(&mut app, owner);
+    let (_, xastro_addr, _, _, assembly_addr) = instantiate_contracts(&mut app, owner);
 
     let proposals: ProposalListResponse = app
         .wrap()
@@ -342,6 +351,7 @@ fn proper_proposal_submitting() {
                         contract_addr: assembly_addr.to_string(),
                         msg: to_binary(&ExecuteMsg::UpdateConfig(UpdateConfig {
                             xastro_token_addr: None,
+                            vxastro_token_addr: None,
                             builder_unlock_addr: None,
                             proposal_voting_period: Some(750),
                             proposal_effective_delay: None,
@@ -390,6 +400,7 @@ fn proper_proposal_submitting() {
                 contract_addr: assembly_addr.to_string(),
                 msg: to_binary(&ExecuteMsg::UpdateConfig(UpdateConfig {
                     xastro_token_addr: None,
+                    vxastro_token_addr: None,
                     builder_unlock_addr: None,
                     proposal_voting_period: Some(750),
                     proposal_effective_delay: None,
@@ -412,23 +423,23 @@ fn proper_successful_proposal() {
 
     let owner = Addr::unchecked("owner");
 
-    let (token_addr, xastro_addr, builder_unlock_addr, assembly_addr) =
+    let (token_addr, xastro_addr, vxastro_addr, builder_unlock_addr, assembly_addr) =
         instantiate_contracts(&mut app, owner);
 
     // Init voting power for users
-    let xastro_balances: Vec<(&str, u128)> = vec![
-        ("user0", PROPOSAL_REQUIRED_DEPOSIT), // Proposal submitter
-        ("user1", 100),
-        ("user2", 200),
-        ("user3", 400),
-        ("user4", 250),
-        ("user5", 90),
-        ("user6", 300),
-        ("user7", 30),
-        ("user8", 180),
-        ("user9", 50),
-        ("user10", 90),
-        ("user11", 500),
+    let balances: Vec<(&str, u128, u128)> = vec![
+        ("user0", PROPOSAL_REQUIRED_DEPOSIT, 0), // Proposal submitter
+        ("user1", 20, 80),
+        ("user2", 100, 100),
+        ("user3", 300, 100),
+        ("user4", 200, 50),
+        ("user5", 0, 90),
+        ("user6", 100, 200),
+        ("user7", 30, 0),
+        ("user8", 80, 100),
+        ("user9", 50, 0),
+        ("user10", 0, 90),
+        ("user11", 500, 0),
     ];
 
     let default_allocation_params = AllocationParams {
@@ -472,8 +483,20 @@ fn proper_successful_proposal() {
         ),
     ];
 
-    for (addr, xastro) in xastro_balances {
-        mint_tokens(&mut app, &xastro_addr, &Addr::unchecked(addr), xastro);
+    for (addr, xastro, vxastro) in balances {
+        if xastro > 0 {
+            mint_tokens(&mut app, &xastro_addr, &Addr::unchecked(addr), xastro);
+        }
+
+        if vxastro > 0 {
+            mint_vxastro(
+                &mut app,
+                xastro_addr.clone(),
+                &vxastro_addr,
+                Addr::unchecked(addr),
+                vxastro,
+            );
+        }
     }
 
     create_allocations(&mut app, token_addr, builder_unlock_addr, locked_balances);
@@ -493,6 +516,7 @@ fn proper_successful_proposal() {
                 contract_addr: assembly_addr.to_string(),
                 msg: to_binary(&ExecuteMsg::UpdateConfig(UpdateConfig {
                     xastro_token_addr: None,
+                    vxastro_token_addr: None,
                     builder_unlock_addr: None,
                     proposal_voting_period: Some(750),
                     proposal_effective_delay: None,
@@ -548,11 +572,11 @@ fn proper_successful_proposal() {
         .unwrap();
 
     // Check proposal votes
-    assert_eq!(proposal.for_power, Uint128::from(1600u32));
-    assert_eq!(proposal.against_power, Uint128::from(350u32));
+    assert_eq!(proposal.for_power, Uint128::from(2045u32));
+    assert_eq!(proposal.against_power, Uint128::from(486u32));
 
-    assert_eq!(proposal_votes.for_power, Uint128::from(1600u32));
-    assert_eq!(proposal_votes.against_power, Uint128::from(350u32));
+    assert_eq!(proposal_votes.for_power, Uint128::from(2045u32));
+    assert_eq!(proposal_votes.against_power, Uint128::from(486u32));
 
     assert_eq!(
         proposal.for_voters,
@@ -732,7 +756,7 @@ fn proper_unsuccessful_proposal() {
 
     let owner = Addr::unchecked("owner");
 
-    let (_, xastro_addr, _, assembly_addr) = instantiate_contracts(&mut app, owner);
+    let (_, xastro_addr, _, _, assembly_addr) = instantiate_contracts(&mut app, owner);
 
     // Init voting power for users
     let xastro_balances: Vec<(&str, u128)> = vec![
@@ -868,21 +892,29 @@ fn mock_app() -> TerraApp {
         .build()
 }
 
-fn instantiate_contracts(router: &mut TerraApp, owner: Addr) -> (Addr, Addr, Addr, Addr) {
+fn instantiate_contracts(router: &mut TerraApp, owner: Addr) -> (Addr, Addr, Addr, Addr, Addr) {
     let token_addr = instantiate_astro_token(router, &owner);
     let xastro_token_addr = instantiate_xastro_token(router, &owner);
+    let vxastro_token_addr = instantiate_vxastro_token(router, &owner, &xastro_token_addr);
     let builder_unlock_addr = instantiate_builder_unlock_contract(router, &owner, &token_addr);
-    let assembly_addr =
-        instantiate_assembly_contract(router, &owner, &xastro_token_addr, &builder_unlock_addr);
+    let assembly_addr = instantiate_assembly_contract(
+        router,
+        &owner,
+        &xastro_token_addr,
+        &vxastro_token_addr,
+        &builder_unlock_addr,
+    );
 
     assert_eq!("contract #0", token_addr);
     assert_eq!("contract #1", xastro_token_addr);
-    assert_eq!("contract #2", builder_unlock_addr);
-    assert_eq!("contract #3", assembly_addr);
+    assert_eq!("contract #2", vxastro_token_addr);
+    assert_eq!("contract #3", builder_unlock_addr);
+    assert_eq!("contract #4", assembly_addr);
 
     (
         token_addr,
         xastro_token_addr,
+        vxastro_token_addr,
         builder_unlock_addr,
         assembly_addr,
     )
@@ -952,6 +984,34 @@ fn instantiate_xastro_token(router: &mut TerraApp, owner: &Addr) -> Addr {
         .unwrap()
 }
 
+fn instantiate_vxastro_token(router: &mut TerraApp, owner: &Addr, xastro: &Addr) -> Addr {
+    let vxastro_token_contract = Box::new(ContractWrapper::new_with_empty(
+        voting_escrow::contract::execute,
+        voting_escrow::contract::instantiate,
+        voting_escrow::contract::query,
+    ));
+
+    let vxastro_token_code_id = router.store_code(vxastro_token_contract);
+
+    let msg = VXAstroInstantiateMsg {
+        owner: owner.to_string(),
+        guardian_addr: owner.to_string(),
+        deposit_token_addr: xastro.to_string(),
+        marketing: None,
+    };
+
+    router
+        .instantiate_contract(
+            vxastro_token_code_id,
+            owner.clone(),
+            &msg,
+            &[],
+            String::from("vxASTRO"),
+            None,
+        )
+        .unwrap()
+}
+
 fn instantiate_builder_unlock_contract(
     router: &mut TerraApp,
     owner: &Addr,
@@ -986,6 +1046,7 @@ fn instantiate_assembly_contract(
     router: &mut TerraApp,
     owner: &Addr,
     xastro: &Addr,
+    vxastro: &Addr,
     builder: &Addr,
 ) -> Addr {
     let assembly_contract = Box::new(ContractWrapper::new_with_empty(
@@ -998,13 +1059,14 @@ fn instantiate_assembly_contract(
 
     let msg = InstantiateMsg {
         xastro_token_addr: xastro.to_string(),
+        vxastro_token_addr: vxastro.to_string(),
         builder_unlock_addr: builder.to_string(),
         proposal_voting_period: PROPOSAL_VOTING_PERIOD,
         proposal_effective_delay: PROPOSAL_EFFECTIVE_DELAY,
         proposal_expiration_period: PROPOSAL_EXPIRATION_PERIOD,
         proposal_required_deposit: Uint128::new(PROPOSAL_REQUIRED_DEPOSIT),
-        proposal_required_quorum: PROPOSAL_REQUIRED_QUORUM,
-        proposal_required_threshold: PROPOSAL_REQUIRED_THRESHOLD,
+        proposal_required_quorum: String::from(PROPOSAL_REQUIRED_QUORUM),
+        proposal_required_threshold: String::from(PROPOSAL_REQUIRED_THRESHOLD),
     };
 
     router
@@ -1027,6 +1089,18 @@ fn mint_tokens(app: &mut TerraApp, token: &Addr, recipient: &Addr, amount: u128)
 
     app.execute_contract(Addr::unchecked("owner"), token.to_owned(), &msg, &[])
         .unwrap();
+}
+
+fn mint_vxastro(app: &mut TerraApp, xastro: Addr, vxastro: &Addr, recipient: Addr, amount: u128) {
+    mint_tokens(app, &xastro.clone(), &recipient.clone(), amount);
+
+    let msg = Cw20ExecuteMsg::Send {
+        contract: vxastro.to_string(),
+        amount: Uint128::from(amount),
+        msg: to_binary(&VXAstroCw20HookMsg::CreateLock { time: WEEK * 50 }).unwrap(),
+    };
+
+    app.execute_contract(recipient, xastro, &msg, &[]).unwrap();
 }
 
 fn create_allocations(
