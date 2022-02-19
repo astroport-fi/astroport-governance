@@ -10,9 +10,13 @@ use cosmwasm_std::{
 use cw20::Cw20ExecuteMsg;
 use terra_cosmwasm::TerraQuerier;
 
+/// # Description
+/// This structure describes a token.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Asset {
+    /// Information about the token/asset
     pub info: AssetInfo,
+    /// An amount of tokens
     pub amount: Uint128,
 }
 
@@ -22,6 +26,7 @@ impl fmt::Display for Asset {
     }
 }
 
+/// Decimal points for tokens
 static DECIMAL_FRACTION: Uint128 = Uint128::new(1_000_000_000_000_000_000u128);
 
 impl Asset {
@@ -102,6 +107,8 @@ impl Asset {
     }
 }
 
+/// # Description
+/// This enum describes the types of assets the Astroport code handles.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum AssetInfo {

@@ -43,11 +43,11 @@ const MAX_LIMIT: u32 = 30;
 /// Creates a new contract with the specified parameters in the `msg` variable.
 /// Returns the [`Response`] with the specified attributes if the operation was successful, or a [`ContractError`] if the contract was not created
 /// ## Params
-/// * **deps** is the object of type [`DepsMut`].
+/// * **deps** is an object of type [`DepsMut`].
 ///
-/// * **_env** is the object of type [`Env`]
+/// * **_env** is an object of type [`Env`]
 ///
-/// * **_info** is the object of type [`MessageInfo`]
+/// * **_info** is an object of type [`MessageInfo`]
 ///
 /// * **msg**  is a message of type [`InstantiateMsg`] which contains the basic settings for creating a contract
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -81,15 +81,15 @@ pub fn instantiate(
 }
 
 /// ## Description
-/// Execute transactions.
+/// Exposes all the execute functions available in the contract.
 /// ## Params
-/// * **deps** is the object of type [`Deps`].
+/// * **deps** is an object of type [`Deps`].
 ///
-/// * **env** is the object of type [`Env`].
+/// * **env** is an object of type [`Env`].
 ///
-/// * **info** is the object of type [`MessageInfo`].
+/// * **info** is an object of type [`MessageInfo`].
 ///
-/// * **msg** is the object of type [`ExecuteMsg`].
+/// * **msg** is an object of type [`ExecuteMsg`].
 ///
 /// ## Queries
 /// * **ExecuteMsg::Receive(cw20_msg)** Receives a message of type [`Cw20ReceiveMsg`] and processes
@@ -130,13 +130,13 @@ pub fn execute(
 /// If the template is not found in the received message, then an [`ContractError`] is returned,
 /// otherwise the function returns a [`Response`] with the specified attributes if the operation was successful
 /// ## Params
-/// * **deps** is the object of type [`DepsMut`].
+/// * **deps** is an object of type [`DepsMut`].
 ///
-/// * **env** is the object of type [`Env`].
+/// * **env** is an object of type [`Env`].
 ///
-/// * **info** is the object of type [`MessageInfo`].
+/// * **info** is an object of type [`MessageInfo`].
 ///
-/// * **cw20_msg** is the object of type [`Cw20ReceiveMsg`].
+/// * **cw20_msg** is an object of type [`Cw20ReceiveMsg`].
 pub fn receive_cw20(
     deps: DepsMut,
     env: Env,
@@ -167,23 +167,23 @@ pub fn receive_cw20(
 /// Submit a brand new proposal and lock some xASTRO as an anti-spam mechanism.
 /// Returns [`ContractError`] on failure, otherwise returns a [`Response`] with the specified attributes if the operation was successful.
 /// ## Params
-/// * **deps** is the object of type [`DepsMut`].
+/// * **deps** is an object of type [`DepsMut`].
 ///
-/// * **env** is the object of type [`Env`].
+/// * **env** is an object of type [`Env`].
 ///
-/// * **info** is the object of type [`MessageInfo`].
+/// * **info** is an object of type [`MessageInfo`].
 ///
-/// * **sender** is the object of type [`Addr`]. Proposal submitter.
+/// * **sender** is an object of type [`Addr`]. Proposal submitter.
 ///
-/// * **deposit_amount** is the object of type [`Uint128`]. Amount of xASTRO to deposit in order to submit the proposal.
+/// * **deposit_amount** is an object of type [`Uint128`]. Amount of xASTRO to deposit in order to submit the proposal.
 ///
-/// * **title** is the object of type [`String`]. Title of proposal.
+/// * **title** is an object of type [`String`]. Title of proposal.
 ///
-/// * **description** is the object of type [`String`]. Description of proposal.
+/// * **description** is an object of type [`String`]. Description of proposal.
 ///
-/// * **link** is the object of type [`Option<String>`]. Proposal link.
+/// * **link** is an object of type [`Option<String>`]. Proposal link.
 ///
-/// * **messages** is the object of type [`Option<Vec<ProposalMessage>>`]. Proposal messages.
+/// * **messages** is an object of type [`Option<Vec<ProposalMessage>>`]. Proposal messages.
 #[allow(clippy::too_many_arguments)]
 pub fn submit_proposal(
     deps: DepsMut,
@@ -281,11 +281,11 @@ pub fn submit_proposal(
 /// Returns [`ContractError`] on failure, otherwise returns a [`Response`] with the specified
 /// attributes if the operation was successful.
 /// ## Params
-/// * **deps** is the object of type [`DepsMut`].
+/// * **deps** is an object of type [`DepsMut`].
 ///
-/// * **env** is the object of type [`Env`].
+/// * **env** is an object of type [`Env`].
 ///
-/// * **info** is the object of type [`MessageInfo`].
+/// * **info** is an object of type [`MessageInfo`].
 ///
 /// * **proposal_id** is the identifier of the proposal.
 ///
@@ -348,11 +348,11 @@ pub fn cast_vote(
 /// Returns an [`ContractError`] on failure, otherwise returns the [`Response`] with the specified
 /// attributes if the operation was successful.
 /// ## Params
-/// * **deps** is the object of type [`DepsMut`].
+/// * **deps** is an object of type [`DepsMut`].
 ///
-/// * **env** is the object of type [`Env`].
+/// * **env** is an object of type [`Env`].
 ///
-/// * **_info** is the object of type [`MessageInfo`].
+/// * **_info** is an object of type [`MessageInfo`].
 ///
 /// * **proposal_id** is the identifier of the proposal.
 pub fn end_proposal(
@@ -424,11 +424,11 @@ pub fn end_proposal(
 /// Returns [`ContractError`] on failure, otherwise returns a [`Response`] with the specified
 /// attributes if the operation was successful.
 /// ## Params
-/// * **deps** is the object of type [`DepsMut`].
+/// * **deps** is an object of type [`DepsMut`].
 ///
-/// * **env** is the object of type [`Env`].
+/// * **env** is an object of type [`Env`].
 ///
-/// * **_info** is the object of type [`MessageInfo`].
+/// * **_info** is an object of type [`MessageInfo`].
 ///
 /// * **proposal_id** is the identifier of the proposal.
 pub fn execute_proposal(
@@ -478,11 +478,11 @@ pub fn execute_proposal(
 /// Returns [`ContractError`] on failure, otherwise returns a [`Response`] with the specified
 /// attributes if the operation was successful.
 /// ## Params
-/// * **deps** is the object of type [`DepsMut`].
+/// * **deps** is an object of type [`DepsMut`].
 ///
-/// * **env** is the object of type [`Env`].
+/// * **env** is an object of type [`Env`].
 ///
-/// * **_info** is the object of type [`MessageInfo`].
+/// * **_info** is an object of type [`MessageInfo`].
 ///
 /// * **proposal_id** is the identifier of the proposal.
 pub fn remove_completed_proposal(
@@ -517,13 +517,13 @@ pub fn remove_completed_proposal(
 /// Returns [`ContractError`] on failure, otherwise returns a [`Response`] with the specified
 /// attributes if the operation was successful.
 /// ## Params
-/// * **deps** is the object of type [`DepsMut`].
+/// * **deps** is an object of type [`DepsMut`].
 ///
-/// * **env** is the object of type [`Env`].
+/// * **env** is an object of type [`Env`].
 ///
-/// * **info** is the object of type [`MessageInfo`].
+/// * **info** is an object of type [`MessageInfo`].
 ///
-/// * **updated_config** is the object of type [`UpdateConfig`].
+/// * **updated_config** is an object of type [`UpdateConfig`].
 pub fn update_config(
     deps: DepsMut,
     env: Env,
@@ -583,11 +583,11 @@ pub fn update_config(
 /// ## Description
 /// Expose and execute available contract queries.
 /// ## Params
-/// * **deps** is the object of type [`Deps`].
+/// * **deps** is an object of type [`Deps`].
 ///
-/// * **_env** is the object of type [`Env`].
+/// * **_env** is an object of type [`Env`].
 ///
-/// * **msg** is the object of type [`QueryMsg`].
+/// * **msg** is an object of type [`QueryMsg`].
 ///
 /// ## Queries
 /// * **QueryMsg::Config {}** Returns core contract settings stored in the [`Config`] structure.
@@ -612,7 +612,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 /// ## Description
 /// Returns the contract configuration stored in the [`Config`] structure.
 /// ## Params
-/// * **deps** is the object of type [`Deps`].
+/// * **deps** is an object of type [`Deps`].
 pub fn query_config(deps: Deps) -> StdResult<Config> {
     let config = CONFIG.load(deps.storage)?;
     Ok(config)
@@ -621,7 +621,7 @@ pub fn query_config(deps: Deps) -> StdResult<Config> {
 /// ## Description
 /// Returns the current proposal list.
 /// ## Params
-/// * **deps** is the object of type [`Deps`].
+/// * **deps** is an object of type [`Deps`].
 ///
 /// * **start_after** is an [`Option`] type. Specifies the proposal list index to start reading from.
 ///
@@ -654,7 +654,7 @@ pub fn query_proposals(
 /// ## Description
 /// Returns proposal information stored in the [`Proposal`] structure.
 /// ## Params
-/// * **deps** is the object of type [`Deps`].
+/// * **deps** is an object of type [`Deps`].
 ///
 /// * **proposal_id** is the desired proposal identifier.
 pub fn query_proposal(deps: Deps, proposal_id: u64) -> StdResult<Proposal> {
@@ -665,7 +665,7 @@ pub fn query_proposal(deps: Deps, proposal_id: u64) -> StdResult<Proposal> {
 /// ## Description
 /// Returns proposal votes stored in the [`ProposalVotesResponse`] structure.
 /// ## Params
-/// * **deps** is the object of type [`Deps`].
+/// * **deps** is an object of type [`Deps`].
 ///
 /// * **proposal_id** is the desired proposal identifier.
 pub fn query_proposal_votes(deps: Deps, proposal_id: u64) -> StdResult<ProposalVotesResponse> {
@@ -681,11 +681,11 @@ pub fn query_proposal_votes(deps: Deps, proposal_id: u64) -> StdResult<ProposalV
 /// ## Description
 /// Calculates sender voting power at the specified block.
 /// ## Params
-/// * **deps** is the object of type [`DepsMut`].
+/// * **deps** is an object of type [`DepsMut`].
 ///
-/// * **sender** is the object of type [`String`].
+/// * **sender** is an object of type [`String`].
 ///
-/// * **proposal** is the object of type [`Proposal`].
+/// * **proposal** is an object of type [`Proposal`].
 pub fn calc_voting_power(
     deps: &DepsMut,
     sender: String,
@@ -733,9 +733,9 @@ pub fn calc_voting_power(
 /// ## Description
 /// Calculates total voting power at a specified block.
 /// ## Params
-/// * **deps** is the object of type [`DepsMut`].
+/// * **deps** is an object of type [`DepsMut`].
 ///
-/// * **proposal** is the object of type [`Proposal`].
+/// * **proposal** is an object of type [`Proposal`].
 pub fn calc_total_voting_power_at(deps: &DepsMut, proposal: &Proposal) -> StdResult<Uint128> {
     let config = CONFIG.load(deps.storage)?;
 
