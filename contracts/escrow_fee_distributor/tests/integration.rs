@@ -71,7 +71,7 @@ fn instantiation() {
         resp.voting_escrow_addr
     );
     assert_eq!(false, resp.is_claim_disabled);
-    assert_eq!(10u64, resp.max_limit_accounts_of_claim);
+    assert_eq!(10u64, resp.claim_many_limit);
 }
 
 #[test]
@@ -166,7 +166,7 @@ fn test_receive_tokens() {
         .wrap()
         .query_wasm_smart(
             &base_pack.escrow_fee_distributor.clone().unwrap().address,
-            &QueryMsg::FeeTokensPerWeek {
+            &QueryMsg::AvailableRewardPerWeek {
                 start_after: None,
                 limit: None,
             },
@@ -199,7 +199,7 @@ fn update_config() {
         .query_wasm_smart(&escrow_fee_distributor.clone(), &QueryMsg::Config {})
         .unwrap();
 
-    assert_eq!(10u64, resp.max_limit_accounts_of_claim);
+    assert_eq!(10u64, resp.claim_many_limit);
     assert_eq!(false, resp.is_claim_disabled);
 
     // check if anyone can't update configs
@@ -208,7 +208,7 @@ fn update_config() {
             user1.clone(),
             escrow_fee_distributor.clone(),
             &ExecuteMsg::UpdateConfig {
-                max_limit_accounts_of_claim: Some(20u64),
+                claim_many_limit: Some(20u64),
                 is_claim_disabled: Some(true),
             },
             &[],
@@ -222,7 +222,7 @@ fn update_config() {
             owner.clone(),
             escrow_fee_distributor.clone(),
             &ExecuteMsg::UpdateConfig {
-                max_limit_accounts_of_claim: Some(20u64),
+                claim_many_limit: Some(20u64),
                 is_claim_disabled: Some(true),
             },
             &[],
@@ -234,14 +234,14 @@ fn update_config() {
         .query_wasm_smart(&escrow_fee_distributor.clone(), &QueryMsg::Config {})
         .unwrap();
 
-    assert_eq!(20u64, resp_config.max_limit_accounts_of_claim);
+    assert_eq!(20u64, resp_config.claim_many_limit);
     assert_eq!(true, resp_config.is_claim_disabled);
 
     assert_eq!(
         vec![
             attr("action", "update_config"),
             attr("is_claim_disabled", "true"),
-            attr("max_limit_accounts_of_claim", "20"),
+            attr("claim_many_limit", "20"),
         ],
         vec![
             resp.events[1].attributes[1].clone(),
@@ -503,7 +503,7 @@ fn claim_max_period() {
         .wrap()
         .query_wasm_smart(
             &base_pack.escrow_fee_distributor.clone().unwrap().address,
-            &QueryMsg::FeeTokensPerWeek {
+            &QueryMsg::AvailableRewardPerWeek {
                 start_after: None,
                 limit: Some(2),
             },
@@ -641,7 +641,7 @@ fn claim_multiple_users() {
         .wrap()
         .query_wasm_smart(
             &base_pack.escrow_fee_distributor.clone().unwrap().address,
-            &QueryMsg::FeeTokensPerWeek {
+            &QueryMsg::AvailableRewardPerWeek {
                 start_after: None,
                 limit: None,
             },
@@ -789,7 +789,7 @@ fn claim_multiple_users() {
         .wrap()
         .query_wasm_smart(
             &base_pack.escrow_fee_distributor.clone().unwrap().address,
-            &QueryMsg::FeeTokensPerWeek {
+            &QueryMsg::AvailableRewardPerWeek {
                 start_after: None,
                 limit: None,
             },
@@ -973,7 +973,7 @@ fn is_claim_enabled() {
         .wrap()
         .query_wasm_smart(
             &base_pack.escrow_fee_distributor.clone().unwrap().address,
-            &QueryMsg::FeeTokensPerWeek {
+            &QueryMsg::AvailableRewardPerWeek {
                 start_after: Some(router_ref.block_info().time.seconds() - WEEK),
                 limit: None,
             },
@@ -991,7 +991,7 @@ fn is_claim_enabled() {
             owner.clone(),
             base_pack.escrow_fee_distributor.clone().unwrap().address,
             &ExecuteMsg::UpdateConfig {
-                max_limit_accounts_of_claim: None,
+                claim_many_limit: None,
                 is_claim_disabled: Some(true),
             },
             &[],
@@ -1010,7 +1010,7 @@ fn is_claim_enabled() {
         )
         .unwrap_err();
 
-    assert_eq!("Claim is not available!", err.to_string());
+    assert_eq!("Claim is disabled!", err.to_string());
 
     // sends 100_000_000 ASTRO from maker to distributor for first period
     let msg = Cw20ExecuteMsg::Send {
@@ -1049,7 +1049,7 @@ fn is_claim_enabled() {
         )
         .unwrap_err();
 
-    assert_eq!("Claim is not available!", err.to_string());
+    assert_eq!("Claim is disabled!", err.to_string());
 
     // going to next week
     router_ref.update_block(next_block);
@@ -1061,7 +1061,7 @@ fn is_claim_enabled() {
             owner.clone(),
             base_pack.escrow_fee_distributor.clone().unwrap().address,
             &ExecuteMsg::UpdateConfig {
-                max_limit_accounts_of_claim: None,
+                claim_many_limit: None,
                 is_claim_disabled: Some(false),
             },
             &[],

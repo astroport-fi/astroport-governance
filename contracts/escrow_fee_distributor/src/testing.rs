@@ -12,7 +12,7 @@ fn proper_initialization() {
         owner: "owner".to_string(),
         astro_token: "token".to_string(),
         voting_escrow_addr: "voting_escrow".to_string(),
-        max_limit_accounts_of_claim: None,
+        claim_many_limit: None,
         is_claim_disabled: None,
     };
 
@@ -27,7 +27,7 @@ fn proper_initialization() {
             owner: Addr::unchecked("owner"),
             astro_token: Addr::unchecked("token"),
             voting_escrow_addr: Addr::unchecked("voting_escrow"),
-            max_limit_accounts_of_claim: 10,
+            claim_many_limit: 10,
             is_claim_disabled: false
         }
     );

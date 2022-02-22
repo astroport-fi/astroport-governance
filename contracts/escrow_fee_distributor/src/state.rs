@@ -17,7 +17,7 @@ pub struct Config {
     /// VotingEscrow contract address
     pub voting_escrow_addr: Addr,
     /// Max limit of addresses to claim rewards in single call
-    pub max_limit_accounts_of_claim: u64,
+    pub claim_many_limit: u64,
     /// Is reward claiming disabled: for emergency
     pub is_claim_disabled: bool,
 }
@@ -32,7 +32,7 @@ pub const TOKENS_PER_WEEK: Map<U64Key, Uint128> = Map::new("tokens_per_week");
 
 /// ## Description
 /// Contains information about the last week of commission issuance.
-pub const CLAIM_FROM_PERIOD: Map<Addr, u64> = Map::new("claim_from_period");
+pub const LAST_CLAIM_PERIOD: Map<Addr, u64> = Map::new("last_claim_period");
 
 /// ## Description
 /// Contains proposal for change ownership.

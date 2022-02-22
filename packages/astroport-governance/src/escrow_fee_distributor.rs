@@ -14,7 +14,7 @@ pub struct InstantiateMsg {
     /// VotingEscrow contract address
     pub voting_escrow_addr: String,
     /// Max limit of addresses to claim rewards in single call
-    pub max_limit_accounts_of_claim: Option<u64>,
+    pub claim_many_limit: Option<u64>,
     /// Is reward claiming disabled: for emergency
     pub is_claim_disabled: Option<bool>,
 }
@@ -41,7 +41,7 @@ pub enum ExecuteMsg {
     ClaimMany { receivers: Vec<String> },
     UpdateConfig {
         /// Max limit of addresses to claim rewards in single call
-        max_limit_accounts_of_claim: Option<u64>,
+        claim_many_limit: Option<u64>,
         /// Is reward claiming disabled: for emergency
         is_claim_disabled: Option<bool>,
     },
@@ -57,10 +57,10 @@ pub enum ExecuteMsg {
 pub enum QueryMsg {
     /// Returns controls settings that specified in custom [`ConfigResponse`] structure.
     Config {},
-    /// Returns a commission amount in the form of Astro for user at timestamp
-    UserFeeAmountPerWeek { user: String, timestamp: u64 },
-    /// Returns the vector that contains tokens fee per week
-    FeeTokensPerWeek {
+    /// Returns the reward amount in the form of Astro for the user by timestamp
+    UserReward { user: String, timestamp: u64 },
+    /// Returns the vector that contains the total reward amount per week
+    AvailableRewardPerWeek {
         start_after: Option<u64>,
         limit: Option<u64>,
     },
@@ -77,7 +77,7 @@ pub struct ConfigResponse {
     /// VotingEscrow contract address
     pub voting_escrow_addr: Addr,
     /// Max limit of addresses to claim rewards in single call
-    pub max_limit_accounts_of_claim: u64,
+    pub claim_many_limit: u64,
     /// Is reward claiming disabled: for emergency
     pub is_claim_disabled: bool,
 }

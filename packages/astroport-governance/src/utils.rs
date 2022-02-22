@@ -5,7 +5,7 @@ pub const WEEK: u64 = 7 * 86400; // lock period is rounded down by week
 pub const MAX_LOCK_TIME: u64 = 2 * 365 * 86400; // 2 years (104 weeks)
 
 /// The constant describes the maximum number of accounts for claim.
-pub const MAX_LIMIT_OF_CLAIM: u64 = 10;
+pub const CLAIM_LIMIT: u64 = 10;
 
 /// # Description
 /// Calculates how many periods are within specified time. Time should be in seconds.

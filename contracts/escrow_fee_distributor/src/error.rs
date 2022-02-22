@@ -12,10 +12,10 @@ pub enum ContractError {
     Unauthorized {},
 
     #[error("Exceeded account limit for claim operation!")]
-    ExceededAccountLimitOfClaim {},
+    ClaimLimitExceeded {},
 
-    #[error("Claim is not available!")]
-    ClaimIsNotAvailable {},
+    #[error("Claim is disabled!")]
+    ClaimDisabled {},
 }
 
 impl From<OverflowError> for ContractError {

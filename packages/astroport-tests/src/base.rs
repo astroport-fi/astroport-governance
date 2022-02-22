@@ -186,7 +186,7 @@ impl BaseAstroportTestPackage {
             owner: owner.to_string(),
             astro_token: self.astro_token.clone().unwrap().address.to_string(),
             voting_escrow_addr: self.voting_escrow.clone().unwrap().address.to_string(),
-            max_limit_accounts_of_claim: None,
+            claim_many_limit: None,
             is_claim_disabled: None,
         };
 
