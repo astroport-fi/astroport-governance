@@ -403,7 +403,7 @@ fn create_lock(
     let end = block_period + get_period(time);
 
     LOCKED.update(deps.storage, user.clone(), |lock_opt| {
-        if lock_opt.is_some() {
+        if lock_opt.is_some() && !lock_opt.unwrap().amount.is_zero() {
             return Err(ContractError::LockAlreadyExists {});
         }
         Ok(Lock {
@@ -430,17 +430,16 @@ fn deposit_for(
     amount: Uint128,
     user: Addr,
 ) -> Result<Response, ContractError> {
-    LOCKED.update(deps.storage, user.clone(), |lock_opt| {
-        if let Some(mut lock) = lock_opt {
+    LOCKED.update(deps.storage, user.clone(), |lock_opt| match lock_opt {
+        Some(mut lock) if !lock.amount.is_zero() => {
             if lock.end <= get_period(env.block.time.seconds()) {
                 Err(ContractError::LockExpired {})
             } else {
                 lock.amount += amount;
                 Ok(lock)
             }
-        } else {
-            Err(ContractError::LockDoesntExist {})
         }
+        _ => Err(ContractError::LockDoesntExist {}),
     })?;
     checkpoint(deps, env, user, Some(amount), None)?;
 
@@ -453,8 +452,10 @@ fn deposit_for(
 /// otherwise returns the [`Response`] with the specified attributes if the operation was successful
 fn withdraw(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, ContractError> {
     let sender = info.sender;
-    let lock = LOCKED
+    // 'LockDoesntExist' is either a lock does not exist in LOCKED or a lock exits but lock.amount == 0
+    let mut lock = LOCKED
         .may_load(deps.storage, sender.clone())?
+        .filter(|lock| !lock.amount.is_zero())
         .ok_or(ContractError::LockDoesntExist {})?;
 
     let cur_period = get_period(env.block.time.seconds());
@@ -470,7 +471,8 @@ fn withdraw(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, Cont
             })?,
             funds: vec![],
         });
-        LOCKED.remove(deps.storage, sender.clone());
+        lock.amount = Uint128::zero();
+        LOCKED.save(deps.storage, sender.clone(), &lock)?;
 
         // we need to set point to eliminate the slope influence on a future lock
         HISTORY.save(
@@ -509,8 +511,9 @@ fn extend_lock_time(
     let user = info.sender;
     blacklist_check(deps.as_ref(), &user)?;
     let mut lock = LOCKED
-        .load(deps.storage, user.clone())
-        .map_err(|_| ContractError::LockDoesntExist {})?;
+        .may_load(deps.storage, user.clone())?
+        .filter(|lock| !lock.amount.is_zero())
+        .ok_or(ContractError::LockDoesntExist {})?;
 
     // disabling ability to extend lock time by less than a week
     time_limits_check(time)?;
