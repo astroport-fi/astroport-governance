@@ -4,7 +4,7 @@ use cosmwasm_std::{
 };
 
 use crate::error::ContractError;
-use crate::state::{Config, CONFIG, LAST_CLAIM_PERIOD, OWNERSHIP_PROPOSAL, TOKENS_PER_WEEK};
+use crate::state::{Config, CONFIG, LAST_CLAIM_PERIOD, OWNERSHIP_PROPOSAL, REWARDS_PER_WEEK};
 
 use crate::utils::transfer_token_amount;
 use astroport::asset::addr_validate_to_lower;
@@ -139,7 +139,7 @@ fn receive_cw20(
 
     let curr_period = get_period(env.block.time.seconds());
 
-    TOKENS_PER_WEEK.update(
+    REWARDS_PER_WEEK.update(
         deps.storage,
         U64Key::new(curr_period),
         |period| -> StdResult<_> {
@@ -296,7 +296,7 @@ fn calc_claim_amount(
             },
         )?;
 
-        if user_voting_power.voting_power > Uint128::zero() {
+        if !user_voting_power.voting_power.is_zero() {
             claim_amount = claim_amount.checked_add(calculate_reward(
                 deps.as_ref(),
                 claim_period,
@@ -321,11 +321,11 @@ fn calculate_reward(
     user_vp: Uint128,
     total_vp: Uint128,
 ) -> StdResult<Uint128> {
-    let tokens_per_week = TOKENS_PER_WEEK
+    let rewards_per_week = REWARDS_PER_WEEK
         .may_load(deps.storage, U64Key::from(period))?
         .unwrap_or_default();
 
-    Ok(user_vp.multiply_ratio(tokens_per_week, total_vp))
+    Ok(user_vp.multiply_ratio(rewards_per_week, total_vp))
 }
 
 /// ## Description
@@ -409,14 +409,11 @@ fn query_available_reward_per_week(
         .map(|timestamp| U64Key::from(get_period(timestamp)).joined_key())
         .map(Bound::Exclusive);
 
-    Ok(TOKENS_PER_WEEK
+    REWARDS_PER_WEEK
         .range(deps.storage, start, None, Order::Ascending)
         .take(limit)
-        .map(|week| {
-            let (_, fee_amount) = week.unwrap();
-            fee_amount
-        })
-        .collect())
+        .map(|week| Ok(week?.1))
+        .collect::<StdResult<Vec<_>>>()
 }
 
 /// ## Description
@@ -438,18 +435,20 @@ fn query_user_reward(deps: Deps, _env: Env, user: String, timestamp: u64) -> Std
 
     let current_period = get_period(timestamp);
 
-    let user_reward_amount = calculate_reward(
-        deps,
-        current_period,
-        user_voting_power.voting_power,
-        total_voting_power.voting_power,
-    )?;
-
-    Ok(user_reward_amount)
+    if !total_voting_power.voting_power.is_zero() {
+        Ok(calculate_reward(
+            deps,
+            current_period,
+            user_voting_power.voting_power,
+            total_voting_power.voting_power,
+        )?)
+    } else {
+        Ok(Uint128::zero())
+    }
 }
 
 /// ## Description
-/// Returns information about the vesting configs in the [`ConfigResponse`] object.
+/// Returns information about the distributor configs in the [`ConfigResponse`] object.
 pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
     let config: Config = CONFIG.load(deps.storage)?;
 

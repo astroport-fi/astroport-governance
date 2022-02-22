@@ -27,8 +27,8 @@ pub struct Config {
 pub const CONFIG: Item<Config> = Item::new("config");
 
 /// ## Description
-/// Contains information about distributed tokens per week.
-pub const TOKENS_PER_WEEK: Map<U64Key, Uint128> = Map::new("tokens_per_week");
+/// Contains information about distributed rewards per week.
+pub const REWARDS_PER_WEEK: Map<U64Key, Uint128> = Map::new("rewards_per_week");
 
 /// ## Description
 /// Contains information about the last week of commission issuance.

@@ -1,5 +1,5 @@
 use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
-use cosmwasm_std::{attr, to_binary, Addr, StdError, StdResult, Uint128};
+use cosmwasm_std::{attr, to_binary, Addr, StdResult, Uint128};
 
 use astroport_governance::utils::{get_period, WEEK};
 
@@ -161,7 +161,7 @@ fn test_receive_tokens() {
         400 * MULTIPLIER as u128,
     );
 
-    // checks tokens per week
+    // checks rewards per week
     let resp: Vec<Uint128> = router_ref
         .wrap()
         .query_wasm_smart(
@@ -297,16 +297,21 @@ fn check_if_user_exists_after_withdraw() {
 
     base_pack.withdraw(router_ref, user1.as_str()).unwrap();
 
-    let resp: StdResult<LockInfoResponse> = router_ref.wrap().query_wasm_smart(
-        &base_pack.voting_escrow.clone().unwrap().address,
-        &VotingEscrowQueryMsg::LockInfo {
-            user: user1.to_string(),
-        },
-    );
+    let resp: LockInfoResponse = router_ref
+        .wrap()
+        .query_wasm_smart(
+            &base_pack.voting_escrow.clone().unwrap().address,
+            &VotingEscrowQueryMsg::LockInfo {
+                user: user1.to_string(),
+            },
+        )
+        .unwrap();
+    assert_eq!(resp.amount, Uint128::zero());
     assert_eq!(
-        resp.unwrap_err(),
-        StdError::generic_err("Querier contract error: Generic error: User is not found")
+        resp.start,
+        get_period(router_ref.block_info().time.minus_seconds(WEEK).seconds())
     );
+    assert_eq!(resp.end, get_period(router_ref.block_info().time.seconds()));
 }
 
 #[test]
@@ -498,7 +503,7 @@ fn claim_max_period() {
     router_ref.update_block(next_block);
     router_ref.update_block(|b| b.time = b.time.plus_seconds(WEEK * 105));
 
-    // check if tokens for the first and the second weeks equal to 100_000_000
+    // check if rewards for the first and the second weeks equal to 100_000_000
     let resp: Vec<Uint128> = router_ref
         .wrap()
         .query_wasm_smart(
@@ -636,7 +641,7 @@ fn claim_multiple_users() {
         100 * MULTIPLIER as u128,
     );
 
-    // check if tokens per week are set to 100_000_000
+    // check if rewards per week are set to 100_000_000
     let resp: Vec<Uint128> = router_ref
         .wrap()
         .query_wasm_smart(
@@ -784,7 +789,7 @@ fn claim_multiple_users() {
         )
         .unwrap();
 
-    // check if tokens per week are set to 900_000_000
+    // check if rewards per week are set to 900_000_000
     let resp: Vec<Uint128> = router_ref
         .wrap()
         .query_wasm_smart(
@@ -968,7 +973,7 @@ fn is_claim_enabled() {
         100 * MULTIPLIER as u128,
     );
 
-    // check if tokens are set to 100_000_000
+    // check if rewards are set to 100_000_000
     let resp: Vec<Uint128> = router_ref
         .wrap()
         .query_wasm_smart(
