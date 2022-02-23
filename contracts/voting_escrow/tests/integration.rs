@@ -2,13 +2,13 @@ mod test_utils;
 
 use crate::test_utils::{mock_app, Helper, MULTIPLIER};
 use astroport::token as astro;
+use astroport_governance::utils::{MAX_LOCK_TIME, WEEK};
 use astroport_governance::voting_escrow::{
     ConfigResponse, Cw20HookMsg, ExecuteMsg, LockInfoResponse, QueryMsg,
 };
 use cosmwasm_std::{attr, to_binary, Addr, Fraction, Uint128};
 use cw20::{Cw20ExecuteMsg, MinterResponse};
 use terra_multi_test::{next_block, ContractWrapper, Executor};
-use voting_escrow::contract::{MAX_LOCK_TIME, WEEK};
 
 #[test]
 fn lock_unlock_logic() {

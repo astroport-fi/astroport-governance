@@ -10,7 +10,7 @@ use cosmwasm_std::{attr, to_binary, Addr, Timestamp, Uint128};
 use cw20::BalanceResponse;
 use terra_multi_test::{App, BankKeeper, ContractWrapper, Executor, TerraMockQuerier};
 
-const OWNER: &str = "OWNER";
+const OWNER: &str = "owner";
 
 fn mock_app() -> App {
     let api = MockApi::default();

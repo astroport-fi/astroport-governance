@@ -1,6 +1,6 @@
-use crate::contract::{MAX_LOCK_TIME, WEEK};
 use crate::error::ContractError;
 use astroport::asset::addr_validate_to_lower;
+use astroport_governance::utils::{get_period, MAX_LOCK_TIME, WEEK};
 use cosmwasm_std::{
     Addr, Decimal, Deps, DepsMut, Fraction, Order, OverflowError, Pair, StdError, StdResult,
     Uint128, Uint256,
@@ -18,12 +18,6 @@ pub(crate) fn time_limits_check(time: u64) -> Result<(), ContractError> {
     } else {
         Ok(())
     }
-}
-
-/// # Description
-/// Calculates how many periods are withing specified time. Time should be in seconds.
-pub(crate) fn get_period(time: u64) -> u64 {
-    time / WEEK
 }
 
 /// # Description

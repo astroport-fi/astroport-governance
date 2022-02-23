@@ -1,5 +1,6 @@
 use astroport::asset::addr_validate_to_lower;
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
+use astroport_governance::utils::{get_period, WEEK};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
@@ -28,19 +29,14 @@ use crate::state::{
 };
 use crate::utils::{
     blacklist_check, calc_coefficient, calc_voting_power, cancel_scheduled_slope,
-    fetch_last_checkpoint, fetch_slope_changes, get_period, schedule_slope_change,
-    time_limits_check, validate_addresses, xastro_token_check,
+    fetch_last_checkpoint, fetch_slope_changes, schedule_slope_change, time_limits_check,
+    validate_addresses, xastro_token_check,
 };
 
 /// Contract name that is used for migration.
 const CONTRACT_NAME: &str = "astro-voting-escrow";
 /// Contract version that is used for migration.
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
-
-/// Seconds in one week. Constant is intended for period number calculation.
-pub const WEEK: u64 = 7 * 86400; // lock period is rounded down by week
-/// Seconds in 2 years which is maximum lock period.
-pub const MAX_LOCK_TIME: u64 = 2 * 365 * 86400; // 2 years (104 weeks)
 
 /// ## Description
 /// Creates a new contract with the specified parameters in the [`InstantiateMsg`].
