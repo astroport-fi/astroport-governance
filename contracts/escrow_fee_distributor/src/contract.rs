@@ -248,22 +248,17 @@ fn claim_many(
 }
 
 /// ## Description
-/// Calculation amount of claim.
-fn calc_claim_amount(
-    deps: DepsMut,
-    env: Env,
-    receiver: Addr,
-    config: Config,
-) -> StdResult<Uint128> {
+/// Calculation amount of claim for specified account.
+fn calc_claim_amount(deps: DepsMut, env: Env, account: Addr, config: Config) -> StdResult<Uint128> {
     let user_lock_info: LockInfoResponse = deps.querier.query_wasm_smart(
         &config.voting_escrow_addr,
         &VotingQueryMsg::LockInfo {
-            user: receiver.to_string(),
+            user: account.to_string(),
         },
     )?;
 
     let mut claim_period = LAST_CLAIM_PERIOD
-        .may_load(deps.storage, receiver.clone())?
+        .may_load(deps.storage, account.clone())?
         .unwrap_or(user_lock_info.start);
 
     let current_period = get_period(env.block.time.seconds());
@@ -284,7 +279,7 @@ fn calc_claim_amount(
         let user_voting_power: VotingPowerResponse = deps.querier.query_wasm_smart(
             &config.voting_escrow_addr,
             &VotingQueryMsg::UserVotingPowerAtPeriod {
-                user: receiver.to_string(),
+                user: account.to_string(),
                 period: claim_period,
             },
         )?;
@@ -308,7 +303,7 @@ fn calc_claim_amount(
         claim_period += 1;
     }
 
-    LAST_CLAIM_PERIOD.save(deps.storage, receiver, &claim_period)?;
+    LAST_CLAIM_PERIOD.save(deps.storage, account, &claim_period)?;
 
     Ok(claim_amount)
 }
