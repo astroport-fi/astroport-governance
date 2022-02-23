@@ -305,7 +305,7 @@ fn checkpoint(
                 let new_voting_power = lock.amount * calc_coefficient(dt);
                 // new_voting_power should be always >= current_power. saturating_sub just in case
                 add_voting_power = new_voting_power.saturating_sub(current_power);
-                lock.start = cur_period;
+                lock.last_extend_lock_period = cur_period;
                 LOCKED.save(deps.storage, addr.clone(), &lock)?;
                 Decimal::from_ratio(new_voting_power, dt)
             } else {
@@ -410,6 +410,7 @@ fn create_lock(
             amount,
             start: block_period,
             end,
+            last_extend_lock_period: block_period,
         })
     })?;
 
@@ -693,7 +694,7 @@ fn get_user_lock_info(deps: Deps, user: String) -> StdResult<LockInfoResponse> {
     if let Some(lock) = LOCKED.may_load(deps.storage, addr)? {
         let resp = LockInfoResponse {
             amount: lock.amount,
-            coefficient: calc_coefficient(lock.end - lock.start),
+            coefficient: calc_coefficient(lock.end - lock.last_extend_lock_period),
             start: lock.start,
             end: lock.end,
         };
