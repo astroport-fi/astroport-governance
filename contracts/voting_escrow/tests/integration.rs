@@ -480,10 +480,10 @@ fn check_queries() {
     assert_eq!(total_vp_at_period, total_vp_at_ts);
 
     let user_vp_at_period = helper
-        .query_user_vp_at(router_ref, "user", cur_period)
+        .query_user_vp_at_period(router_ref, "user", cur_period)
         .unwrap();
     let user_vp = helper
-        .query_user_vp_at_period(router_ref, "user", router_ref.block_info().time.seconds())
+        .query_user_vp_at(router_ref, "user", router_ref.block_info().time.seconds())
         .unwrap();
     assert_eq!(user_vp_at_period, user_vp)
 }
