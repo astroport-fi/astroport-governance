@@ -694,6 +694,23 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3f9eec918d3f24069decb9af1554cad7c880e2da24a9afd88aca000531ab82c1"
 
 [[package]]
+name = "generator-controller"
+version = "1.0.0"
+dependencies = [
+ "astroport 1.1.0",
+ "astroport-governance",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-storage-plus 0.8.1",
+ "cw2",
+ "schemars",
+ "serde",
+ "terra-cosmwasm",
+ "terra-multi-test 0.9.1 (git+https://github.com/astroport-fi/terra-plus.git?tag=v0.9.1-terra)",
+ "thiserror",
+]
+
+[[package]]
 name = "generic-array"
 version = "0.14.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
