@@ -27,14 +27,14 @@ fn lock_unlock_logic() {
         .unwrap_err();
     assert_eq!(
         res.to_string(),
-        "Lock time must be within the limits (week <= lock time < 2 years)"
+        "Lock time must be within limits (week <= lock time < 2 years)"
     );
     let res = helper
         .create_lock(router_ref, "user", MAX_LOCK_TIME + 1, 1f32)
         .unwrap_err();
     assert_eq!(
         res.to_string(),
-        "Lock time must be within the limits (week <= lock time < 2 years)"
+        "Lock time must be within limits (week <= lock time < 2 years)"
     );
     let res = helper
         .create_lock(router_ref, "user", WEEK, 101f32)
@@ -88,7 +88,7 @@ fn lock_unlock_logic() {
         .unwrap_err();
     assert_eq!(
         res.to_string(),
-        "Lock time must be within the limits (week <= lock time < 2 years)"
+        "Lock time must be within limits (week <= lock time < 2 years)"
     );
 
     // Try to exceed MAX_LOCK_TIME
@@ -98,7 +98,7 @@ fn lock_unlock_logic() {
         .unwrap_err();
     assert_eq!(
         res.to_string(),
-        "Lock time must be within the limits (week <= lock time < 2 years)"
+        "Lock time must be within limits (week <= lock time < 2 years)"
     );
 
     // Add more xASTRO to the existing position
