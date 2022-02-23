@@ -38,6 +38,8 @@ pub struct Lock {
     pub start: u64,
     /// the period when the lock should expire
     pub end: u64,
+    /// the last period when the lock's time was increased
+    pub last_extend_lock_period: u64,
 }
 
 /// ## Description
