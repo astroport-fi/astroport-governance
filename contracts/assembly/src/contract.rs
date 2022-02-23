@@ -747,7 +747,7 @@ pub fn calc_total_voting_power_at(deps: &DepsMut, proposal: &Proposal) -> StdRes
         },
     )?;
 
-    // Total builder locked
+    // Total amount of ASTRO locked in the initial builder's unlock schedule
     let builder_state: StateResponse = deps
         .querier
         .query_wasm_smart(config.builder_unlock_addr, &BuilderUnlockQueryMsg::State {})?;
@@ -756,7 +756,7 @@ pub fn calc_total_voting_power_at(deps: &DepsMut, proposal: &Proposal) -> StdRes
         total = total.checked_add(builder_state.remaining_astro_tokens)?;
     }
 
-    // Total vxAstro
+    // Total vxASTRO voting power
     let vxastro: VotingPowerResponse = deps.querier.query_wasm_smart(
         config.vxastro_token_addr,
         &VotingEscrowQueryMsg::TotalVotingPowerAt {

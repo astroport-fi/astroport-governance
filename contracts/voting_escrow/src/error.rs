@@ -3,7 +3,7 @@ use cw20_base::ContractError as cw20baseError;
 use thiserror::Error;
 
 /// ## Description
-/// This enum describes maker contract errors!
+/// This enum describes vxASTRO contract errors!
 #[derive(Error, Debug)]
 pub enum ContractError {
     #[error("{0}")]
@@ -21,7 +21,7 @@ pub enum ContractError {
     #[error("Lock does not exist")]
     LockDoesntExist {},
 
-    #[error("Lock time must be within the limits (week <= lock time < 2 years)")]
+    #[error("Lock time must be within limits (week <= lock time < 2 years)")]
     LockTimeLimitsError {},
 
     #[error("The lock time has not yet expired")]
