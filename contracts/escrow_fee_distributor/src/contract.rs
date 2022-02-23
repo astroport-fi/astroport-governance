@@ -13,7 +13,7 @@ use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_ow
 use astroport_governance::escrow_fee_distributor::{
     ConfigResponse, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg,
 };
-use astroport_governance::utils::{get_period, get_time_by_period, CLAIM_LIMIT};
+use astroport_governance::utils::{get_period, CLAIM_LIMIT};
 
 use astroport_governance::voting_escrow::{
     LockInfoResponse, QueryMsg as VotingQueryMsg, VotingPowerResponse,
@@ -75,7 +75,7 @@ pub fn instantiate(
 /// * **ExecuteMsg::Receive(msg)** parse incoming message from the ASTRO token.
 /// msg should have [`Cw20ReceiveMsg`] type.
 ///
-/// * **ExecuteMsg::UpdateConfig { max_limit_accounts_of_claim, is_claim_disabled}** Updates
+/// * **ExecuteMsg::UpdateConfig { claim_many_limit, is_claim_disabled}** Updates
 /// general settings. Returns an [`ContractError`] on failure or the following [`Config`]
 /// data will be updated if successful.
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -283,20 +283,20 @@ fn calc_claim_amount(
 
         let user_voting_power: VotingPowerResponse = deps.querier.query_wasm_smart(
             &config.voting_escrow_addr,
-            &VotingQueryMsg::UserVotingPowerAt {
+            &VotingQueryMsg::UserVotingPowerAtPeriod {
                 user: receiver.to_string(),
-                time: get_time_by_period(claim_period),
+                period: claim_period,
             },
         )?;
 
         let total_voting_power: VotingPowerResponse = deps.querier.query_wasm_smart(
             &config.voting_escrow_addr,
-            &VotingQueryMsg::TotalVotingPowerAt {
-                time: get_time_by_period(claim_period),
+            &VotingQueryMsg::TotalVotingPowerAtPeriod {
+                period: claim_period,
             },
         )?;
 
-        if !user_voting_power.voting_power.is_zero() {
+        if !user_voting_power.voting_power.is_zero() && !total_voting_power.voting_power.is_zero() {
             claim_amount = claim_amount.checked_add(calculate_reward(
                 deps.as_ref(),
                 claim_period,

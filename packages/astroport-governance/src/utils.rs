@@ -12,9 +12,3 @@ pub const CLAIM_LIMIT: u64 = 10;
 pub fn get_period(time: u64) -> u64 {
     time / WEEK
 }
-
-/// # Description
-/// Calculates how many seconds are within specified period.
-pub fn get_time_by_period(period: u64) -> u64 {
-    period * WEEK
-}

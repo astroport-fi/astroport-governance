@@ -9,7 +9,7 @@ Distributes the commission between users for the locked period.
   "owner": "terra...",
   "astro_token": "terra...",
   "voting_escrow": "terra...",
-  "max_limit_accounts_of_claim": 7,
+  "claim_many_limit": 7,
   "is_claim_disabled": false
 }
 ```
@@ -47,7 +47,7 @@ Updates general settings. Fields are optional.
 ```json
 {
   "claim": {
-    "max_limit_accounts_of_claim": 2,
+    "claim_many_limit": 2,
     "is_claim_disabled": false
   }
 }
@@ -114,7 +114,7 @@ Returns the information about the escrow fee distributor contract
 }
 ```
 
-### `user_fee_amount_per_week`
+### `user_reward`
 
 Returns a commission amount in the form of Astro for user at timestamp.
 
@@ -122,14 +122,14 @@ Returns a commission amount in the form of Astro for user at timestamp.
 
 ```json
 {
-  "user_fee_amount_per_week": {
+  "user_reward": {
     "user": "user1",
     "timestamp": 1645113644
   }
 }
 ```
 
-### `fee_tokens_per_week`
+### `available_reward_per_week`
 
 Returns the vector that contains the amount of commission per week.
 
@@ -138,7 +138,7 @@ Returns the vector that contains the amount of commission per week.
 
 ```json
 {
-  "fee_tokens_per_week": {
+  "available_reward_per_week": {
     "start_after": 1645015524,
     "limit": 3
   }
