@@ -81,8 +81,10 @@ pub enum QueryMsg {
     DownloadLogo {},
     TotalVotingPower {},
     TotalVotingPowerAt { time: u64 },
+    TotalVotingPowerAtPeriod { period: u64 },
     UserVotingPower { user: String },
     UserVotingPowerAt { user: String, time: u64 },
+    UserVotingPowerAtPeriod { user: String, period: u64 },
     LockInfo { user: String },
     Config {},
 }

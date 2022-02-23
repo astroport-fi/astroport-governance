@@ -662,8 +662,14 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::TotalVotingPowerAt { time } => {
             to_binary(&get_total_voting_power(deps, env, Some(time))?)
         }
+        QueryMsg::TotalVotingPowerAtPeriod { period } => {
+            to_binary(&get_total_voting_power_at_period(deps, env, period)?)
+        }
         QueryMsg::UserVotingPowerAt { user, time } => {
             to_binary(&get_user_voting_power(deps, env, user, Some(time))?)
+        }
+        QueryMsg::UserVotingPowerAtPeriod { user, period } => {
+            to_binary(&get_user_voting_power_at_period(deps, user, period)?)
         }
         QueryMsg::LockInfo { user } => to_binary(&get_user_lock_info(deps, user)?),
         QueryMsg::Config {} => {
@@ -706,8 +712,24 @@ fn get_user_voting_power(
     user: String,
     time: Option<u64>,
 ) -> StdResult<VotingPowerResponse> {
-    let user = addr_validate_to_lower(deps.api, &user)?;
     let period = get_period(time.unwrap_or_else(|| env.block.time.seconds()));
+    get_user_voting_power_at_period(deps, user, period)
+}
+
+/// # Description
+/// Calculates a user's voting power at a given period number.
+/// ## Params
+/// * **deps** is an object of type [`Deps`].
+///
+/// * **user** is an object of type String. This is the user/staker for which we fetch the current voting power (vxASTRO balance).
+///
+/// * **period** is [`u64`]. This is the period number at which to fetch the user's voting power (vxASTRO balance).
+fn get_user_voting_power_at_period(
+    deps: Deps,
+    user: String,
+    period: u64,
+) -> StdResult<VotingPowerResponse> {
+    let user = addr_validate_to_lower(deps.api, &user)?;
     let period_key = U64Key::new(period);
 
     let last_checkpoint = fetch_last_checkpoint(deps, &user, &period_key)?;
@@ -745,8 +767,24 @@ fn get_total_voting_power(
     env: Env,
     time: Option<u64>,
 ) -> StdResult<VotingPowerResponse> {
-    let contract_addr = env.contract.address.clone();
     let period = get_period(time.unwrap_or_else(|| env.block.time.seconds()));
+    get_total_voting_power_at_period(deps, env, period)
+}
+
+/// # Description
+/// Calculates the total voting power (total vxASTRO supply) at the given period number.
+/// ## Params
+/// * **deps** is an object of type [`Deps`].
+///
+/// * **env** is an object of type [`Env`].
+///
+/// * **period** is [`u64`]. This is the period number at which we fetch the total voting power (vxASTRO supply).
+fn get_total_voting_power_at_period(
+    deps: Deps,
+    env: Env,
+    period: u64,
+) -> StdResult<VotingPowerResponse> {
+    let contract_addr = env.contract.address.clone();
     let period_key = U64Key::new(period);
 
     let last_checkpoint = fetch_last_checkpoint(deps, &contract_addr, &period_key)?;
