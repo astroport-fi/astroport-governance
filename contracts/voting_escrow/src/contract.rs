@@ -784,10 +784,9 @@ fn get_total_voting_power_at_period(
     env: Env,
     period: u64,
 ) -> StdResult<VotingPowerResponse> {
-    let contract_addr = env.contract.address.clone();
     let period_key = U64Key::new(period);
 
-    let last_checkpoint = fetch_last_checkpoint(deps, &contract_addr, &period_key)?;
+    let last_checkpoint = fetch_last_checkpoint(deps, &env.contract.address, &period_key)?;
 
     let point = last_checkpoint.map_or(
         Point {
