@@ -292,6 +292,24 @@ impl Helper {
             .map(|vp: VotingPowerResponse| vp.voting_power.u128() as f32 / MULTIPLIER as f32)
     }
 
+    pub fn query_user_vp_at_period(
+        &self,
+        router: &mut TerraApp,
+        user: &str,
+        period: u64,
+    ) -> StdResult<f32> {
+        router
+            .wrap()
+            .query_wasm_smart(
+                self.voting_instance.clone(),
+                &QueryMsg::UserVotingPowerAtPeriod {
+                    user: user.to_string(),
+                    period,
+                },
+            )
+            .map(|vp: VotingPowerResponse| vp.voting_power.u128() as f32 / MULTIPLIER as f32)
+    }
+
     pub fn query_total_vp(&self, router: &mut TerraApp) -> StdResult<f32> {
         router
             .wrap()
@@ -305,6 +323,16 @@ impl Helper {
             .query_wasm_smart(
                 self.voting_instance.clone(),
                 &QueryMsg::TotalVotingPowerAt { time },
+            )
+            .map(|vp: VotingPowerResponse| vp.voting_power.u128() as f32 / MULTIPLIER as f32)
+    }
+
+    pub fn query_total_vp_at_period(&self, router: &mut TerraApp, period: u64) -> StdResult<f32> {
+        router
+            .wrap()
+            .query_wasm_smart(
+                self.voting_instance.clone(),
+                &QueryMsg::TotalVotingPowerAtPeriod { period },
             )
             .map(|vp: VotingPowerResponse| vp.voting_power.u128() as f32 / MULTIPLIER as f32)
     }
