@@ -37,28 +37,20 @@ pub struct InstantiateMsg {
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
     /// Extend the lockup time for your staked xASTRO
-    ExtendLockTime {
-        time: u64,
-    },
+    ExtendLockTime { time: u64 },
     /// Receives a message of type [`Cw20ReceiveMsg`] and processes it depending on the received
     /// template.
     Receive(Cw20ReceiveMsg),
     /// Withdraw xASTRO from the vxASTRO contract
     Withdraw {},
     /// Propose a new owner for the contract
-    ProposeNewOwner {
-        new_owner: String,
-        expires_in: u64,
-    },
+    ProposeNewOwner { new_owner: String, expires_in: u64 },
     /// Remove the ownership transfer proposal
     DropOwnershipProposal {},
     /// Claim contract ownership
     ClaimOwnership {},
     /// Add or remove accounts from the blacklist
-    UpdateBlacklist {
-        append_addrs: Option<Vec<String>>,
-        remove_addrs: Option<Vec<String>>,
-    },
+    UpdateBlacklist { append_addrs: Option<Vec<String>>, remove_addrs: Option<Vec<String>> },
     /// Update the marketing info for the vxASTRO contract
     UpdateMarketing {
         /// A URL pointing to the project behind this token
