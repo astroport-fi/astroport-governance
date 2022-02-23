@@ -50,7 +50,10 @@ pub enum ExecuteMsg {
     /// Claim contract ownership
     ClaimOwnership {},
     /// Add or remove accounts from the blacklist
-    UpdateBlacklist { append_addrs: Option<Vec<String>>, remove_addrs: Option<Vec<String>> },
+    UpdateBlacklist {
+        append_addrs: Option<Vec<String>>,
+        remove_addrs: Option<Vec<String>>,
+    },
     /// Update the marketing info for the vxASTRO contract
     UpdateMarketing {
         /// A URL pointing to the project behind this token
