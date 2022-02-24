@@ -97,11 +97,13 @@ pub enum QueryMsg {
     TotalVotingPower {},
     /// Return the total amount of vxASTRO at some point in the past
     TotalVotingPowerAt { time: u64 },
-    /// Return the user's vxASTRO balance
+    /// Return the total voting power at a specific period
+    TotalVotingPowerAtPeriod { period: u64 },
     UserVotingPower { user: String },
     /// Return the user's vxASTRO balance at some point in the past
     UserVotingPowerAt { user: String, time: u64 },
-    /// Return a user's vxASTRO position details
+    /// Return the user's voting power at a specific period
+    UserVotingPowerAtPeriod { user: String, period: u64 },
     LockInfo { user: String },
     /// Return the  vxASTRO contract configuration
     Config {},

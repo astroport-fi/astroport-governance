@@ -1,5 +1,6 @@
 use astroport::asset::addr_validate_to_lower;
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
+use astroport_governance::utils::{get_period, WEEK};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
@@ -28,19 +29,14 @@ use crate::state::{
 };
 use crate::utils::{
     blacklist_check, calc_coefficient, calc_voting_power, cancel_scheduled_slope,
-    fetch_last_checkpoint, fetch_slope_changes, get_period, schedule_slope_change,
-    time_limits_check, validate_addresses, xastro_token_check,
+    fetch_last_checkpoint, fetch_slope_changes, schedule_slope_change, time_limits_check,
+    validate_addresses, xastro_token_check,
 };
 
 /// Contract name that is used for migration.
 const CONTRACT_NAME: &str = "astro-voting-escrow";
 /// Contract version that is used for migration.
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
-
-/// Seconds in a week. Used in period number calculation.
-pub const WEEK: u64 = 7 * 86400; // a staker's lock period is rounded down to a week
-/// Number of seconds in 2 years (maximum lock period).
-pub const MAX_LOCK_TIME: u64 = 2 * 365 * 86400; // 2 years (104 weeks)
 
 /// ## Description
 /// Creates a new contract with the specified parameters in [`InstantiateMsg`].
@@ -328,7 +324,7 @@ fn checkpoint(
                 let new_voting_power = lock.amount * calc_coefficient(dt);
                 // new_voting_power should always be >= current_power. saturating_sub is used for extra safety
                 add_voting_power = new_voting_power.saturating_sub(current_power);
-                lock.start = cur_period;
+                lock.last_extend_lock_period = cur_period;
                 LOCKED.save(deps.storage, addr.clone(), &lock)?;
                 Decimal::from_ratio(new_voting_power, dt)
             } else {
@@ -452,6 +448,7 @@ fn create_lock(
             amount,
             start: block_period,
             end,
+            last_extend_lock_period: block_period,
         })
     })?;
 
@@ -751,8 +748,14 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::TotalVotingPowerAt { time } => {
             to_binary(&get_total_voting_power(deps, env, Some(time))?)
         }
+        QueryMsg::TotalVotingPowerAtPeriod { period } => {
+            to_binary(&get_total_voting_power_at_period(deps, env, period)?)
+        }
         QueryMsg::UserVotingPowerAt { user, time } => {
             to_binary(&get_user_voting_power(deps, env, user, Some(time))?)
+        }
+        QueryMsg::UserVotingPowerAtPeriod { user, period } => {
+            to_binary(&get_user_voting_power_at_period(deps, user, period)?)
         }
         QueryMsg::LockInfo { user } => to_binary(&get_user_lock_info(deps, user)?),
         QueryMsg::Config {} => {
@@ -780,7 +783,7 @@ fn get_user_lock_info(deps: Deps, user: String) -> StdResult<LockInfoResponse> {
     if let Some(lock) = LOCKED.may_load(deps.storage, addr)? {
         let resp = LockInfoResponse {
             amount: lock.amount,
-            coefficient: calc_coefficient(lock.end - lock.start),
+            coefficient: calc_coefficient(lock.end - lock.last_extend_lock_period),
             start: lock.start,
             end: lock.end,
         };
@@ -807,8 +810,24 @@ fn get_user_voting_power(
     user: String,
     time: Option<u64>,
 ) -> StdResult<VotingPowerResponse> {
-    let user = addr_validate_to_lower(deps.api, &user)?;
     let period = get_period(time.unwrap_or_else(|| env.block.time.seconds()));
+    get_user_voting_power_at_period(deps, user, period)
+}
+
+/// # Description
+/// Calculates a user's voting power at a given period number.
+/// ## Params
+/// * **deps** is an object of type [`Deps`].
+///
+/// * **user** is an object of type String. This is the user/staker for which we fetch the current voting power (vxASTRO balance).
+///
+/// * **period** is [`u64`]. This is the period number at which to fetch the user's voting power (vxASTRO balance).
+fn get_user_voting_power_at_period(
+    deps: Deps,
+    user: String,
+    period: u64,
+) -> StdResult<VotingPowerResponse> {
+    let user = addr_validate_to_lower(deps.api, &user)?;
     let period_key = U64Key::new(period);
 
     let last_checkpoint = fetch_last_checkpoint(deps, &user, &period_key)?;
@@ -859,11 +878,26 @@ fn get_total_voting_power(
     env: Env,
     time: Option<u64>,
 ) -> StdResult<VotingPowerResponse> {
-    let contract_addr = env.contract.address.clone();
     let period = get_period(time.unwrap_or_else(|| env.block.time.seconds()));
+    get_total_voting_power_at_period(deps, env, period)
+}
+
+/// # Description
+/// Calculates the total voting power (total vxASTRO supply) at the given period number.
+/// ## Params
+/// * **deps** is an object of type [`Deps`].
+///
+/// * **env** is an object of type [`Env`].
+///
+/// * **period** is [`u64`]. This is the period number at which we fetch the total voting power (vxASTRO supply).
+fn get_total_voting_power_at_period(
+    deps: Deps,
+    env: Env,
+    period: u64,
+) -> StdResult<VotingPowerResponse> {
     let period_key = U64Key::new(period);
 
-    let last_checkpoint = fetch_last_checkpoint(deps, &contract_addr, &period_key)?;
+    let last_checkpoint = fetch_last_checkpoint(deps, &env.contract.address, &period_key)?;
 
     let point = last_checkpoint.map_or(
         Point {

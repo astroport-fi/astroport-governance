@@ -18,6 +18,7 @@ use astroport_governance::builder_unlock::msg::{
     InstantiateMsg as BuilderUnlockInstantiateMsg, ReceiveMsg as BuilderUnlockReceiveMsg,
 };
 use astroport_governance::builder_unlock::{AllocationParams, Schedule};
+use astroport_governance::utils::WEEK;
 use cosmwasm_std::{
     testing::{mock_env, MockApi, MockStorage},
     to_binary, Addr, CosmosMsg, Decimal, StdResult, Uint128, Uint64, WasmMsg,
@@ -26,7 +27,6 @@ use cw20::{BalanceResponse, Cw20ExecuteMsg, MinterResponse};
 use terra_multi_test::{
     next_block, AppBuilder, AppResponse, BankKeeper, ContractWrapper, Executor, TerraApp, TerraMock,
 };
-use voting_escrow::contract::WEEK;
 
 const PROPOSAL_VOTING_PERIOD: u64 = 500;
 const PROPOSAL_EFFECTIVE_DELAY: u64 = 50;

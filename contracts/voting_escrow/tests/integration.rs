@@ -2,13 +2,13 @@ mod test_utils;
 
 use crate::test_utils::{mock_app, Helper, MULTIPLIER};
 use astroport::token as astro;
+use astroport_governance::utils::{MAX_LOCK_TIME, WEEK};
 use astroport_governance::voting_escrow::{
     ConfigResponse, Cw20HookMsg, ExecuteMsg, LockInfoResponse, QueryMsg,
 };
 use cosmwasm_std::{attr, to_binary, Addr, Fraction, Uint128};
 use cw20::{Cw20ExecuteMsg, MinterResponse};
 use terra_multi_test::{next_block, ContractWrapper, Executor};
-use voting_escrow::contract::{MAX_LOCK_TIME, WEEK};
 
 #[test]
 fn lock_unlock_logic() {
@@ -470,6 +470,22 @@ fn check_queries() {
     if (coeff - 1.02884f32).abs() > 1e-5 {
         assert_eq!(coeff, 1.02884f32)
     }
+
+    let total_vp_at_period = helper
+        .query_total_vp_at_period(router_ref, cur_period)
+        .unwrap();
+    let total_vp_at_ts = helper
+        .query_total_vp_at(router_ref, router_ref.block_info().time.seconds())
+        .unwrap();
+    assert_eq!(total_vp_at_period, total_vp_at_ts);
+
+    let user_vp_at_period = helper
+        .query_user_vp_at_period(router_ref, "user", cur_period)
+        .unwrap();
+    let user_vp = helper
+        .query_user_vp_at(router_ref, "user", router_ref.block_info().time.seconds())
+        .unwrap();
+    assert_eq!(user_vp_at_period, user_vp)
 }
 
 #[test]
