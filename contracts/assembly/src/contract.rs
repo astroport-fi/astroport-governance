@@ -23,7 +23,7 @@ use astroport_governance::voting_escrow::{QueryMsg as VotingEscrowQueryMsg, Voti
 use crate::error::ContractError;
 use crate::state::{CONFIG, PROPOSALS, PROPOSAL_COUNT};
 
-// version info for migration info
+// Contract name and version used for migration.
 const CONTRACT_NAME: &str = "astro-assembly";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -41,7 +41,8 @@ const MAX_LIMIT: u32 = 30;
 
 /// ## Description
 /// Creates a new contract with the specified parameters in the `msg` variable.
-/// Returns the [`Response`] with the specified attributes if the operation was successful, or a [`ContractError`] if the contract was not created
+/// Returns a [`Response`] with the specified attributes if the operation was successful,
+/// or a [`ContractError`] if the contract was not created.
 /// ## Params
 /// * **deps** is an object of type [`DepsMut`].
 ///
@@ -49,7 +50,7 @@ const MAX_LIMIT: u32 = 30;
 ///
 /// * **_info** is an object of type [`MessageInfo`]
 ///
-/// * **msg**  is a message of type [`InstantiateMsg`] which contains the basic settings for creating a contract
+/// * **msg**  is a message of type [`InstantiateMsg`] which contains the parameters used for creating a contract.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
@@ -127,8 +128,8 @@ pub fn execute(
 
 /// ## Description
 /// Receives a message of type [`Cw20ReceiveMsg`] and processes it depending on the received template.
-/// If the template is not found in the received message, then an [`ContractError`] is returned,
-/// otherwise the function returns a [`Response`] with the specified attributes if the operation was successful
+/// If the template is not found in the received message, then a [`ContractError`] is returned,
+/// otherwise the function returns a [`Response`] with the specified attributes if the operation was successful.
 /// ## Params
 /// * **deps** is an object of type [`DepsMut`].
 ///
@@ -136,7 +137,7 @@ pub fn execute(
 ///
 /// * **info** is an object of type [`MessageInfo`].
 ///
-/// * **cw20_msg** is an object of type [`Cw20ReceiveMsg`].
+/// * **cw20_msg** is an object of type [`Cw20ReceiveMsg`]. This is the CW20 message to process.
 pub fn receive_cw20(
     deps: DepsMut,
     env: Env,
@@ -164,7 +165,7 @@ pub fn receive_cw20(
 }
 
 /// ## Description
-/// Submit a brand new proposal and lock some xASTRO as an anti-spam mechanism.
+/// Submit a brand new proposal and locks some xASTRO as an anti-spam mechanism.
 /// Returns [`ContractError`] on failure, otherwise returns a [`Response`] with the specified attributes if the operation was successful.
 /// ## Params
 /// * **deps** is an object of type [`DepsMut`].
@@ -175,15 +176,15 @@ pub fn receive_cw20(
 ///
 /// * **sender** is an object of type [`Addr`]. Proposal submitter.
 ///
-/// * **deposit_amount** is an object of type [`Uint128`]. Amount of xASTRO to deposit in order to submit the proposal.
+/// * **deposit_amount** is an object of type [`Uint128`]. This is the amount of xASTRO to deposit in order to submit the proposal.
 ///
-/// * **title** is an object of type [`String`]. Title of proposal.
+/// * **title** is an object of type [`String`]. Proposal title.
 ///
-/// * **description** is an object of type [`String`]. Description of proposal.
+/// * **description** is an object of type [`String`]. Proposal description.
 ///
 /// * **link** is an object of type [`Option<String>`]. Proposal link.
 ///
-/// * **messages** is an object of type [`Option<Vec<ProposalMessage>>`]. Proposal messages.
+/// * **messages** is an object of type [`Option<Vec<ProposalMessage>>`]. Executable messages (actions to perform if the proposal passes).
 #[allow(clippy::too_many_arguments)]
 pub fn submit_proposal(
     deps: DepsMut,
@@ -345,7 +346,7 @@ pub fn cast_vote(
 
 /// ## Description
 /// Ends proposal voting and sets the proposal status.
-/// Returns an [`ContractError`] on failure, otherwise returns the [`Response`] with the specified
+/// Returns a [`ContractError`] on failure, otherwise returns a [`Response`] with the specified
 /// attributes if the operation was successful.
 /// ## Params
 /// * **deps** is an object of type [`DepsMut`].
@@ -354,7 +355,7 @@ pub fn cast_vote(
 ///
 /// * **_info** is an object of type [`MessageInfo`].
 ///
-/// * **proposal_id** is the identifier of the proposal.
+/// * **proposal_id** is a parameter of type `u64`. This is the proposal identifier.
 pub fn end_proposal(
     deps: DepsMut,
     env: Env,
@@ -430,7 +431,7 @@ pub fn end_proposal(
 ///
 /// * **_info** is an object of type [`MessageInfo`].
 ///
-/// * **proposal_id** is the identifier of the proposal.
+/// * **proposal_id** is a parameter of type `u64`. This is the proposal identifier.
 pub fn execute_proposal(
     deps: DepsMut,
     env: Env,
@@ -484,7 +485,7 @@ pub fn execute_proposal(
 ///
 /// * **_info** is an object of type [`MessageInfo`].
 ///
-/// * **proposal_id** is the identifier of the proposal.
+/// * **proposal_id** is a parameter of type `u64`. This is the proposal identifier.
 pub fn remove_completed_proposal(
     deps: DepsMut,
     env: Env,
@@ -513,7 +514,7 @@ pub fn remove_completed_proposal(
 }
 
 /// ## Description
-/// Updates Assembly parameters.
+/// Updates Assembly contract parameters.
 /// Returns [`ContractError`] on failure, otherwise returns a [`Response`] with the specified
 /// attributes if the operation was successful.
 /// ## Params
@@ -523,7 +524,7 @@ pub fn remove_completed_proposal(
 ///
 /// * **info** is an object of type [`MessageInfo`].
 ///
-/// * **updated_config** is an object of type [`UpdateConfig`].
+/// * **updated_config** is an object of type [`UpdateConfig`]. This is the new contract configuration.
 pub fn update_config(
     deps: DepsMut,
     env: Env,
@@ -581,7 +582,7 @@ pub fn update_config(
 }
 
 /// ## Description
-/// Expose and execute available contract queries.
+/// Expose available contract queries.
 /// ## Params
 /// * **deps** is an object of type [`Deps`].
 ///
@@ -656,7 +657,7 @@ pub fn query_proposals(
 /// ## Params
 /// * **deps** is an object of type [`Deps`].
 ///
-/// * **proposal_id** is the desired proposal identifier.
+/// * **proposal_id** is a parameter of type `u64`. This is the proposal identifier.
 pub fn query_proposal(deps: Deps, proposal_id: u64) -> StdResult<Proposal> {
     let proposal = PROPOSALS.load(deps.storage, U64Key::new(proposal_id))?;
     Ok(proposal)
@@ -667,7 +668,7 @@ pub fn query_proposal(deps: Deps, proposal_id: u64) -> StdResult<Proposal> {
 /// ## Params
 /// * **deps** is an object of type [`Deps`].
 ///
-/// * **proposal_id** is the desired proposal identifier.
+/// * **proposal_id** is a parameter of type `u64`. This is the proposal identifier.
 pub fn query_proposal_votes(deps: Deps, proposal_id: u64) -> StdResult<ProposalVotesResponse> {
     let proposal = PROPOSALS.load(deps.storage, U64Key::from(proposal_id))?;
 
@@ -679,13 +680,13 @@ pub fn query_proposal_votes(deps: Deps, proposal_id: u64) -> StdResult<ProposalV
 }
 
 /// ## Description
-/// Calculates sender voting power at the specified block.
+/// Calculates an address' voting power at the specified block.
 /// ## Params
 /// * **deps** is an object of type [`DepsMut`].
 ///
-/// * **sender** is an object of type [`String`].
+/// * **sender** is an object of type [`String`]. This is the address whose voting power we calculate.
 ///
-/// * **proposal** is an object of type [`Proposal`].
+/// * **proposal** is an object of type [`Proposal`]. This is the proposal for which we want to compute the `sender` (voter) voting power.
 pub fn calc_voting_power(
     deps: &DepsMut,
     sender: String,
@@ -731,11 +732,11 @@ pub fn calc_voting_power(
 }
 
 /// ## Description
-/// Calculates total voting power at a specified block.
+/// Calculates the total voting power at a specified block (that is relevant for a specific proposal).
 /// ## Params
 /// * **deps** is an object of type [`DepsMut`].
 ///
-/// * **proposal** is an object of type [`Proposal`].
+/// * **proposal** is an object of type [`Proposal`]. This is the proposal for which we calculate the total voting power.
 pub fn calc_total_voting_power_at(deps: &DepsMut, proposal: &Proposal) -> StdResult<Uint128> {
     let config = CONFIG.load(deps.storage)?;
 

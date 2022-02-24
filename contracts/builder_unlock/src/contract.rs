@@ -16,14 +16,22 @@ use astroport_governance::builder_unlock::{AllocationParams, AllocationStatus, C
 
 use crate::state::{CONFIG, PARAMS, STATE, STATUS};
 
-// Version and name
+// Version and name used for contract migration.
 const CONTRACT_NAME: &str = "builder-unlock";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
-//----------------------------------------------------------------------------------------
-// Entry Points
-//----------------------------------------------------------------------------------------
-
+/// ## Description
+/// Creates a new contract with the specified parameters in the `msg` variable.
+/// Returns a [`Response`] with the specified attributes if the operation was successful,
+/// or a [`ContractError`] if the contract was not created.
+/// ## Params
+/// * **deps** is an object of type [`DepsMut`].
+///
+/// * **_env** is an object of type [`Env`]
+///
+/// * **_info** is an object of type [`MessageInfo`]
+///
+/// * **msg**  is a message of type [`InstantiateMsg`] which contains the parameters used for creating a contract.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
@@ -42,6 +50,21 @@ pub fn instantiate(
     Ok(Response::default())
 }
 
+/// ## Description
+/// Exposes all the execute functions available in the contract.
+///
+/// ## Execute messages
+/// * **ExecuteMsg::Receive(cw20_msg)** Parse incoming messages coming from the ASTRO token contract.
+///
+/// * **ExecuteMsg::Withdraw** Withdraw unlocked ASTRO.
+///
+/// * **ExecuteMsg::TransferOwnership** Transfer contract ownership.
+///
+/// * **ExecuteMsg::ProposeNewReceiver** Propose a new receiver for a specific ASTRO unlock schedule.
+///
+/// * **ExecuteMsg::DropNewReceiver** Drop the proposal to change the receiver for an unlock schedule.
+///
+/// * **ExecuteMsg::ClaimReceiver**  Claim the position as a receiver for a specific unlock schedule.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> StdResult<Response> {
     match msg {
@@ -60,6 +83,18 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
     }
 }
 
+/// ## Description
+/// Receives a message of type [`Cw20ReceiveMsg`] and processes it depending on the received template.
+/// If the template is not found in the received message, then a [`ContractError`] is returned,
+/// otherwise it returns a [`Response`] with the specified attributes if the operation was successful.
+/// ## Params
+/// * **deps** is an object of type [`DepsMut`].
+///
+/// * **env** is an object of type [`Env`].
+///
+/// * **info** is an object of type [`MessageInfo`].
+///
+/// * **cw20_msg** is an object of type [`Cw20ReceiveMsg`]. This is the CW20 message to process.
 fn execute_receive_cw20(
     deps: DepsMut,
     env: Env,
@@ -79,6 +114,25 @@ fn execute_receive_cw20(
     }
 }
 
+/// # Description
+/// Expose available contract queries.
+/// ## Params
+/// * **deps** is an object of type [`Deps`].
+///
+/// * **_env** is an object of type [`Env`].
+///
+/// * **msg** is an object of type [`QueryMsg`].
+///
+/// ## Queries
+/// * **QueryMsg::Config {}** Return the contract configuration.
+///
+/// * **QueryMsg::State {}** Return the contract state (number of ASTRO that still need to be withdrawn).
+///
+/// * **QueryMsg::Allocation {}** Return the allocation details for a specific account.
+///
+/// * **QueryMsg::UnlockedTokens {}** Return the amoint of unlocked ASTRO for a specific account.
+///
+/// * **QueryMsg::SimulateWithdraw {}** Return the result of a withdrawal simulation.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
@@ -93,10 +147,6 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         }
     }
 }
-
-//----------------------------------------------------------------------------------------
-// Execute Points
-//----------------------------------------------------------------------------------------
 
 /// @dev Admin function facilitating creation of new Allocations
 /// @params creator: Function caller address. Needs to be the admin
@@ -266,7 +316,7 @@ fn execute_propose_new_receiver(
         .add_attribute("proposed_receiver", new_receiver))
 }
 
-/// @dev Facilitates a user to drop the newly proposed receiver for his allocation
+/// @dev Facilitates a user to drop the newly proposed receiver for their allocation
 fn execute_drop_new_receiver(deps: DepsMut, _env: Env, info: MessageInfo) -> StdResult<Response> {
     let mut alloc_params = PARAMS.load(deps.storage, &info.sender)?;
     let prev_proposed_receiver: Addr;

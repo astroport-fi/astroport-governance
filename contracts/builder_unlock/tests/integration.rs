@@ -23,7 +23,7 @@ fn mock_app() -> App {
 }
 
 fn init_contracts(app: &mut App) -> (Addr, Addr, InstantiateMsg) {
-    // Instantiate ASTRO Token Contract
+    // Instantiate ASTRO token contract
     let astro_token_contract = Box::new(ContractWrapper::new(
         astroport_token::contract::execute,
         astroport_token::contract::instantiate,
@@ -136,7 +136,6 @@ fn test_transfer_ownership() {
     let (unlock_instance, _, init_msg) = init_contracts(&mut app);
 
     // ######    ERROR :: Unauthorized     ######
-
     let err = app
         .execute_contract(
             Addr::unchecked("not_owner".to_string()),
@@ -153,7 +152,6 @@ fn test_transfer_ownership() {
     );
 
     // ######    SUCCESSFULLY TRANSFERS OWNERSHIP :: UPDATES OWNER    ######
-
     app.execute_contract(
         Addr::unchecked(OWNER.to_string()),
         unlock_instance.clone(),
@@ -174,7 +172,6 @@ fn test_transfer_ownership() {
     assert_eq!(init_msg.astro_token, resp.astro_token);
 
     // ######    SUCCESSFULLY TRANSFERS OWNERSHIP :: UPDATES REFUND RECIPIENT    ######
-
     app.execute_contract(
         Addr::unchecked("new_owner".to_string()),
         unlock_instance.clone(),
@@ -245,7 +242,6 @@ fn test_create_allocations() {
     ));
 
     // ######    ERROR :: Only owner can create allocations     ######
-
     mint_some_astro(
         &mut app,
         Addr::unchecked(OWNER.clone()),
@@ -275,7 +271,6 @@ fn test_create_allocations() {
     );
 
     // ######    ERROR :: Only ASTRO can be can be deposited     ######
-
     // Instantiate the ASTRO token contract
     let not_astro_token_contract = Box::new(ContractWrapper::new(
         astroport_token::contract::execute,
@@ -339,7 +334,6 @@ fn test_create_allocations() {
     );
 
     // ######    ERROR :: ASTRO deposit amount mismatch     ######
-
     err = app
         .execute_contract(
             Addr::unchecked(OWNER.clone()),
@@ -361,7 +355,6 @@ fn test_create_allocations() {
     );
 
     // ######    SUCCESSFULLY CREATES ALLOCATIONS    ######
-
     app.execute_contract(
         Addr::unchecked(OWNER.clone()),
         astro_instance.clone(),
@@ -455,7 +448,6 @@ fn test_create_allocations() {
     );
 
     // ######    ERROR :: Allocation already exists for user {}     ######
-
     err = app
         .execute_contract(
             Addr::unchecked(OWNER.clone()),
@@ -545,7 +537,6 @@ fn test_withdraw() {
     .unwrap();
 
     // ######    ERROR :: Allocation doesn't exist    ######
-
     let err = app
         .execute_contract(
             Addr::unchecked(OWNER.clone()),
@@ -560,7 +551,6 @@ fn test_withdraw() {
     );
 
     // ######   SUCCESSFULLY WITHDRAWS ASTRO #1   ######
-
     app.update_block(|b| {
         b.height += 17280;
         b.time = Timestamp::from_seconds(1642402275)
@@ -639,7 +629,6 @@ fn test_withdraw() {
     assert_eq!(unlock_resp, Uint128::from(158548u64));
 
     // ######    ERROR :: No unlocked ASTRO to be withdrawn   ######
-
     let err = app
         .execute_contract(
             Addr::unchecked("investor_1".clone()),
@@ -654,7 +643,6 @@ fn test_withdraw() {
     );
 
     // ######   SUCCESSFULLY WITHDRAWS ASTRO #2   ######
-
     app.update_block(|b| {
         b.height += 17280;
         b.time = Timestamp::from_seconds(1642402285)
@@ -710,7 +698,6 @@ fn test_withdraw() {
     assert_eq!(resp.status.astro_withdrawn, unlock_resp);
 
     // ######    ERROR :: No unlocked ASTRO to be withdrawn   ######
-
     let err = app
         .execute_contract(
             Addr::unchecked("investor_1".clone()),
@@ -725,7 +712,6 @@ fn test_withdraw() {
     );
 
     // ######   SUCCESSFULLY WITHDRAWS ASTRO #3   ######
-
     // ***** Check that tokens that can be withdrawn before cliff is 0 *****
     app.update_block(|b| {
         b.height += 17280;
@@ -897,7 +883,6 @@ fn test_propose_new_receiver() {
     .unwrap();
 
     // ######    ERROR :: Allocation doesn't exist    ######
-
     let err = app
         .execute_contract(
             Addr::unchecked(OWNER.clone()),
@@ -913,8 +898,7 @@ fn test_propose_new_receiver() {
         "astroport_governance::builder_unlock::AllocationParams not found"
     );
 
-    // ######    ERROR :: Invalid new_receiver.    ######
-
+    // ######    ERROR :: Invalid new_receiver    ######
     let err = app
         .execute_contract(
             Addr::unchecked("investor_1".clone()),
@@ -931,7 +915,6 @@ fn test_propose_new_receiver() {
     );
 
     // ######   SUCCESSFULLY PROPOSES NEW RECEIVER   ######
-
     app.execute_contract(
         Addr::unchecked("investor_1".clone()),
         unlock_instance.clone(),
@@ -957,7 +940,6 @@ fn test_propose_new_receiver() {
     );
 
     // ######    ERROR ::"Proposed receiver already set"   ######
-
     let err = app
         .execute_contract(
             Addr::unchecked("investor_1".clone()),
@@ -1042,7 +1024,6 @@ fn test_drop_new_receiver() {
     .unwrap();
 
     // ######    ERROR :: Allocation doesn't exist    ######
-
     let err = app
         .execute_contract(
             Addr::unchecked(OWNER.clone()),
@@ -1057,7 +1038,6 @@ fn test_drop_new_receiver() {
     );
 
     // ######    ERROR ::"Proposed receiver not set"   ######
-
     let err = app
         .execute_contract(
             Addr::unchecked("investor_1".clone()),
@@ -1069,7 +1049,6 @@ fn test_drop_new_receiver() {
     assert_eq!(err.to_string(), "Generic error: Proposed receiver not set");
 
     // ######   SUCCESSFULLY DROP NEW RECEIVER   ######
-
     // SUCCESSFULLY PROPOSES NEW RECEIVER
     app.execute_contract(
         Addr::unchecked("investor_1".clone()),
@@ -1183,7 +1162,6 @@ fn test_claim_receiver() {
     .unwrap();
 
     // ######    ERROR :: Allocation doesn't exist    ######
-
     let err = app
         .execute_contract(
             Addr::unchecked(OWNER.clone()),
@@ -1198,7 +1176,6 @@ fn test_claim_receiver() {
     );
 
     // ######    ERROR ::"Proposed receiver not set"   ######
-
     let err = app
         .execute_contract(
             Addr::unchecked("investor_1_new".clone()),
@@ -1212,7 +1189,6 @@ fn test_claim_receiver() {
     assert_eq!(err.to_string(), "Generic error: Proposed receiver not set");
 
     // ######   SUCCESSFULLY CLAIMED BY NEW RECEIVER   ######
-
     // SUCCESSFULLY PROPOSES NEW RECEIVER
     app.execute_contract(
         Addr::unchecked("investor_1".clone()),
