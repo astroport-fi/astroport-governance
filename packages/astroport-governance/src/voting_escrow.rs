@@ -86,7 +86,9 @@ pub enum Cw20HookMsg {
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
     /// Return the user's vxASTRO balance
-    Balance { address: String },
+    Balance {
+        address: String
+    },
     /// Fetch the vxASTRO token information
     TokenInfo {},
     /// Fetch vxASTRO's marketing information
@@ -96,15 +98,31 @@ pub enum QueryMsg {
     /// Return the current total amount of vxASTRO
     TotalVotingPower {},
     /// Return the total amount of vxASTRO at some point in the past
-    TotalVotingPowerAt { time: u64 },
+    TotalVotingPowerAt {
+        time: u64
+    },
     /// Return the total voting power at a specific period
-    TotalVotingPowerAtPeriod { period: u64 },
-    UserVotingPower { user: String },
+    TotalVotingPowerAtPeriod {
+        period: u64
+    },
+    /// Return the user's current voting power (vxASTRO balance)
+    UserVotingPower {
+        user: String
+    },
     /// Return the user's vxASTRO balance at some point in the past
-    UserVotingPowerAt { user: String, time: u64 },
+    UserVotingPowerAt {
+        user: String,
+        time: u64
+    },
     /// Return the user's voting power at a specific period
-    UserVotingPowerAtPeriod { user: String, period: u64 },
-    LockInfo { user: String },
+    UserVotingPowerAtPeriod {
+        user: String,
+        period: u64
+    },
+    /// Return information about a user's lock position
+    LockInfo {
+        user: String
+    },
     /// Return the  vxASTRO contract configuration
     Config {},
 }
@@ -123,7 +141,7 @@ pub struct VotingPowerResponse {
 pub struct LockInfoResponse {
     /// The amount of xASTRO locked in the position
     pub amount: Uint128,
-    /// How fast the lock position voting power decays
+    /// This is the initial boost for the lock position
     pub coefficient: Decimal,
     /// Start time for the vxASTRO position decay
     pub start: u64,

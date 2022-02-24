@@ -609,9 +609,9 @@ fn extend_lock_time(
 ///
 /// * **info** is an object of type [`MessageInfo`].
 ///
-/// * **append_addrs** is an [`Option`] containing a vector of objects of type [`String`]. This is the array of addresses to blacklist.
+/// * **append_addrs** is an [`Option`] containing a [`Vec<String>`]. This is the array of addresses to blacklist.
 ///
-/// * **remove_addrs** is an [`Option`] containing a vector of objects of type [`String`]. This is the array of addresses to whitelist.
+/// * **remove_addrs** is an [`Option`] containing a [`Vec<String>`]. This is the array of addresses to whitelist.
 fn update_blacklist(
     mut deps: DepsMut,
     env: Env,
@@ -647,7 +647,7 @@ fn update_blacklist(
     for addr in append.iter() {
         let last_checkpoint = fetch_last_checkpoint(deps.as_ref(), addr, &cur_period_key)?;
         if let Some((_, point)) = last_checkpoint {
-            // We need to checkpint with zero power and zero slope
+            // We need to checkpoint with zero power and zero slope
             HISTORY.save(
                 deps.storage,
                 (addr.clone(), cur_period_key.clone()),
@@ -733,9 +733,9 @@ fn update_blacklist(
 ///
 /// * **QueryMsg::UserVotingPower { user }** Fetch the user's voting power (vxASTRO balance) at the current block.
 ///
-/// * **QueryMsg::TotalVotingPowerAt { time }** Fetch the total voting power (vxASTRO supply) at a specified timestamp in the past.
+/// * **QueryMsg::TotalVotingPowerAt { time }** Fetch the total voting power (vxASTRO supply) at a specified timestamp.
 ///
-/// * **QueryMsg::UserVotingPowerAt { time }** Fetch the user's voting power (vxASTRO balance) at a specified timestamp in the past.
+/// * **QueryMsg::UserVotingPowerAt { time }** Fetch the user's voting power (vxASTRO balance) at a specified timestamp.
 ///
 /// * **QueryMsg::LockInfo { user }** Fetch a user's lock information.
 #[cfg_attr(not(feature = "library"), entry_point)]

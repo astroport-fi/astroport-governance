@@ -22,7 +22,7 @@ pub struct Config {
 pub struct Point {
     /// The staker's vxASTRO voting power
     pub power: Uint128,
-    /// The start timestamp when the staker's voting power start to decrease
+    /// The start period when the staker's voting power start to decrease
     pub start: u64,
     /// The period when the lock should expire
     pub end: u64,
@@ -36,7 +36,7 @@ pub struct Point {
 pub struct Lock {
     /// The total amount of xASTRO tokens that were deposited in the vxASTRO position
     pub amount: Uint128,
-    /// The start time when the lock was created
+    /// The start period when the lock was created
     pub start: u64,
     /// The timestamp when the lock position expires
     pub end: u64,

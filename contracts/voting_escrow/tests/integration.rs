@@ -122,7 +122,7 @@ fn lock_unlock_logic() {
     router_ref.update_block(next_block);
     router_ref.update_block(|block| block.time = block.time.plus_seconds(WEEK));
 
-    // Tru to add more xASTRO to an expired position
+    // Try to add more xASTRO to an expired position
     let res = helper
         .extend_lock_amount(router_ref, "user", 1f32)
         .unwrap_err();

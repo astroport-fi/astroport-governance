@@ -78,7 +78,7 @@ impl DecimalRoundedCheckedMul for Decimal {
 }
 
 /// # Description
-/// Main function used to calculate a user's latest voting power as: previous_power - slope*(x - previous_x).
+/// Main function used to calculate a user's voting power at a specific period as: previous_power - slope*(x - previous_x).
 pub(crate) fn calc_voting_power(point: &Point, period: u64) -> Uint128 {
     let shift = point
         .slope
