@@ -94,14 +94,7 @@ fn handle_vote(
         return Err(ContractError::LockExpiresSoon {});
     }
 
-    let user_info = USER_INFO
-        .may_load(deps.storage, &user)?
-        .unwrap_or(UserInfo {
-            vote_ts: 0,
-            voting_power: Default::default(),
-            slope: Default::default(),
-            votes: vec![],
-        });
+    let user_info = USER_INFO.may_load(deps.storage, &user)?.unwrap_or_default();
     // does the user eligible to vote again?
     if env.block.time.seconds() - user_info.vote_ts < VOTE_COOLDOWN {
         return Err(ContractError::CooldownError(VOTE_COOLDOWN / DAY));

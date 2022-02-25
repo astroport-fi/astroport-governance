@@ -25,7 +25,7 @@ pub struct VotedPoolInfo {
     pub slope: Decimal,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Default)]
 pub struct UserInfo {
     pub vote_ts: u64,
     pub voting_power: Uint128,
