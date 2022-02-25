@@ -48,6 +48,20 @@ dependencies = [
 [[package]]
 name = "astroport"
 version = "1.2.0"
+source = "git+https://github.com/astroport-fi/astroport.git?tag=v1.2.0#bd8f8599e1b1867b6e6a005bc4cef209699683e6"
+dependencies = [
+ "cosmwasm-std",
+ "cw-storage-plus 0.8.1",
+ "cw20",
+ "schemars",
+ "serde",
+ "terra-cosmwasm",
+ "uint",
+]
+
+[[package]]
+name = "astroport"
+version = "1.2.0"
 source = "git+https://github.com/astroport-fi/astroport-core.git?branch=main#0c4c450526912c585f3be3a561ee5b424dcbaeef"
 dependencies = [
  "cosmwasm-std",
@@ -121,6 +135,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "astroport-generator"
+version = "1.1.0"
+source = "git+https://github.com/astroport-fi/astroport.git?tag=v1.2.0#bd8f8599e1b1867b6e6a005bc4cef209699683e6"
+dependencies = [
+ "astroport 1.2.0 (git+https://github.com/astroport-fi/astroport.git?tag=v1.2.0)",
+ "cosmwasm-std",
+ "cw-storage-plus 0.8.1",
+ "cw2",
+ "cw20",
+ "schemars",
+ "serde",
+ "thiserror",
+]
+
+[[package]]
 name = "astroport-governance"
 version = "1.0.0"
 dependencies = [
@@ -131,6 +160,22 @@ dependencies = [
  "serde",
  "terra-cosmwasm",
  "uint",
+]
+
+[[package]]
+name = "astroport-staking"
+version = "1.0.0"
+source = "git+https://github.com/astroport-fi/astroport.git?tag=v1.2.0#bd8f8599e1b1867b6e6a005bc4cef209699683e6"
+dependencies = [
+ "astroport 1.2.0 (git+https://github.com/astroport-fi/astroport.git?tag=v1.2.0)",
+ "cosmwasm-std",
+ "cw-storage-plus 0.8.1",
+ "cw2",
+ "cw20",
+ "protobuf",
+ "schemars",
+ "serde",
+ "thiserror",
 ]
 
 [[package]]
@@ -183,6 +228,21 @@ dependencies = [
  "terra-cosmwasm",
  "terra-multi-test 0.9.1 (git+https://github.com/astroport-fi/terra-plus.git?tag=v0.9.1-terra)",
  "voting-escrow",
+]
+
+[[package]]
+name = "astroport-token"
+version = "1.0.0"
+source = "git+https://github.com/astroport-fi/astroport.git?tag=v1.2.0#bd8f8599e1b1867b6e6a005bc4cef209699683e6"
+dependencies = [
+ "astroport 1.2.0 (git+https://github.com/astroport-fi/astroport.git?tag=v1.2.0)",
+ "cosmwasm-std",
+ "cw2",
+ "cw20",
+ "cw20-base",
+ "schemars",
+ "serde",
+ "snafu",
 ]
 
 [[package]]
@@ -692,6 +752,29 @@ name = "fnv"
 version = "1.0.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3f9eec918d3f24069decb9af1554cad7c880e2da24a9afd88aca000531ab82c1"
+
+[[package]]
+name = "generator-controller"
+version = "1.0.0"
+dependencies = [
+ "anyhow",
+ "astroport 1.2.0 (git+https://github.com/astroport-fi/astroport.git?tag=v1.2.0)",
+ "astroport-generator",
+ "astroport-governance",
+ "astroport-staking 1.0.0 (git+https://github.com/astroport-fi/astroport.git?tag=v1.2.0)",
+ "astroport-token 1.0.0 (git+https://github.com/astroport-fi/astroport.git?tag=v1.2.0)",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-storage-plus 0.8.1",
+ "cw2",
+ "cw20",
+ "schemars",
+ "serde",
+ "terra-cosmwasm",
+ "terra-multi-test 0.9.1 (git+https://github.com/astroport-fi/terra-plus.git?tag=v0.9.1-terra)",
+ "thiserror",
+ "voting-escrow",
+]
 
 [[package]]
 name = "generic-array"
