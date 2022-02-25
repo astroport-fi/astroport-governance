@@ -1,6 +1,6 @@
 use astroport::asset::addr_validate_to_lower;
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
-use astroport_governance::utils::{get_period, WEEK};
+use astroport_governance::utils::{calc_voting_power, get_period, WEEK};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
@@ -28,9 +28,9 @@ use crate::state::{
     Config, Lock, Point, BLACKLIST, CONFIG, HISTORY, LAST_SLOPE_CHANGE, LOCKED, OWNERSHIP_PROPOSAL,
 };
 use crate::utils::{
-    blacklist_check, calc_coefficient, calc_voting_power, cancel_scheduled_slope,
-    fetch_last_checkpoint, fetch_slope_changes, schedule_slope_change, time_limits_check,
-    validate_addresses, xastro_token_check,
+    blacklist_check, calc_coefficient, cancel_scheduled_slope, fetch_last_checkpoint,
+    fetch_slope_changes, schedule_slope_change, time_limits_check, validate_addresses,
+    xastro_token_check,
 };
 
 /// Contract name that is used for migration.
@@ -230,7 +230,7 @@ fn checkpoint_total(
             // recalculating passed points
             for (recalc_period, scheduled_change) in scheduled_slope_changes {
                 point = Point {
-                    power: calc_voting_power(&point, recalc_period),
+                    power: calc_voting_power(point.slope, point.power, point.start, recalc_period),
                     start: recalc_period,
                     slope: point.slope - scheduled_change,
                     ..point
@@ -245,7 +245,8 @@ fn checkpoint_total(
             LAST_SLOPE_CHANGE.save(deps.storage, &cur_period)?
         }
 
-        let new_power = (calc_voting_power(&point, cur_period) + add_voting_power)
+        let new_power = (calc_voting_power(point.slope, point.power, point.start, cur_period)
+            + add_voting_power)
             .saturating_sub(reduce_power.unwrap_or_default());
 
         Point {
@@ -293,7 +294,7 @@ fn checkpoint(
     let new_point = if let Some((_, point)) = last_checkpoint {
         let end = new_end.unwrap_or(point.end);
         let dt = end.saturating_sub(cur_period);
-        let current_power = calc_voting_power(&point, cur_period);
+        let current_power = calc_voting_power(point.slope, point.power, point.start, cur_period);
         let new_slope = if dt != 0 {
             if end > point.end && add_amount.is_zero() {
                 // this is extend_lock_time. Recalculating user's VP
@@ -581,7 +582,7 @@ fn update_blacklist(
                 },
             )?;
 
-            let cur_power = calc_voting_power(&point, cur_period);
+            let cur_power = calc_voting_power(point.slope, point.power, point.start, cur_period);
             // user's contribution is already zero. skipping him
             if cur_power.is_zero() {
                 continue;
@@ -738,7 +739,7 @@ fn get_user_voting_power_at_period(
         } else {
             // the point before this period was found thus we can calculate VP in the period
             // we are interested in
-            calc_voting_power(&point, period)
+            calc_voting_power(point.slope, point.power, point.start, period)
         };
         Ok(VotingPowerResponse { voting_power })
     } else {
@@ -802,13 +803,18 @@ fn get_total_voting_power_at_period(
         let mut init_point = point;
         for (recalc_period, scheduled_change) in scheduled_slope_changes {
             init_point = Point {
-                power: calc_voting_power(&init_point, recalc_period),
+                power: calc_voting_power(
+                    init_point.slope,
+                    init_point.power,
+                    init_point.start,
+                    recalc_period,
+                ),
                 start: recalc_period,
                 slope: init_point.slope - scheduled_change,
                 ..init_point
             }
         }
-        calc_voting_power(&init_point, period)
+        calc_voting_power(init_point.slope, init_point.power, init_point.start, period)
     };
 
     Ok(VotingPowerResponse { voting_power })

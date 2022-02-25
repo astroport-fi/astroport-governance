@@ -1,10 +1,7 @@
 use crate::error::ContractError;
 use astroport::asset::addr_validate_to_lower;
 use astroport_governance::utils::{get_period, MAX_LOCK_TIME, WEEK};
-use cosmwasm_std::{
-    Addr, Decimal, Deps, DepsMut, Fraction, Order, OverflowError, Pair, StdError, StdResult,
-    Uint128, Uint256,
-};
+use cosmwasm_std::{Addr, Decimal, Deps, DepsMut, Order, Pair, StdError, StdResult};
 use cw_storage_plus::{Bound, U64Key};
 use std::convert::TryInto;
 
@@ -38,54 +35,6 @@ pub(crate) fn blacklist_check(deps: Deps, addr: &Addr) -> Result<(), ContractErr
     } else {
         Ok(())
     }
-}
-
-/// # Description
-/// Trait is intended for Decimal rounding problem elimination
-trait DecimalRoundedCheckedMul {
-    fn checked_mul(self, other: Uint128) -> Result<Uint128, OverflowError>;
-}
-
-impl DecimalRoundedCheckedMul for Decimal {
-    fn checked_mul(self, other: Uint128) -> Result<Uint128, OverflowError> {
-        if self.is_zero() || other.is_zero() {
-            return Ok(Uint128::zero());
-        }
-        let numerator = other.full_mul(self.numerator());
-        let multiply_ratio = numerator / Uint256::from(self.denominator());
-        if multiply_ratio > Uint256::from(Uint128::MAX) {
-            Err(OverflowError::new(
-                cosmwasm_std::OverflowOperation::Mul,
-                self,
-                other,
-            ))
-        } else {
-            let mut result: Uint128 = multiply_ratio.try_into().unwrap();
-            let rem: Uint128 = numerator
-                .checked_rem(Uint256::from(self.denominator()))
-                .unwrap()
-                .try_into()
-                .unwrap();
-            // 0.5 in Decimal
-            if rem.u128() >= 500000000000000000_u128 {
-                result += Uint128::from(1_u128);
-            }
-            Ok(result)
-        }
-    }
-}
-
-/// # Description
-/// Main calculation function by formula: previous_power - slope*(x - previous_x)
-pub(crate) fn calc_voting_power(point: &Point, period: u64) -> Uint128 {
-    let shift = point
-        .slope
-        .checked_mul(Uint128::from(period - point.start))
-        .unwrap_or_else(|_| Uint128::zero());
-    point
-        .power
-        .checked_sub(shift)
-        .unwrap_or_else(|_| Uint128::zero())
 }
 
 /// # Description
