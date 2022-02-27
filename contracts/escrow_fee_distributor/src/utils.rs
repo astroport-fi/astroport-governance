@@ -3,7 +3,7 @@ use cosmwasm_std::{to_binary, Addr, CosmosMsg, Uint128, WasmMsg};
 use cw20::Cw20ExecuteMsg;
 
 /// ## Description
-/// Transfer amount of token.
+/// Transfer tokens to another address.
 pub fn transfer_token_amount(
     contract_addr: Addr,
     recipient: Addr,

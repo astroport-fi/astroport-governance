@@ -2,7 +2,7 @@ use cosmwasm_std::{OverflowError, StdError};
 use thiserror::Error;
 
 /// ## Description
-/// This enum describes staking contract errors!
+/// This enum describes fee distributor contract errors!
 #[derive(Error, Debug, PartialEq)]
 pub enum ContractError {
     #[error("{0}")]
