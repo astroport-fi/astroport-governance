@@ -1,6 +1,6 @@
 use crate::test_utils::{mock_app, Helper, MULTIPLIER};
 use anyhow::Result;
-use astroport_governance::utils::{MAX_LOCK_TIME, WEEK};
+use astroport_governance::utils::{get_period, MAX_LOCK_TIME, WEEK};
 use cosmwasm_std::{Addr, Timestamp};
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
@@ -34,10 +34,6 @@ struct Simulator {
     users: Vec<String>,
     helper: Helper,
     router: TerraApp,
-}
-
-fn get_period(time: u64) -> u64 {
-    time / WEEK
 }
 
 fn apply_coefficient(amount: f64, interval: u64) -> f64 {
