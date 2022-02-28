@@ -94,5 +94,9 @@ fn check_vote_works() {
     assert_eq!(("pool1".to_string(), 3000), resp_votes[0]);
     assert_eq!(("pool2".to_string(), 7000), resp_votes[1]);
 
-    router.app_next_period()
+    router.next_block(86400 * 10);
+    // In 10 days user will be able to vote again
+    helper
+        .vote(&mut router, "user2", vec![("pool1", 500), ("pool2", 9500)])
+        .unwrap();
 }

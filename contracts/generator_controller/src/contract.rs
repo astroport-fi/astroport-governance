@@ -120,14 +120,14 @@ fn handle_vote(
 
     let mut old_vp_at_period = Uint128::zero();
     if !user_info.slope.is_zero() {
-        // Calculate voting power before changes were applied
+        // Calculate voting power before changes
         old_vp_at_period = calc_voting_power(
             user_info.slope,
             user_info.voting_power,
             get_period(user_info.vote_ts),
             block_period,
         );
-        // Cancel changes applied by prev votes
+        // Cancel changes applied by previous votes
         user_info.votes.iter().try_for_each(|(pool_addr, bps)| {
             let pool_votes_path = POOL_VOTES.key((U64Key::new(block_period), &pool_addr));
             cancel_user_changes(
