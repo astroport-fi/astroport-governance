@@ -66,8 +66,7 @@ fn check_vote_works() {
         "You can only run this action every 10 days"
     );
 
-    // TODO: query slope from escrow contract
-    let ve_slope = Decimal::zero();
+    let ve_slope = helper.escrow_helper.query_lock_info(&mut router, "user2");
     let ve_power = helper
         .escrow_helper
         .query_user_vp(&mut router, "user2")

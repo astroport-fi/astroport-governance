@@ -4,7 +4,7 @@ use crate::state::{
     Config, GaugeInfo, UserInfo, VotedPoolInfo, CONFIG, GAUGE_INFO, POOL_VOTES, USER_INFO,
 };
 use crate::utils::{
-    cancel_user_changes, deserialize_pair, get_lock_end, get_voting_power, vote_for_pool,
+    cancel_user_changes, deserialize_pair, get_lock_info, get_voting_power, vote_for_pool,
 };
 use astroport::asset::addr_validate_to_lower;
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
@@ -83,19 +83,20 @@ fn handle_vote(
 ) -> ExecuteResult {
     let user = info.sender;
     let block_period = get_period(env.block.time.seconds());
-    let user_vp = get_voting_power(deps.as_ref(), &user)?;
+    let escrow_addr = CONFIG.load(deps.storage)?.escrow_addr;
+    let user_vp = get_voting_power(&escrow_addr, &user)?;
 
     if user_vp.is_zero() {
         return Err(ContractError::ZeroVotingPower {});
     }
 
-    let end_period = get_lock_end(deps.as_ref(), &user)?;
-    if end_period <= block_period + 1 {
+    let lock_info = get_lock_info(&escrow_addr, &user)?;
+    if lock_info.end <= block_period + 1 {
         return Err(ContractError::LockExpiresSoon {});
     }
 
     let user_info = USER_INFO.may_load(deps.storage, &user)?.unwrap_or_default();
-    // does the user eligible to vote again?
+    // Does the user eligible to vote again?
     if env.block.time.seconds() - user_info.vote_ts < VOTE_COOLDOWN {
         return Err(ContractError::CooldownError(VOTE_COOLDOWN / DAY));
     }
@@ -139,18 +140,22 @@ fn handle_vote(
         })?;
     }
 
-    // TODO: get last user's slope from escrow
-    let user_slope = Decimal::zero();
     // Votes are applied to the next period
     votes.iter().try_for_each(|(pool_addr, bps)| {
         let pool_votes_path = POOL_VOTES.key((U64Key::new(block_period + 1), &pool_addr));
-        vote_for_pool(deps.branch(), pool_votes_path, *bps, user_vp, user_slope)
+        vote_for_pool(
+            deps.branch(),
+            pool_votes_path,
+            *bps,
+            user_vp,
+            lock_info.slope,
+        )
     })?;
 
     let user_info = UserInfo {
         vote_ts: env.block.time.seconds(),
         voting_power: user_vp,
-        slope: user_slope,
+        slope: lock_info.slope,
         votes,
     };
 

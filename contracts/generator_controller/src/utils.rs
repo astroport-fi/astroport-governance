@@ -12,10 +12,9 @@ use cw_storage_plus::Path;
 
 use std::str;
 
-pub(crate) fn get_voting_power(deps: Deps, user: &Addr) -> StdResult<Uint128> {
-    let voting_addr = CONFIG.load(deps.storage)?.escrow_addr;
+pub(crate) fn get_voting_power(escrow_addr: &Addr, user: &Addr) -> StdResult<Uint128> {
     let vp: VotingPowerResponse = deps.querier.query_wasm_smart(
-        voting_addr,
+        escrow_addr.clone(),
         &UserVotingPower {
             user: user.to_string(),
         },
@@ -23,15 +22,14 @@ pub(crate) fn get_voting_power(deps: Deps, user: &Addr) -> StdResult<Uint128> {
     Ok(vp.voting_power)
 }
 
-pub(crate) fn get_lock_end(deps: Deps, user: &Addr) -> StdResult<u64> {
-    let voting_addr = CONFIG.load(deps.storage)?.escrow_addr;
+pub(crate) fn get_lock_info(escrow_addr: &Addr, user: &Addr) -> StdResult<LockInfoResponse> {
     let lock_info: LockInfoResponse = deps.querier.query_wasm_smart(
-        voting_addr,
+        escrow_addr.clone(),
         &LockInfo {
             user: user.to_string(),
         },
     )?;
-    Ok(lock_info.end)
+    Ok(lock_info)
 }
 
 pub(crate) fn cancel_user_changes(

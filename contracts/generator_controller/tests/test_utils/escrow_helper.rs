@@ -1,7 +1,7 @@
 use anyhow::Result;
 use astroport::{staking as xastro, token as astro};
 use astroport_governance::voting_escrow::{
-    Cw20HookMsg, ExecuteMsg, InstantiateMsg, QueryMsg, VotingPowerResponse,
+    Cw20HookMsg, ExecuteMsg, InstantiateMsg, LockInfoResponse, QueryMsg, VotingPowerResponse,
 };
 use cosmwasm_std::{attr, to_binary, Addr, QueryRequest, StdResult, Uint128, WasmQuery};
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
@@ -332,5 +332,18 @@ impl EscrowHelper {
                 &QueryMsg::TotalVotingPowerAtPeriod { period },
             )
             .map(|vp: VotingPowerResponse| vp.voting_power.u128() as f32 / MULTIPLIER as f32)
+    }
+
+    pub fn query_lock_info(
+        &self,
+        router: &mut TerraApp,
+        user: &str,
+    ) -> StdResult<LockInfoResponse> {
+        router.wrap().query_wasm_smart(
+            self.escrow_instance.clone(),
+            &QueryMsg::LockInfo {
+                user: user.to_string(),
+            },
+        )
     }
 }
