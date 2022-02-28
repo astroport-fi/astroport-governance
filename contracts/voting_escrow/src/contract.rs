@@ -669,7 +669,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::UserVotingPowerAtPeriod { user, period } => {
             to_binary(&get_user_voting_power_at_period(deps, user, period)?)
         }
-        QueryMsg::LockInfo { user } => to_binary(&get_user_lock_info(deps, user)?),
+        QueryMsg::LockInfo { user } => to_binary(&get_user_lock_info(deps, env, user)?),
         QueryMsg::Config {} => {
             let config = CONFIG.load(deps.storage)?;
             to_binary(&ConfigResponse {
@@ -686,14 +686,19 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 
 /// # Description
 /// Returns user's lock information in [`LockInfoResponse`] type.
-fn get_user_lock_info(deps: Deps, user: String) -> StdResult<LockInfoResponse> {
+fn get_user_lock_info(deps: Deps, env: Env, user: String) -> StdResult<LockInfoResponse> {
     let addr = addr_validate_to_lower(deps.api, &user)?;
-    if let Some(lock) = LOCKED.may_load(deps.storage, addr)? {
+    if let Some(lock) = LOCKED.may_load(deps.storage, addr.clone())? {
+        let cur_period = get_period(env.block.time.seconds());
+        let slope = fetch_last_checkpoint(deps, &addr, &U64Key::new(cur_period))?
+            .map(|(_, point)| point.slope)
+            .unwrap_or_default();
         let resp = LockInfoResponse {
             amount: lock.amount,
             coefficient: calc_coefficient(lock.end - lock.last_extend_lock_period),
             start: lock.start,
             end: lock.end,
+            slope,
         };
         Ok(resp)
     } else {

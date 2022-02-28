@@ -104,6 +104,7 @@ pub struct LockInfoResponse {
     pub coefficient: Decimal,
     pub start: u64,
     pub end: u64,
+    pub slope: Decimal,
 }
 
 /// ## Description
