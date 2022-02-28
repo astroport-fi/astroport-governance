@@ -31,7 +31,7 @@ pub struct InstantiateMsg {
     pub proposal_required_threshold: String,
 }
 
-/// # Description
+/// ## Description
 /// This enum describes all execute functions available in the contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -66,7 +66,7 @@ pub enum ExecuteMsg {
     UpdateConfig(UpdateConfig),
 }
 
-/// # Description
+/// ## Description
 /// Thie enum describes all the queries available in the contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
