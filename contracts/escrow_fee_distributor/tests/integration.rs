@@ -986,7 +986,7 @@ fn is_claim_enabled() {
         .query_wasm_smart(
             &base_pack.escrow_fee_distributor.clone().unwrap().address,
             &QueryMsg::AvailableRewardPerWeek {
-                start_from: Some(router_ref.block_info().time.seconds()),
+                start_from: None,
                 limit: None,
             },
         )
