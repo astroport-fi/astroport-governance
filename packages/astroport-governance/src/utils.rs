@@ -7,12 +7,17 @@ pub const MAX_LOCK_TIME: u64 = 2 * 365 * 86400; // 2 years (104 weeks)
 /// The constant describes the maximum number of accounts for claim.
 pub const CLAIM_LIMIT: u64 = 10;
 
-const PERIOD_SHIFT: u64 = 3 * 86400;
+/// Feb 28 2022 00:00 UTC, Monday
+pub const EPOCH_START: u64 = 1646006400;
 
 /// # Description
-/// Calculates how many periods are within specified time. Time should be in seconds.
+/// Calculates period number. Time should have timestamp format.
 pub fn get_period(time: u64) -> u64 {
-    // Timestamp = 0 starts on Thursday, 1 January 1970
-    // So we need to shift it by 3 days to start our periods on Monday
-    (time + PERIOD_SHIFT) / WEEK
+    (time - EPOCH_START) / WEEK
+}
+
+/// # Description
+/// Calculates how many periods are within specified time interval. Time should be in seconds.
+pub fn get_periods_count(interval: u64) -> u64 {
+    interval / WEEK
 }
