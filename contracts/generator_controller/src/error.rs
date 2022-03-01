@@ -26,6 +26,9 @@ pub enum ContractError {
     #[error("You can only run this action every {0} days")]
     CooldownError(u64),
 
+    #[error("Votes contain duplicated pool addresses")]
+    DuplicatedPools {},
+
     #[error("Your lock will expire in less than a week")]
     LockExpiresSoon {},
 }

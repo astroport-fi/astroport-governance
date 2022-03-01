@@ -53,6 +53,12 @@ fn check_vote_works() {
         .unwrap_err();
     assert_eq!(err.to_string(), "Basic points sum exceeds limit");
 
+    // Duplicated pools
+    let err = helper
+        .vote(&mut router, "user2", vec![("pool1", 3000), ("pool1", 7000)])
+        .unwrap_err();
+    assert_eq!(err.to_string(), "Votes contain duplicated pool addresses");
+
     // Valid votes
     helper
         .vote(&mut router, "user2", vec![("pool1", 3000), ("pool2", 7000)])

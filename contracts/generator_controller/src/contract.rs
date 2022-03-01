@@ -21,6 +21,7 @@ use cosmwasm_std::{
 };
 use cw2::set_contract_version;
 use cw_storage_plus::U64Key;
+use std::collections::HashSet;
 use std::convert::TryInto;
 
 /// Contract name that is used for migration.
@@ -99,6 +100,16 @@ fn handle_vote(
     // Does the user eligible to vote again?
     if env.block.time.seconds() - user_info.vote_ts < VOTE_COOLDOWN {
         return Err(ContractError::CooldownError(VOTE_COOLDOWN / DAY));
+    }
+
+    // Check duplicated votes
+    let addrs_set = votes
+        .iter()
+        .cloned()
+        .map(|(addr, _)| addr)
+        .collect::<HashSet<_>>();
+    if votes.len() != addrs_set.len() {
+        return Err(ContractError::DuplicatedPools {});
     }
 
     // Validating addrs and bps
