@@ -402,7 +402,7 @@ fn query_available_reward_per_week(
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
     let start = start_after
         .map(|timestamp| U64Key::from(get_period(timestamp)).joined_key())
-        .map(Bound::Exclusive);
+        .map(Bound::Inclusive);
 
     REWARDS_PER_WEEK
         .range(deps.storage, start, None, Order::Ascending)

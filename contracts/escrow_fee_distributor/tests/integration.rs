@@ -1,7 +1,7 @@
 use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
-use cosmwasm_std::{attr, to_binary, Addr, StdResult, Uint128};
+use cosmwasm_std::{attr, to_binary, Addr, StdResult, Timestamp, Uint128};
 
-use astroport_governance::utils::{get_period, WEEK};
+use astroport_governance::utils::{get_period, EPOCH_START, WEEK};
 
 use astroport_governance::escrow_fee_distributor::{
     ConfigResponse, Cw20HookMsg, ExecuteMsg, QueryMsg,
@@ -25,7 +25,8 @@ const USER5: &str = "user5";
 const MAKER: &str = "maker";
 
 fn mock_app() -> TerraApp {
-    let env = mock_env();
+    let mut env = mock_env();
+    env.block.time = Timestamp::from_seconds(EPOCH_START);
     let api = MockApi::default();
     let bank = BankKeeper::new();
     let storage = MockStorage::new();
@@ -979,7 +980,7 @@ fn is_claim_enabled() {
         .query_wasm_smart(
             &base_pack.escrow_fee_distributor.clone().unwrap().address,
             &QueryMsg::AvailableRewardPerWeek {
-                start_after: Some(router_ref.block_info().time.seconds() - WEEK),
+                start_after: Some(router_ref.block_info().time.seconds()),
                 limit: None,
             },
         )
