@@ -168,7 +168,7 @@ fn test_receive_tokens() {
         .query_wasm_smart(
             &base_pack.escrow_fee_distributor.clone().unwrap().address,
             &QueryMsg::AvailableRewardPerWeek {
-                start_after: None,
+                start_from: None,
                 limit: None,
             },
         )
@@ -510,7 +510,7 @@ fn claim_max_period() {
         .query_wasm_smart(
             &base_pack.escrow_fee_distributor.clone().unwrap().address,
             &QueryMsg::AvailableRewardPerWeek {
-                start_after: None,
+                start_from: None,
                 limit: Some(2),
             },
         )
@@ -648,7 +648,7 @@ fn claim_multiple_users() {
         .query_wasm_smart(
             &base_pack.escrow_fee_distributor.clone().unwrap().address,
             &QueryMsg::AvailableRewardPerWeek {
-                start_after: None,
+                start_from: None,
                 limit: None,
             },
         )
@@ -796,7 +796,7 @@ fn claim_multiple_users() {
         .query_wasm_smart(
             &base_pack.escrow_fee_distributor.clone().unwrap().address,
             &QueryMsg::AvailableRewardPerWeek {
-                start_after: None,
+                start_from: None,
                 limit: None,
             },
         )
@@ -980,7 +980,7 @@ fn is_claim_enabled() {
         .query_wasm_smart(
             &base_pack.escrow_fee_distributor.clone().unwrap().address,
             &QueryMsg::AvailableRewardPerWeek {
-                start_after: Some(router_ref.block_info().time.seconds()),
+                start_from: Some(router_ref.block_info().time.seconds()),
                 limit: None,
             },
         )

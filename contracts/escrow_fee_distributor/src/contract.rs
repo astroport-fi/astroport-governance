@@ -379,8 +379,8 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             to_binary(&query_user_reward(deps, env, user, timestamp)?)
         }
         QueryMsg::Config {} => to_binary(&query_config(deps)?),
-        QueryMsg::AvailableRewardPerWeek { start_after, limit } => {
-            to_binary(&query_available_reward_per_week(deps, start_after, limit)?)
+        QueryMsg::AvailableRewardPerWeek { start_from, limit } => {
+            to_binary(&query_available_reward_per_week(deps, start_from, limit)?)
         }
     }
 }
@@ -396,11 +396,11 @@ const DEFAULT_LIMIT: u64 = 10;
 /// Returns a vector of the amount of rewards for the week with the specified parameters
 fn query_available_reward_per_week(
     deps: Deps,
-    start_after: Option<u64>,
+    start_from: Option<u64>,
     limit: Option<u64>,
 ) -> StdResult<Vec<Uint128>> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-    let start = start_after
+    let start = start_from
         .map(|timestamp| U64Key::from(get_period(timestamp)).joined_key())
         .map(Bound::Inclusive);
 
