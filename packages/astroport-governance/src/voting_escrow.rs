@@ -3,7 +3,6 @@ use cw20::{Cw20ReceiveMsg, Logo};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-/// ## Description
 /// This structure stores marketing information for vxASTRO.
 #[derive(Serialize, Deserialize, JsonSchema, Debug, Clone, PartialEq)]
 pub struct InstantiateMarketingInfo {
@@ -17,7 +16,6 @@ pub struct InstantiateMarketingInfo {
     pub logo: Option<Logo>,
 }
 
-/// ## Description
 /// This structure stores general parameters for the vxASTRO contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
@@ -31,7 +29,6 @@ pub struct InstantiateMsg {
     pub marketing: Option<InstantiateMarketingInfo>,
 }
 
-/// ## Description
 /// This structure describes the execute functions in the contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -67,7 +64,6 @@ pub enum ExecuteMsg {
     UploadLogo(Logo),
 }
 
-/// ## Description
 /// This structure describes a CW20 hook message.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -80,7 +76,6 @@ pub enum Cw20HookMsg {
     ExtendLockAmount {},
 }
 
-/// ## Description
 /// This structure describes the query messages available in the contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -111,7 +106,6 @@ pub enum QueryMsg {
     Config {},
 }
 
-/// ## Description
 /// This structure is used to return a user's amount of vxASTRO.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct VotingPowerResponse {
@@ -119,7 +113,6 @@ pub struct VotingPowerResponse {
     pub voting_power: Uint128,
 }
 
-/// ## Description
 /// This structure is used to return the lock information for a vxASTRO position.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct LockInfoResponse {
@@ -133,7 +126,6 @@ pub struct LockInfoResponse {
     pub end: u64,
 }
 
-/// ## Description
 /// This structure stores the parameters returned when querying for a contract's configuration.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigResponse {
@@ -141,7 +133,6 @@ pub struct ConfigResponse {
     pub deposit_token_addr: String,
 }
 
-/// ## Description
 /// This structure describes a migration message.
 /// We currently take no arguments for migrations.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

@@ -2,7 +2,6 @@ use cosmwasm_std::{Addr, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-/// ## Description
 /// This structure stores general parameters for the builder unlock contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
@@ -12,7 +11,6 @@ pub struct Config {
     pub astro_token: Addr,
 }
 
-/// ## Description
 /// This structure stores the total and the remaining amount of ASTRO to be unlocked by all accounts.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct State {
@@ -31,7 +29,6 @@ impl Default for State {
     }
 }
 
-/// ## Description
 /// This structure stores the parameters describing a typical unlock schedule.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Schedule {
@@ -43,7 +40,6 @@ pub struct Schedule {
     pub duration: u64,
 }
 
-/// ## Description
 /// This structure stores the parameters used to describe an ASTRO allocation.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct AllocationParams {
@@ -69,7 +65,6 @@ impl Default for AllocationParams {
     }
 }
 
-/// ## Description
 /// This structure stores the parameters used to describe the status of an allocation.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct AllocationStatus {
@@ -101,7 +96,6 @@ pub mod msg {
 
     use super::{AllocationParams, AllocationStatus, Config};
 
-    /// ## Description
     /// This structure holds the initial parameters used to instantiate the contract.
     #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
     pub struct InstantiateMsg {
@@ -111,7 +105,6 @@ pub mod msg {
         pub astro_token: String,
     }
 
-    /// ## Description
     /// This enum describes all execute functions available in the contract.
     #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
     #[serde(rename_all = "snake_case")]
@@ -130,7 +123,6 @@ pub mod msg {
         ClaimReceiver { prev_receiver: String },
     }
 
-    /// ## Description
     /// This enum describes the receive msg templates.
     #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
     #[serde(rename_all = "snake_case")]
@@ -141,7 +133,6 @@ pub mod msg {
         },
     }
 
-    /// ## Description
     /// Thie enum describes all the queries available in the contract.
     #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
     #[serde(rename_all = "snake_case")]
@@ -171,7 +162,6 @@ pub mod msg {
 
     pub type ConfigResponse = Config;
 
-    /// ## Description
     /// This structure stores the parameters used to return the response when querying for an allocation data.
     #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
     pub struct AllocationResponse {
@@ -181,7 +171,6 @@ pub mod msg {
         pub status: AllocationStatus,
     }
 
-    /// ## Description
     /// This structure stores the parameters used to return the response when simulating a withdrawal.
     #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
     pub struct SimulateWithdrawResponse {
@@ -189,7 +178,6 @@ pub mod msg {
         pub astro_to_withdraw: Uint128,
     }
 
-    /// ## Description
     /// This structure stores the parameters used to return the response when querying for the contract state.
     #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
     pub struct StateResponse {

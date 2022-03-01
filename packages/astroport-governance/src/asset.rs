@@ -10,7 +10,6 @@ use cosmwasm_std::{
 use cw20::Cw20ExecuteMsg;
 use terra_cosmwasm::TerraQuerier;
 
-/// ## Description
 /// This structure describes a token.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Asset {
@@ -107,7 +106,6 @@ impl Asset {
     }
 }
 
-/// ## Description
 /// This enum describes the types of assets the Astroport code handles.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]

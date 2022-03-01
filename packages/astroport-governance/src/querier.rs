@@ -11,7 +11,6 @@ use cw20::{BalanceResponse as Cw20BalanceResponse, Cw20QueryMsg, TokenInfoRespon
 /// This is the number of decimals that Terra native assets have
 const NATIVE_TOKEN_PRECISION: u8 = 6;
 
-/// ## Description
 /// Query an account's balance of a Terra native asset.
 /// ## Params
 /// * **querier** is an object of type [`QuerierWrapper`].
@@ -31,7 +30,6 @@ pub fn query_balance(
     Ok(balance.amount.amount)
 }
 
-/// ## Description
 /// Query an account's balances for all Terra native assets it holds.
 /// ## Params
 /// * **querier** is an object of type [`QuerierWrapper`].
@@ -45,7 +43,6 @@ pub fn query_all_balances(querier: &QuerierWrapper, account_addr: Addr) -> StdRe
     Ok(all_balances.amount)
 }
 
-/// ## Description
 /// Query an account's token balance.
 /// ## Params
 /// * **querier** is an object of type [`QuerierWrapper`].
@@ -73,7 +70,6 @@ pub fn query_token_balance(
     Ok(res.balance)
 }
 
-/// ## Description
 /// Query a token's total supply.
 /// ## Params
 /// * **querier** is an object of type [`QuerierWrapper`].
@@ -88,7 +84,6 @@ pub fn query_supply(querier: &QuerierWrapper, contract_addr: Addr) -> StdResult<
     Ok(res.total_supply)
 }
 
-/// ## Description
 /// Query a token's decimal amount.
 /// ## Params
 /// * **querier** is an object of type [`QuerierWrapper`].

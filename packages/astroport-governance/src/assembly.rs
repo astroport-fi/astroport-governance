@@ -7,7 +7,6 @@ use std::fmt::{Display, Formatter, Result};
 pub const MINIMUM_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE: u64 = 50;
 pub const MAX_PROPOSAL_REQUIRED_PERCENTAGE: u64 = 100;
 
-/// ## Description
 /// This structure holds the parameters used for creating an Assembly contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
@@ -31,7 +30,6 @@ pub struct InstantiateMsg {
     pub proposal_required_threshold: String,
 }
 
-/// ## Description
 /// This enum describes all execute functions available in the contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -66,7 +64,6 @@ pub enum ExecuteMsg {
     UpdateConfig(UpdateConfig),
 }
 
-/// ## Description
 /// Thie enum describes all the queries available in the contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -100,7 +97,6 @@ pub enum Cw20HookMsg {
     },
 }
 
-/// ## Description
 /// This structure stores general parameters for the Assembly contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
@@ -147,7 +143,6 @@ impl Config {
     }
 }
 
-/// ## Description
 /// This structure sotres the params used when updating the main Assembly contract params.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct UpdateConfig {
@@ -171,7 +166,6 @@ pub struct UpdateConfig {
     pub proposal_required_threshold: Option<String>,
 }
 
-/// ## Description
 /// This structure stores data for a proposal.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Proposal {
@@ -207,7 +201,6 @@ pub struct Proposal {
     pub deposit_amount: Uint128,
 }
 
-/// ## Description
 /// This enum describes available statuses/states for a Proposal.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub enum ProposalStatus {
@@ -230,7 +223,6 @@ impl Display for ProposalStatus {
     }
 }
 
-/// ## Description
 /// This structure describes a proposal message.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ProposalMessage {
@@ -240,7 +232,6 @@ pub struct ProposalMessage {
     pub msg: CosmosMsg,
 }
 
-/// ## Description
 /// This structure describes a proposal vote.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ProposalVote {
@@ -250,7 +241,6 @@ pub struct ProposalVote {
     pub power: Uint128,
 }
 
-/// ## Description
 /// This enum describes available options for voting on a proposal.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub enum ProposalVoteOption {
@@ -267,7 +257,6 @@ impl Display for ProposalVoteOption {
     }
 }
 
-/// ## Description
 /// This structure describes a proposal vote response.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ProposalVotesResponse {
@@ -279,7 +268,6 @@ pub struct ProposalVotesResponse {
     pub against_power: Uint128,
 }
 
-/// ## Description
 /// This structure describes proposal list response.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ProposalListResponse {
