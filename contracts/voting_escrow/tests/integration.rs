@@ -452,7 +452,7 @@ fn check_queries() {
     helper.check_xastro_balance(router_ref, helper.voting_instance.as_str(), 90);
 
     // validating user's lock
-    let cur_period = get_period(router_ref.block_info().time.seconds());
+    let cur_period = get_period(router_ref.block_info().time.seconds()).unwrap();
     let user_lock: LockInfoResponse = router_ref
         .wrap()
         .query_wasm_smart(

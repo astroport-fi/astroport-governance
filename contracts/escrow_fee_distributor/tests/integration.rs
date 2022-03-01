@@ -291,10 +291,13 @@ fn check_if_user_exists_after_withdraw() {
 
     assert_eq!(Uint128::new(200_000_000), resp.amount);
     assert_eq!(
-        get_period(router_ref.block_info().time.seconds() - WEEK),
+        get_period(router_ref.block_info().time.seconds() - WEEK).unwrap(),
         resp.start
     );
-    assert_eq!(get_period(router_ref.block_info().time.seconds()), resp.end);
+    assert_eq!(
+        get_period(router_ref.block_info().time.seconds()).unwrap(),
+        resp.end
+    );
 
     base_pack.withdraw(router_ref, user1.as_str()).unwrap();
 
@@ -310,9 +313,12 @@ fn check_if_user_exists_after_withdraw() {
     assert_eq!(resp.amount, Uint128::zero());
     assert_eq!(
         resp.start,
-        get_period(router_ref.block_info().time.minus_seconds(WEEK).seconds())
+        get_period(router_ref.block_info().time.minus_seconds(WEEK).seconds()).unwrap()
     );
-    assert_eq!(resp.end, get_period(router_ref.block_info().time.seconds()));
+    assert_eq!(
+        resp.end,
+        get_period(router_ref.block_info().time.seconds()).unwrap()
+    );
 }
 
 #[test]

@@ -137,7 +137,7 @@ fn receive_cw20(
         return Err(ContractError::Unauthorized {});
     }
 
-    let curr_period = get_period(env.block.time.seconds());
+    let curr_period = get_period(env.block.time.seconds())?;
 
     REWARDS_PER_WEEK.update(
         deps.storage,
@@ -261,7 +261,7 @@ fn calc_claim_amount(deps: DepsMut, env: Env, account: Addr, config: Config) -> 
         .may_load(deps.storage, account.clone())?
         .unwrap_or(user_lock_info.start);
 
-    let current_period = get_period(env.block.time.seconds());
+    let current_period = get_period(env.block.time.seconds())?;
     let lock_end_period = user_lock_info.end;
     let mut claim_amount: Uint128 = Default::default();
 
@@ -400,9 +400,12 @@ fn query_available_reward_per_week(
     limit: Option<u64>,
 ) -> StdResult<Vec<Uint128>> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-    let start = start_from
-        .map(|timestamp| U64Key::from(get_period(timestamp)).joined_key())
-        .map(Bound::Inclusive);
+    let start = if let Some(timestamp) = start_from {
+        let bound = U64Key::from(get_period(timestamp)?).joined_key();
+        Some(Bound::Inclusive(bound))
+    } else {
+        None
+    };
 
     REWARDS_PER_WEEK
         .range(deps.storage, start, None, Order::Ascending)
@@ -428,7 +431,7 @@ fn query_user_reward(deps: Deps, _env: Env, user: String, timestamp: u64) -> Std
         &VotingQueryMsg::TotalVotingPowerAt { time: timestamp },
     )?;
 
-    let current_period = get_period(timestamp);
+    let current_period = get_period(timestamp)?;
 
     if !total_voting_power.voting_power.is_zero() {
         Ok(calculate_reward(

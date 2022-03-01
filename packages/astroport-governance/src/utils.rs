@@ -1,3 +1,5 @@
+use cosmwasm_std::{StdError, StdResult};
+
 /// Seconds in one week. Constant is intended for period number calculation.
 pub const WEEK: u64 = 7 * 86400; // lock period is rounded down by week
 
@@ -12,8 +14,12 @@ pub const EPOCH_START: u64 = 1646006400;
 
 /// # Description
 /// Calculates period number. Time should have timestamp format.
-pub fn get_period(time: u64) -> u64 {
-    (time - EPOCH_START) / WEEK
+pub fn get_period(time: u64) -> StdResult<u64> {
+    if time < EPOCH_START {
+        Err(StdError::generic_err("Invalid time"))
+    } else {
+        Ok((time - EPOCH_START) / WEEK)
+    }
 }
 
 /// # Description

@@ -62,7 +62,7 @@ impl Simulator {
     }
 
     fn block_period(&self) -> u64 {
-        get_period(self.router.block_info().time.seconds())
+        get_period(self.router.block_info().time.seconds()).unwrap()
     }
 
     fn app_next_period(&mut self) {

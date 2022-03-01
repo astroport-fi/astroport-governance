@@ -66,7 +66,7 @@ pub fn instantiate(
     };
     CONFIG.save(deps.storage, &config)?;
 
-    let cur_period = get_period(env.block.time.seconds());
+    let cur_period = get_period(env.block.time.seconds())?;
     let point = Point {
         power: Uint128::zero(),
         start: cur_period,
@@ -213,7 +213,7 @@ fn checkpoint_total(
     old_slope: Decimal,
     new_slope: Decimal,
 ) -> StdResult<()> {
-    let cur_period = get_period(env.block.time.seconds());
+    let cur_period = get_period(env.block.time.seconds())?;
     let cur_period_key = U64Key::new(cur_period);
     let contract_addr = env.contract.address;
     let add_voting_power = add_voting_power.unwrap_or_default();
@@ -282,7 +282,7 @@ fn checkpoint(
     add_amount: Option<Uint128>,
     new_end: Option<u64>,
 ) -> StdResult<()> {
-    let cur_period = get_period(env.block.time.seconds());
+    let cur_period = get_period(env.block.time.seconds())?;
     let cur_period_key = U64Key::new(cur_period);
     let add_amount = add_amount.unwrap_or_default();
     let mut old_slope = Decimal::zero();
@@ -395,7 +395,7 @@ fn create_lock(
 ) -> Result<Response, ContractError> {
     time_limits_check(time)?;
 
-    let block_period = get_period(env.block.time.seconds());
+    let block_period = get_period(env.block.time.seconds())?;
     let end = block_period + get_periods_count(time);
 
     LOCKED.update(deps.storage, user.clone(), |lock_opt| {
@@ -429,7 +429,7 @@ fn deposit_for(
 ) -> Result<Response, ContractError> {
     LOCKED.update(deps.storage, user.clone(), |lock_opt| match lock_opt {
         Some(mut lock) if !lock.amount.is_zero() => {
-            if lock.end <= get_period(env.block.time.seconds()) {
+            if lock.end <= get_period(env.block.time.seconds())? {
                 Err(ContractError::LockExpired {})
             } else {
                 lock.amount += amount;
@@ -455,7 +455,7 @@ fn withdraw(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, Cont
         .filter(|lock| !lock.amount.is_zero())
         .ok_or(ContractError::LockDoesntExist {})?;
 
-    let cur_period = get_period(env.block.time.seconds());
+    let cur_period = get_period(env.block.time.seconds())?;
     if lock.end > cur_period {
         Err(ContractError::LockHasNotExpired {})
     } else {
@@ -515,7 +515,7 @@ fn extend_lock_time(
     // disabling ability to extend lock time by less than a week
     time_limits_check(time)?;
 
-    if lock.end <= get_period(env.block.time.seconds()) {
+    if lock.end <= get_period(env.block.time.seconds())? {
         return Err(ContractError::LockExpired {});
     };
 
@@ -562,7 +562,7 @@ fn update_blacklist(
         return Err(StdError::generic_err("Append and remove arrays are empty").into());
     }
 
-    let cur_period = get_period(env.block.time.seconds());
+    let cur_period = get_period(env.block.time.seconds())?;
     let cur_period_key = U64Key::new(cur_period);
     let mut reduce_total_vp = Uint128::zero(); // accumulator for total VP reduce
     let mut old_slopes = Decimal::zero(); // accumulator for old slopes
@@ -709,7 +709,7 @@ fn get_user_voting_power(
     user: String,
     time: Option<u64>,
 ) -> StdResult<VotingPowerResponse> {
-    let period = get_period(time.unwrap_or_else(|| env.block.time.seconds()));
+    let period = get_period(time.unwrap_or_else(|| env.block.time.seconds()))?;
     get_user_voting_power_at_period(deps, user, period)
 }
 
@@ -764,7 +764,7 @@ fn get_total_voting_power(
     env: Env,
     time: Option<u64>,
 ) -> StdResult<VotingPowerResponse> {
-    let period = get_period(time.unwrap_or_else(|| env.block.time.seconds()));
+    let period = get_period(time.unwrap_or_else(|| env.block.time.seconds()))?;
     get_total_voting_power_at_period(deps, env, period)
 }
 
