@@ -1,19 +1,25 @@
 use crate::bps::BasicPoints;
 
-use crate::state::{VotedPoolInfo, CONFIG};
+use crate::state::VotedPoolInfo;
 use astroport::asset::addr_validate_to_lower;
 
 use astroport_governance::voting_escrow::QueryMsg::LockInfo;
 use astroport_governance::voting_escrow::{
     LockInfoResponse, QueryMsg::UserVotingPower, VotingPowerResponse,
 };
-use cosmwasm_std::{Addr, Decimal, Deps, DepsMut, Fraction, Pair, StdError, StdResult, Uint128};
+use cosmwasm_std::{
+    Addr, Decimal, Deps, DepsMut, Fraction, Pair, QuerierWrapper, StdError, StdResult, Uint128,
+};
 use cw_storage_plus::Path;
 
 use std::str;
 
-pub(crate) fn get_voting_power(escrow_addr: &Addr, user: &Addr) -> StdResult<Uint128> {
-    let vp: VotingPowerResponse = deps.querier.query_wasm_smart(
+pub(crate) fn get_voting_power(
+    querier: QuerierWrapper,
+    escrow_addr: &Addr,
+    user: &Addr,
+) -> StdResult<Uint128> {
+    let vp: VotingPowerResponse = querier.query_wasm_smart(
         escrow_addr.clone(),
         &UserVotingPower {
             user: user.to_string(),
@@ -22,8 +28,12 @@ pub(crate) fn get_voting_power(escrow_addr: &Addr, user: &Addr) -> StdResult<Uin
     Ok(vp.voting_power)
 }
 
-pub(crate) fn get_lock_info(escrow_addr: &Addr, user: &Addr) -> StdResult<LockInfoResponse> {
-    let lock_info: LockInfoResponse = deps.querier.query_wasm_smart(
+pub(crate) fn get_lock_info(
+    querier: QuerierWrapper,
+    escrow_addr: &Addr,
+    user: &Addr,
+) -> StdResult<LockInfoResponse> {
+    let lock_info: LockInfoResponse = querier.query_wasm_smart(
         escrow_addr.clone(),
         &LockInfo {
             user: user.to_string(),

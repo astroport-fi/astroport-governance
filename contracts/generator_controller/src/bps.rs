@@ -1,7 +1,7 @@
 use crate::error::ContractError;
 use cosmwasm_std::{StdError, Uint128};
 use schemars::JsonSchema;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Serialize};
 use std::convert::{TryFrom, TryInto};
 use std::ops::Mul;
 

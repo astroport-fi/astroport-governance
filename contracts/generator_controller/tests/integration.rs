@@ -1,10 +1,13 @@
+use cosmwasm_std::Addr;
+use terra_multi_test::Executor;
+
+use astroport_governance::generator_controller::{ExecuteMsg, QueryMsg};
+use astroport_governance::utils::WEEK;
+use generator_controller::state::{GaugeInfo, UserInfo};
+
 use crate::test_utils::controller_helper::ControllerHelper;
 use crate::test_utils::escrow_helper::MULTIPLIER;
 use crate::test_utils::{mock_app, TerraAppExtension};
-use astroport_governance::generator_controller::QueryMsg;
-use astroport_governance::utils::WEEK;
-use cosmwasm_std::{Addr, Decimal};
-use generator_controller::state::UserInfo;
 
 // TODO: move this module into astroport-tests crate
 #[cfg(test)]
@@ -72,7 +75,11 @@ fn check_vote_works() {
         "You can only run this action every 10 days"
     );
 
-    let ve_slope = helper.escrow_helper.query_lock_info(&mut router, "user2");
+    let ve_slope = helper
+        .escrow_helper
+        .query_lock_info(&mut router, "user2")
+        .unwrap()
+        .slope;
     let ve_power = helper
         .escrow_helper
         .query_user_vp(&mut router, "user2")
@@ -80,7 +87,7 @@ fn check_vote_works() {
     let resp: UserInfo = router
         .wrap()
         .query_wasm_smart(
-            helper.controller,
+            helper.controller.clone(),
             &QueryMsg::UserInfo {
                 user: "user2".to_string(),
             },
@@ -97,12 +104,101 @@ fn check_vote_works() {
         .into_iter()
         .map(|(addr, bps)| (addr.to_string(), bps.into()))
         .collect::<Vec<_>>();
-    assert_eq!(("pool1".to_string(), 3000), resp_votes[0]);
-    assert_eq!(("pool2".to_string(), 7000), resp_votes[1]);
+    assert_eq!(
+        vec![("pool1".to_string(), 3000), ("pool2".to_string(), 7000)],
+        resp_votes
+    );
 
     router.next_block(86400 * 10);
     // In 10 days user will be able to vote again
     helper
         .vote(&mut router, "user2", vec![("pool1", 500), ("pool2", 9500)])
         .unwrap();
+}
+
+#[test]
+fn check_gauging() {
+    let mut router = mock_app();
+    let owner = Addr::unchecked("owner");
+    let helper = ControllerHelper::init(&mut router, &owner);
+    let user1 = "user1";
+    let user2 = "user2";
+    let user3 = "user3";
+    let ve_locks = vec![(user1, 10), (user2, 5), (user3, 50)];
+
+    for (user, duration) in ve_locks {
+        helper.escrow_helper.mint_xastro(&mut router, user, 1000);
+        helper
+            .escrow_helper
+            .create_lock(&mut router, user, duration * WEEK, 100f32)
+            .unwrap();
+    }
+
+    helper
+        .vote(&mut router, user1, vec![("pool1", 5000), ("pool2", 5000)])
+        .unwrap();
+    helper
+        .vote(
+            &mut router,
+            user2,
+            vec![("pool1", 5000), ("pool3", 2000), ("pool5", 3000)],
+        )
+        .unwrap();
+    helper
+        .vote(
+            &mut router,
+            user3,
+            vec![("pool2", 2000), ("pool3", 3000), ("pool4", 5000)],
+        )
+        .unwrap();
+
+    // The contract was just created so we need to wait for 2 weeks
+    let err = router
+        .execute_contract(
+            owner.clone(),
+            helper.controller.clone(),
+            &ExecuteMsg::GaugePools {},
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.to_string(),
+        "You can only run this action every 14 days"
+    );
+
+    router.next_block(WEEK);
+    let err = router
+        .execute_contract(
+            owner.clone(),
+            helper.controller.clone(),
+            &ExecuteMsg::GaugePools {},
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.to_string(),
+        "You can only run this action every 14 days"
+    );
+
+    router.next_block(WEEK);
+    router
+        .execute_contract(
+            owner.clone(),
+            helper.controller.clone(),
+            &ExecuteMsg::GaugePools {},
+            &[],
+        )
+        .unwrap();
+
+    let resp: GaugeInfo = router
+        .wrap()
+        .query_wasm_smart(helper.controller.clone(), &QueryMsg::GaugeInfo)
+        .unwrap();
+    let total_apoints: u64 = resp
+        .pool_alloc_points
+        .iter()
+        .cloned()
+        .map(|(_, apoints)| apoints.u64())
+        .sum();
+    assert_eq!(total_apoints, 10000)
 }
