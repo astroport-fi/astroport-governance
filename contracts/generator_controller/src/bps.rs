@@ -1,5 +1,6 @@
 use crate::error::ContractError;
-use cosmwasm_std::{StdError, Uint128};
+use crate::utils::CheckedMulRatio;
+use cosmwasm_std::Uint128;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::convert::{TryFrom, TryInto};
@@ -21,10 +22,10 @@ impl BasicPoints {
     }
 
     pub fn from_ratio(numerator: Uint128, denominator: Uint128) -> Result<Self, ContractError> {
-        let value = (numerator.u128() * Self::MAX as u128)
-            .checked_div(denominator.u128())
-            .ok_or_else(|| StdError::generic_err("Division by zero"))?;
-        value.try_into()
+        numerator
+            .checked_multiply_ratio(Self::MAX, denominator)?
+            .u128()
+            .try_into()
     }
 }
 

@@ -1,4 +1,5 @@
 use crate::bps::BasicPoints;
+use std::convert::TryInto;
 
 use crate::state::VotedPoolInfo;
 use astroport::asset::addr_validate_to_lower;
@@ -9,6 +10,7 @@ use astroport_governance::voting_escrow::{
 };
 use cosmwasm_std::{
     Addr, Decimal, Deps, DepsMut, Fraction, Pair, QuerierWrapper, StdError, StdResult, Uint128,
+    Uint256,
 };
 use cw_storage_plus::Path;
 
@@ -51,7 +53,7 @@ pub(crate) fn cancel_user_changes(
 ) -> StdResult<()> {
     pool_votes_path
         .update(deps.storage, |pool_opt| {
-            // pool_opt should never become None in this context
+            // TODO: recalculate current period pool info basing on pervious period
             let mut pool_info =
                 pool_opt.ok_or_else(|| StdError::generic_err("Pool info was not found"))?;
             pool_info.vxastro_amount -= old_bps * old_vp;
@@ -91,4 +93,34 @@ pub(crate) fn deserialize_pair(
         .map_err(|_| StdError::generic_err("Deserialization error"))?;
     let addr = addr_validate_to_lower(deps.api, addr_str)?;
     Ok((addr, pool_info))
+}
+
+pub(crate) trait CheckedMulRatio {
+    fn checked_multiply_ratio(
+        self,
+        numerator: impl Into<u128>,
+        denominator: impl Into<Uint256>,
+    ) -> StdResult<Uint128>;
+}
+
+impl CheckedMulRatio for Uint128 {
+    fn checked_multiply_ratio(
+        self,
+        numerator: impl Into<u128>,
+        denominator: impl Into<Uint256>,
+    ) -> StdResult<Uint128> {
+        let numerator = self.full_mul(numerator);
+        let denominator = denominator.into();
+        let mut result = numerator / denominator;
+        let rem = numerator
+            .checked_rem(denominator)
+            .map_err(|_| StdError::generic_err("Division by zero"))?;
+        // Rounding up if residual is more than 50% of denominator
+        if rem.ge(&(denominator / Uint256::from(2u8))) {
+            result += Uint256::from(1u128);
+        }
+        result
+            .try_into()
+            .map_err(|_| StdError::generic_err("Uint256 -> Uint128 conversion error"))
+    }
 }
