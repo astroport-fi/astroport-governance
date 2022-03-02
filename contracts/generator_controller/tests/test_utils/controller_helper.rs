@@ -90,4 +90,13 @@ impl ControllerHelper {
 
         router.execute_contract(Addr::unchecked(user), self.controller.clone(), &msg, &[])
     }
+
+    pub fn gauge(&self, router: &mut TerraApp, sender: &str) -> AnyResult<AppResponse> {
+        router.execute_contract(
+            Addr::unchecked(sender),
+            self.controller.clone(),
+            &ExecuteMsg::GaugePools {},
+            &[],
+        )
+    }
 }

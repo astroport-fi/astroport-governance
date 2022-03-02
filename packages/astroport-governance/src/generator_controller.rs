@@ -21,7 +21,8 @@ pub struct InstantiateMsg {
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
     Vote { votes: Vec<(String, u16)> },
-    GaugePools {},
+    GaugePools,
+    ChangePoolLimit { limit: u64 },
 }
 
 /// ## Description

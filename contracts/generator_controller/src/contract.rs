@@ -83,7 +83,8 @@ pub fn instantiate(
 pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> ExecuteResult {
     match msg {
         ExecuteMsg::Vote { votes } => handle_vote(deps, env, info, votes),
-        ExecuteMsg::GaugePools {} => gauge_generators(deps, env, info),
+        ExecuteMsg::GaugePools => gauge_generators(deps, env, info),
+        ExecuteMsg::ChangePoolLimit { limit } => change_pools_limit(deps, info, limit),
     }
 }
 
@@ -265,6 +266,19 @@ fn gauge_generators(deps: DepsMut, env: Env, info: MessageInfo) -> ExecuteResult
     )?;
 
     Ok(response.add_attribute("action", "gauge_generators"))
+}
+
+fn change_pools_limit(deps: DepsMut, info: MessageInfo, limit: u64) -> ExecuteResult {
+    let mut config = CONFIG.load(deps.storage)?;
+
+    if info.sender != config.owner {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    config.pools_limit = limit;
+    CONFIG.save(deps.storage, &config)?;
+
+    Ok(Response::default().add_attribute("action", "change_pools_limit"))
 }
 
 /// # Description

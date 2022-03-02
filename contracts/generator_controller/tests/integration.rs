@@ -2,7 +2,7 @@ use cosmwasm_std::Addr;
 use terra_multi_test::Executor;
 
 use astroport_governance::generator_controller::{ExecuteMsg, QueryMsg};
-use astroport_governance::utils::{get_period, WEEK};
+use astroport_governance::utils::WEEK;
 use generator_controller::state::{GaugeInfo, UserInfo};
 
 use crate::test_utils::controller_helper::ControllerHelper;
@@ -119,8 +119,9 @@ fn check_vote_works() {
 #[test]
 fn check_gauging() {
     let mut router = mock_app();
-    let owner = Addr::unchecked("owner");
-    let helper = ControllerHelper::init(&mut router, &owner);
+    let owner = "owner";
+    let owner_addr = Addr::unchecked(owner);
+    let helper = ControllerHelper::init(&mut router, &owner_addr);
     let user1 = "user1";
     let user2 = "user2";
     let user3 = "user3";
@@ -153,52 +154,24 @@ fn check_gauging() {
         .unwrap();
 
     // The contract was just created so we need to wait for 2 weeks
-    let err = router
-        .execute_contract(
-            owner.clone(),
-            helper.controller.clone(),
-            &ExecuteMsg::GaugePools {},
-            &[],
-        )
-        .unwrap_err();
+    let err = helper.gauge(&mut router, owner).unwrap_err();
     assert_eq!(
         err.to_string(),
         "You can only run this action every 14 days"
     );
 
     router.next_block(WEEK);
-    let err = router
-        .execute_contract(
-            owner.clone(),
-            helper.controller.clone(),
-            &ExecuteMsg::GaugePools {},
-            &[],
-        )
-        .unwrap_err();
+    let err = helper.gauge(&mut router, owner).unwrap_err();
     assert_eq!(
         err.to_string(),
         "You can only run this action every 14 days"
     );
 
     router.next_block(WEEK);
-    let err = router
-        .execute_contract(
-            Addr::unchecked("somebody"),
-            helper.controller.clone(),
-            &ExecuteMsg::GaugePools {},
-            &[],
-        )
-        .unwrap_err();
+    let err = helper.gauge(&mut router, "somebody").unwrap_err();
     assert_eq!(err.to_string(), "Unauthorized");
 
-    router
-        .execute_contract(
-            owner.clone(),
-            helper.controller.clone(),
-            &ExecuteMsg::GaugePools {},
-            &[],
-        )
-        .unwrap();
+    helper.gauge(&mut router, owner).unwrap();
 
     let resp: GaugeInfo = router
         .wrap()
@@ -210,5 +183,43 @@ fn check_gauging() {
         .cloned()
         .map(|(_, apoints)| apoints.u64())
         .sum();
-    assert_eq!(total_apoints, 10000)
+    assert_eq!(total_apoints, 10000);
+    assert_eq!(resp.pool_alloc_points.len(), 5);
+
+    router.next_block(2 * WEEK);
+    // Reduce pools limit 5 -> 2 (5 is initial limit in integration tests)
+    let limit = 2u64;
+    let err = router
+        .execute_contract(
+            Addr::unchecked("somebody"),
+            helper.controller.clone(),
+            &ExecuteMsg::ChangePoolLimit { limit },
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(err.to_string(), "Unauthorized");
+
+    router
+        .execute_contract(
+            owner_addr.clone(),
+            helper.controller.clone(),
+            &ExecuteMsg::ChangePoolLimit { limit },
+            &[],
+        )
+        .unwrap();
+
+    helper.gauge(&mut router, owner).unwrap();
+
+    let resp: GaugeInfo = router
+        .wrap()
+        .query_wasm_smart(helper.controller.clone(), &QueryMsg::GaugeInfo)
+        .unwrap();
+    let total_apoints: u64 = resp
+        .pool_alloc_points
+        .iter()
+        .cloned()
+        .map(|(_, apoints)| apoints.u64())
+        .sum();
+    assert_eq!(total_apoints, 10000);
+    assert_eq!(resp.pool_alloc_points.len(), limit as usize)
 }
