@@ -587,8 +587,8 @@ fn extend_lock_time(
     };
 
     // Should not exceed MAX_LOCK_TIME
-    time_limits_check(lock.end * WEEK + time - env.block.time.seconds())?;
-    lock.end += get_period(time);
+    time_limits_check(EPOCH_START + lock.end * WEEK + time - env.block.time.seconds())?;
+    lock.end += get_periods_count(time);
     LOCKED.save(deps.storage, user.clone(), &lock)?;
 
     checkpoint(deps, env, user, None, Some(lock.end))?;
