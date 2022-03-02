@@ -2,7 +2,7 @@ use cosmwasm_std::Addr;
 use terra_multi_test::Executor;
 
 use astroport_governance::generator_controller::{ExecuteMsg, QueryMsg};
-use astroport_governance::utils::WEEK;
+use astroport_governance::utils::{get_period, WEEK};
 use generator_controller::state::{GaugeInfo, UserInfo};
 
 use crate::test_utils::controller_helper::ControllerHelper;
@@ -181,6 +181,16 @@ fn check_gauging() {
     );
 
     router.next_block(WEEK);
+    let err = router
+        .execute_contract(
+            Addr::unchecked("somebody"),
+            helper.controller.clone(),
+            &ExecuteMsg::GaugePools {},
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(err.to_string(), "Unauthorized");
+
     router
         .execute_contract(
             owner.clone(),

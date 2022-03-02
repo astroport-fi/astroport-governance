@@ -2,7 +2,6 @@ use std::collections::HashSet;
 use std::convert::TryInto;
 
 use astroport::asset::addr_validate_to_lower;
-use astroport::DecimalCheckedOps;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
@@ -15,7 +14,7 @@ use cw_storage_plus::U64Key;
 use astroport_governance::generator_controller::{
     ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg,
 };
-use astroport_governance::utils::{calc_voting_power, calc_voting_power_by_dt, get_period, WEEK};
+use astroport_governance::utils::{calc_voting_power, get_period, WEEK};
 
 use crate::bps::BasicPoints;
 use crate::error::ContractError;
@@ -23,7 +22,8 @@ use crate::state::{
     Config, GaugeInfo, UserInfo, VotedPoolInfo, CONFIG, GAUGE_INFO, POOL_VOTES, USER_INFO,
 };
 use crate::utils::{
-    cancel_user_changes, deserialize_pair, get_lock_info, get_voting_power, vote_for_pool,
+    cancel_user_changes, deserialize_pair, get_lock_info, get_or_calculate_pool_info,
+    get_voting_power, vote_for_pool,
 };
 
 /// Contract name that is used for migration.
@@ -140,7 +140,7 @@ fn handle_vote(
             acc.checked_add(*bps)
         })?;
 
-    if !user_info.slope.is_zero() {
+    if !user_info.slope.is_zero() && block_period > 0 {
         // Calculate voting power before changes
         let old_vp_at_period = calc_voting_power(
             user_info.slope,
@@ -150,10 +150,10 @@ fn handle_vote(
         );
         // Cancel changes applied by previous votes
         user_info.votes.iter().try_for_each(|(pool_addr, bps)| {
-            let pool_votes_path = POOL_VOTES.key((U64Key::new(block_period), &pool_addr));
             cancel_user_changes(
                 deps.branch(),
-                pool_votes_path,
+                block_period,
+                &pool_addr,
                 *bps,
                 user_info.slope,
                 old_vp_at_period,
@@ -205,22 +205,14 @@ fn gauge_generators(deps: DepsMut, env: Env, info: MessageInfo) -> ExecuteResult
         // TODO: push msg to response.messages to cancel previous pool alloc points
     }
 
-    // Recalculate voted pool info for passed periods excluding current block period
+    // Recalculate voted pool info for passed periods excluding current block period.
     for period in get_period(gauge_info.gauge_ts)..block_period {
         POOL_VOTES
             .prefix(U64Key::new(period))
             .range(deps.storage, None, None, Order::Ascending)
             .map(|pair_result| {
-                let (pool_addr, old_pool_info) = deserialize_pair(deps.as_ref(), pair_result)?;
-                // Because we recalculate period by period the period difference will be always 1
-                let old_vp =
-                    calc_voting_power_by_dt(old_pool_info.slope, old_pool_info.vxastro_amount, 1);
-                // Fetch votes for the next period
-                let mut new_pool_info = POOL_VOTES
-                    .may_load(deps.storage, (U64Key::new(period + 1), &pool_addr))?
-                    .unwrap_or_default();
-                new_pool_info.vxastro_amount = new_pool_info.vxastro_amount.checked_add(old_vp)?;
-                new_pool_info.slope = new_pool_info.slope.checked_add(old_pool_info.slope)?;
+                let (pool_addr, _) = deserialize_pair(deps.as_ref(), pair_result)?;
+                let new_pool_info = get_or_calculate_pool_info(deps.as_ref(), period, &pool_addr)?;
                 Ok((pool_addr, new_pool_info))
             })
             .collect::<StdResult<Vec<_>>>()?

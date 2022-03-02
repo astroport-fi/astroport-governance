@@ -1,7 +1,7 @@
 use crate::bps::BasicPoints;
 use std::convert::TryInto;
 
-use crate::state::VotedPoolInfo;
+use crate::state::{VotedPoolInfo, POOL_VOTES};
 use astroport::asset::addr_validate_to_lower;
 
 use astroport_governance::voting_escrow::QueryMsg::LockInfo;
@@ -12,8 +12,9 @@ use cosmwasm_std::{
     Addr, Decimal, Deps, DepsMut, Fraction, Pair, QuerierWrapper, StdError, StdResult, Uint128,
     Uint256,
 };
-use cw_storage_plus::Path;
+use cw_storage_plus::{Path, U64Key};
 
+use astroport_governance::utils::calc_voting_power_by_dt;
 use std::str;
 
 pub(crate) fn get_voting_power(
@@ -46,22 +47,17 @@ pub(crate) fn get_lock_info(
 
 pub(crate) fn cancel_user_changes(
     deps: DepsMut,
-    pool_votes_path: Path<VotedPoolInfo>,
+    period: u64,
+    pool_addr: &Addr,
     old_bps: BasicPoints,
     old_slope: Decimal,
     old_vp: Uint128,
 ) -> StdResult<()> {
-    pool_votes_path
-        .update(deps.storage, |pool_opt| {
-            // TODO: recalculate current period pool info basing on pervious period
-            let mut pool_info =
-                pool_opt.ok_or_else(|| StdError::generic_err("Pool info was not found"))?;
-            pool_info.vxastro_amount -= old_bps * old_vp;
-            pool_info.slope = pool_info.slope
-                - Decimal::from_ratio(old_slope * old_bps.into(), pool_info.slope.denominator());
-            Ok(pool_info)
-        })
-        .map(|_| ())
+    let mut pool_info = get_or_calculate_pool_info(deps.as_ref(), period, pool_addr)?;
+    pool_info.vxastro_amount -= old_bps * old_vp;
+    pool_info.slope = pool_info.slope
+        - Decimal::from_ratio(old_slope * old_bps.into(), pool_info.slope.denominator());
+    POOL_VOTES.save(deps.storage, (U64Key::new(period), pool_addr), &pool_info)
 }
 
 pub(crate) fn vote_for_pool(
@@ -80,6 +76,31 @@ pub(crate) fn vote_for_pool(
             Ok(pool_info)
         })
         .map(|_| ())
+}
+
+pub(crate) fn get_or_calculate_pool_info(
+    deps: Deps,
+    period: u64,
+    pool_addr: &Addr,
+) -> StdResult<VotedPoolInfo> {
+    let prev_pool_info = POOL_VOTES
+        .may_load(deps.storage, (U64Key::new(period - 1), pool_addr))?
+        .unwrap_or_default();
+    POOL_VOTES
+        .may_load(deps.storage, (U64Key::new(period), pool_addr))?
+        .map_or_else(
+            || {
+                Ok(VotedPoolInfo {
+                    vxastro_amount: calc_voting_power_by_dt(
+                        prev_pool_info.slope,
+                        prev_pool_info.vxastro_amount,
+                        1,
+                    ),
+                    ..prev_pool_info
+                })
+            },
+            |pool_info| Ok(pool_info),
+        )
 }
 
 /// # Description

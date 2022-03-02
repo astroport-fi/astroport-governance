@@ -1,3 +1,4 @@
+use astroport_governance::utils::get_period;
 use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
 use terra_multi_test::{AppBuilder, BankKeeper, TerraApp, TerraMock};
 
@@ -22,6 +23,7 @@ pub fn mock_app() -> TerraApp {
 
 pub trait TerraAppExtension {
     fn next_block(&mut self, time: u64);
+    fn block_period(&self) -> u64;
 }
 
 impl TerraAppExtension for TerraApp {
@@ -30,5 +32,9 @@ impl TerraAppExtension for TerraApp {
             block.time = block.time.plus_seconds(time);
             block.height += 1
         });
+    }
+
+    fn block_period(&self) -> u64 {
+        get_period(self.block_info().time.seconds())
     }
 }
