@@ -2,7 +2,7 @@ use cosmwasm_std::{OverflowError, StdError};
 use thiserror::Error;
 
 /// ## Description
-/// This enum describes assembly contract errors!
+/// This enum describes Assembly contract errors!
 #[derive(Error, Debug)]
 pub enum ContractError {
     #[error("{0}")]

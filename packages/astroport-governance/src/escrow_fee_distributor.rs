@@ -3,7 +3,6 @@ use cw20::Cw20ReceiveMsg;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-/// ## Description
 /// This structure describes the basic settings for creating a contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
@@ -19,7 +18,6 @@ pub struct InstantiateMsg {
     pub is_claim_disabled: Option<bool>,
 }
 
-/// ## Description
 /// This structure describes the execute messages of the contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -50,7 +48,6 @@ pub enum ExecuteMsg {
     Receive(Cw20ReceiveMsg),
 }
 
-/// ## Description
 /// This structure describes the query messages of the contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -66,7 +63,6 @@ pub enum QueryMsg {
     },
 }
 
-/// ## Description
 /// This structure describes the custom struct for each query response.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigResponse {
@@ -82,13 +78,11 @@ pub struct ConfigResponse {
     pub is_claim_disabled: bool,
 }
 
-/// ## Description
 /// This structure describes a migration message.
 /// We currently take no arguments for migrations.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct MigrateMsg {}
 
-/// ## Description
 /// This structure describes custom hooks for the CW20.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]

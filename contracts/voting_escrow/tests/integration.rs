@@ -17,24 +17,24 @@ fn lock_unlock_logic() {
     let owner = Addr::unchecked("owner");
     let helper = Helper::init(router_ref, owner);
 
-    // mint ASTRO, stake it and mint xASTRO
+    // Mint ASTRO, stake it and mint xASTRO
     helper.mint_xastro(router_ref, "user", 100);
     helper.check_xastro_balance(router_ref, "user", 100);
 
-    // creating invalid voting escrow lock
+    // Create invalid vx position
     let res = helper
         .create_lock(router_ref, "user", WEEK - 1, 1f32)
         .unwrap_err();
     assert_eq!(
         res.to_string(),
-        "Lock time must be within the limits (week <= lock time < 2 years)"
+        "Lock time must be within limits (week <= lock time < 2 years)"
     );
     let res = helper
         .create_lock(router_ref, "user", MAX_LOCK_TIME + 1, 1f32)
         .unwrap_err();
     assert_eq!(
         res.to_string(),
-        "Lock time must be within the limits (week <= lock time < 2 years)"
+        "Lock time must be within limits (week <= lock time < 2 years)"
     );
     let res = helper
         .create_lock(router_ref, "user", WEEK, 101f32)
@@ -48,81 +48,81 @@ fn lock_unlock_logic() {
         )
     );
 
-    // trying to increase lock's time which does not exist
+    // Try to increase the lock time for a position that doesn't exist
     let res = helper
         .extend_lock_time(router_ref, "user", MAX_LOCK_TIME)
         .unwrap_err();
     assert_eq!(res.to_string(), "Lock does not exist");
 
-    // trying to withdraw from non-existent lock
+    // Try to withdraw from a non-existent lock
     let res = helper.withdraw(router_ref, "user").unwrap_err();
     assert_eq!(res.to_string(), "Lock does not exist");
 
-    // trying to extend lock amount which does not exist
+    // Try to deposit more xASTRO in a position that does not already exist
     let res = helper
         .extend_lock_amount(router_ref, "user", 1f32)
         .unwrap_err();
     assert_eq!(res.to_string(), "Lock does not exist");
 
-    // current total voting power is 0
+    // Current total voting power is 0
     let vp = helper.query_total_vp(router_ref).unwrap();
     assert_eq!(vp, 0.0);
 
-    // creating valid voting escrow lock
+    // Create valid voting escrow lock
     helper
         .create_lock(router_ref, "user", WEEK * 2, 90f32)
         .unwrap();
-    // check that 90 xASTRO were actually debited
+    // Check that 90 xASTRO were actually debited
     helper.check_xastro_balance(router_ref, "user", 10);
     helper.check_xastro_balance(router_ref, helper.voting_instance.as_str(), 90);
 
-    // a user can have only one position in vxASTRO
+    // A user can have a single vxASTRO position
     let res = helper
         .create_lock(router_ref, "user", MAX_LOCK_TIME, 1f32)
         .unwrap_err();
     assert_eq!(res.to_string(), "Lock already exists");
 
-    // trying to increase lock time by time less than a week
+    // Try to increase the lock time by less than a week
     let res = helper
         .extend_lock_time(router_ref, "user", 86400)
         .unwrap_err();
     assert_eq!(
         res.to_string(),
-        "Lock time must be within the limits (week <= lock time < 2 years)"
+        "Lock time must be within limits (week <= lock time < 2 years)"
     );
 
-    // trying to exceed MAX_LOCK_TIME by increasing lock time
-    // we locked for 2 weeks so increasing by MAX_LOCK_TIME - week is impossible
+    // Try to exceed MAX_LOCK_TIME
+    // We locked for 2 weeks so increasing by MAX_LOCK_TIME - week is impossible
     let res = helper
         .extend_lock_time(router_ref, "user", MAX_LOCK_TIME - WEEK)
         .unwrap_err();
     assert_eq!(
         res.to_string(),
-        "Lock time must be within the limits (week <= lock time < 2 years)"
+        "Lock time must be within limits (week <= lock time < 2 years)"
     );
 
-    // adding more xASTRO to existing lock
+    // Add more xASTRO to the existing position
     helper.extend_lock_amount(router_ref, "user", 9f32).unwrap();
     helper.check_xastro_balance(router_ref, "user", 1);
     helper.check_xastro_balance(router_ref, helper.voting_instance.as_str(), 99);
 
-    // trying to withdraw from non-expired lock
+    // Try to withdraw from a non-expired lock
     let res = helper.withdraw(router_ref, "user").unwrap_err();
     assert_eq!(res.to_string(), "The lock time has not yet expired");
 
-    // going to the future
+    // Go in the future
     router_ref.update_block(next_block);
     router_ref.update_block(|block| block.time = block.time.plus_seconds(WEEK));
 
-    // but still the lock has not yet expired since we locked for 2 weeks
+    // The lock has not yet expired since we locked for 2 weeks
     let res = helper.withdraw(router_ref, "user").unwrap_err();
     assert_eq!(res.to_string(), "The lock time has not yet expired");
 
-    // going to the future again
+    // Go to the future again
     router_ref.update_block(next_block);
     router_ref.update_block(|block| block.time = block.time.plus_seconds(WEEK));
 
-    // trying to add more xASTRO to expired lock
+    // Try to add more xASTRO to an expired position
     let res = helper
         .extend_lock_amount(router_ref, "user", 1f32)
         .unwrap_err();
@@ -130,7 +130,7 @@ fn lock_unlock_logic() {
         res.to_string(),
         "The lock expired. Withdraw and create new lock"
     );
-    // trying to increase lock time for expired lock
+    // Try to increase the lock time for an expired position
     let res = helper
         .extend_lock_time(router_ref, "user", WEEK)
         .unwrap_err();
@@ -139,16 +139,16 @@ fn lock_unlock_logic() {
         "The lock expired. Withdraw and create new lock"
     );
 
-    // imagine the user will withdraw his expired lock in 5 weeks
+    // Imagine the user will withdraw their expired lock in 5 weeks
     router_ref.update_block(next_block);
     router_ref.update_block(|block| block.time = block.time.plus_seconds(5 * WEEK));
 
-    // time has passed so we can withdraw
+    // Time has passed so we can withdraw
     helper.withdraw(router_ref, "user").unwrap();
     helper.check_xastro_balance(router_ref, "user", 100);
     helper.check_xastro_balance(router_ref, helper.voting_instance.as_str(), 0);
 
-    // check that the lock has disappeared
+    // Check that the lock has disappeared
     let res = helper
         .extend_lock_amount(router_ref, "user", 1f32)
         .unwrap_err();
@@ -218,7 +218,7 @@ fn new_lock_after_lock_expired() {
     let router_ref = &mut router;
     let helper = Helper::init(router_ref, Addr::unchecked("owner"));
 
-    // mint ASTRO, stake it and mint xASTRO
+    // Mint ASTRO, stake it and mint xASTRO
     helper.mint_xastro(router_ref, "user", 100);
 
     helper
@@ -230,7 +230,7 @@ fn new_lock_after_lock_expired() {
     let vp = helper.query_total_vp(router_ref).unwrap();
     assert_eq!(vp, 53.605766);
 
-    // going to the future
+    // Go to the future
     router_ref.update_block(next_block);
     router_ref.update_block(|block| block.time = block.time.plus_seconds(WEEK * 5));
 
@@ -242,7 +242,7 @@ fn new_lock_after_lock_expired() {
     let vp = helper.query_total_vp(router_ref).unwrap();
     assert_eq!(vp, 0.0);
 
-    // creating a new lock in 3 weeks
+    // Create a new lock in 3 weeks from now
     router_ref.update_block(next_block);
     router_ref.update_block(|block| block.time = block.time.plus_seconds(WEEK * 3));
 
@@ -256,14 +256,14 @@ fn new_lock_after_lock_expired() {
     assert_eq!(vp, 107.21153);
 }
 
-/// Plot for this case tests/plots/constant_decay.png
+/// Plot for this test case generated at tests/plots/constant_decay.png
 #[test]
 fn voting_constant_decay() {
     let mut router = mock_app();
     let router_ref = &mut router;
     let helper = Helper::init(router_ref, Addr::unchecked("owner"));
 
-    // mint ASTRO, stake it and mint xASTRO
+    // Mint ASTRO, stake it and mint xASTRO
     helper.mint_xastro(router_ref, "user", 100);
     helper.mint_xastro(router_ref, "user2", 50);
 
@@ -276,15 +276,15 @@ fn voting_constant_decay() {
     let vp = helper.query_total_vp(router_ref).unwrap();
     assert_eq!(vp, 34.326923);
 
-    // since user2 did not lock his xASTRO the contract does not have any information
+    // Since user2 did not lock their xASTRO, the contract does not have any information
     let vp = helper.query_user_vp(router_ref, "user2").unwrap();
     assert_eq!(vp, 0.0);
 
-    // going to the future
+    // Go to the future
     router_ref.update_block(next_block);
     router_ref.update_block(|block| block.time = block.time.plus_seconds(WEEK * 5));
 
-    // we can check voting power in the past
+    // We can check voting power in the past
     let res = helper
         .query_user_vp_at(
             router_ref,
@@ -309,7 +309,7 @@ fn voting_constant_decay() {
         .unwrap();
     assert_eq!(res, 34.326923);
 
-    // and even in the future
+    // And we can even check voting power in the future
     let res = helper
         .query_user_vp_at(
             router_ref,
@@ -327,7 +327,7 @@ fn voting_constant_decay() {
         .unwrap();
     assert_eq!(res, 0.0);
 
-    // create lock for user2
+    // Create lock for user2
     helper
         .create_lock(router_ref, "user2", WEEK * 6, 50f32)
         .unwrap();
@@ -346,7 +346,7 @@ fn voting_constant_decay() {
         .unwrap();
     assert_eq!(res, 21.541666);
 
-    // going to the future
+    // Go to the future
     router_ref.update_block(next_block);
     router_ref.update_block(|block| block.time = block.time.plus_seconds(WEEK * 5));
     let vp = helper.query_user_vp(router_ref, "user").unwrap();
@@ -356,7 +356,7 @@ fn voting_constant_decay() {
     let vp = helper.query_total_vp(router_ref).unwrap();
     assert_eq!(vp, 9.054487);
 
-    // going to the future
+    // Go to the future
     router_ref.update_block(next_block);
     router_ref.update_block(|block| block.time = block.time.plus_seconds(WEEK));
     let vp = helper.query_user_vp(router_ref, "user2").unwrap();
@@ -365,14 +365,14 @@ fn voting_constant_decay() {
     assert_eq!(vp, 0.0);
 }
 
-/// Plot for this case tests/plots/variable_decay.png
+/// Plot for this test case is generated at tests/plots/variable_decay.png
 #[test]
 fn voting_variable_decay() {
     let mut router = mock_app();
     let router_ref = &mut router;
     let helper = Helper::init(router_ref, Addr::unchecked("owner"));
 
-    // mint ASTRO, stake it and mint xASTRO
+    // Mint ASTRO, stake it and mint xASTRO
     helper.mint_xastro(router_ref, "user", 100);
     helper.mint_xastro(router_ref, "user2", 100);
 
@@ -380,18 +380,18 @@ fn voting_variable_decay() {
         .create_lock(router_ref, "user", WEEK * 10, 30f32)
         .unwrap();
 
-    // going to the future
+    // Go to the future
     router_ref.update_block(next_block);
     router_ref.update_block(|block| block.time = block.time.plus_seconds(WEEK * 5));
 
-    // create lock for user2
+    // Create lock for user2
     helper
         .create_lock(router_ref, "user2", WEEK * 6, 50f32)
         .unwrap();
     let vp = helper.query_total_vp(router_ref).unwrap();
     assert_eq!(vp, 71.49039);
 
-    // going to the future
+    // Go to the future
     router_ref.update_block(next_block);
     router_ref.update_block(|block| block.time = block.time.plus_seconds(WEEK * 4));
 
@@ -421,7 +421,7 @@ fn voting_variable_decay() {
         .unwrap();
     assert_eq!(res, 51.490383);
 
-    // going to the future
+    // Go to the future
     router_ref.update_block(next_block);
     router_ref.update_block(|block| block.time = block.time.plus_seconds(WEEK));
     let vp = helper.query_user_vp(router_ref, "user").unwrap();
@@ -439,19 +439,19 @@ fn check_queries() {
     let owner = Addr::unchecked("owner");
     let helper = Helper::init(router_ref, owner);
 
-    // mint ASTRO, stake it and mint xASTRO
+    // Mint ASTRO, stake it and mint xASTRO
     helper.mint_xastro(router_ref, "user", 100);
     helper.check_xastro_balance(router_ref, "user", 100);
 
-    // creating valid voting escrow lock
+    // Create valid voting escrow lock
     helper
         .create_lock(router_ref, "user", WEEK * 2, 90f32)
         .unwrap();
-    // check that 90 xASTRO were actually debited
+    // Check that 90 xASTRO were actually debited
     helper.check_xastro_balance(router_ref, "user", 10);
     helper.check_xastro_balance(router_ref, helper.voting_instance.as_str(), 90);
 
-    // validating user's lock
+    // Validate user's lock
     let cur_period = get_period(router_ref.block_info().time.seconds()).unwrap();
     let user_lock: LockInfoResponse = router_ref
         .wrap()
@@ -495,7 +495,7 @@ fn check_deposit_for() {
     let owner = Addr::unchecked("owner");
     let helper = Helper::init(router_ref, owner);
 
-    // mint ASTRO, stake it and mint xASTRO
+    // Mint ASTRO, stake it and mint xASTRO
     helper.mint_xastro(router_ref, "user1", 100);
     helper.check_xastro_balance(router_ref, "user1", 100);
     helper.mint_xastro(router_ref, "user2", 100);
@@ -524,13 +524,13 @@ fn check_update_owner() {
 
     let new_owner = String::from("new_owner");
 
-    // new owner
+    // New owner
     let msg = ExecuteMsg::ProposeNewOwner {
         new_owner: new_owner.clone(),
         expires_in: 100, // seconds
     };
 
-    // unauthorized check
+    // Unauthed check
     let err = app
         .execute_contract(
             Addr::unchecked("not_owner"),
@@ -541,7 +541,7 @@ fn check_update_owner() {
         .unwrap_err();
     assert_eq!(err.to_string(), "Generic error: Unauthorized");
 
-    // claim before proposal
+    // Claim before proposal
     let err = app
         .execute_contract(
             Addr::unchecked(new_owner.clone()),
@@ -555,7 +555,7 @@ fn check_update_owner() {
         "Generic error: Ownership proposal not found"
     );
 
-    // propose new owner
+    // Propose new owner
     app.execute_contract(
         Addr::unchecked("owner"),
         helper.voting_instance.clone(),
@@ -564,7 +564,7 @@ fn check_update_owner() {
     )
     .unwrap();
 
-    // claim from invalid addr
+    // Claim from invalid addr
     let err = app
         .execute_contract(
             Addr::unchecked("invalid_addr"),
@@ -575,7 +575,7 @@ fn check_update_owner() {
         .unwrap_err();
     assert_eq!(err.to_string(), "Generic error: Unauthorized");
 
-    // claim ownership
+    // Claim ownership
     app.execute_contract(
         Addr::unchecked(new_owner.clone()),
         helper.voting_instance.clone(),
@@ -584,7 +584,7 @@ fn check_update_owner() {
     )
     .unwrap();
 
-    // let's query the state
+    // Let's query the contract state
     let msg = QueryMsg::Config {};
     let res: ConfigResponse = app
         .wrap()
@@ -601,19 +601,19 @@ fn check_blacklist() {
     let owner = Addr::unchecked("owner");
     let helper = Helper::init(router_ref, owner);
 
-    // mint ASTRO, stake it and mint xASTRO
+    // Mint ASTRO, stake it and mint xASTRO
     helper.mint_xastro(router_ref, "user1", 100);
     helper.mint_xastro(router_ref, "user2", 100);
     helper.mint_xastro(router_ref, "user3", 100);
 
-    // trying to execute with empty arrays
+    // Try to execute with empty arrays
     let err = helper.update_blacklist(router_ref, None, None).unwrap_err();
     assert_eq!(
         err.to_string(),
         "Generic error: Append and remove arrays are empty"
     );
 
-    // blacklisting user2
+    // Blacklisting user2
     let res = helper
         .update_blacklist(router_ref, Some(vec!["user2".to_string()]), None)
         .unwrap();
@@ -629,7 +629,7 @@ fn check_blacklist() {
     helper
         .create_lock(router_ref, "user1", WEEK * 10, 50f32)
         .unwrap();
-    // trying to create lock from blacklisted address
+    // Try to create lock from a blacklisted address
     let err = helper
         .create_lock(router_ref, "user2", WEEK * 10, 100f32)
         .unwrap_err();
@@ -639,13 +639,13 @@ fn check_blacklist() {
         .unwrap_err();
     assert_eq!(err.to_string(), "The user2 address is blacklisted");
 
-    // since user2 is blacklisted his xASTRO balance left unchanged
+    // Since user2 is blacklisted, their xASTRO balance was left unchanged
     helper.check_xastro_balance(router_ref, "user2", 100);
-    // and he did not create lock in voting escrow thus we have no information
+    // And they did not create a lock, thus we have no information to query
     let vp = helper.query_user_vp(router_ref, "user2").unwrap();
     assert_eq!(vp, 0.0);
 
-    // going to the future
+    // Go to the future
     router_ref.update_block(next_block);
     router_ref.update_block(|block| block.time = block.time.plus_seconds(2 * WEEK));
 
@@ -655,7 +655,7 @@ fn check_blacklist() {
         .unwrap_err();
     assert_eq!(err.to_string(), "The user2 address is blacklisted");
 
-    // blacklisting user1 by guardian_addr
+    // Blacklisting user1 using the guardian
     let msg = ExecuteMsg::UpdateBlacklist {
         append_addrs: Some(vec!["user1".to_string()]),
         remove_addrs: None,
@@ -694,10 +694,10 @@ fn check_blacklist() {
         .deposit_for(router_ref, "user3", "user1", 50f32)
         .unwrap_err();
     assert_eq!(err.to_string(), "The user1 address is blacklisted");
-    // the user1 doesn't have VP from now
+    // user1 doesn't have voting power now
     let vp = helper.query_user_vp(router_ref, "user1").unwrap();
     assert_eq!(vp, 0.0);
-    // but we has VP in the past
+    // But they have voting power in the past
     let vp = helper
         .query_user_vp_at(
             router_ref,
@@ -706,18 +706,18 @@ fn check_blacklist() {
         )
         .unwrap();
     assert_eq!(vp, 51.490383);
-    // total VP should be zero as well since there was only one position from user1
+    // Total voting power should be zero as well since there was only one vxASTRO position created by user1
     let vp = helper.query_total_vp(router_ref).unwrap();
     assert_eq!(vp, 0.0);
 
-    // going to the future
+    // Go to the future
     router_ref.update_block(next_block);
     router_ref.update_block(|block| block.time = block.time.plus_seconds(20 * WEEK));
 
-    // the only option available for blacklisted user is to withdraw funds if lock expired
+    // The only option available for a blacklisted user is to withdraw their funds if their lock expired
     helper.withdraw(router_ref, "user1").unwrap();
 
-    // removing user1 from blacklist
+    // Remove user1 from the blacklist
     let res = helper
         .update_blacklist(router_ref, None, Some(vec!["user1".to_string()]))
         .unwrap();
@@ -730,7 +730,7 @@ fn check_blacklist() {
         attr("removed_addresses", "user1")
     );
 
-    // now user1 can create new lock
+    // Now user1 can create a new lock
     helper
         .create_lock(router_ref, "user1", WEEK, 10f32)
         .unwrap();
