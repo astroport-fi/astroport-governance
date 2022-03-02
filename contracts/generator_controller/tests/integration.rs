@@ -2,7 +2,7 @@ use cosmwasm_std::Addr;
 use terra_multi_test::Executor;
 
 use astroport_governance::generator_controller::{ExecuteMsg, QueryMsg};
-use astroport_governance::utils::WEEK;
+use astroport_governance::utils::{get_period, WEEK};
 use generator_controller::state::{GaugeInfo, UserInfo};
 
 use crate::test_utils::controller_helper::ControllerHelper;
@@ -177,6 +177,8 @@ fn check_gauging() {
         .wrap()
         .query_wasm_smart(helper.controller.clone(), &QueryMsg::GaugeInfo)
         .unwrap();
+    assert_eq!(get_period(resp.gauge_ts), router.block_period());
+    assert_eq!(resp.pool_alloc_points.len(), 5);
     let total_apoints: u64 = resp
         .pool_alloc_points
         .iter()
@@ -184,7 +186,6 @@ fn check_gauging() {
         .map(|(_, apoints)| apoints.u64())
         .sum();
     assert_eq!(total_apoints, 10000);
-    assert_eq!(resp.pool_alloc_points.len(), 5);
 
     router.next_block(2 * WEEK);
     // Reduce pools limit 5 -> 2 (5 is initial limit in integration tests)
@@ -214,12 +215,13 @@ fn check_gauging() {
         .wrap()
         .query_wasm_smart(helper.controller.clone(), &QueryMsg::GaugeInfo)
         .unwrap();
+    assert_eq!(get_period(resp.gauge_ts), router.block_period());
+    assert_eq!(resp.pool_alloc_points.len(), limit as usize);
     let total_apoints: u64 = resp
         .pool_alloc_points
         .iter()
         .cloned()
         .map(|(_, apoints)| apoints.u64())
         .sum();
-    assert_eq!(total_apoints, 10000);
-    assert_eq!(resp.pool_alloc_points.len(), limit as usize)
+    assert_eq!(total_apoints, 10000)
 }
