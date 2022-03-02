@@ -61,7 +61,7 @@ pub enum QueryMsg {
     UserReward { user: String, timestamp: u64 },
     /// Returns the vector that contains the total reward amount per week
     AvailableRewardPerWeek {
-        start_from: Option<u64>,
+        start_after: Option<u64>,
         limit: Option<u64>,
     },
 }
