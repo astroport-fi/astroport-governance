@@ -39,17 +39,17 @@ const CONTRACT_NAME: &str = "astro-voting-escrow";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// ## Description
-/// Creates a new contract with the specified parameters in the [`InstantiateMsg`].
-/// Returns the default object of type [`Response`] if the operation was successful,
+/// Creates a new contract with the specified parameters in [`InstantiateMsg`].
+/// Returns a default object of type [`Response`] if the operation was successful,
 /// or a [`ContractError`] if the contract was not created.
 /// ## Params
-/// * **deps** is the object of type [`DepsMut`].
+/// * **deps** is an object of type [`DepsMut`].
 ///
-/// * **env** is the object of type [`Env`].
+/// * **env** is an object of type [`Env`].
 ///
-/// * **_info** is the object of type [`MessageInfo`].
+/// * **_info** is an object of type [`MessageInfo`].
 ///
-/// * **msg** is a message of type [`InstantiateMsg`] which contains the basic settings for creating a contract
+/// * **msg** is a message of type [`InstantiateMsg`] which contains the paramters used for creating a contract.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
@@ -122,22 +122,20 @@ pub fn instantiate(
 }
 
 /// ## Description
-/// Parses execute message and route it to intended function. Returns [`Response`] if execution succeed
-/// or [`ContractError`] if error occurred.
-///  
+/// Exposes all the execute functions available in the contract.
+///
 /// ## Execute messages
-/// * **ExecuteMsg::ExtendLockTime { time }** increase current lock time
+/// * **ExecuteMsg::ExtendLockTime { time }** Increase a staker's lock time.
 ///
-/// * **ExecuteMsg::Receive(msg)** parse incoming message from the xASTRO token.
-/// msg should have [`Cw20ReceiveMsg`] type.
+/// * **ExecuteMsg::Receive(msg)** Parse incoming messages coming from the xASTRO token contract.
 ///
-/// * **ExecuteMsg::Withdraw {}** withdraw whole amount from the current lock if it has expired
+/// * **ExecuteMsg::Withdraw {}** Withdraw all xASTRO from a lock position if the lock has expired.
 ///
-/// * **ExecuteMsg::ProposeNewOwner { owner, expires_in }** Creates a new request to change ownership.
+/// * **ExecuteMsg::ProposeNewOwner { owner, expires_in }** Creates a new request to change contract ownership.
 ///
-/// * **ExecuteMsg::DropOwnershipProposal {}** Removes a request to change ownership.
+/// * **ExecuteMsg::DropOwnershipProposal {}** Removes a request to change contract ownership.
 ///
-/// * **ExecuteMsg::ClaimOwnership {}** Approves owner.
+/// * **ExecuteMsg::ClaimOwnership {}** Claims contract ownership.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
@@ -200,11 +198,24 @@ pub fn execute(
 }
 
 /// ## Description
-/// Checkpoint total voting power for the current block period.
-/// The function fetches last available checkpoint, recalculates passed periods before the current period,
-/// applies slope changes, saves all recalculated periods in [`HISTORY`] by contract address key.
+/// Checkpoint the total voting power (total supply of vxASTRO).
+/// This function fetches last available vxASTRO checkpoint, recalculates passed periods since the checkpoint and until now,
+/// applies slope changes and saves all recalculated periods in [`HISTORY`].
 /// The function returns Ok(()) in case of success or [`StdError`]
-/// in case of serialization/deserialization error.
+/// in case of a serialization/deserialization error.
+///
+/// ## Params
+/// * **deps** is an object of type [`DepsMut`].
+///
+/// * **env** is an object of type [`Env`].
+///
+/// * **add_voting_power** is an object of type [`Option<Uint128>`]. This is an amount of vxASTRO to add to the total.
+///
+/// * **reduce_power** is an object of type [`Option<Uint128>`]. This is an amount of vxASTRO to subtract from the total.
+///
+/// * **old_slope** is an object of type [`Decimal`]. This is the old slope applied to the total voting power (vxASTRO supply).
+///
+/// * **new_slope** is an object of type [`Decimal`]. This is the new slope to be applied to the total voting power (vxASTRO supply).
 fn checkpoint_total(
     deps: DepsMut,
     env: Env,
@@ -218,7 +229,7 @@ fn checkpoint_total(
     let contract_addr = env.contract.address;
     let add_voting_power = add_voting_power.unwrap_or_default();
 
-    // get last checkpoint
+    // Get last checkpoint
     let last_checkpoint = fetch_last_checkpoint(deps.as_ref(), &contract_addr, &cur_period_key)?;
     let new_point = if let Some((_, mut point)) = last_checkpoint {
         let last_slope_change = LAST_SLOPE_CHANGE
@@ -227,7 +238,7 @@ fn checkpoint_total(
         if last_slope_change < cur_period {
             let scheduled_slope_changes =
                 fetch_slope_changes(deps.as_ref(), last_slope_change, cur_period)?;
-            // recalculating passed points
+            // Recalculating passed points
             for (recalc_period, scheduled_change) in scheduled_slope_changes {
                 point = Point {
                     power: calc_voting_power(&point, recalc_period),
@@ -259,22 +270,34 @@ fn checkpoint_total(
             power: add_voting_power,
             slope: new_slope,
             start: cur_period,
-            end: 0, // we don't use 'end' in total VP calculations
+            end: 0, // we don't use 'end' in total voting power calculations
         }
     };
     HISTORY.save(deps.storage, (contract_addr, cur_period_key), &new_point)
 }
 
 /// ## Description
-/// Checkpoint user's voting power for the current block period.
-/// The function fetches last available checkpoint, calculates user's current voting power,
-/// applies slope changes based on add_amount and new_end parameters,
+/// Checkpoint a user's voting power (vxASTRO supply).
+/// This function fetches the user's last available checkpoint, calculates the user's current voting power,
+/// applies slope changes based on `add_amount` and `new_end` parameters,
 /// schedules slope changes for total voting power
-/// and saves new checkpoint for current period in [`HISTORY`] by user's address key.
-/// If a user already has checkpoint for the current period then
-/// this function uses it as a latest available checkpoint.
+/// and saves the new checkpoint for the current period in [`HISTORY`] (using the user's address).
+/// If a user already checkpointed themselves for the current period, then
+/// this function uses the current checkpoint as the latest available one.
 /// The function returns Ok(()) in case of success or [`StdError`]
-/// in case of serialization/deserialization error.
+/// in case of a serialization/deserialization error.
+///
+/// ## Params
+///
+/// * **deps** is an object of type [`DepsMut`].
+///
+/// * **env** is an object of type [`Env`].
+///
+/// * **addr** is an object of type [`Addr`]. This is the staker for which we checkpoint the voting power.
+///
+/// * **add_amount** is an object of type [`Option<Uint128>`]. This is an amount of vxASTRO to add to the user's balance.
+///
+/// * **new_end** is an object of type [`Option<u64>`]. This is a new lock time for the user's vxASTRO position.
 fn checkpoint(
     mut deps: DepsMut,
     env: Env,
@@ -288,7 +311,7 @@ fn checkpoint(
     let mut old_slope = Decimal::zero();
     let mut add_voting_power = Uint128::zero();
 
-    // get last checkpoint
+    // Get last user checkpoint
     let last_checkpoint = fetch_last_checkpoint(deps.as_ref(), &addr, &cur_period_key)?;
     let new_point = if let Some((_, point)) = last_checkpoint {
         let end = new_end.unwrap_or(point.end);
@@ -296,16 +319,16 @@ fn checkpoint(
         let current_power = calc_voting_power(&point, cur_period);
         let new_slope = if dt != 0 {
             if end > point.end && add_amount.is_zero() {
-                // this is extend_lock_time. Recalculating user's VP
+                // This is extend_lock_time. Recalculating user's voting power
                 let mut lock = LOCKED.load(deps.storage, addr.clone())?;
                 let new_voting_power = lock.amount * calc_coefficient(dt);
-                // new_voting_power should be always >= current_power. saturating_sub just in case
+                // new_voting_power should always be >= current_power. saturating_sub is used for extra safety
                 add_voting_power = new_voting_power.saturating_sub(current_power);
                 lock.last_extend_lock_period = cur_period;
                 LOCKED.save(deps.storage, addr.clone(), &lock)?;
                 Decimal::from_ratio(new_voting_power, dt)
             } else {
-                // this is increase lock's amount or lock creation after withdrawal
+                // This is an increase in the user's lock amount
                 add_voting_power = add_amount * calc_coefficient(dt);
                 Decimal::from_ratio(current_power + add_voting_power, dt)
             }
@@ -313,10 +336,10 @@ fn checkpoint(
             Decimal::zero()
         };
 
-        // cancel previously scheduled slope change
+        // Cancel the previously scheduled slope change
         cancel_scheduled_slope(deps.branch(), point.slope, point.end)?;
 
-        // we need to subtract it from total VP slope
+        // We need to subtract the slope point from the total voting power slope
         old_slope = point.slope;
 
         Point {
@@ -326,7 +349,7 @@ fn checkpoint(
             end,
         }
     } else {
-        // this error can't happen since this if-branch is intended for checkpoint creation
+        // This error can't happen since this if-branch is intended for checkpoint creation
         let end =
             new_end.ok_or_else(|| StdError::generic_err("Checkpoint initialization error"))?;
         let dt = end - cur_period;
@@ -340,7 +363,7 @@ fn checkpoint(
         }
     };
 
-    // schedule slope change
+    // Schedule a slope change
     schedule_slope_change(deps.branch(), new_point.slope, new_point.end)?;
 
     HISTORY.save(deps.storage, (addr, cur_period_key), &new_point)?;
@@ -356,8 +379,16 @@ fn checkpoint(
 
 /// ## Description
 /// Receives a message of type [`Cw20ReceiveMsg`] and processes it depending on the received template.
-/// If the template is not found in the received message, then an [`ContractError`] is returned,
-/// otherwise returns the [`Response`] with the specified attributes if the operation was successful
+/// If the template is not found in the received message, then a [`ContractError`] is returned,
+/// otherwise it returns a [`Response`] with the specified attributes if the operation was successful.
+/// ## Params
+/// * **deps** is an object of type [`DepsMut`].
+///
+/// * **env** is an object of type [`Env`].
+///
+/// * **info** is an object of type [`MessageInfo`].
+///
+/// * **cw20_msg** is an object of type [`Cw20ReceiveMsg`]. This is the CW20 message to process.
 fn receive_cw20(
     deps: DepsMut,
     env: Env,
@@ -380,12 +411,23 @@ fn receive_cw20(
 }
 
 /// ## Description
-/// Creates a lock for the user for specified time. The time value is in seconds.
-/// Checks that the user is locking xASTRO token.
-/// Evaluates that the time is within [`WEEK`]..[`MAX_LOCK_TIME`] limits.
-/// Creates lock if it doesn't exist and triggers [`checkpoint`].
-/// If lock is already exists, then an [`ContractError`] is returned,
-/// otherwise returns the [`Response`] with the specified attributes if the operation was successful
+/// Creates a lock for the user that lasts for the specified time duration (in seconds).
+/// Checks that the user is locking xASTRO tokens.
+/// Checks that the lock time is within [`WEEK`]..[`MAX_LOCK_TIME`].
+/// Creates a lock if it doesn't exist and triggers a [`checkpoint`] for the staker.
+/// If a lock already exists, then a [`ContractError`] is returned,
+/// otherwise it returns a [`Response`] with the specified attributes if the operation was successful.
+///
+/// ## Params
+/// * **deps** is an object of type [`DepsMut`].
+///
+/// * **env** is an object of type [`Env`].
+///
+/// * **user** is an object of type [`Addr`]. This is the staker for which we create a lock position.
+///
+/// * **amount** is an object of type [`Uint128`]. This is the amount of xASTRO deposited in the lock position.
+///
+/// * **time** is an object of type [`u64`]. This is the duration of the lock.
 fn create_lock(
     deps: DepsMut,
     env: Env,
@@ -416,11 +458,20 @@ fn create_lock(
 }
 
 /// ## Description
-/// Deposits 'amount' tokens to 'user' lock.
-/// Checks that the user is locking xASTRO token.
-/// Triggers [`checkpoint`].
-/// If lock is already exists, then an [`ContractError`] is returned,
-/// otherwise returns the [`Response`] with the specified attributes if the operation was successful
+/// Deposits an 'amount' of xASTRO tokens into 'user''s lock.
+/// Checks that the user is transferring and locking xASTRO.
+/// Triggers a [`checkpoint`] for the user.
+/// If the user does not have a lock, then a [`ContractError`] is returned,
+/// otherwise it returns a [`Response`] with the specified attributes if the operation was successful.
+///
+/// ## Params
+/// * **deps** is an object of type [`DepsMut`].
+///
+/// * **env** is an object of type [`Env`].
+///
+/// * **amount** is an object of type [`Uint128`]. This is the amount of xASTRO to deposit.
+///
+/// * **user** is an object of type [`Addr`]. This is the user who's lock amount will increase.
 fn deposit_for(
     deps: DepsMut,
     env: Env,
@@ -444,9 +495,16 @@ fn deposit_for(
 }
 
 /// ## Description
-/// Withdraws whole amount of locked xASTRO.
-/// If lock doesn't exist or it has not yet expired, then an [`ContractError`] is returned,
-/// otherwise returns the [`Response`] with the specified attributes if the operation was successful
+/// Withdraws the whole amount of locked xASTRO from a specific user lock.
+/// If the user lock doesn't exist or if it has not yet expired, then a [`ContractError`] is returned,
+/// otherwise it returns a [`Response`] with the specified attributes if the operation was successful.
+///
+/// ## Params
+/// * **deps** is an object of type [`DepsMut`].
+///
+/// * **env** is an object of type [`Env`].
+///
+/// * **info** is an object of type [`MessageInfo`]. This is the withdrawal message coming from the xASTRO token contract.
 fn withdraw(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, ContractError> {
     let sender = info.sender;
     // 'LockDoesntExist' is either a lock does not exist in LOCKED or a lock exits but lock.amount == 0
@@ -471,7 +529,7 @@ fn withdraw(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, Cont
         lock.amount = Uint128::zero();
         LOCKED.save(deps.storage, sender.clone(), &lock)?;
 
-        // we need to set point to eliminate the slope influence on a future lock
+        // We need to checkpoint and eliminate the slope influence on a future lock
         HISTORY.save(
             deps.storage,
             (sender, U64Key::new(cur_period)),
@@ -490,15 +548,24 @@ fn withdraw(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, Cont
 }
 
 /// ## Description
-/// Increases current lock time by specified time. The time value is in seconds.
-/// Evaluates that the time is within [`WEEK`]..[`MAX_LOCK_TIME`] limits
-/// and triggers [`checkpoint`].
-/// If lock doesn't exist or it expired, then an [`ContractError`] is returned,
-/// otherwise returns the [`Response`] with the specified attributes if the operation was successful
+/// Increase the current lock time for a staker by a specified time period.
+/// Evaluates that the `time` is within [`WEEK`]..[`MAX_LOCK_TIME`]
+/// and then it triggers a [`checkpoint`].
+/// If the user lock doesn't exist or if it expired, then a [`ContractError`] is returned,
+/// otherwise it returns a [`Response`] with the specified attributes if the operation was successful
 /// ## Note
-/// The time is added to lock's end.
-/// For example, at the period 0 user locked xASTRO for 3 weeks.
-/// In 1 week he increases time by 10 weeks thus unlock period becomes 13.
+/// The time is added to the lock's `end`.
+/// For example, at period 0, the user has their xASTRO locked for 3 weeks.
+/// In 1 week, they increase their lock time by 10 weeks, thus the unlock period becomes 13 weeks.
+///
+/// ## Params
+/// * **deps** is an object of type [`DepsMut`].
+///
+/// * **env** is an object of type [`Env`].
+///
+/// * **info** is an object of type [`MessageInfo`].
+///
+/// * **time** is an object of type [`u64`]. This is the increase in lock time applied to the staker's position.
 fn extend_lock_time(
     deps: DepsMut,
     env: Env,
@@ -512,14 +579,14 @@ fn extend_lock_time(
         .filter(|lock| !lock.amount.is_zero())
         .ok_or(ContractError::LockDoesntExist {})?;
 
-    // disabling ability to extend lock time by less than a week
+    // Disable the ability to extend the lock time by less than a week
     time_limits_check(time)?;
 
     if lock.end <= get_period(env.block.time.seconds()) {
         return Err(ContractError::LockExpired {});
     };
 
-    // should not exceed MAX_LOCK_TIME
+    // Should not exceed MAX_LOCK_TIME
     time_limits_check(lock.end * WEEK + time - env.block.time.seconds())?;
     lock.end += get_period(time);
     LOCKED.save(deps.storage, user.clone(), &lock)?;
@@ -530,10 +597,21 @@ fn extend_lock_time(
 }
 
 /// ## Description
-/// Updates blacklist. Removes addresses given in 'remove_addrs' array
-/// and appends new addresses given in 'append_addrs'. Nullifies user's VP and
-/// cancels his contribution in the total VP.
-/// Returns [`ContractError`] in case of (de/ser)ialization error or addresses validation error.
+/// Update the staker blacklist. Whitelists addresses specified in 'remove_addrs'
+/// and blacklists new addresses specified in 'append_addrs'. Nullifies staker voting power and
+/// cancels their contribution in the total voting power (total vxASTRO supply).
+/// Returns a [`ContractError`] in case of a (de/ser)ialization or address validation error.
+///
+/// ## Params
+/// * **deps** is an object of type [`DepsMut`].
+///
+/// * **env** is an object of type [`Env`].
+///
+/// * **info** is an object of type [`MessageInfo`].
+///
+/// * **append_addrs** is an [`Option`] containing a [`Vec<String>`]. This is the array of addresses to blacklist.
+///
+/// * **remove_addrs** is an [`Option`] containing a [`Vec<String>`]. This is the array of addresses to whitelist.
 fn update_blacklist(
     mut deps: DepsMut,
     env: Env,
@@ -564,12 +642,12 @@ fn update_blacklist(
 
     let cur_period = get_period(env.block.time.seconds());
     let cur_period_key = U64Key::new(cur_period);
-    let mut reduce_total_vp = Uint128::zero(); // accumulator for total VP reduce
+    let mut reduce_total_vp = Uint128::zero(); // accumulator for decreasing total voting power
     let mut old_slopes = Decimal::zero(); // accumulator for old slopes
     for addr in append.iter() {
         let last_checkpoint = fetch_last_checkpoint(deps.as_ref(), addr, &cur_period_key)?;
         if let Some((_, point)) = last_checkpoint {
-            // we need to set new point with zero power and zero slope
+            // We need to checkpoint with zero power and zero slope
             HISTORY.save(
                 deps.storage,
                 (addr.clone(), cur_period_key.clone()),
@@ -582,12 +660,12 @@ fn update_blacklist(
             )?;
 
             let cur_power = calc_voting_power(&point, cur_period);
-            // user's contribution is already zero. skipping him
+            // User's contribution is already zero. Skipping them
             if cur_power.is_zero() {
                 continue;
             }
 
-            // user's contribution in the total VP
+            // User's contribution in the total voting power calculation
             reduce_total_vp += cur_power;
             old_slopes = old_slopes + point.slope;
             cancel_scheduled_slope(deps.branch(), point.slope, point.end)?;
@@ -595,7 +673,7 @@ fn update_blacklist(
     }
 
     if !reduce_total_vp.is_zero() || !old_slopes.is_zero() {
-        // triggering total VP recalculation
+        // Trigger a total voting power recalculation
         checkpoint_total(
             deps.branch(),
             env.clone(),
@@ -642,13 +720,24 @@ fn update_blacklist(
 }
 
 /// # Description
-/// Describes all query messages.
+/// Expose available contract queries.
+/// ## Params
+/// * **deps** is an object of type [`Deps`].
+///
+/// * **_env** is an object of type [`Env`].
+///
+/// * **msg** is an object of type [`QueryMsg`].
+///
 /// ## Queries
-/// * **QueryMsg::TotalVotingPower {}** total voting power at current block
-/// * **QueryMsg::UserVotingPower { user }** user's voting power at current block
-/// * **QueryMsg::TotalVotingPowerAt { time }** total voting power at specified time
-/// * **QueryMsg::UserVotingPowerAt { time }** user's voting power at specified time
-/// * **QueryMsg::LockInfo { user }** user's lock information
+/// * **QueryMsg::TotalVotingPower {}** Fetch the total voting power (vxASTRO supply) at the current block.
+///
+/// * **QueryMsg::UserVotingPower { user }** Fetch the user's voting power (vxASTRO balance) at the current block.
+///
+/// * **QueryMsg::TotalVotingPowerAt { time }** Fetch the total voting power (vxASTRO supply) at a specified timestamp.
+///
+/// * **QueryMsg::UserVotingPowerAt { time }** Fetch the user's voting power (vxASTRO balance) at a specified timestamp.
+///
+/// * **QueryMsg::LockInfo { user }** Fetch a user's lock information.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
@@ -684,7 +773,11 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 }
 
 /// # Description
-/// Returns user's lock information in [`LockInfoResponse`] type.
+/// Return a user's lock information using a [`LockInfoResponse`] struct.
+/// ## Params
+/// * **deps** is an object of type [`Deps`].
+///
+/// * **user** is an object of type String. This is the address of the user for which we return lock information.
 fn get_user_lock_info(deps: Deps, user: String) -> StdResult<LockInfoResponse> {
     let addr = addr_validate_to_lower(deps.api, &user)?;
     if let Some(lock) = LOCKED.may_load(deps.storage, addr)? {
@@ -701,8 +794,16 @@ fn get_user_lock_info(deps: Deps, user: String) -> StdResult<LockInfoResponse> {
 }
 
 /// # Description
-/// Calculates user's voting power at the given time.
-/// If time is None then calculates voting power at the current block period.
+/// Calculates a user's voting power at a given timestamp.
+/// If time is None, then it calculates the user's voting power at the current block.
+/// ## Params
+/// * **deps** is an object of type [`Deps`].
+///
+/// * **env** is an object of type [`Env`].
+///
+/// * **user** is an object of type String. This is the user/staker for which we fetch the current voting power (vxASTRO balance).
+///
+/// * **time** is an [`Option`] of type [`u64`]. This is the timestamp at which to fetch the user's voting power (vxASTRO balance).
 fn get_user_voting_power(
     deps: Deps,
     env: Env,
@@ -732,23 +833,30 @@ fn get_user_voting_power_at_period(
     let last_checkpoint = fetch_last_checkpoint(deps, &user, &period_key)?;
 
     if let Some(point) = last_checkpoint.map(|(_, point)| point) {
-        // the point right in this period was found
+        // The voting power point at the specified `time` was found
         let voting_power = if point.start == period {
             point.power
         } else {
-            // the point before this period was found thus we can calculate VP in the period
-            // we are interested in
+            // The point before the intended period was found, thus we can calculate the user's voting power for the period we want
             calc_voting_power(&point, period)
         };
         Ok(VotingPowerResponse { voting_power })
     } else {
-        // user not found
+        // User not found
         Ok(VotingPowerResponse {
             voting_power: Uint128::zero(),
         })
     }
 }
 
+/// # Description
+/// Calculates a user's voting power at the current block.
+/// ## Params
+/// * **deps** is an object of type [`Deps`].
+///
+/// * **env** is an object of type [`Env`].
+///
+/// * **user** is an object of type [`String`]. This is the user/staker for which we fetch the current voting power (vxASTRO balance).
 fn get_user_balance(deps: Deps, env: Env, user: String) -> StdResult<BalanceResponse> {
     let vp_response = get_user_voting_power(deps, env, user, None)?;
     Ok(BalanceResponse {
@@ -757,8 +865,14 @@ fn get_user_balance(deps: Deps, env: Env, user: String) -> StdResult<BalanceResp
 }
 
 /// # Description
-/// Calculates total voting power at the given time.
-/// If time is None then calculates voting power at the current block period.
+/// Calculates the total voting power (total vxASTRO supply) at the given timestamp.
+/// If `time` is None, then it calculates the total voting power at the current block.
+/// ## Params
+/// * **deps** is an object of type [`Deps`].
+///
+/// * **env** is an object of type [`Env`].
+///
+/// * **time** is an [`Option`] of type [`u64`]. This is the timestamp at which we fetch the total voting power (vxASTRO supply).
 fn get_total_voting_power(
     deps: Deps,
     env: Env,
@@ -814,6 +928,12 @@ fn get_total_voting_power_at_period(
     Ok(VotingPowerResponse { voting_power })
 }
 
+/// # Description
+/// Fetch the vxASTRO token information, such as the token name, symbol, decimals and total supply (total voting power).
+/// ## Params
+/// * **deps** is an object of type [`Deps`].
+///
+/// * **env** is an object of type [`Env`].
 fn query_token_info(deps: Deps, env: Env) -> StdResult<TokenInfoResponse> {
     let info = TOKEN_INFO.load(deps.storage)?;
     let total_vp = get_total_voting_power(deps, env, None)?;
@@ -827,7 +947,13 @@ fn query_token_info(deps: Deps, env: Env) -> StdResult<TokenInfoResponse> {
 }
 
 /// ## Description
-/// Used for migration of contract. Returns the default object of type [`Response`].
+/// Used for contract migration. Returns a default object of type [`Response`].
+/// ## Params
+/// * **_deps** is an object of type [`DepsMut`].
+///
+/// * **_env** is an object of type [`Env`].
+///
+/// * **_msg** is an object of type [`MigrateMsg`].
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
     Ok(Response::default())

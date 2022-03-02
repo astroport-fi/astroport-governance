@@ -27,9 +27,9 @@ enum Event {
 use Event::*;
 
 struct Simulator {
-    // points history (history[period][user] = point)
+    // Point history (history[period][user] = point)
     points: Vec<HashMap<String, Point>>,
-    // current user's lock (amount, end)
+    // Current user's lock (amount, end)
     locked: HashMap<String, (f64, u64)>,
     users: Vec<String>,
     helper: Helper,
@@ -42,7 +42,7 @@ fn get_period(time: u64) -> u64 {
 
 fn apply_coefficient(amount: f64, interval: u64) -> f64 {
     let coeff = 1f64 + (1.5 * interval as f64) / get_period(MAX_LOCK_TIME) as f64;
-    // imitating Decimal fraction multiplication in the contract
+    // Imitate decimal fraction multiplication
     (amount * coeff * MULTIPLIER as f64).trunc() / MULTIPLIER as f64
 }
 
@@ -363,7 +363,7 @@ proptest! {
             if (real_balance - contract_balance).abs() >= 10e-3 {
                 assert_eq!(real_balance, contract_balance)
             };
-            // evaluate passed periods in history
+            // Evaluate historical periods
             for check_period in 1..period {
                 let real_balance = simulator.calc_total_balance_at(check_period);
                 let contract_balance = simulator
@@ -426,7 +426,7 @@ fn exact_simulation() {
             println!("Assert failed at period {}", period);
             assert_eq!(real_balance, contract_balance)
         };
-        // evaluate passed periods in history
+        // Evaluate historical periods
         for check_period in 1..period {
             let real_balance = simulator.calc_total_balance_at(check_period);
             let contract_balance = simulator

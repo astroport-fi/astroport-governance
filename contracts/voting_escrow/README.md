@@ -1,10 +1,13 @@
-# Voting escrow
+# Vote Escrowed Staked ASTRO
 
-The vxASTRO contract allows staking xASTRO to gain voting power. Voting power depends on the time the user locking for.
-Maximum lock time is 2 years which equals to 2.5 coefficient. For example, if the user locks 100 xASTRO for 2 years he
-gains 250 voting power. Voting power is linearly decreased by passed periods. One period equals to 1 week.
+The vxASTRO contract allows xASTRO token holders to stake their tokens in order to boost their governance power as well as the amount of ASTRO they can get from Generator emissions. Voting power is boosted according to how long someone locks their xASTRO for.
+
+Maximum lock time is 2 years, which gives the maximum possible boost of 2.5. For example, if a token holder locks 100 xASTRO for 2 years, they
+get 250 vxASTRO. Their vxASTRO balance then goes down every week for the next 2 years (unless they relock) until it reaches zero.
 
 ## InstantiateMsg
+
+Initialize the contract with the initial owner and the address of the xASTRO token.
 
 ```json
 {
@@ -17,7 +20,7 @@ gains 250 voting power. Voting power is linearly decreased by passed periods. On
 
 ### `receive`
 
-Create new lock, extend current lock's amount or deposit on behalf other address.
+Create new lock/vxASTRO position, deposit more xASTRO in the user's vxASTRO position or deposit on behalf of another address.
 
 ```json
 {
@@ -31,7 +34,7 @@ Create new lock, extend current lock's amount or deposit on behalf other address
 
 ### `extend_lock_time`
 
-Extend lock time by 1 week.
+An example of extending the lock time for a vxASTRO position by 1 week.
 
 ```json
 {
@@ -43,7 +46,7 @@ Extend lock time by 1 week.
 
 ### `withdraw`
 
-Withdraw whole amount of xASTRO if lock expired.
+Withdraw the whole amount of xASTRO if the lock for a vxASTRO position expired.
 
 ```json
 {
@@ -53,8 +56,8 @@ Withdraw whole amount of xASTRO if lock expired.
 
 ### `propose_new_owner`
 
-Creates a request to change ownership. The validity period of the offer is set in the `expires_in` variable.
-Only contract owner can execute this method.
+Create a request to change contract ownership. The validity period of the offer is set by the `expires_in` variable.
+Only the current contract owner can execute this method.
 
 ```json
 {
@@ -67,7 +70,7 @@ Only contract owner can execute this method.
 
 ### `drop_ownership_proposal`
 
-Removes the existing offer for the new owner. Only contract owner can execute this method.
+Delete the contract ownership transfer proposal. Only the current contract owner can execute this method.
 
 ```json
 {
@@ -77,7 +80,7 @@ Removes the existing offer for the new owner. Only contract owner can execute th
 
 ### `claim_ownership`
 
-Used to claim(approve) new owner proposal, thus changing contract's owner. Only contract owner can execute this method.
+Used to claim contract ownership. Only the newly proposed contract owner can execute this method.
 
 ```json
 {
@@ -87,8 +90,7 @@ Used to claim(approve) new owner proposal, thus changing contract's owner. Only 
 
 ### `update_blacklist`
 
-Updates blacklist. Removes addresses given in 'remove_addrs' array and appends new addresses given in 'append_addrs'.
-Only contract owner can execute this method.
+Updates the list of addresses that are prohibited from staking in vxASTRO or if they are already staked, from voting with their vxASTRO in the Astral Assembly. Only the contract owner can execute this method.
 
 ```json
 {
@@ -103,9 +105,8 @@ All query messages are described below. A custom struct is defined for each quer
 
 ### `total_voting_power`
 
-Returns total voting power at the current block period.
+Returns the total supply of vxASTRO at the current block.
 
-Response:
 ```json
 {
   "voting_power_response": {
@@ -116,9 +117,10 @@ Response:
 
 ### `user_voting_power`
 
-Returns user's voting power at the current block period.
+Returns a user's vxASTRO balance at the current block.
 
 Request:
+
 ```json
 {
   "user_voting_power": {
@@ -128,6 +130,7 @@ Request:
 ```
 
 Response:
+
 ```json
 {
   "voting_power_response": {
@@ -138,7 +141,7 @@ Response:
 
 ### `total_voting_power_at`
 
-Returns total voting power at the specific time (in seconds).
+Returns the total vxASTRO supply at a specific timestamp (in seconds).
 
 Request:
 
@@ -162,7 +165,7 @@ Response:
 
 ### `user_voting_power_at`
 
-Returns user's voting power at the specific time (in seconds).
+Returns the user's vxASTRO balance at a specific timestamp (in seconds).
 
 Request:
 
@@ -187,7 +190,7 @@ Response:
 
 ### `lock_info`
 
-Returns user's lock information.
+Returns the information about a user's vxASTRO position.
 
 Request:
 
@@ -214,7 +217,7 @@ Response:
 
 ### `config`
 
-Returns contract's config.
+Returns the contract's config.
 
 ```json
 {

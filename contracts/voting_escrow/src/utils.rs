@@ -11,7 +11,7 @@ use std::convert::TryInto;
 use crate::state::{Point, BLACKLIST, CONFIG, HISTORY, LAST_SLOPE_CHANGE, SLOPE_CHANGES};
 
 /// # Description
-/// Checks the time is within limits
+/// Checks that a timestamp is within limits.
 pub(crate) fn time_limits_check(time: u64) -> Result<(), ContractError> {
     if !(WEEK..=MAX_LOCK_TIME).contains(&time) {
         Err(ContractError::LockTimeLimitsError {})
@@ -21,7 +21,7 @@ pub(crate) fn time_limits_check(time: u64) -> Result<(), ContractError> {
 }
 
 /// # Description
-/// Checks the sender is xASTRO token
+/// Checks that the sender is the xASTRO token.
 pub(crate) fn xastro_token_check(deps: Deps, sender: Addr) -> Result<(), ContractError> {
     let config = CONFIG.load(deps.storage)?;
     if sender != config.deposit_token_addr {
@@ -31,6 +31,8 @@ pub(crate) fn xastro_token_check(deps: Deps, sender: Addr) -> Result<(), Contrac
     }
 }
 
+/// # Description
+/// Checks if the blacklist contains a specific address.
 pub(crate) fn blacklist_check(deps: Deps, addr: &Addr) -> Result<(), ContractError> {
     let blacklist = BLACKLIST.load(deps.storage)?;
     if blacklist.contains(addr) {
@@ -41,7 +43,7 @@ pub(crate) fn blacklist_check(deps: Deps, addr: &Addr) -> Result<(), ContractErr
 }
 
 /// # Description
-/// Trait is intended for Decimal rounding problem elimination
+/// This trait was implemented to eliminate Decimal rounding problems.
 trait DecimalRoundedCheckedMul {
     fn checked_mul(self, other: Uint128) -> Result<Uint128, OverflowError>;
 }
@@ -76,7 +78,7 @@ impl DecimalRoundedCheckedMul for Decimal {
 }
 
 /// # Description
-/// Main calculation function by formula: previous_power - slope*(x - previous_x)
+/// Main function used to calculate a user's voting power at a specific period as: previous_power - slope*(x - previous_x).
 pub(crate) fn calc_voting_power(point: &Point, period: u64) -> Uint128 {
     let shift = point
         .slope
@@ -89,14 +91,14 @@ pub(crate) fn calc_voting_power(point: &Point, period: u64) -> Uint128 {
 }
 
 /// # Description
-/// Coefficient calculation where 0 [`WEEK`] equals to 1 and [`MAX_LOCK_TIME`] equals to 2.5.
+/// Coefficient calculation where 0 [`WEEK`] is equal to 1 and [`MAX_LOCK_TIME`] is 2.5.
 pub(crate) fn calc_coefficient(interval: u64) -> Decimal {
     // coefficient = 1 + 1.5 * (end - start) / MAX_LOCK_TIME
     Decimal::one() + Decimal::from_ratio(15_u64 * interval, get_period(MAX_LOCK_TIME) * 10)
 }
 
 /// # Description
-/// Fetches last checkpoint in [`HISTORY`] for given address.
+/// Fetches the last checkpoint in [`HISTORY`] for the given address.
 pub(crate) fn fetch_last_checkpoint(
     deps: Deps,
     addr: &Addr,
@@ -120,7 +122,7 @@ pub(crate) fn cancel_scheduled_slope(deps: DepsMut, slope: Decimal, period: u64)
         .may_load(deps.as_ref().storage)?
         .unwrap_or(0);
     match SLOPE_CHANGES.may_load(deps.as_ref().storage, end_period_key.clone())? {
-        // we do not need to schedule slope change in the past
+        // We do not need to schedule a slope change in the past
         Some(old_scheduled_change) if period > last_slope_change => {
             let new_slope = old_scheduled_change - slope;
             if !new_slope.is_zero() {
@@ -159,7 +161,7 @@ pub(crate) fn schedule_slope_change(deps: DepsMut, slope: Decimal, period: u64) 
 }
 
 /// # Description
-/// Helper function for deserialization
+/// Helper function for deserialization.
 pub(crate) fn deserialize_pair(pair: StdResult<Pair<Decimal>>) -> StdResult<(u64, Decimal)> {
     let (period_serialized, change) = pair?;
     let period_bytes: [u8; 8] = period_serialized
@@ -169,7 +171,7 @@ pub(crate) fn deserialize_pair(pair: StdResult<Pair<Decimal>>) -> StdResult<(u64
 }
 
 /// # Description
-/// Fetches all slope changes between last_slope_change and period.
+/// Fetches all slope changes between `last_slope_change` and `period`.
 pub(crate) fn fetch_slope_changes(
     deps: Deps,
     last_slope_change: u64,
@@ -187,8 +189,8 @@ pub(crate) fn fetch_slope_changes(
 }
 
 /// # Description
-/// Bulk validation and converting [`String`] -> [`Addr`] of array with addresses.
-/// If any address is invalid returns [`StdError`].
+/// Bulk validation and conversion between [`String`] -> [`Addr`] for an array of addresses.
+/// If any address is invalid, the function returns [`StdError`].
 pub(crate) fn validate_addresses(deps: Deps, addresses: &[String]) -> StdResult<Vec<Addr>> {
     addresses
         .iter()

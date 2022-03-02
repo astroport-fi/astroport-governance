@@ -16,9 +16,9 @@ import {
   } from "@terra-money/terra.js";
   import { readFileSync, writeFileSync } from "fs";
   import path from "path";
-  
+
   export const ARTIFACTS_PATH = "../artifacts";
-  
+
   // Reads json containing contract addresses located in /artifacts folder. Naming convention : bombay-12 / columbus-5
   export function readArtifact(name: string = "artifact") {
     try {
@@ -31,52 +31,52 @@ import {
       return {};
     }
   }
-  
+
   export interface Client {
     wallet: Wallet;
     terra: LCDClient | LocalTerra;
     MULTI_SIG_TO_USE: String;
   }
-  
+
   // Creates `Client` instance with `terra` and `wallet` to be used for interacting with terra
   export function newClient(): Client {
     const client = <Client>{};
-  
+
     if (process.env.WALLET) {
       client.terra = new LCDClient({
         URL: String(process.env.LCD_CLIENT_URL),
         chainID: String(process.env.CHAIN_ID),
       });
-  
+
       client.wallet = recover(client.terra, process.env.WALLET);
     } else {
       client.terra = new LocalTerra();
       client.wallet = (client.terra as LocalTerra).wallets.test1;
     }
-  
+
     return client;
   }
-  
+
   export function writeArtifact(data: object, name: string = "artifact") {
     writeFileSync(
       path.join(ARTIFACTS_PATH, `${name}.json`),
       JSON.stringify(data, null, 2)
     );
   }
-  
+
   // Tequila lcd is load balanced, so txs can't be sent too fast, otherwise account sequence queries
-  // may resolve an older state depending on which lcd you end up with. Generally 1000 ms is is enough
+  // may resolve an older state depending on which lcd you end up with. Generally 1000 ms is enough
   // for all nodes to sync up.
   let TIMEOUT = 1000;
-  
+
   export function setTimeoutDuration(t: number) {
     TIMEOUT = t;
   }
-  
+
   export function getTimeoutDuration() {
     return TIMEOUT;
   }
-  
+
   export async function performTransaction(
     terra: LocalTerra | LCDClient,
     wallet: Wallet,
@@ -88,9 +88,9 @@ import {
       gasPrices: [new Coin("uusd", 0.15)],
       memo: memo,
     };
-  
+
     const tx = await wallet.createAndSignTx(options);
-  
+
     const result = await terra.tx.broadcast(tx);
     if (isTxError(result)) {
       throw new Error(
@@ -100,8 +100,8 @@ import {
     await new Promise((resolve) => setTimeout(resolve, TIMEOUT));
     return result;
   }
-  
-  // Creates a tx : to be signed
+
+  // Creates a tx to be signed
   export async function createTransaction(
     terra: LocalTerra | LCDClient,
     wallet: Wallet,
@@ -113,10 +113,10 @@ import {
       gasPrices: [new Coin("uusd", 0.15)],
       memo: memo,
     };
-  
+
     return await wallet.createTx(options);
   }
-  
+
   export async function uploadContract(
     terra: LocalTerra | LCDClient,
     wallet: Wallet,
@@ -127,7 +127,7 @@ import {
     let result = await performTransaction(terra, wallet, uploadMsg);
     return Number(result.logs[0].eventsByType.store_code.code_id[0]); // code_id
   }
-  
+
   export async function instantiateContract(
     terra: LocalTerra | LCDClient,
     wallet: Wallet,
@@ -146,7 +146,7 @@ import {
     const attributes = result.logs[0].events[0].attributes;
     return attributes[attributes.length - 1].value; // contract address
   }
-  
+
   export async function executeContract(
     terra: LocalTerra | LCDClient,
     wallet: Wallet,
@@ -163,8 +163,8 @@ import {
     );
     return await performTransaction(terra, wallet, executeMsg, memo);
   }
-  
-  // returns a created Tx object
+
+  // Returns a TX object
   export async function executeContractJsonForMultiSig(
     terra: LocalTerra | LCDClient,
     multisigAddress: string,
@@ -191,7 +191,7 @@ import {
     );
     return tx;
   }
-  
+
   export async function queryContract(
     terra: LocalTerra | LCDClient,
     contractAddress: string,
@@ -199,7 +199,7 @@ import {
   ): Promise<any> {
     return await terra.wasm.contractQuery(contractAddress, query);
   }
-  
+
   export async function deployContract(
     terra: LocalTerra | LCDClient,
     wallet: Wallet,
@@ -210,7 +210,7 @@ import {
     const codeId = await uploadContract(terra, wallet, filepath);
     return await instantiateContract(terra, wallet, codeId, initMsg, memo);
   }
-  
+
   export async function migrate(
     terra: LocalTerra | LCDClient,
     wallet: Wallet,
@@ -225,21 +225,21 @@ import {
     );
     return await performTransaction(terra, wallet, migrateMsg);
   }
-  
+
   export function recover(terra: LocalTerra | LCDClient, mnemonic: string) {
     const mk = new MnemonicKey({ mnemonic: mnemonic });
     return terra.wallet(mk);
   }
-  
+
   export function initialize(terra: LCDClient) {
     const mk = new MnemonicKey();
-  
+
     console.log(`Account Address: ${mk.accAddress}`);
     console.log(`MnemonicKey: ${mk.mnemonic}`);
-  
+
     return terra.wallet(mk);
   }
-  
+
   export async function transferCW20Tokens(
     terra: LCDClient,
     wallet: Wallet,
@@ -252,7 +252,7 @@ import {
     };
     let resp = await executeContract(terra, wallet, tokenAddress, transfer_msg);
   }
-  
+
   export async function getCW20Balance(
     terra: LocalTerra | LCDClient,
     token_addr: string,
@@ -264,12 +264,12 @@ import {
     );
     return curBalance.balance;
   }
-  
+
   export function toEncodedBinary(object: any) {
     return Buffer.from(JSON.stringify(object)).toString("base64");
   }
-  
-  // Returns `pool_address`, `lp_token_address` of the terraswap pool that's created
+
+  // Returns the `pool_address` and `lp_token_address` for a terraswap pool that's created
   export function extract_terraswap_pool_info(response: any) {
     let pool_address = "";
     let lp_token_address = "";
@@ -286,11 +286,11 @@ import {
         }
       }
     }
-  
+
     return { pool_address: pool_address, lp_token_address: lp_token_address };
   }
-  
-  // Returns `pool_address`, `lp_token_address` of the Astroport pool that's created
+
+  // Returns the `pool_address` and `lp_token_address` of the Astroport pool that's created
   export function extract_astroport_pool_info(response: any) {
     let pool_address = "";
     let lp_token_address = "";
@@ -307,7 +307,6 @@ import {
         }
       }
     }
-  
+
     return { pool_address: pool_address, lp_token_address: lp_token_address };
   }
-  

@@ -31,10 +31,9 @@ const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 /// ## Description
 /// Creates a new contract with the specified parameters in the [`InstantiateMsg`].
 /// Returns the default [`Response`] object if the operation was successful, otherwise returns
-/// the [`StdResult`] if the contract was not created.
+/// a [`StdResult`] if the contract was not created.
 /// ## Params
-/// * **msg** is a message of type [`InstantiateMsg`] which contains the basic settings for
-/// creating a contract
+/// * **msg** is a message of type [`InstantiateMsg`] which contains the parameters used to create a contract
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
@@ -59,25 +58,32 @@ pub fn instantiate(
 }
 
 /// ## Description
-/// Available the execute messages of the contract.
+/// Exposes all the execute functions available in the contract.
+/// ## Params
+/// * **deps** is an object of type [`Deps`].
+///
+/// * **env** is an object of type [`Env`].
+///
+/// * **info** is an object of type [`MessageInfo`].
+///
+/// * **msg** is an object of type [`ExecuteMsg`].
+///
 /// ## Queries
-/// * **ExecuteMsg::ProposeNewOwner { owner, expires_in }** Creates a request to change ownership.
+/// * **ExecuteMsg::ProposeNewOwner { owner, expires_in }** Creates a request to change contract ownership.
 ///
-/// * **ExecuteMsg::DropOwnershipProposal {}** Removes a request to change ownership.
+/// * **ExecuteMsg::DropOwnershipProposal {}** Removes a request to change contract ownership.
 ///
-/// * **ExecuteMsg::ClaimOwnership {}** Approves ownership.
+/// * **ExecuteMsg::ClaimOwnership {}** Claims contract ownership.
 ///
-/// * **ExecuteMsg::Claim { recipient }** Claims the tokens from distributor for transfer
-/// to the recipient.
+/// * **ExecuteMsg::Claim { recipient }** Claims ASTRO fees from the distributor and sends them to the recipient.
 ///
-/// * **ExecuteMsg::ClaimMany { receivers }**  Make multiple fee claims in a single call.
+/// * **ExecuteMsg::ClaimMany { receivers }** Perform multiple fee claims in a single transaction.
 ///
-/// * **ExecuteMsg::Receive(msg)** parse incoming message from the ASTRO token.
-/// msg should have [`Cw20ReceiveMsg`] type.
+/// * **ExecuteMsg::Receive(msg)** Parse incoming messages from the ASTRO token.
 ///
 /// * **ExecuteMsg::UpdateConfig { claim_many_limit, is_claim_disabled}** Updates
-/// general settings. Returns an [`ContractError`] on failure or the following [`Config`]
-/// data will be updated if successful.
+/// general settings. Returns a [`ContractError`] on failure or the contract [`Config`]
+///  will be updated in case of success.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
@@ -124,8 +130,16 @@ pub fn execute(
 
 /// ## Description
 /// Receives a message of type [`Cw20ReceiveMsg`] and processes it depending on the received template.
-/// If the template is not found in the received message, then an [`ContractError`] is returned,
-/// otherwise returns the [`Response`] with the specified attributes if the operation was successful
+/// If the template is not found in the received message, then a [`ContractError`] is returned,
+/// otherwise it returns a [`Response`] with the specified attributes if the operation was successful.
+/// ## Params
+/// * **deps** is an object of type [`DepsMut`].
+///
+/// * **env** is an object of type [`Env`].
+///
+/// * **info** is an object of type [`MessageInfo`].
+///
+/// * **cw20_msg** is an object of type [`Cw20ReceiveMsg`]. This is the CW20 message to process.
 fn receive_cw20(
     deps: DepsMut,
     env: Env,
@@ -155,10 +169,16 @@ fn receive_cw20(
 }
 
 /// ## Description
-/// Claims the amount from FeeDistributor for transfer to the recipient. Returns the [`Response`] with
-/// specified attributes if operation was successful, otherwise returns the [`ContractError`].
+/// Claims ASTRO fees from this contract and sends them to the `recipient`. Returns a [`Response`] with
+/// specified attributes if the operation was successful, otherwise returns a [`ContractError`].
 /// ## Params
-/// * **recipient** Sets the recipient for claim.
+/// * **deps** is an object of type [`DepsMut`].
+///
+/// * **env** is an object of type [`Env`].
+///
+/// * **info** is an object of type [`MessageInfo`].
+///
+/// * **recipient** This is the address that will receive the ASTRO fees.
 pub fn claim(
     mut deps: DepsMut,
     env: Env,
@@ -196,10 +216,14 @@ pub fn claim(
 }
 
 /// ## Description
-/// Make multiple fee claims in a single call. Returns the [`Response`] with
-/// specified attributes if operation was successful, otherwise returns the [`ContractError`].
+/// Make multiple ASTRO fee claims in a single call. Returns a [`Response`] with
+/// specified attributes if the operation was successful, otherwise returns a [`ContractError`].
 /// ## Params
-/// * **receivers** is vector field of type [`String`]. Sets the receivers for claim.
+/// * **deps** is an object of type [`DepsMut`].
+///
+/// * **env** is an object of type [`Env`].
+///
+/// * **receivers** is a vector with objects of type [`String`]. This is the list of addresses that will receive the claimed ASTRO.
 fn claim_many(
     mut deps: DepsMut,
     env: Env,
@@ -248,7 +272,15 @@ fn claim_many(
 }
 
 /// ## Description
-/// Calculation amount of claim for specified account.
+/// Calculates the amount of ASTRO available to claim by a specific address.
+/// ## Params
+/// * **deps** is an object of type [`DepsMut`].
+///
+/// * **env** is an object of type [`Env`].
+///
+/// * **account** is an object of type [`Addr`]. This is the account for which we calculate the amount of ASTRO fees available to claim.
+///
+/// * **config** is an object of type [`Config`]. This is the fee distributor contract configuration.
 fn calc_claim_amount(deps: DepsMut, env: Env, account: Addr, config: Config) -> StdResult<Uint128> {
     let user_lock_info: LockInfoResponse = deps.querier.query_wasm_smart(
         &config.voting_escrow_addr,
@@ -266,12 +298,12 @@ fn calc_claim_amount(deps: DepsMut, env: Env, account: Addr, config: Config) -> 
     let mut claim_amount: Uint128 = Default::default();
 
     loop {
-        // user cannot claim for current period
+        // User cannot claim for the current period
         if claim_period >= current_period {
             break;
         }
 
-        // user cannot claim higher than his max lock period
+        // User cannot claim past their max lock period
         if claim_period > lock_end_period {
             break;
         }
@@ -309,7 +341,15 @@ fn calc_claim_amount(deps: DepsMut, env: Env, account: Addr, config: Config) -> 
 }
 
 /// ## Description
-/// Returns user amount for specified period
+/// Returns the amount of rewards distributed to a user for a specific period.
+/// ## Params
+/// * **deps** is an object of type [`DepsMut`].
+///
+/// * **period** is a parameter of type [`u64`]. This is the period for which we calculate the user's reward.
+///
+/// * **user_vp** is an object of type [`Uint128`]. This is the user's voting power for the specified period.
+///
+/// * **total_vp** is an object of type [`Uint128`]. This is the total voting power for the specified period.
 fn calculate_reward(
     deps: Deps,
     period: u64,
@@ -324,8 +364,16 @@ fn calculate_reward(
 }
 
 /// ## Description
-/// Updates general settings. Returns an [`ContractError`] on failure or the following [`Config`]
-/// data will be updated if successful.
+/// Updates general contract settings. Returns a [`ContractError`] on failure or the contract's [`Config`]
+/// data will be updated if the transaction is successful.
+/// ## Params
+/// * **deps** is an object of type [`DepsMut`].
+///
+/// * **info** is an object of type [`MessageInfo`].
+///
+/// * **claim_many_limit** is an [`Option`] of type [`u64`]. This is the max amount of rewards slots to claim in one transaction.
+///
+/// * **is_claim_disabled** is an [`Option`] of type [`bool`]. This determines whether reward claims are disabled or not.
 fn update_config(
     deps: DepsMut,
     info: MessageInfo,
@@ -361,17 +409,21 @@ fn update_config(
 }
 
 /// ## Description
-/// Available the query messages of the contract.
+/// Expose available contract queries.
+/// ## Params
+/// * **deps** is an object of type [`Deps`].
+///
+/// * **env** is an object of type [`Env`].
+///
+/// * **msg** is an object of type [`QueryMsg`].
+///
 /// ## Queries
-/// * **QueryMsg::UserReward { user, timestamp }** Returns the reward amount by
-/// the timestamp.
+/// * **QueryMsg::UserReward { user, timestamp }** Returns the amount of ASTRO rewards a user can claim at a specific timestamp.
 ///
-/// * **QueryMsg::Config {}** Returns the base controls configs that contains in the [`Config`]
-/// object.
+/// * **QueryMsg::Config {}** Returns the contract configuration.
 ///
-/// * **QueryMsg::AvailableRewardPerWeek { start_after, limit }** Returns a vector of the amount
-/// of rewards for the week with the specified parameters
-///
+/// * **QueryMsg::AvailableRewardPerWeek { start_after, limit }** Returns a vector with total amounts
+/// of ASTRO distributed as rewards every week to stakers.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
@@ -385,15 +437,21 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     }
 }
 
-//settings for pagination
-/// The maximum limit for reading pairs from a [`PAIRS`]
+/// Pagination settings
+/// The maximum limit for reading pairs from [`PAIRS`].
 const MAX_LIMIT: u64 = 30;
 
-/// The default limit for reading pairs from a [`PAIRS`]
+/// The default limit for reading pairs from [`PAIRS`].
 const DEFAULT_LIMIT: u64 = 10;
 
 /// ## Description
-/// Returns a vector of the amount of rewards for the week with the specified parameters
+/// Returns a vector of weekly rewards for current vxASTRO stakers.
+/// ## Params
+/// * **deps** is an object of type [`Deps`].
+///
+/// * **start_after** is an [`Option`] of type [`u64`]. This is the tiemstamp from which to start querying.
+///
+/// * **limit** is an [`Option`] of type [`Uint128`]. This is the max amount of entries to return.
 fn query_available_reward_per_week(
     deps: Deps,
     start_after: Option<u64>,
@@ -412,7 +470,15 @@ fn query_available_reward_per_week(
 }
 
 /// ## Description
-/// Returns the user rewards amount by the timestamp
+/// Returns the amount of rewards a user accrued at a specific timestamp.
+/// ## Params
+/// * **deps** is an object of type [`Deps`].
+///
+/// * **_env** is an object of type [`Env`].
+///
+/// * **user** is an object of type [`String`]. This is the user for which we return the amount of rewards.
+///
+/// * **timestamp** is a parameter of type [`u64`]. This is the timestamp at which we fetch the user's reward amount.
 fn query_user_reward(deps: Deps, _env: Env, user: String, timestamp: u64) -> StdResult<Uint128> {
     let config = CONFIG.load(deps.storage)?;
     let user_voting_power: VotingPowerResponse = deps.querier.query_wasm_smart(
@@ -443,7 +509,9 @@ fn query_user_reward(deps: Deps, _env: Env, user: String, timestamp: u64) -> Std
 }
 
 /// ## Description
-/// Returns information about the distributor configs in the [`ConfigResponse`] object.
+/// Returns the contract configuration using a [`ConfigResponse`] object.
+/// ## Params
+/// * **deps** is an object of type [`Deps`].
 pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
     let config: Config = CONFIG.load(deps.storage)?;
 
@@ -459,7 +527,13 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
 }
 
 /// ## Description
-/// Used for migration of contract. Returns the default object of type [`Response`].
+/// Used for contract migration. Returns a default object of type [`Response`].
+/// ## Params
+/// * **_deps** is an object of type [`DepsMut`].
+///
+/// * **_env** is an object of type [`Env`].
+///
+/// * **_msg** is an object of type [`MigrateMsg`].
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
     Ok(Response::default())

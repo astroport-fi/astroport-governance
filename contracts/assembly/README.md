@@ -4,6 +4,8 @@ The Assembly contract allows xASTRO and vxASTRO holders as well as Initial Astro
 
 ## InstantiateMsg
 
+Instantiate the contract with proposal parameter limitations and the xASTRO and builder unlock contract addresses.
+
 ```json
 {
   "xastro_token_addr": "terra...",
@@ -21,7 +23,7 @@ The Assembly contract allows xASTRO and vxASTRO holders as well as Initial Astro
 
 ### `receive`
 
-Submit a new proposal.
+Submit a new on-chain proposal.
 
 ```json
 {
@@ -35,7 +37,7 @@ Submit a new proposal.
 
 ### `cast_vote`
 
-Casts vote for an active proposal.
+Casts a vote for an active proposal.
 
 ```json
 {

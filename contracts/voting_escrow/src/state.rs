@@ -5,45 +5,47 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// ## Description
-/// This structure describes the main control config of voting escrow contract.
+/// This structure stores the main parameters for the voting escrow contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
-    /// contract address that used for settings control
+    /// Address that's allowed to change contract parameters
     pub owner: Addr,
-    /// an address that can update the blacklist
+    /// Address that can only blacklist vxASTRO stakers and remove their governance power
     pub guardian_addr: Addr,
-    /// the xASTRO token contract address
+    /// The xASTRO token contract address
     pub deposit_token_addr: Addr,
 }
 
 /// ## Description
-/// This structure describes the point in checkpoints history.
+/// This structure stores points along the checkpoint history for every vxASTRO staker.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Point {
-    /// voting power
+    /// The staker's vxASTRO voting power
     pub power: Uint128,
-    /// equals to the point period
+    /// The start period when the staker's voting power start to decrease
     pub start: u64,
-    /// the period when the lock should expire
+    /// The period when the lock should expire
     pub end: u64,
-    /// voting power decay per period at the current period
+    /// Weekly voting power decay
     pub slope: Decimal,
 }
 
+/// ## Description
+/// This structure stores data about the lockup position for a specific vxASTRO staker.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Lock {
-    /// the total xASTRO tokens were deposited
+    /// The total amount of xASTRO tokens that were deposited in the vxASTRO position
     pub amount: Uint128,
-    /// the period when lock was created
+    /// The start period when the lock was created
     pub start: u64,
-    /// the period when the lock should expire
+    /// The timestamp when the lock position expires
     pub end: u64,
     /// the last period when the lock's time was increased
     pub last_extend_lock_period: u64,
 }
 
 /// ## Description
-/// Stores config at the given key
+/// Stores the contract config at the given key
 pub const CONFIG: Item<Config> = Item::new("config");
 
 /// ## Description
@@ -51,22 +53,22 @@ pub const CONFIG: Item<Config> = Item::new("config");
 pub const LOCKED: Map<Addr, Lock> = Map::new("locked");
 
 /// ## Description
-/// Stores checkpoint history per composed key (addr, period).
-/// Total voting power checkpoints are stored by (contract_addr, period) key.
+/// Stores the checkpoint history for every staker (addr => period)
+/// Total voting power checkpoints are stored using a (contract_addr => period) key
 pub const HISTORY: Map<(Addr, U64Key), Point> = Map::new("history");
 
 /// ## Description
-/// Scheduled slope changes per period
+/// Scheduled slope changes per period (week)
 pub const SLOPE_CHANGES: Map<U64Key, Decimal> = Map::new("slope_changes");
 
 /// ## Description
-/// Last period when scheduled slope change was applied
+/// Last period when a scheduled slope change was applied
 pub const LAST_SLOPE_CHANGE: Item<u64> = Item::new("last_slope_change");
 
 /// ## Description
-/// Contains a proposal to change ownership
+/// Contains a proposal to change contract ownership
 pub const OWNERSHIP_PROPOSAL: Item<OwnershipProposal> = Item::new("ownership_proposal");
 
 /// ## Description
-/// Contains blacklisted addresses
+/// Contains blacklisted staker addresses
 pub const BLACKLIST: Item<Vec<Addr>> = Item::new("blacklist");

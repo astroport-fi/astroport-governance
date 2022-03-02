@@ -36,11 +36,11 @@ async function main() {
     `chainID: ${terra.config.chainID} wallet: ${wallet.key.accAddress}`
   );
 
-  // network : stores contract addresses
+  // Network : stores contract addresses
   let network = readArtifact(terra.config.chainID);
   console.log("network:", network);
 
-  // ASTRO Token addresss should be set
+  // ASTRO token addresss should be set
   if (terra.config.chainID == "columbus-5" && !network.astro_token_address) {
     console.log(
       `Please deploy the CW20-base ASTRO token, and then set this address in the deploy config before running this script...`
@@ -102,7 +102,7 @@ async function main() {
         astro_token: network.astro_token_address,
       };
       console.log(instantiate_msg);
-      // deploy vesting contract
+      // Deploy vesting contract
       network.vesting_address = await deployContract(
         terra,
         wallet,
@@ -550,7 +550,7 @@ async function main() {
       );
     }
 
-    // Update Contract admin to multiSig
+    // Update contract admin to multiSig
     if (MULTI_SIG_ADDRESS) {
       let update_admin = new MsgUpdateContractAdmin(
         wallet.key.accAddress,
@@ -605,7 +605,7 @@ async function main() {
         },
       },
       [],
-      `Setting ASTRO Unlocking schedules`
+      `Setting ASTRO unlock schedules`
     );
 
     console.log(

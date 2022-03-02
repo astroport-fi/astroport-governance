@@ -1,8 +1,10 @@
-# Astroport Escrow fee distributor
+# vxASTRO Escrow Fee Distributor
 
-Distributes the commission between users for the locked period.
+Distribute ASTRO fees every period to vxASTRO stakers.
 
 ## InstantiateMsg
+
+Instantiate the fee distributor contract with the ASTRO and vxASTRO token contracts as well as claim related parameters.
 
 ```json
 {
@@ -18,7 +20,7 @@ Distributes the commission between users for the locked period.
 
 ### `claim`
 
-Claims the amount from Escrow fee distributor for transfer to the recipient. Fields are optional.
+Claims ASTRO rewards for one period and sends them to the recipient.
 
 ```json
 {
@@ -30,7 +32,7 @@ Claims the amount from Escrow fee distributor for transfer to the recipient. Fie
 
 ### `claim_many`
 
-Claims the amount from Escrow fee distributor for transfer to the receivers.
+Claims ASTRO rewards from multiple periods and sends them to the recipient.
 
 ```json
 {
@@ -42,7 +44,7 @@ Claims the amount from Escrow fee distributor for transfer to the receivers.
 
 ### `update_config`
 
-Updates general settings. Fields are optional.
+Update the contract configuration.
 
 ```json
 {
@@ -55,7 +57,7 @@ Updates general settings. Fields are optional.
 
 ### `receive`
 
-Receives a commission in the form of Astro, which will be distributed among users.
+Receive ASTRO fees (from the Maker) and prepares them to be distributed pro-rata to current stakers.
 
 ```json
 {
@@ -69,7 +71,7 @@ Receives a commission in the form of Astro, which will be distributed among user
 
 ### `propose_new_owner`
 
-Creates an offer for a new owner. The validity period of the offer is set in the `expires_in` variable.
+Creates a proposal to change the contract owner. The validity period for the offer is set in the `expires_in` variable.
 
 ```json
 {
@@ -82,7 +84,7 @@ Creates an offer for a new owner. The validity period of the offer is set in the
 
 ### `drop_ownership_proposal`
 
-Removes the existing offer for the new owner.
+Removes the existing proposal to change contract ownership.
 
 ```json
 {
@@ -92,7 +94,7 @@ Removes the existing offer for the new owner.
 
 ### `claim_ownership`
 
-Used to claim(approve) new owner proposal, thus changing contract's owner.
+Claim contract ownership.
 
 ```json
 {
@@ -106,7 +108,7 @@ All query messages are described below. A custom struct is defined for each quer
 
 ### `config`
 
-Returns the information about the escrow fee distributor contract
+Returns the contract configuration.
 
 ```json
 {
@@ -116,9 +118,7 @@ Returns the information about the escrow fee distributor contract
 
 ### `user_reward`
 
-Returns a commission amount in the form of Astro for user at timestamp.
-
-`timestamp` a day cursor in seconds.
+Returns the amount of ASTRO rewards a user can claim at a specific timestamp. `timestamp` is in seconds.
 
 ```json
 {
@@ -131,10 +131,7 @@ Returns a commission amount in the form of Astro for user at timestamp.
 
 ### `available_reward_per_week`
 
-Returns the vector that contains the amount of commission per week.
-
-`start_after` a day in seconds.
-`limit` a number of weeks.
+Returns a vector with total amounts of ASTRO distributed as rewards every week to stakers. `start_after` is a timestamp in seconds. `limit` is the amount of entries to return.
 
 ```json
 {

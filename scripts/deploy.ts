@@ -123,7 +123,7 @@ async function deployAssembly(terra: LCDClient, wallet: any) {
             "proposal_expiration_period": 100,
             "proposal_required_deposit": '1000000', // 1 xASTRO
             "proposal_required_quorum": '0.000001', // 0.0001%
-            "proposal_required_threshold": '0.51' // 51%
+            "proposal_required_threshold": '0.51'   // 51%
         }
     )
 
