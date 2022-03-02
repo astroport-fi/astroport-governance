@@ -1,6 +1,6 @@
 use astroport::asset::addr_validate_to_lower;
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
-use astroport_governance::utils::{get_period, get_periods_count, WEEK};
+use astroport_governance::utils::{get_period, get_periods_count, EPOCH_START, WEEK};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
@@ -520,7 +520,7 @@ fn extend_lock_time(
     };
 
     // should not exceed MAX_LOCK_TIME
-    time_limits_check(lock.end * WEEK + time)?;
+    time_limits_check(EPOCH_START + lock.end * WEEK + time - env.block.time.seconds())?;
     lock.end += get_periods_count(time);
     LOCKED.save(deps.storage, user.clone(), &lock)?;
 
