@@ -84,22 +84,14 @@ fn check_vote_works() {
         .escrow_helper
         .query_user_vp(&mut router, "user2")
         .unwrap();
-    let resp: UserInfo = router
-        .wrap()
-        .query_wasm_smart(
-            helper.controller.clone(),
-            &QueryMsg::UserInfo {
-                user: "user2".to_string(),
-            },
-        )
-        .unwrap();
-    assert_eq!(ve_slope, resp.slope);
-    assert_eq!(router.block_info().time.seconds(), resp.vote_ts);
+    let user_info = helper.query_user_info(&mut router, "user2").unwrap();
+    assert_eq!(ve_slope, user_info.slope);
+    assert_eq!(router.block_info().time.seconds(), user_info.vote_ts);
     assert_eq!(
         ve_power,
-        resp.voting_power.u128() as f32 / MULTIPLIER as f32
+        user_info.voting_power.u128() as f32 / MULTIPLIER as f32
     );
-    let resp_votes = resp
+    let resp_votes = user_info
         .votes
         .into_iter()
         .map(|(addr, bps)| (addr.to_string(), bps.into()))
@@ -177,7 +169,7 @@ fn check_gauging() {
         .wrap()
         .query_wasm_smart(helper.controller.clone(), &QueryMsg::GaugeInfo)
         .unwrap();
-    assert_eq!(get_period(resp.gauge_ts), router.block_period());
+    assert_eq!(get_period(resp.gauge_ts).unwrap(), router.block_period());
     assert_eq!(resp.pool_alloc_points.len(), 5);
     let total_apoints: u64 = resp
         .pool_alloc_points
@@ -215,7 +207,7 @@ fn check_gauging() {
         .wrap()
         .query_wasm_smart(helper.controller.clone(), &QueryMsg::GaugeInfo)
         .unwrap();
-    assert_eq!(get_period(resp.gauge_ts), router.block_period());
+    assert_eq!(get_period(resp.gauge_ts).unwrap(), router.block_period());
     assert_eq!(resp.pool_alloc_points.len(), limit as usize);
     let total_apoints: u64 = resp
         .pool_alloc_points

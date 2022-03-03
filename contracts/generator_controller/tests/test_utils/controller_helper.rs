@@ -1,7 +1,8 @@
 use crate::test_utils::escrow_helper::EscrowHelper;
 use anyhow::Result as AnyResult;
-use astroport_governance::generator_controller::ExecuteMsg;
-use cosmwasm_std::Addr;
+use astroport_governance::generator_controller::{ExecuteMsg, QueryMsg};
+use cosmwasm_std::{Addr, StdResult};
+use generator_controller::state::UserInfo;
 use terra_multi_test::{AppResponse, ContractWrapper, Executor, TerraApp};
 
 pub struct ControllerHelper {
@@ -97,6 +98,15 @@ impl ControllerHelper {
             self.controller.clone(),
             &ExecuteMsg::GaugePools {},
             &[],
+        )
+    }
+
+    pub fn query_user_info(&self, router: &mut TerraApp, user: &str) -> StdResult<UserInfo> {
+        router.wrap().query_wasm_smart(
+            self.controller.clone(),
+            &QueryMsg::UserInfo {
+                user: user.to_string(),
+            },
         )
     }
 }
