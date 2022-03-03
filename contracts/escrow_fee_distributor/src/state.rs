@@ -7,27 +7,27 @@ use cosmwasm_std::{Addr, Uint128};
 use cw_storage_plus::{Item, Map, U64Key};
 
 /// ## Description
-/// This structure describes the main control config of distributor contract.
+/// This structure stores the main parameters for the distributor contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
-    /// Owner address
+    /// Address that's allowed to change contract parameters
     pub owner: Addr,
-    /// Fee token address
+    /// ASTRO token address
     pub astro_token: Addr,
-    /// VotingEscrow contract address
+    /// vxASTRO contract address
     pub voting_escrow_addr: Addr,
-    /// Max limit of addresses to claim rewards in single call
+    /// Max limit of addresses that can claim rewards in a single call
     pub claim_many_limit: u64,
-    /// Is reward claiming disabled: for emergency
+    /// Whether reward claiming is disabled: for emergency
     pub is_claim_disabled: bool,
 }
 
 /// ## Description
-/// Stores config at the given key
+/// Stores the contract config at the given key.
 pub const CONFIG: Item<Config> = Item::new("config");
 
 /// ## Description
-/// Contains information about distributed rewards per week.
+/// Contains information about weekly distributed rewards.
 pub const REWARDS_PER_WEEK: Map<U64Key, Uint128> = Map::new("rewards_per_week");
 
 /// ## Description
@@ -35,5 +35,5 @@ pub const REWARDS_PER_WEEK: Map<U64Key, Uint128> = Map::new("rewards_per_week");
 pub const LAST_CLAIM_PERIOD: Map<Addr, u64> = Map::new("last_claim_period");
 
 /// ## Description
-/// Contains proposal for change ownership.
+/// Contains the proposal to change contract ownership.
 pub const OWNERSHIP_PROPOSAL: Item<OwnershipProposal> = Item::new("ownership_proposal");

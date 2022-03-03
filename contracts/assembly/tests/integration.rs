@@ -18,10 +18,10 @@ use astroport_governance::builder_unlock::msg::{
     InstantiateMsg as BuilderUnlockInstantiateMsg, ReceiveMsg as BuilderUnlockReceiveMsg,
 };
 use astroport_governance::builder_unlock::{AllocationParams, Schedule};
-use astroport_governance::utils::WEEK;
+use astroport_governance::utils::{EPOCH_START, WEEK};
 use cosmwasm_std::{
     testing::{mock_env, MockApi, MockStorage},
-    to_binary, Addr, CosmosMsg, Decimal, StdResult, Uint128, Uint64, WasmMsg,
+    to_binary, Addr, CosmosMsg, Decimal, StdResult, Timestamp, Uint128, Uint64, WasmMsg,
 };
 use cw20::{BalanceResponse, Cw20ExecuteMsg, MinterResponse};
 use terra_multi_test::{
@@ -335,7 +335,7 @@ fn proper_proposal_submitting() {
 
     assert_eq!(res.to_string(), "Link too long");
 
-    // Valid proposal submitting
+    // Valid proposal submission
     app.execute_contract(
         user.clone(),
         xastro_addr.clone(),
@@ -428,7 +428,7 @@ fn proper_successful_proposal() {
 
     // Init voting power for users
     let balances: Vec<(&str, u128, u128)> = vec![
-        ("user0", PROPOSAL_REQUIRED_DEPOSIT, 0), // Proposal submitter
+        ("user0", PROPOSAL_REQUIRED_DEPOSIT, 0), // proposal submitter
         ("user1", 20, 80),
         ("user2", 100, 100),
         ("user3", 300, 100),
@@ -617,7 +617,7 @@ fn proper_successful_proposal() {
 
     assert_eq!(res.to_string(), "Voting period ended!");
 
-    // Try to execute proposal before end_proposal
+    // Try to execute the proposal before end_proposal
     let res = app
         .execute_contract(
             Addr::unchecked("user0"),
@@ -652,7 +652,7 @@ fn proper_successful_proposal() {
 
     assert_eq!(proposal.status, ProposalStatus::Passed);
 
-    // Try to end proposal again.
+    // Try to end proposal again
     let res = app
         .execute_contract(
             Addr::unchecked("user0"),
@@ -664,7 +664,7 @@ fn proper_successful_proposal() {
 
     assert_eq!(res.to_string(), "Proposal not active!");
 
-    // Try to execute proposal before delay
+    // Try to execute the proposal before the delay
     let res = app
         .execute_contract(
             Addr::unchecked("user0"),
@@ -682,7 +682,7 @@ fn proper_successful_proposal() {
         bi.time = bi.time.plus_seconds(5 * (PROPOSAL_EFFECTIVE_DELAY + 1));
     });
 
-    // Try to execute proposal after delay
+    // Try to execute the proposal after the delay
     app.execute_contract(
         Addr::unchecked("user0"),
         assembly_addr.clone(),
@@ -746,7 +746,7 @@ fn proper_successful_proposal() {
         .unwrap();
 
     assert_eq!(res.proposal_list, vec![]);
-    // proposal_count should not be changed after removing
+    // proposal_count should not be changed after removing a proposal
     assert_eq!(res.proposal_count, Uint64::from(1u32));
 }
 
@@ -760,7 +760,7 @@ fn proper_unsuccessful_proposal() {
 
     // Init voting power for users
     let xastro_balances: Vec<(&str, u128)> = vec![
-        ("user0", PROPOSAL_REQUIRED_DEPOSIT), // Proposal submitter
+        ("user0", PROPOSAL_REQUIRED_DEPOSIT), // proposal submitter
         ("user1", 100),
         ("user2", 200),
         ("user3", 400),
@@ -877,7 +877,8 @@ fn proper_unsuccessful_proposal() {
 }
 
 fn mock_app() -> TerraApp {
-    let env = mock_env();
+    let mut env = mock_env();
+    env.block.time = Timestamp::from_seconds(EPOCH_START);
     let api = MockApi::default();
     let bank = BankKeeper::new();
     let storage = MockStorage::new();

@@ -1,7 +1,9 @@
 use crate::test_utils::{mock_app, Helper, MULTIPLIER};
 use anyhow::Result;
-use astroport_governance::utils::{MAX_LOCK_TIME, WEEK};
-use cosmwasm_std::{Addr, Timestamp};
+use astroport_governance::utils::{
+    get_period, get_periods_count, EPOCH_START, MAX_LOCK_TIME, WEEK,
+};
+use cosmwasm_std::Addr;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use terra_multi_test::{next_block, AppResponse, TerraApp};
@@ -27,22 +29,18 @@ enum Event {
 use Event::*;
 
 struct Simulator {
-    // points history (history[period][user] = point)
+    // Point history (history[period][user] = point)
     points: Vec<HashMap<String, Point>>,
-    // current user's lock (amount, end)
+    // Current user's lock (amount, end)
     locked: HashMap<String, (f64, u64)>,
     users: Vec<String>,
     helper: Helper,
     router: TerraApp,
 }
 
-fn get_period(time: u64) -> u64 {
-    time / WEEK
-}
-
 fn apply_coefficient(amount: f64, interval: u64) -> f64 {
-    let coeff = 1f64 + (1.5 * interval as f64) / get_period(MAX_LOCK_TIME) as f64;
-    // imitating Decimal fraction multiplication in the contract
+    let coeff = 1f64 + (1.5 * interval as f64) / get_periods_count(MAX_LOCK_TIME) as f64;
+    // Imitate decimal fraction multiplication
     (amount * coeff * MULTIPLIER as f64).trunc() / MULTIPLIER as f64
 }
 
@@ -64,7 +62,7 @@ impl Simulator {
     }
 
     fn block_period(&self) -> u64 {
-        get_period(self.router.block_info().time.seconds())
+        get_period(self.router.block_info().time.seconds()).unwrap()
     }
 
     fn app_next_period(&mut self) {
@@ -75,7 +73,7 @@ impl Simulator {
 
     fn create_lock(&mut self, user: &str, amount: f64, interval: u64) -> Result<AppResponse> {
         let block_period = self.block_period();
-        let periods_interval = get_period(interval);
+        let periods_interval = get_periods_count(interval);
         self.helper
             .create_lock(&mut self.router, user, interval, amount as f32)
             .map(|response| {
@@ -98,7 +96,7 @@ impl Simulator {
             .extend_lock_time(&mut self.router, user, interval)
             .map(|response| {
                 let cur_period = self.block_period() as usize;
-                let periods_interval = get_period(interval);
+                let periods_interval = get_periods_count(interval);
                 let end = if let Some(point) = self.get_user_point_at(cur_period, user) {
                     point.end
                 } else {
@@ -341,7 +339,6 @@ proptest! {
         };
 
         let mut simulator = Simulator::new(&users);
-        simulator.router.update_block(|block| block.time = Timestamp::from_seconds(0));
         for user in users {
             simulator.mint(&user, 10000);
             simulator.add_point(0, user, 0.0, 104);
@@ -363,12 +360,12 @@ proptest! {
             if (real_balance - contract_balance).abs() >= 10e-3 {
                 assert_eq!(real_balance, contract_balance)
             };
-            // evaluate passed periods in history
+            // Evaluate historical periods
             for check_period in 1..period {
                 let real_balance = simulator.calc_total_balance_at(check_period);
                 let contract_balance = simulator
                     .helper
-                    .query_total_vp_at(&mut simulator.router, check_period as u64 * WEEK)
+                    .query_total_vp_at(&mut simulator.router, EPOCH_START + check_period as u64 * WEEK)
                     .unwrap_or(0.0) as f64;
                 if (real_balance - contract_balance).abs() >= 10e-3 {
                     assert_eq!(real_balance, contract_balance)
@@ -398,9 +395,6 @@ fn exact_simulation() {
     }
 
     let mut simulator = Simulator::new(&users);
-    simulator
-        .router
-        .update_block(|block| block.time = Timestamp::from_seconds(0));
     for user in users {
         simulator.mint(user, 10000);
         simulator.add_point(0, user, 0.0, 104);
@@ -426,12 +420,15 @@ fn exact_simulation() {
             println!("Assert failed at period {}", period);
             assert_eq!(real_balance, contract_balance)
         };
-        // evaluate passed periods in history
+        // Evaluate historical periods
         for check_period in 1..period {
             let real_balance = simulator.calc_total_balance_at(check_period);
             let contract_balance = simulator
                 .helper
-                .query_total_vp_at(&mut simulator.router, check_period as u64 * WEEK)
+                .query_total_vp_at(
+                    &mut simulator.router,
+                    EPOCH_START + check_period as u64 * WEEK,
+                )
                 .unwrap_or(0.0) as f64;
             if (real_balance - contract_balance).abs() >= 10e-3 {
                 assert_eq!(real_balance, contract_balance)
