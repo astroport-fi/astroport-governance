@@ -1,12 +1,14 @@
-use astroport_governance::utils::get_period;
+use astroport_governance::utils::{get_period, EPOCH_START};
 use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
+use cosmwasm_std::Timestamp;
 use terra_multi_test::{AppBuilder, BankKeeper, TerraApp, TerraMock};
 
 pub mod controller_helper;
 pub mod escrow_helper;
 
 pub fn mock_app() -> TerraApp {
-    let env = mock_env();
+    let mut env = mock_env();
+    env.block.time = Timestamp::from_seconds(EPOCH_START);
     let api = MockApi::default();
     let bank = BankKeeper::new();
     let storage = MockStorage::new();
@@ -35,6 +37,6 @@ impl TerraAppExtension for TerraApp {
     }
 
     fn block_period(&self) -> u64 {
-        get_period(self.block_info().time.seconds())
+        get_period(self.block_info().time.seconds()).unwrap()
     }
 }

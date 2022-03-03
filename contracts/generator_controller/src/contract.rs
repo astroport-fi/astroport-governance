@@ -95,7 +95,7 @@ fn handle_vote(
     votes: Vec<(String, u16)>,
 ) -> ExecuteResult {
     let user = info.sender;
-    let block_period = get_period(env.block.time.seconds());
+    let block_period = get_period(env.block.time.seconds())?;
     let escrow_addr = CONFIG.load(deps.storage)?.escrow_addr;
     let user_vp = get_voting_power(deps.querier, &escrow_addr, &user)?;
 
@@ -146,7 +146,7 @@ fn handle_vote(
         let old_vp_at_period = calc_voting_power(
             user_info.slope,
             user_info.voting_power,
-            get_period(user_info.vote_ts),
+            get_period(user_info.vote_ts)?,
             block_period,
         );
         // Cancel changes applied by previous votes
@@ -189,7 +189,7 @@ fn handle_vote(
 fn gauge_generators(deps: DepsMut, env: Env, info: MessageInfo) -> ExecuteResult {
     let gauge_info = GAUGE_INFO.may_load(deps.storage)?.unwrap_or_default();
     let config = CONFIG.load(deps.storage)?;
-    let block_period = get_period(env.block.time.seconds());
+    let block_period = get_period(env.block.time.seconds())?;
 
     if info.sender != config.owner {
         return Err(ContractError::Unauthorized {});
@@ -207,7 +207,7 @@ fn gauge_generators(deps: DepsMut, env: Env, info: MessageInfo) -> ExecuteResult
     }
 
     // Recalculate voted pool info for passed periods excluding current block period.
-    for period in get_period(gauge_info.gauge_ts)..block_period {
+    for period in get_period(gauge_info.gauge_ts)?..block_period {
         POOL_VOTES
             .prefix(U64Key::new(period))
             .range(deps.storage, None, None, Order::Ascending)
@@ -311,7 +311,8 @@ fn pool_info(
     period: Option<u64>,
 ) -> StdResult<VotedPoolInfo> {
     let pool_addr = addr_validate_to_lower(deps.api, &pool_addr)?;
-    let period = period.unwrap_or_else(|| get_period(env.block.time.seconds()));
+    let block_period = get_period(env.block.time.seconds())?;
+    let period = period.unwrap_or(block_period);
     let pool_info = POOL_VOTES
         .may_load(deps.storage, (U64Key::new(period), &pool_addr))?
         .unwrap_or_default();
