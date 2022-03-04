@@ -18,10 +18,10 @@ use astroport_governance::builder_unlock::msg::{
     InstantiateMsg as BuilderUnlockInstantiateMsg, ReceiveMsg as BuilderUnlockReceiveMsg,
 };
 use astroport_governance::builder_unlock::{AllocationParams, Schedule};
-use astroport_governance::utils::WEEK;
+use astroport_governance::utils::{EPOCH_START, WEEK};
 use cosmwasm_std::{
     testing::{mock_env, MockApi, MockStorage},
-    to_binary, Addr, CosmosMsg, Decimal, StdResult, Uint128, Uint64, WasmMsg,
+    to_binary, Addr, CosmosMsg, Decimal, StdResult, Timestamp, Uint128, Uint64, WasmMsg,
 };
 use cw20::{BalanceResponse, Cw20ExecuteMsg, MinterResponse};
 use terra_multi_test::{
@@ -877,7 +877,8 @@ fn proper_unsuccessful_proposal() {
 }
 
 fn mock_app() -> TerraApp {
-    let env = mock_env();
+    let mut env = mock_env();
+    env.block.time = Timestamp::from_seconds(EPOCH_START);
     let api = MockApi::default();
     let bank = BankKeeper::new();
     let storage = MockStorage::new();

@@ -1,10 +1,11 @@
 use anyhow::Result;
 use astroport::{staking as xastro, token as astro};
+use astroport_governance::utils::EPOCH_START;
 use astroport_governance::voting_escrow::{
     Cw20HookMsg, ExecuteMsg, InstantiateMsg, QueryMsg, VotingPowerResponse,
 };
 use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
-use cosmwasm_std::{attr, to_binary, Addr, QueryRequest, StdResult, Uint128, WasmQuery};
+use cosmwasm_std::{attr, to_binary, Addr, QueryRequest, StdResult, Timestamp, Uint128, WasmQuery};
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
 use terra_multi_test::{
     AppBuilder, AppResponse, BankKeeper, ContractWrapper, Executor, TerraApp, TerraMock,
@@ -339,7 +340,8 @@ impl Helper {
 }
 
 pub fn mock_app() -> TerraApp {
-    let env = mock_env();
+    let mut env = mock_env();
+    env.block.time = Timestamp::from_seconds(EPOCH_START);
     let api = MockApi::default();
     let bank = BankKeeper::new();
     let storage = MockStorage::new();

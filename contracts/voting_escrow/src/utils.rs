@@ -1,6 +1,6 @@
 use crate::error::ContractError;
 use astroport::asset::addr_validate_to_lower;
-use astroport_governance::utils::{get_period, MAX_LOCK_TIME, WEEK};
+use astroport_governance::utils::{get_periods_count, MAX_LOCK_TIME, WEEK};
 use cosmwasm_std::{
     Addr, Decimal, Deps, DepsMut, Fraction, Order, OverflowError, Pair, StdError, StdResult,
     Uint128, Uint256,
@@ -94,7 +94,7 @@ pub(crate) fn calc_voting_power(point: &Point, period: u64) -> Uint128 {
 /// Coefficient calculation where 0 [`WEEK`] is equal to 1 and [`MAX_LOCK_TIME`] is 2.5.
 pub(crate) fn calc_coefficient(interval: u64) -> Decimal {
     // coefficient = 1 + 1.5 * (end - start) / MAX_LOCK_TIME
-    Decimal::one() + Decimal::from_ratio(15_u64 * interval, get_period(MAX_LOCK_TIME) * 10)
+    Decimal::one() + Decimal::from_ratio(15_u64 * interval, get_periods_count(MAX_LOCK_TIME) * 10)
 }
 
 /// # Description

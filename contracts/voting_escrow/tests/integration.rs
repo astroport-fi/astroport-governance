@@ -2,7 +2,7 @@ mod test_utils;
 
 use crate::test_utils::{mock_app, Helper, MULTIPLIER};
 use astroport::token as astro;
-use astroport_governance::utils::{MAX_LOCK_TIME, WEEK};
+use astroport_governance::utils::{get_period, MAX_LOCK_TIME, WEEK};
 use astroport_governance::voting_escrow::{
     ConfigResponse, Cw20HookMsg, ExecuteMsg, LockInfoResponse, QueryMsg,
 };
@@ -452,7 +452,7 @@ fn check_queries() {
     helper.check_xastro_balance(router_ref, helper.voting_instance.as_str(), 90);
 
     // Validate user's lock
-    let cur_period = router_ref.block_info().time.seconds() / WEEK;
+    let cur_period = get_period(router_ref.block_info().time.seconds()).unwrap();
     let user_lock: LockInfoResponse = router_ref
         .wrap()
         .query_wasm_smart(
