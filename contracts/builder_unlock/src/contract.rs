@@ -303,12 +303,26 @@ fn execute_claim_receiver(
                 // Transfers Allocation Parameters ::
                 // 1. Save the allocation for the new receiver
                 alloc_params.proposed_receiver = None;
+
+                if let Some(sender_params) = PARAMS.may_load(deps.storage, &info.sender)? {
+                    alloc_params.amount = alloc_params.amount.checked_add(sender_params.amount)?;
+                }
+
                 PARAMS.save(deps.storage, &info.sender, &alloc_params)?;
                 // 2. Remove the allocation info from the previous owner
                 PARAMS.remove(deps.storage, &deps.api.addr_validate(&prev_receiver)?);
                 // Transfers Allocation Status ::
-                let status = STATUS.load(deps.storage, &deps.api.addr_validate(&prev_receiver)?)?;
+                let mut status =
+                    STATUS.load(deps.storage, &deps.api.addr_validate(&prev_receiver)?)?;
+
+                if let Some(sender_status) = STATUS.may_load(deps.storage, &info.sender)? {
+                    status.astro_withdrawn = status
+                        .astro_withdrawn
+                        .checked_add(sender_status.astro_withdrawn)?;
+                }
+
                 STATUS.save(deps.storage, &info.sender, &status)?;
+                STATUS.remove(deps.storage, &deps.api.addr_validate(&prev_receiver)?)
             } else {
                 return Err(StdError::generic_err(format!(
                     "Proposed receiver mismatch, actual proposed receiver : {}",
@@ -423,7 +437,9 @@ mod helpers {
             Uint128::zero()
         }
         // Tokens unlock linearly between start time and end time
-        else if timestamp < schedule.start_time + schedule.duration {
+        else if (timestamp < schedule.start_time + schedule.cliff + schedule.duration)
+            && !schedule.duration != 0
+        {
             amount.multiply_ratio(timestamp - schedule.start_time, schedule.duration)
         }
         // After end time, all tokens are fully unlocked
