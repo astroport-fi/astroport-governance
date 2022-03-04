@@ -2,7 +2,7 @@ use crate::test_utils::escrow_helper::EscrowHelper;
 use anyhow::Result as AnyResult;
 use astroport_governance::generator_controller::{ExecuteMsg, QueryMsg};
 use cosmwasm_std::{Addr, StdResult};
-use generator_controller::state::UserInfo;
+use generator_controller::state::{UserInfo, VotedPoolInfo};
 use terra_multi_test::{AppResponse, ContractWrapper, Executor, TerraApp};
 
 pub struct ControllerHelper {
@@ -106,6 +106,34 @@ impl ControllerHelper {
             self.controller.clone(),
             &QueryMsg::UserInfo {
                 user: user.to_string(),
+            },
+        )
+    }
+
+    pub fn query_voted_pool_info(
+        &self,
+        router: &mut TerraApp,
+        pool: &str,
+    ) -> StdResult<VotedPoolInfo> {
+        router.wrap().query_wasm_smart(
+            self.controller.clone(),
+            &QueryMsg::PoolInfo {
+                pool_addr: pool.to_string(),
+            },
+        )
+    }
+
+    pub fn query_voted_pool_info_at_period(
+        &self,
+        router: &mut TerraApp,
+        pool: &str,
+        period: u64,
+    ) -> StdResult<VotedPoolInfo> {
+        router.wrap().query_wasm_smart(
+            self.controller.clone(),
+            &QueryMsg::PoolInfoAtPeriod {
+                pool_addr: pool.to_string(),
+                period,
             },
         )
     }

@@ -46,6 +46,9 @@ pub const CONFIG: Item<Config> = Item::new("config");
 /// ( period -> pool_addr )
 pub const POOL_VOTES: Map<(U64Key, &Addr), VotedPoolInfo> = Map::new("pool_votes");
 
+/// ( pool_addr -> period )
+pub const LAST_POOL_PERIOD: Map<&Addr, u64> = Map::new("last_pool_period");
+
 pub const USER_INFO: Map<&Addr, UserInfo> = Map::new("user_info");
 
 pub const GAUGE_INFO: Item<GaugeInfo> = Item::new("gauge_info");

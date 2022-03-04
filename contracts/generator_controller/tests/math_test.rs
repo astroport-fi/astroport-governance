@@ -6,6 +6,7 @@ use cosmwasm_std::Addr;
 use terra_multi_test::{AppResponse, Executor, TerraApp};
 
 use astroport_governance::utils::WEEK;
+use generator_controller::bps::BasicPoints;
 use Event::*;
 use VeEvent::*;
 
@@ -33,8 +34,7 @@ enum VeEvent {
 }
 
 struct Simulator<'a> {
-    user_votes: HashMap<&'a str, HashMap<&'a str, f64>>,
-    voted_pools: HashMap<&'a str, f64>,
+    user_votes: HashMap<&'a str, HashMap<&'a str, u16>>,
     helper: ControllerHelper,
     router: TerraApp,
     owner: Addr,
@@ -47,7 +47,6 @@ impl<'a> Simulator<'a> {
         let owner = Addr::unchecked("owner");
         Self {
             helper: ControllerHelper::init(&mut router, &owner),
-            voted_pools: Default::default(),
             user_votes: users
                 .into_iter()
                 .map(|&user| (user, HashMap::new()))
@@ -90,19 +89,11 @@ impl<'a> Simulator<'a> {
         self.helper
             .vote(&mut self.router, user, votes.clone())
             .map(|response| {
-                let user_vp = self
-                    .helper
-                    .escrow_helper
-                    .query_user_vp(&mut self.router, user)
-                    .unwrap() as f64;
                 for (pool, bps) in votes {
-                    let add_vp = bps as f64 * user_vp;
-                    let entry = self.voted_pools.entry(pool).or_default();
-                    *entry += add_vp;
                     self.user_votes
                         .get_mut(user)
                         .expect("User not found!")
-                        .insert(pool, add_vp);
+                        .insert(pool, bps);
                 }
                 let user_info = self.helper.query_user_info(&mut self.router, user).unwrap();
                 let total_apoints: u16 = user_info
@@ -112,10 +103,6 @@ impl<'a> Simulator<'a> {
                     .map(|pair| u16::from(pair.1))
                     .sum();
                 assert_eq!(total_apoints, 10000);
-                let real_vp = user_info.voting_power.u128() as f64 / MULTIPLIER as f64;
-                if (real_vp - user_vp).abs() > 10e-6 {
-                    assert_eq!(real_vp, user_vp);
-                };
                 assert_eq!(user_info.vote_ts, self.router.block_info().time.seconds());
                 response
             })
@@ -165,6 +152,7 @@ fn exact_simulation() {
     let escrow_case = [(0, "bpcy", CreateLock(100.0, 3024000))];
     let case = (
         ["bpcy"],
+        ["pool1", "pool2", "pool3"],
         [(
             0,
             "bpcy",
@@ -176,7 +164,7 @@ fn exact_simulation() {
 
     let mut events: Vec<Vec<(&str, Event)>> = vec![vec![]; MAX_PERIOD + 1];
     let mut ve_events: Vec<Vec<(&str, VeEvent)>> = vec![vec![]; MAX_PERIOD + 1];
-    let (users, events_tuples) = case;
+    let (users, pools, events_tuples) = case;
     for (period, user, event) in events_tuples {
         events[period].push((user, event));
     }
@@ -187,11 +175,13 @@ fn exact_simulation() {
     let mut simulator = Simulator::init(&users);
 
     for period in 0..events.len() {
+        // vxASTRO events
         if let Some(period_events) = ve_events.get(period) {
             for (user, event) in period_events {
                 simulator.escrow_events_router(user, event.clone())
             }
         }
+        // Generator controller events
         if let Some(period_events) = events.get(period) {
             if !period_events.is_empty() {
                 println!("Period {}:", period);
@@ -200,6 +190,36 @@ fn exact_simulation() {
                 simulator.event_router(user, event.clone())
             }
         }
-        simulator.router.next_block(WEEK)
+
+        let mut voted_pools: HashMap<&str, f32> = HashMap::new();
+
+        // Checking calculations
+        for user in users {
+            let votes = simulator.user_votes.get(user).unwrap();
+            let user_vp = simulator
+                .helper
+                .escrow_helper
+                .query_user_vp(&mut simulator.router, user)
+                .unwrap();
+            votes.iter().for_each(|(pool, &bps)| {
+                let vp = voted_pools.entry(pool).or_default();
+                *vp += (bps as f32 / BasicPoints::MAX as f32) * user_vp
+            })
+        }
+        let block_period = simulator.router.block_period();
+        for pool_addr in pools {
+            let pool_vp = simulator
+                .helper
+                .query_voted_pool_info_at_period(&mut simulator.router, pool_addr, block_period + 1)
+                .unwrap()
+                .vxastro_amount
+                .u128() as f32
+                / MULTIPLIER as f32;
+            let real_vp = voted_pools.get(pool_addr).unwrap().to_owned();
+            if (pool_vp - real_vp).abs() >= 10e-3 {
+                assert_eq!(pool_vp, real_vp, "Period: {}, pool: {}", period, pool_addr)
+            }
+        }
+        simulator.router.next_block(WEEK);
     }
 }

@@ -1,6 +1,5 @@
 use crate::error::ContractError;
-use crate::utils::CheckedMulRatio;
-use cosmwasm_std::Uint128;
+use cosmwasm_std::{Decimal, Fraction, StdError, StdResult, Uint128, Uint256};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::convert::{TryFrom, TryInto};
@@ -70,5 +69,46 @@ impl Mul<Uint128> for BasicPoints {
 
     fn mul(self, rhs: Uint128) -> Self::Output {
         rhs.multiply_ratio(self.0, Self::MAX)
+    }
+}
+
+impl Mul<Decimal> for BasicPoints {
+    type Output = Decimal;
+
+    fn mul(self, rhs: Decimal) -> Self::Output {
+        Decimal::from_ratio(
+            self.0 as u128 * rhs.numerator(),
+            rhs.denominator() * Self::MAX as u128,
+        )
+    }
+}
+
+pub(crate) trait CheckedMulRatio {
+    fn checked_multiply_ratio(
+        self,
+        numerator: impl Into<u128>,
+        denominator: impl Into<Uint256>,
+    ) -> StdResult<Uint128>;
+}
+
+impl CheckedMulRatio for Uint128 {
+    fn checked_multiply_ratio(
+        self,
+        numerator: impl Into<u128>,
+        denominator: impl Into<Uint256>,
+    ) -> StdResult<Uint128> {
+        let numerator = self.full_mul(numerator);
+        let denominator = denominator.into();
+        let mut result = numerator / denominator;
+        let rem = numerator
+            .checked_rem(denominator)
+            .map_err(|_| StdError::generic_err("Division by zero"))?;
+        // Rounding up if residual is more than 50% of denominator
+        if rem.ge(&(denominator / Uint256::from(2u8))) {
+            result += Uint256::from(1u128);
+        }
+        result
+            .try_into()
+            .map_err(|_| StdError::generic_err("Uint256 -> Uint128 conversion error"))
     }
 }

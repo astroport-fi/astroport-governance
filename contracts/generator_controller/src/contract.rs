@@ -9,7 +9,6 @@ use cosmwasm_std::{
     Uint64,
 };
 use cw2::set_contract_version;
-use cw_storage_plus::U64Key;
 
 use astroport_governance::generator_controller::{
     ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg,
@@ -19,11 +18,11 @@ use astroport_governance::utils::{calc_voting_power, get_period, WEEK};
 use crate::bps::BasicPoints;
 use crate::error::ContractError;
 use crate::state::{
-    Config, GaugeInfo, UserInfo, VotedPoolInfo, CONFIG, GAUGE_INFO, POOL_VOTES, USER_INFO,
+    Config, GaugeInfo, UserInfo, VotedPoolInfo, CONFIG, GAUGE_INFO, LAST_POOL_PERIOD, USER_INFO,
 };
 use crate::utils::{
-    cancel_user_changes, deserialize_pair, get_lock_info, get_or_calculate_pool_info,
-    get_voting_power, vote_for_pool,
+    cancel_user_changes, get_lock_info, get_pool_info, get_voting_power, update_pool_info,
+    vote_for_pool, VotedPoolInfoResult,
 };
 
 /// Contract name that is used for migration.
@@ -141,7 +140,7 @@ fn handle_vote(
             acc.checked_add(*bps)
         })?;
 
-    if !user_info.slope.is_zero() && block_period > 0 {
+    if !user_info.slope.is_zero() {
         // Calculate voting power before changes
         let old_vp_at_period = calc_voting_power(
             user_info.slope,
@@ -154,20 +153,20 @@ fn handle_vote(
             cancel_user_changes(
                 deps.branch(),
                 block_period,
-                &pool_addr,
+                pool_addr,
                 *bps,
-                user_info.slope,
                 old_vp_at_period,
+                user_info.slope,
             )
         })?;
     }
 
     // Votes are applied to the next period
     votes.iter().try_for_each(|(pool_addr, bps)| {
-        let pool_votes_path = POOL_VOTES.key((U64Key::new(block_period + 1), &pool_addr));
         vote_for_pool(
             deps.branch(),
-            pool_votes_path,
+            block_period + 1,
+            pool_addr,
             *bps,
             user_vp,
             lock_info.slope,
@@ -186,7 +185,7 @@ fn handle_vote(
     Ok(Response::new().add_attribute("action", "vote"))
 }
 
-fn gauge_generators(deps: DepsMut, env: Env, info: MessageInfo) -> ExecuteResult {
+fn gauge_generators(mut deps: DepsMut, env: Env, info: MessageInfo) -> ExecuteResult {
     let gauge_info = GAUGE_INFO.may_load(deps.storage)?.unwrap_or_default();
     let config = CONFIG.load(deps.storage)?;
     let block_period = get_period(env.block.time.seconds())?;
@@ -206,35 +205,17 @@ fn gauge_generators(deps: DepsMut, env: Env, info: MessageInfo) -> ExecuteResult
         // TODO: push msg to response.messages to cancel previous pool alloc points
     }
 
-    // Recalculate voted pool info for passed periods excluding current block period.
-    for period in get_period(gauge_info.gauge_ts)?..block_period {
-        POOL_VOTES
-            .prefix(U64Key::new(period))
-            .range(deps.storage, None, None, Order::Ascending)
-            .map(|pair_result| {
-                let (pool_addr, _) = deserialize_pair(deps.as_ref(), pair_result)?;
-                let new_pool_info = get_or_calculate_pool_info(deps.as_ref(), period, &pool_addr)?;
-                Ok((pool_addr, new_pool_info))
-            })
-            .collect::<StdResult<Vec<_>>>()?
-            .iter()
-            .try_for_each(|(pool_addr, pool_info)| {
-                if !pool_info.vxastro_amount.is_zero() {
-                    // Saving votes for the next period
-                    POOL_VOTES.save(
-                        deps.storage,
-                        (U64Key::new(period + 1), pool_addr),
-                        pool_info,
-                    )
-                } else {
-                    Ok(())
-                }
-            })?
-    }
-
-    let mut pool_votes = POOL_VOTES
-        .prefix(U64Key::new(block_period))
-        .range(deps.storage, None, None, Order::Ascending)
+    let mut pool_votes = LAST_POOL_PERIOD
+        .keys(deps.as_ref().storage, None, None, Order::Ascending)
+        .collect::<Vec<_>>()
+        .into_iter()
+        .map(|pool_addr_serialized| {
+            let pool_addr = String::from_utf8(pool_addr_serialized)
+                .map_err(|_| StdError::generic_err("Deserialization error"))
+                .and_then(|pool_addr_string| addr_validate_to_lower(deps.api, &pool_addr_string))?;
+            let pool_info = update_pool_info(deps.branch(), block_period, &pool_addr, None)?;
+            Ok((pool_addr, pool_info))
+        })
         .collect::<StdResult<Vec<_>>>()?;
 
     pool_votes.sort_by(|(_, a), (_, b)| a.vxastro_amount.cmp(&b.vxastro_amount));
@@ -247,12 +228,9 @@ fn gauge_generators(deps: DepsMut, env: Env, info: MessageInfo) -> ExecuteResult
     let total_vp = winners.iter().map(|(_, vp)| vp.vxastro_amount).sum();
 
     let mut pool_alloc_points = vec![];
-    for (pool_addr_serialized, pool_info) in winners {
+    for (pool_addr, pool_info) in winners {
         let alloc_points: u16 = BasicPoints::from_ratio(pool_info.vxastro_amount, total_vp)?.into();
         let alloc_points = Uint64::from(alloc_points);
-        let pool_addr = String::from_utf8(pool_addr_serialized)
-            .map_err(|_| StdError::generic_err("Deserialization error"))
-            .and_then(|pool_addr_string| addr_validate_to_lower(deps.api, &pool_addr_string))?;
         pool_alloc_points.push((pool_addr.clone(), alloc_points));
         // TODO: push msg to response.messages to set pool alloc points
     }
@@ -313,10 +291,7 @@ fn pool_info(
     let pool_addr = addr_validate_to_lower(deps.api, &pool_addr)?;
     let block_period = get_period(env.block.time.seconds())?;
     let period = period.unwrap_or(block_period);
-    let pool_info = POOL_VOTES
-        .may_load(deps.storage, (U64Key::new(period), &pool_addr))?
-        .unwrap_or_default();
-    Ok(pool_info)
+    get_pool_info(deps, period, &pool_addr).map(VotedPoolInfoResult::get)
 }
 
 /// ## Description
