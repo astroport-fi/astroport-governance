@@ -27,14 +27,14 @@ async function main() {
 async function deployVotingEscrow(terra: LCDClient, wallet: any) {
     let network = readArtifact(terra.config.chainID)
 
-    if (network.assemblyAddress) {
-        console.log("assembly already deployed", network.assemblyAddress)
+    if (network.votingEscrow) {
+        console.log("votingEscrow already deployed", network.votingEscrow)
         return
     }
 
     checkParams(network, ["multisigAddress", "xastroAddress"])
 
-    console.log('Deploying vxASTRO Contract...')
+    console.log('Deploying votingEscrow...')
     network.votingEscrow = await deployContract(
         terra,
         wallet,
