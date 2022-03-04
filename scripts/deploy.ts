@@ -20,8 +20,37 @@ async function main() {
     checkParams(network, ["xastroAddress", "tokenAddress"])
 
     await deployTeamUnlock(terra, wallet)
+    await deployVotingEscrow(terra, wallet)
     await deployAssembly(terra, wallet)
 }
+
+async function deployVotingEscrow(terra: LCDClient, wallet: any) {
+    let network = readArtifact(terra.config.chainID)
+
+    if (network.assemblyAddress) {
+        console.log("assembly already deployed", network.assemblyAddress)
+        return
+    }
+
+    checkParams(network, ["multisigAddress", "xastroAddress"])
+
+    console.log('Deploying vxASTRO Contract...')
+    network.votingEscrow = await deployContract(
+        terra,
+        wallet,
+        join(ARTIFACTS_PATH, 'voting_escrow.wasm'),
+        {
+            "owner": network.multisigAddress,
+            "guardian_addr": network.multisigAddress,
+            "deposit_token_addr": network.xastroAddress,
+        }
+    )
+
+    console.log("votingEscrow", network.votingEscrow)
+
+    writeArtifact(network, terra.config.chainID)
+}
+
 async function deployTeamUnlock(terra: LCDClient, wallet: any) {
     let network = readArtifact(terra.config.chainID)
 
@@ -108,7 +137,7 @@ async function deployAssembly(terra: LCDClient, wallet: any) {
         return
     }
 
-    checkParams(network, ["xastroAddress", "builderUnlockAddress"])
+    checkParams(network, ["xastroAddress", "builderUnlockAddress", "votingEscrow"])
 
     console.log('Deploying Assembly Contract...')
     network.assemblyAddress = await deployContract(
@@ -117,6 +146,7 @@ async function deployAssembly(terra: LCDClient, wallet: any) {
         join(ARTIFACTS_PATH, 'astro_assembly.wasm'),
         {
             "xastro_token_addr": network.xastroAddress,
+            "vxastro_token_addr": network.votingEscrow,
             "builder_unlock_addr": network.builderUnlockAddress,
             "proposal_voting_period": 360,
             "proposal_effective_delay": 100,
