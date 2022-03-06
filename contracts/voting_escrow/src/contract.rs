@@ -719,7 +719,7 @@ fn update_blacklist(
     Ok(Response::default().add_attributes(attrs))
 }
 
-/// # Description
+/// ## Description
 /// Expose available contract queries.
 /// ## Params
 /// * **deps** is an object of type [`Deps`].
@@ -772,7 +772,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     }
 }
 
-/// # Description
+/// ## Description
 /// Return a user's lock information using a [`LockInfoResponse`] struct.
 /// ## Params
 /// * **deps** is an object of type [`Deps`].
@@ -793,7 +793,7 @@ fn get_user_lock_info(deps: Deps, user: String) -> StdResult<LockInfoResponse> {
     }
 }
 
-/// # Description
+/// ## Description
 /// Calculates a user's voting power at a given timestamp.
 /// If time is None, then it calculates the user's voting power at the current block.
 /// ## Params
@@ -814,7 +814,7 @@ fn get_user_voting_power(
     get_user_voting_power_at_period(deps, user, period)
 }
 
-/// # Description
+/// ## Description
 /// Calculates a user's voting power at a given period number.
 /// ## Params
 /// * **deps** is an object of type [`Deps`].
@@ -849,7 +849,7 @@ fn get_user_voting_power_at_period(
     }
 }
 
-/// # Description
+/// ## Description
 /// Calculates a user's voting power at the current block.
 /// ## Params
 /// * **deps** is an object of type [`Deps`].
@@ -864,7 +864,7 @@ fn get_user_balance(deps: Deps, env: Env, user: String) -> StdResult<BalanceResp
     })
 }
 
-/// # Description
+/// ## Description
 /// Calculates the total voting power (total vxASTRO supply) at the given timestamp.
 /// If `time` is None, then it calculates the total voting power at the current block.
 /// ## Params
@@ -882,7 +882,7 @@ fn get_total_voting_power(
     get_total_voting_power_at_period(deps, env, period)
 }
 
-/// # Description
+/// ## Description
 /// Calculates the total voting power (total vxASTRO supply) at the given period number.
 /// ## Params
 /// * **deps** is an object of type [`Deps`].
@@ -928,7 +928,7 @@ fn get_total_voting_power_at_period(
     Ok(VotingPowerResponse { voting_power })
 }
 
-/// # Description
+/// ## Description
 /// Fetch the vxASTRO token information, such as the token name, symbol, decimals and total supply (total voting power).
 /// ## Params
 /// * **deps** is an object of type [`Deps`].

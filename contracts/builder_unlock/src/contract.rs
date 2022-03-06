@@ -114,7 +114,7 @@ fn execute_receive_cw20(
     }
 }
 
-/// # Description
+/// ## Description
 /// Expose available contract queries.
 /// ## Params
 /// * **deps** is an object of type [`Deps`].
@@ -148,7 +148,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     }
 }
 
-/// # Description
+/// ## Description
 /// Admin function facilitating creation of new allocations.
 /// ## Params
 /// * **deps** is an object of type [`DepsMut`].
@@ -227,7 +227,7 @@ fn execute_create_allocations(
     Ok(Response::default())
 }
 
-/// # Description
+/// ## Description
 /// Allow allocation recipients to withdraw unlocked ASTRO.
 /// ## Params
 /// * **deps** is an object of type [`DepsMut`].
@@ -273,7 +273,7 @@ fn execute_withdraw(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Res
         .add_attribute("astro_withdrawn", astro_to_withdraw))
 }
 
-/// # Description
+/// ## Description
 /// Transfer contract ownership.
 /// ## Params
 /// * **deps** is an object of type [`DepsMut`].
@@ -306,7 +306,7 @@ fn execute_transfer_ownership(
     Ok(Response::new())
 }
 
-/// # Description
+/// ## Description
 /// Allows the current allocation receiver to propose a new receiver/.
 /// ## Params
 /// * **deps** is an object of type [`DepsMut`].
@@ -351,7 +351,7 @@ fn execute_propose_new_receiver(
         .add_attribute("proposed_receiver", new_receiver))
 }
 
-/// # Description
+/// ## Description
 /// Drop the newly proposed receiver for a specific allocation.
 /// ## Params
 /// * **deps** is an object of type [`DepsMut`].
@@ -379,7 +379,7 @@ fn execute_drop_new_receiver(deps: DepsMut, _env: Env, info: MessageInfo) -> Std
         .add_attribute("dropped_proposed_receiver", prev_proposed_receiver))
 }
 
-/// # Description
+/// ## Description
 /// Allows a newly proposed allocation receiver to claim the ownership of that allocation.
 /// ## Params
 /// * **deps** is an object of type [`DepsMut`].
@@ -427,7 +427,7 @@ fn execute_claim_receiver(
         .add_attribute("new_receiver", info.sender.to_string()))
 }
 
-/// # Description
+/// ## Description
 /// Return the contract configuration.
 /// ## Params
 /// * **deps** is an object of type [`DepsMut`].
@@ -437,7 +437,7 @@ fn query_config(deps: Deps, _env: Env) -> StdResult<Config> {
     CONFIG.load(deps.storage)
 }
 
-/// # Description
+/// ## Description
 /// Return the global distribution state.
 /// ## Params
 /// * **deps** is an object of type [`DepsMut`].
@@ -449,7 +449,7 @@ pub fn query_state(deps: Deps) -> StdResult<StateResponse> {
     })
 }
 
-/// # Description
+/// ## Description
 /// Return information about a specific allocation.
 /// ## Params
 /// * **deps** is an object of type [`DepsMut`].
@@ -470,7 +470,7 @@ fn query_allocation(deps: Deps, _env: Env, account: String) -> StdResult<Allocat
     })
 }
 
-/// # Description
+/// ## Description
 /// Return the total amount of unlocked tokens for a specific account.
 /// ## Params
 /// * **deps** is an object of type [`DepsMut`].
@@ -490,7 +490,7 @@ fn query_tokens_unlocked(deps: Deps, env: Env, account: String) -> StdResult<Uin
     ))
 }
 
-/// # Description
+/// ## Description
 /// Simulate a token withdrawal.
 /// ## Params
 /// * **deps** is an object of type [`DepsMut`].

@@ -12,7 +12,7 @@ pub const CLAIM_LIMIT: u64 = 10;
 /// Feb 28 2022 00:00 UTC, Monday
 pub const EPOCH_START: u64 = 1646006400;
 
-/// # Description
+/// ## Description
 /// Calculates the period number. Time should be formatted as a timestamp.
 pub fn get_period(time: u64) -> StdResult<u64> {
     if time < EPOCH_START {
@@ -22,7 +22,7 @@ pub fn get_period(time: u64) -> StdResult<u64> {
     }
 }
 
-/// # Description
+/// ## Description
 /// Calculates how many periods are in the specified time interval. The time should be in seconds.
 pub fn get_periods_count(interval: u64) -> u64 {
     interval / WEEK
