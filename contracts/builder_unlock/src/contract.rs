@@ -433,14 +433,14 @@ mod helpers {
         schedule: &Schedule,
     ) -> Uint128 {
         // Tokens haven't begun unlocking
-        if timestamp < schedule.start_time {
+        if timestamp < schedule.start_time + schedule.cliff {
             Uint128::zero()
         }
         // Tokens unlock linearly between start time and end time
         else if (timestamp < schedule.start_time + schedule.cliff + schedule.duration)
             && !schedule.duration != 0
         {
-            amount.multiply_ratio(timestamp - schedule.start_time, schedule.duration)
+            amount.multiply_ratio(timestamp - (schedule.start_time + schedule.cliff), schedule.duration)
         }
         // After end time, all tokens are fully unlocked
         else {
@@ -454,23 +454,16 @@ mod helpers {
         params: &AllocationParams,
         status: &mut AllocationStatus,
     ) -> SimulateWithdrawResponse {
-        // Before the end of cliff period, no token can be withdrawn
-        if timestamp < (params.unlock_schedule.start_time + params.unlock_schedule.cliff) {
-            SimulateWithdrawResponse {
-                astro_to_withdraw: Uint128::zero(),
-            }
-        } else {
-            // "Unlocked" amount
-            let astro_unlocked =
-                compute_unlocked_amount(timestamp, params.amount, &params.unlock_schedule);
+        // "Unlocked" amount
+        let astro_unlocked =
+            compute_unlocked_amount(timestamp, params.amount, &params.unlock_schedule);
 
-            // Withdrawable amount is unlocked amount minus the amount already withdrawn
-            let astro_withdrawable = astro_unlocked - status.astro_withdrawn;
-            status.astro_withdrawn += astro_withdrawable;
+        // Withdrawable amount is unlocked amount minus the amount already withdrawn
+        let astro_withdrawable = astro_unlocked - status.astro_withdrawn;
+        status.astro_withdrawn += astro_withdrawable;
 
-            SimulateWithdrawResponse {
-                astro_to_withdraw: astro_withdrawable,
-            }
+        SimulateWithdrawResponse {
+            astro_to_withdraw: astro_withdrawable,
         }
     }
 }

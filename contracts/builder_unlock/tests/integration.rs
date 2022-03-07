@@ -728,8 +728,8 @@ fn test_withdraw() {
 
     // ***** Check that tokens that can be withdrawn before cliff is 0 *****
     app.update_block(|b| {
-        b.height += 17280;
-        b.time = Timestamp::from_seconds(1650178273)
+        b.height += 1572480;
+        b.time = Timestamp::from_seconds(1657954273)
     });
 
     // Check the number of unlocked tokens
@@ -756,11 +756,11 @@ fn test_withdraw() {
         )
         .unwrap();
 
-    assert_eq!(sim_withdraw_resp.astro_to_withdraw, Uint128::zero());
+    assert_eq!(sim_withdraw_resp.astro_to_withdraw, Uint128::from(1232876553779u64));
 
     app.update_block(|b| {
         b.height += 17280;
-        b.time = Timestamp::from_seconds(1650178279)
+        b.time = Timestamp::from_seconds(1657954279)
     });
 
     // Check the number of unlocked tokens
