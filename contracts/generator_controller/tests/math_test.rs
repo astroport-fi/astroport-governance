@@ -1,11 +1,13 @@
 use std::collections::HashMap;
 
 use anyhow::Result;
-use astroport_governance::generator_controller::ExecuteMsg;
 use cosmwasm_std::Addr;
+use proptest::prelude::*;
 use terra_multi_test::{AppResponse, Executor, TerraApp};
 
-use astroport_governance::utils::WEEK;
+use astroport_governance::generator_controller::ExecuteMsg;
+use astroport_governance::utils::{calc_voting_power, MAX_LOCK_TIME, WEEK};
+use astroport_governance::voting_escrow::LockInfoResponse;
 use generator_controller::bps::BasicPoints;
 use Event::*;
 use VeEvent::*;
@@ -19,10 +21,10 @@ use crate::test_utils::TerraAppExtension;
 mod test_utils;
 
 #[derive(Clone, Debug)]
-enum Event<'a> {
-    Vote { votes: Vec<(&'a str, u16)> },
+enum Event {
+    Vote(Vec<(String, u16)>),
     GaugePools,
-    ChangePoolLimit { limit: u64 },
+    ChangePoolLimit(u64),
 }
 
 #[derive(Clone, Debug)]
@@ -33,24 +35,27 @@ enum VeEvent {
     Withdraw,
 }
 
-struct Simulator<'a> {
-    user_votes: HashMap<&'a str, HashMap<&'a str, u16>>,
+struct Simulator {
+    user_votes: HashMap<String, HashMap<String, u16>>,
+    locks: HashMap<String, LockInfoResponse>,
     helper: ControllerHelper,
     router: TerraApp,
     owner: Addr,
     limit: u64,
 }
 
-impl<'a> Simulator<'a> {
-    pub fn init(users: &[&'a str]) -> Self {
+impl Simulator {
+    pub fn init<T: Clone + Into<String>>(users: &[T]) -> Self {
         let mut router = mock_app();
         let owner = Addr::unchecked("owner");
         Self {
             helper: ControllerHelper::init(&mut router, &owner),
             user_votes: users
-                .into_iter()
-                .map(|&user| (user, HashMap::new()))
+                .iter()
+                .cloned()
+                .map(|user| (user.into(), HashMap::new()))
                 .collect(),
+            locks: HashMap::new(),
             limit: 5,
             router,
             owner,
@@ -79,16 +84,25 @@ impl<'a> Simulator<'a> {
             ExtendLock(amount) => {
                 self.helper
                     .escrow_helper
+                    .mint_xastro(&mut self.router, user, amount as u64);
+                self.helper
+                    .escrow_helper
                     .extend_lock_amount(&mut self.router, user, amount as f32)
             }
             Withdraw => self.helper.escrow_helper.withdraw(&mut self.router, user),
         };
     }
 
-    fn vote(&mut self, user: &str, votes: Vec<(&'a str, u16)>) -> Result<AppResponse> {
+    fn vote(&mut self, user: &str, votes: Vec<(String, u16)>) -> Result<AppResponse> {
         self.helper
             .vote(&mut self.router, user, votes.clone())
             .map(|response| {
+                let lock_info = self
+                    .helper
+                    .escrow_helper
+                    .query_lock_info(&mut self.router, user)
+                    .unwrap();
+                self.locks.insert(user.to_string(), lock_info);
                 for (pool, bps) in votes {
                     self.user_votes
                         .get_mut(user)
@@ -102,7 +116,9 @@ impl<'a> Simulator<'a> {
                     .cloned()
                     .map(|pair| u16::from(pair.1))
                     .sum();
-                assert_eq!(total_apoints, 10000);
+                if total_apoints > 10000 {
+                    panic!("{} > 10000", total_apoints)
+                }
                 assert_eq!(user_info.vote_ts, self.router.block_info().time.seconds());
                 response
             })
@@ -122,9 +138,10 @@ impl<'a> Simulator<'a> {
             })
     }
 
-    pub fn event_router(&mut self, user: &str, event: Event<'a>) {
+    pub fn event_router(&mut self, user: &str, event: Event) {
+        println!("User {} Event {:?}", user, event);
         match event {
-            Vote { votes } => {
+            Vote(votes) => {
                 if let Err(err) = self.vote(user, votes) {
                     println!("{}", err.to_string());
                 }
@@ -134,7 +151,7 @@ impl<'a> Simulator<'a> {
                     println!("{}", err.to_string());
                 }
             }
-            ChangePoolLimit { limit } => {
+            ChangePoolLimit(limit) => {
                 if let Err(err) = self.change_pool_limit(limit) {
                     println!("{}", err.to_string());
                 }
@@ -143,33 +160,156 @@ impl<'a> Simulator<'a> {
     }
 }
 
-const MAX_PERIOD: usize = 10;
-const MAX_USERS: usize = 6;
-const MAX_EVENTS: usize = 100;
+const MAX_PERIOD: usize = 5;
+const MAX_USERS: usize = 3;
+const MAX_POOLS: usize = 5;
+const MAX_EVENTS: usize = 10;
+
+fn escrow_events_strategy() -> impl Strategy<Value = VeEvent> {
+    prop_oneof![
+        Just(VeEvent::Withdraw),
+        (1f64..=100f64).prop_map(VeEvent::ExtendLock),
+        (0..MAX_LOCK_TIME).prop_map(VeEvent::IncreaseTime),
+        ((1f64..=100f64), 0..MAX_LOCK_TIME).prop_map(|(a, b)| VeEvent::CreateLock(a, b)),
+    ]
+}
+
+fn controller_events_strategy(pools: Vec<String>) -> impl Strategy<Value = Event> {
+    prop_oneof![
+        Just(Event::GaugePools),
+        (1..=10u64).prop_map(Event::ChangePoolLimit),
+        prop::collection::vec((prop::sample::select(pools), 1..=10000u16), 1..10)
+            .prop_map(Event::Vote),
+    ]
+}
+
+fn generate_cases() -> impl Strategy<
+    Value = (
+        Vec<String>,
+        Vec<String>,
+        Vec<(usize, String, VeEvent)>,
+        Vec<(usize, String, Event)>,
+    ),
+> {
+    let pools_strategy = prop::collection::vec("[a-z]{4}", 1..MAX_POOLS);
+    let users_strategy = prop::collection::vec("[a-z]{4,32}", 1..MAX_USERS);
+    (users_strategy, pools_strategy).prop_flat_map(|(users, pools)| {
+        (
+            Just(users.clone()),
+            Just(pools.clone()),
+            prop::collection::vec(
+                (
+                    1..=MAX_PERIOD,
+                    prop::sample::select(users.clone()),
+                    escrow_events_strategy(),
+                ),
+                0..MAX_EVENTS,
+            ),
+            prop::collection::vec(
+                (
+                    1..=MAX_PERIOD,
+                    prop::sample::select(users),
+                    controller_events_strategy(pools),
+                ),
+                0..MAX_EVENTS,
+            ),
+        )
+    })
+}
+
+proptest! {
+    #[test]
+    fn run_simulations(
+        case in generate_cases()
+    ) {
+        let mut events: Vec<Vec<(String, Event)>> = vec![vec![]; MAX_PERIOD + 1];
+        let mut ve_events: Vec<Vec<(String, VeEvent)>> = vec![vec![]; MAX_PERIOD + 1];
+        let (users, pools, ve_events_tuples, events_tuples) = case;
+        for (period, user, event) in events_tuples {
+            events[period].push((user.to_string(), event));
+        }
+        for (period, user, event) in ve_events_tuples {
+            ve_events[period].push((user.to_string(), event))
+        }
+
+        let mut simulator = Simulator::init(&users);
+
+        for period in 0..events.len() {
+            // vxASTRO events
+            if let Some(period_events) = ve_events.get(period) {
+                for (user, event) in period_events {
+                    simulator.escrow_events_router(user, event.clone())
+                }
+            }
+            // Generator controller events
+            if let Some(period_events) = events.get(period) {
+                if !period_events.is_empty() {
+                    println!("Period {}:", period);
+                }
+                for (user, event) in period_events {
+                    simulator.event_router(user, event.clone())
+                }
+            }
+
+            let mut voted_pools: HashMap<String, f32> = HashMap::new();
+
+            // Checking calculations
+            for user in users.iter() {
+                let votes = simulator.user_votes.get(user).unwrap();
+                if let Some(lock_info) = simulator.locks.get(user) {
+                    let user_vp = calc_voting_power(
+                        lock_info.slope,
+                        lock_info.amount * lock_info.coefficient,
+                        lock_info.start,
+                        period as u64,
+                    );
+                    let user_vp = user_vp.u128() as f32 / MULTIPLIER as f32;
+                    votes.iter().for_each(|(pool, &bps)| {
+                        let vp = voted_pools.entry(pool.clone()).or_default();
+                        *vp += (bps as f32 / BasicPoints::MAX as f32) * user_vp
+                    })
+                }
+            }
+            let block_period = simulator.router.block_period();
+            for pool_addr in pools.iter() {
+                let pool_vp = simulator
+                    .helper
+                    .query_voted_pool_info_at_period(&mut simulator.router, pool_addr, block_period + 1)
+                    .unwrap()
+                    .vxastro_amount
+                    .u128() as f32
+                    / MULTIPLIER as f32;
+                let real_vp = voted_pools.get(pool_addr).cloned().unwrap_or(0f32);
+                if (pool_vp - real_vp).abs() >= 10e-3 {
+                    assert_eq!(pool_vp, real_vp, "Period: {}, pool: {}", period, pool_addr)
+                }
+            }
+            simulator.router.next_block(WEEK);
+        }
+    }
+}
 
 #[test]
 fn exact_simulation() {
-    let escrow_case = [(0, "bpcy", CreateLock(100.0, 3024000))];
     let case = (
-        ["bpcy"],
-        ["pool1", "pool2", "pool3"],
-        [(
-            0,
-            "bpcy",
-            Vote {
-                votes: vec![("pool1", 1000u16), ("pool2", 3000u16), ("pool3", 6000u16)],
-            },
-        )],
+        ["plwbbplocqyjoc"],
+        ["pxof"],
+        [
+            (3, "plwbbplocqyjoc", ExtendLock(8.964665476034803)),
+            (1, "plwbbplocqyjoc", CreateLock(1.0, 3024000)),
+            (1, "plwbbplocqyjoc", CreateLock(1.0, 0)),
+        ],
+        [(3, "plwbbplocqyjoc", Vote(vec![("pxof".to_string(), 10000)]))],
     );
 
-    let mut events: Vec<Vec<(&str, Event)>> = vec![vec![]; MAX_PERIOD + 1];
-    let mut ve_events: Vec<Vec<(&str, VeEvent)>> = vec![vec![]; MAX_PERIOD + 1];
-    let (users, pools, events_tuples) = case;
+    let mut events: Vec<Vec<(String, Event)>> = vec![vec![]; MAX_PERIOD + 1];
+    let mut ve_events: Vec<Vec<(String, VeEvent)>> = vec![vec![]; MAX_PERIOD + 1];
+    let (users, pools, ve_events_tuples, events_tuples) = case;
     for (period, user, event) in events_tuples {
-        events[period].push((user, event));
+        events[period].push((user.to_string(), event));
     }
-    for (period, user, event) in escrow_case {
-        ve_events[period].push((user, event))
+    for (period, user, event) in ve_events_tuples {
+        ve_events[period].push((user.to_string(), event))
     }
 
     let mut simulator = Simulator::init(&users);
@@ -191,31 +331,39 @@ fn exact_simulation() {
             }
         }
 
-        let mut voted_pools: HashMap<&str, f32> = HashMap::new();
+        let mut voted_pools: HashMap<String, f32> = HashMap::new();
 
         // Checking calculations
         for user in users {
             let votes = simulator.user_votes.get(user).unwrap();
-            let user_vp = simulator
-                .helper
-                .escrow_helper
-                .query_user_vp(&mut simulator.router, user)
-                .unwrap();
-            votes.iter().for_each(|(pool, &bps)| {
-                let vp = voted_pools.entry(pool).or_default();
-                *vp += (bps as f32 / BasicPoints::MAX as f32) * user_vp
-            })
+            if let Some(lock_info) = simulator.locks.get(user) {
+                let user_vp = calc_voting_power(
+                    lock_info.slope,
+                    lock_info.amount * lock_info.coefficient,
+                    lock_info.start,
+                    period as u64,
+                );
+                let user_vp = user_vp.u128() as f32 / MULTIPLIER as f32;
+                votes.iter().for_each(|(pool, &bps)| {
+                    let vp = voted_pools.entry(pool.clone()).or_default();
+                    *vp += (bps as f32 / BasicPoints::MAX as f32) * user_vp
+                })
+            }
         }
         let block_period = simulator.router.block_period();
         for pool_addr in pools {
             let pool_vp = simulator
                 .helper
-                .query_voted_pool_info_at_period(&mut simulator.router, pool_addr, block_period + 1)
+                .query_voted_pool_info_at_period(
+                    &mut simulator.router,
+                    &pool_addr,
+                    block_period + 1,
+                )
                 .unwrap()
                 .vxastro_amount
                 .u128() as f32
                 / MULTIPLIER as f32;
-            let real_vp = voted_pools.get(pool_addr).unwrap().to_owned();
+            let real_vp = voted_pools.get(pool_addr).cloned().unwrap_or(0f32);
             if (pool_vp - real_vp).abs() >= 10e-3 {
                 assert_eq!(pool_vp, real_vp, "Period: {}, pool: {}", period, pool_addr)
             }

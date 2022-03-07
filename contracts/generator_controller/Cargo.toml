@@ -43,3 +43,4 @@ astroport-staking = { git = "https://github.com/astroport-fi/astroport.git", tag
 cw20 = "0.8"
 voting-escrow = { path = "../voting_escrow", version = "1.0.0" }
 anyhow = "1"
+proptest = "1.0.0"
