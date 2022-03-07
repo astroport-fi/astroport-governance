@@ -756,7 +756,10 @@ fn test_withdraw() {
         )
         .unwrap();
 
-    assert_eq!(sim_withdraw_resp.astro_to_withdraw, Uint128::from(1232876553779u64));
+    assert_eq!(
+        sim_withdraw_resp.astro_to_withdraw,
+        Uint128::from(1232876553779u64)
+    );
 
     app.update_block(|b| {
         b.height += 17280;

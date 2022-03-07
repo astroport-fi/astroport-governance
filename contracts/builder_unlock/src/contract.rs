@@ -440,7 +440,10 @@ mod helpers {
         else if (timestamp < schedule.start_time + schedule.cliff + schedule.duration)
             && !schedule.duration != 0
         {
-            amount.multiply_ratio(timestamp - (schedule.start_time + schedule.cliff), schedule.duration)
+            amount.multiply_ratio(
+                timestamp - (schedule.start_time + schedule.cliff),
+                schedule.duration,
+            )
         }
         // After end time, all tokens are fully unlocked
         else {
