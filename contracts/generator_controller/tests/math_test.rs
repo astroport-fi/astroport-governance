@@ -302,10 +302,10 @@ fn exact_simulation() {
     let case = (
         ["hbgknzmefktw"],
         ["mcxl"],
-        [(1, "hbgknzmefktw", CreateLock(100.0, 3628800))],
+        [(1, "hbgknzmefktw", CreateLock(1000.0, 3628800))],
         [
             (1, "hbgknzmefktw", Vote(vec![("mcxl".to_string(), 10000)])),
-            (3, "hbgknzmefktw", Vote(vec![("mcxl".to_string(), 10000)])),
+            (3, "hbgknzmefktw", Vote(vec![("mcxl".to_string(), 554)])),
         ],
     );
 
@@ -351,6 +351,10 @@ fn exact_simulation() {
                     period as u64,
                 );
                 let user_vp = user_vp.u128() as f32 / MULTIPLIER as f32;
+                // dbg!(simulator
+                //     .helper
+                //     .escrow_helper
+                //     .query_user_vp(&mut simulator.router, user));
                 votes.iter().for_each(|(pool, &bps)| {
                     let vp = voted_pools.entry(pool.clone()).or_default();
                     *vp += (bps as f32 / BasicPoints::MAX as f32) * user_vp

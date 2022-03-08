@@ -146,7 +146,7 @@ fn handle_vote(
             user_info.slope,
             user_info.voting_power,
             get_period(user_info.vote_ts)?,
-            block_period,
+            block_period - 1,
         );
         // Cancel changes applied by previous votes
         user_info.votes.iter().try_for_each(|(pool_addr, bps)| {
@@ -162,12 +162,12 @@ fn handle_vote(
     }
 
     // User slope was not changed thus we continue to use last voting power decay
-    if user_info.slope == lock_info.slope {
+    if user_info.slope == lock_info.slope && !user_info.slope.is_zero() {
         user_vp = calc_voting_power(
             user_info.slope,
             user_info.voting_power,
             get_period(user_info.vote_ts)?,
-            block_period + 1,
+            block_period,
         );
     }
 
