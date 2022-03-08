@@ -337,8 +337,9 @@ fn execute_propose_new_receiver(
                 .unwrap_or_default();
             if !alloc_params_new_receiver.amount.is_zero() {
                 return Err(StdError::generic_err(format!(
-                "Invalid new_receiver. Proposed receiver already has an ASTRO allocation of {} ASTRO",alloc_params_new_receiver.amount
-            )));
+                    "Invalid new_receiver. Proposed receiver already has an ASTRO allocation of {} ASTRO",
+                    alloc_params_new_receiver.amount
+                )));
             }
 
             alloc_params.proposed_receiver = Some(deps.api.addr_validate(&new_receiver)?);
@@ -400,15 +401,33 @@ fn execute_claim_receiver(
     match alloc_params.proposed_receiver {
         Some(proposed_receiver) => {
             if proposed_receiver == info.sender {
+                if let Some(sender_params) = PARAMS.may_load(deps.storage, &info.sender)? {
+                    return Err(StdError::generic_err(format!(
+                        "The proposed receiver already has an ASTRO allocation of {} ASTRO, that ends at {}",
+                        sender_params.amount,
+                        sender_params.unlock_schedule.start_time + sender_params.unlock_schedule.duration + sender_params.unlock_schedule.cliff,
+                    )));
+                }
+
                 // Transfers Allocation Parameters ::
                 // 1. Save the allocation for the new receiver
                 alloc_params.proposed_receiver = None;
+
                 PARAMS.save(deps.storage, &info.sender, &alloc_params)?;
                 // 2. Remove the allocation info from the previous owner
                 PARAMS.remove(deps.storage, &deps.api.addr_validate(&prev_receiver)?);
                 // Transfers Allocation Status ::
-                let status = STATUS.load(deps.storage, &deps.api.addr_validate(&prev_receiver)?)?;
+                let mut status =
+                    STATUS.load(deps.storage, &deps.api.addr_validate(&prev_receiver)?)?;
+
+                if let Some(sender_status) = STATUS.may_load(deps.storage, &info.sender)? {
+                    status.astro_withdrawn = status
+                        .astro_withdrawn
+                        .checked_add(sender_status.astro_withdrawn)?;
+                }
+
                 STATUS.save(deps.storage, &info.sender, &status)?;
+                STATUS.remove(deps.storage, &deps.api.addr_validate(&prev_receiver)?)
             } else {
                 return Err(StdError::generic_err(format!(
                     "Proposed receiver mismatch, actual proposed receiver : {}",
@@ -553,12 +572,17 @@ mod helpers {
         schedule: &Schedule,
     ) -> Uint128 {
         // Tokens haven't begun unlocking
-        if timestamp < schedule.start_time {
+        if timestamp < schedule.start_time + schedule.cliff {
             Uint128::zero()
         }
         // Tokens unlock linearly between start time and end time
-        else if timestamp < schedule.start_time + schedule.duration {
-            amount.multiply_ratio(timestamp - schedule.start_time, schedule.duration)
+        else if (timestamp < schedule.start_time + schedule.cliff + schedule.duration)
+            && !schedule.duration != 0
+        {
+            amount.multiply_ratio(
+                timestamp - (schedule.start_time + schedule.cliff),
+                schedule.duration,
+            )
         }
         // After end time, all tokens are fully unlocked
         else {
@@ -572,23 +596,16 @@ mod helpers {
         params: &AllocationParams,
         status: &mut AllocationStatus,
     ) -> SimulateWithdrawResponse {
-        // Before the end of cliff period, no token can be withdrawn
-        if timestamp < (params.unlock_schedule.start_time + params.unlock_schedule.cliff) {
-            SimulateWithdrawResponse {
-                astro_to_withdraw: Uint128::zero(),
-            }
-        } else {
-            // "Unlocked" amount
-            let astro_unlocked =
-                compute_unlocked_amount(timestamp, params.amount, &params.unlock_schedule);
+        // "Unlocked" amount
+        let astro_unlocked =
+            compute_unlocked_amount(timestamp, params.amount, &params.unlock_schedule);
 
-            // Withdrawable amount is unlocked amount minus the amount already withdrawn
-            let astro_withdrawable = astro_unlocked - status.astro_withdrawn;
-            status.astro_withdrawn += astro_withdrawable;
+        // Withdrawable amount is unlocked amount minus the amount already withdrawn
+        let astro_withdrawable = astro_unlocked - status.astro_withdrawn;
+        status.astro_withdrawn += astro_withdrawable;
 
-            SimulateWithdrawResponse {
-                astro_to_withdraw: astro_withdrawable,
-            }
+        SimulateWithdrawResponse {
+            astro_to_withdraw: astro_withdrawable,
         }
     }
 }
