@@ -142,15 +142,19 @@ pub(crate) fn get_pool_info(
     {
         VotedPoolInfoResult::Unchanged(pool_info)
     } else if let Some(last_period) = LAST_POOL_PERIOD.may_load(deps.storage, pool_addr)? {
-        let prev_pool_info =
-            POOL_VOTES.load(deps.storage, (U64Key::new(last_period), pool_addr))?;
-        let pool_info = VotedPoolInfo {
-            vxastro_amount: calc_voting_power_by_dt(
-                prev_pool_info.slope,
-                prev_pool_info.vxastro_amount,
-                period - last_period,
-            ),
-            ..prev_pool_info
+        let pool_info = if last_period < period {
+            let prev_pool_info =
+                POOL_VOTES.load(deps.storage, (U64Key::new(last_period), pool_addr))?;
+            VotedPoolInfo {
+                vxastro_amount: calc_voting_power_by_dt(
+                    prev_pool_info.slope,
+                    prev_pool_info.vxastro_amount,
+                    period - last_period,
+                ),
+                ..prev_pool_info
+            }
+        } else {
+            VotedPoolInfo::default()
         };
         VotedPoolInfoResult::New(pool_info)
     } else {

@@ -31,4 +31,7 @@ pub enum ContractError {
 
     #[error("Your lock will expire in less than a week")]
     LockExpiresSoon {},
+
+    #[error("There are no pools to gauge")]
+    GaugeNoPools {},
 }

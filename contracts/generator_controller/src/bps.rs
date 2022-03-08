@@ -99,7 +99,9 @@ impl CheckedMulRatio for Uint128 {
     ) -> StdResult<Uint128> {
         let numerator = self.full_mul(numerator);
         let denominator = denominator.into();
-        let mut result = numerator / denominator;
+        let mut result = numerator
+            .checked_div(denominator)
+            .map_err(|_| StdError::generic_err("Division by zero"))?;
         let rem = numerator
             .checked_rem(denominator)
             .map_err(|_| StdError::generic_err("Division by zero"))?;

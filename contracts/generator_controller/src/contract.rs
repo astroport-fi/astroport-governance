@@ -221,9 +221,14 @@ fn gauge_generators(mut deps: DepsMut, env: Env, info: MessageInfo) -> ExecuteRe
     pool_votes.sort_by(|(_, a), (_, b)| a.vxastro_amount.cmp(&b.vxastro_amount));
     let winners: Vec<_> = pool_votes
         .into_iter()
+        .filter(|(_, pool_info)| !pool_info.vxastro_amount.is_zero())
         .rev()
         .take(config.pools_limit as usize)
         .collect();
+
+    if winners.is_empty() {
+        return Err(ContractError::GaugeNoPools {});
+    }
 
     let total_vp = winners.iter().map(|(_, vp)| vp.vxastro_amount).sum();
 

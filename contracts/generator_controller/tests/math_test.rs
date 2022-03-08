@@ -300,14 +300,16 @@ proptest! {
 #[test]
 fn exact_simulation() {
     let case = (
-        ["plwbbplocqyjoc"],
-        ["pxof"],
+        ["knzmefktw"],
+        ["mcxl", "ltgb", "lzls"],
         [
-            (3, "plwbbplocqyjoc", ExtendLock(8.964665476034803)),
-            (1, "plwbbplocqyjoc", CreateLock(1.0, 3024000)),
-            (1, "plwbbplocqyjoc", CreateLock(1.0, 0)),
+            (1, "knzmefktw", CreateLock(1.0, 3024000)),
+            (1, "knzmefktw", Withdraw),
         ],
-        [(3, "plwbbplocqyjoc", Vote(vec![("pxof".to_string(), 10000)]))],
+        [
+            (4, "knzmefktw", Vote(vec![("mcxl".to_string(), 1)])),
+            (4, "knzmefktw", GaugePools),
+        ],
     );
 
     let mut events: Vec<Vec<(String, Event)>> = vec![vec![]; MAX_PERIOD + 1];
