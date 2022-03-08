@@ -1,15 +1,18 @@
 use crate::bps::BasicPoints;
+use std::convert::TryInto;
 
-use crate::state::{VotedPoolInfo, LAST_POOL_PERIOD, POOL_VOTES};
+use crate::state::{VotedPoolInfo, LAST_POOL_PERIOD, POOL_SLOPE_CHANGES, POOL_VOTES};
 
 use astroport_governance::voting_escrow::QueryMsg::LockInfo;
 use astroport_governance::voting_escrow::{
     LockInfoResponse, QueryMsg::UserVotingPower, VotingPowerResponse,
 };
-use cosmwasm_std::{Addr, Decimal, Deps, DepsMut, QuerierWrapper, StdResult, Uint128};
-use cw_storage_plus::U64Key;
+use cosmwasm_std::{
+    Addr, Decimal, Deps, DepsMut, Order, Pair, QuerierWrapper, StdError, StdResult, Uint128,
+};
+use cw_storage_plus::{Bound, U64Key};
 
-use astroport_governance::utils::calc_voting_power_by_dt;
+use astroport_governance::utils::calc_voting_power;
 
 pub(crate) enum Operation {
     Add,
@@ -82,7 +85,24 @@ pub(crate) fn cancel_user_changes(
     old_bps: BasicPoints,
     old_vp: Uint128,
     old_slope: Decimal,
+    old_lock_end: u64,
 ) -> StdResult<()> {
+    // Cancel scheduled slope changes
+    let end_period_key = U64Key::new(old_lock_end - 1);
+    let last_pool_period = LAST_POOL_PERIOD
+        .may_load(deps.storage, pool_addr)?
+        .unwrap_or(block_period);
+    // We do not need to schedule a slope change in the past
+    if last_pool_period > block_period {
+        let old_scheduled_change =
+            POOL_SLOPE_CHANGES.load(deps.as_ref().storage, (pool_addr, end_period_key.clone()))?;
+        let new_slope = old_scheduled_change - old_slope;
+        if !new_slope.is_zero() {
+            POOL_SLOPE_CHANGES.save(deps.storage, (pool_addr, end_period_key), &new_slope)?
+        } else {
+            POOL_SLOPE_CHANGES.remove(deps.storage, (pool_addr, end_period_key))
+        }
+    }
     update_pool_info(
         deps.branch(),
         block_period,
@@ -99,7 +119,20 @@ pub(crate) fn vote_for_pool(
     bps: BasicPoints,
     vp: Uint128,
     slope: Decimal,
+    lock_end: u64,
 ) -> StdResult<()> {
+    // Schedule slope changes
+    POOL_SLOPE_CHANGES.update::<_, StdError>(
+        deps.storage,
+        (pool_addr, U64Key::new(lock_end + 1)),
+        |slope_opt| {
+            if let Some(saved_slope) = slope_opt {
+                Ok(saved_slope + slope)
+            } else {
+                Ok(slope)
+            }
+        },
+    )?;
     update_pool_info(
         deps.branch(),
         period,
@@ -144,21 +177,38 @@ pub(crate) fn get_pool_info(
     period: u64,
     pool_addr: &Addr,
 ) -> StdResult<VotedPoolInfoResult> {
-    let pool_info_opt = if let Some(pool_info) =
+    let pool_info_result = if let Some(pool_info) =
         POOL_VOTES.may_load(deps.storage, (U64Key::new(period), pool_addr))?
     {
         VotedPoolInfoResult::Unchanged(pool_info)
-    } else if let Some(last_period) = LAST_POOL_PERIOD.may_load(deps.storage, pool_addr)? {
-        let pool_info = if last_period < period {
-            let prev_pool_info =
-                POOL_VOTES.load(deps.storage, (U64Key::new(last_period), pool_addr))?;
+    } else if let Some(mut prev_period) = LAST_POOL_PERIOD.may_load(deps.storage, pool_addr)? {
+        let pool_info = if prev_period < period {
+            let mut pool_info =
+                POOL_VOTES.load(deps.storage, (U64Key::new(prev_period), pool_addr))?;
+            // Recalculating passed periods
+            let scheduled_slope_changes =
+                fetch_slope_changes(deps, pool_addr, prev_period, period)?;
+            for (recalc_period, scheduled_change) in scheduled_slope_changes {
+                pool_info = VotedPoolInfo {
+                    vxastro_amount: calc_voting_power(
+                        pool_info.slope,
+                        pool_info.vxastro_amount,
+                        prev_period,
+                        recalc_period,
+                    ),
+                    slope: pool_info.slope - scheduled_change,
+                };
+                prev_period = recalc_period
+            }
+
             VotedPoolInfo {
-                vxastro_amount: calc_voting_power_by_dt(
-                    prev_pool_info.slope,
-                    prev_pool_info.vxastro_amount,
-                    period - last_period,
+                vxastro_amount: calc_voting_power(
+                    pool_info.slope,
+                    pool_info.vxastro_amount,
+                    prev_period,
+                    period,
                 ),
-                ..prev_pool_info
+                ..pool_info
             }
         } else {
             VotedPoolInfo::default()
@@ -167,5 +217,33 @@ pub(crate) fn get_pool_info(
     } else {
         VotedPoolInfoResult::New(VotedPoolInfo::default())
     };
-    Ok(pool_info_opt)
+    Ok(pool_info_result)
+}
+
+/// Helper function for deserialization.
+pub(crate) fn deserialize_pair(pair: StdResult<Pair<Decimal>>) -> StdResult<(u64, Decimal)> {
+    let (period_serialized, change) = pair?;
+    let period_bytes: [u8; 8] = period_serialized
+        .try_into()
+        .map_err(|_| StdError::generic_err("Deserialization error"))?;
+    Ok((u64::from_be_bytes(period_bytes), change))
+}
+
+/// Fetches all slope changes between `last_period` and `period`.
+pub(crate) fn fetch_slope_changes(
+    deps: Deps,
+    pool_addr: &Addr,
+    last_period: u64,
+    period: u64,
+) -> StdResult<Vec<(u64, Decimal)>> {
+    POOL_SLOPE_CHANGES
+        .prefix(pool_addr)
+        .range(
+            deps.storage,
+            Some(Bound::Exclusive(U64Key::new(last_period).wrapped)),
+            Some(Bound::Inclusive(U64Key::new(period).wrapped)),
+            Order::Ascending,
+        )
+        .map(deserialize_pair)
+        .collect()
 }

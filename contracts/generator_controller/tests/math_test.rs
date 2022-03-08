@@ -7,7 +7,6 @@ use terra_multi_test::{AppResponse, Executor, TerraApp};
 
 use astroport_governance::generator_controller::ExecuteMsg;
 use astroport_governance::utils::{calc_voting_power, MAX_LOCK_TIME, WEEK};
-use astroport_governance::voting_escrow::LockInfoResponse;
 use generator_controller::bps::BasicPoints;
 use Event::*;
 use VeEvent::*;
@@ -169,10 +168,10 @@ impl Simulator {
     }
 }
 
-const MAX_PERIOD: usize = 10;
-const MAX_USERS: usize = 5;
+const MAX_PERIOD: usize = 5;
+const MAX_USERS: usize = 3;
 const MAX_POOLS: usize = 5;
-const MAX_EVENTS: usize = 50;
+const MAX_EVENTS: usize = 30;
 
 fn escrow_events_strategy() -> impl Strategy<Value = VeEvent> {
     prop_oneof![
@@ -185,10 +184,10 @@ fn escrow_events_strategy() -> impl Strategy<Value = VeEvent> {
 
 fn controller_events_strategy(pools: Vec<String>) -> impl Strategy<Value = Event> {
     prop_oneof![
-        Just(Event::GaugePools),
-        (1..=10u64).prop_map(Event::ChangePoolLimit),
+        // Just(Event::GaugePools),
+        // (1..=10u64).prop_map(Event::ChangePoolLimit),
         prop::collection::vec((prop::sample::select(pools), 1..=10000u16), 1..10)
-            .prop_map(Event::Vote),
+            .prop_map(Event::Vote)
     ]
 }
 
@@ -201,7 +200,7 @@ fn generate_cases() -> impl Strategy<
     ),
 > {
     let pools_strategy = prop::collection::vec("[a-z]{4}", 1..MAX_POOLS);
-    let users_strategy = prop::collection::vec("[a-z]{4,32}", 1..MAX_USERS);
+    let users_strategy = prop::collection::vec("[a-z]{10}", 1..MAX_USERS);
     (users_strategy, pools_strategy).prop_flat_map(|(users, pools)| {
         (
             Just(users.clone()),
@@ -301,13 +300,19 @@ proptest! {
 #[test]
 fn exact_simulation() {
     let case = (
-        ["abeh"],
-        ["hboy", "goog"],
-        [(4, "abeh", CreateLock(1000.0, 4241160))],
+        ["rcuersxdauybkuhumtiadvxgxs", "hbgknzmefktw"],
+        ["ltgb"],
         [
-            (9, "abeh", GaugePools),
-            (4, "abeh", Vote(vec![("goog".to_string(), 7752)])),
-            (9, "abeh", Vote(vec![("hboy".to_string(), 6727)])),
+            (2, "rcuersxdauybkuhumtiadvxgxs", CreateLock(100.0, 1209600)),
+            (1, "hbgknzmefktw", CreateLock(100.0, 3024000)),
+        ],
+        [
+            (1, "hbgknzmefktw", Vote(vec![("ltgb".to_string(), 10000)])),
+            (
+                2,
+                "rcuersxdauybkuhumtiadvxgxs",
+                Vote(vec![("ltgb".to_string(), 10000)]),
+            ),
         ],
     );
 

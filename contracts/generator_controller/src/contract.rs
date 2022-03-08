@@ -157,6 +157,7 @@ fn handle_vote(
                 *bps,
                 old_vp_at_period,
                 user_info.slope,
+                user_info.lock_end,
             )
         })?;
     }
@@ -180,6 +181,7 @@ fn handle_vote(
             *bps,
             user_vp,
             lock_info.slope,
+            lock_info.end,
         )
     })?;
 
@@ -187,6 +189,7 @@ fn handle_vote(
         vote_ts: env.block.time.seconds(),
         voting_power: user_vp,
         slope: lock_info.slope,
+        lock_end: lock_info.end,
         votes,
     };
 

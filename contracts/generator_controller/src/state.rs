@@ -30,6 +30,7 @@ pub struct UserInfo {
     pub vote_ts: u64,
     pub voting_power: Uint128,
     pub slope: Decimal,
+    pub lock_end: u64,
     pub votes: Vec<(Addr, BasicPoints)>,
 }
 
@@ -48,6 +49,9 @@ pub const POOL_VOTES: Map<(U64Key, &Addr), VotedPoolInfo> = Map::new("pool_votes
 
 /// ( pool_addr -> period )
 pub const LAST_POOL_PERIOD: Map<&Addr, u64> = Map::new("last_pool_period");
+
+/// ( pool_addr -> period )
+pub const POOL_SLOPE_CHANGES: Map<(&Addr, U64Key), Decimal> = Map::new("pool_slope_changes");
 
 pub const USER_INFO: Map<&Addr, UserInfo> = Map::new("user_info");
 
