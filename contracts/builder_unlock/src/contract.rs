@@ -252,8 +252,9 @@ fn execute_propose_new_receiver(
                 .unwrap_or_default();
             if !alloc_params_new_receiver.amount.is_zero() {
                 return Err(StdError::generic_err(format!(
-                "Invalid new_receiver. Proposed receiver already has an ASTRO allocation of {} ASTRO",alloc_params_new_receiver.amount
-            )));
+                    "Invalid new_receiver. Proposed receiver already has an ASTRO allocation of {} ASTRO",
+                    alloc_params_new_receiver.amount
+                )));
             }
 
             alloc_params.proposed_receiver = Some(deps.api.addr_validate(&new_receiver)?);
@@ -300,13 +301,17 @@ fn execute_claim_receiver(
     match alloc_params.proposed_receiver {
         Some(proposed_receiver) => {
             if proposed_receiver == info.sender {
+                if let Some(sender_params) = PARAMS.may_load(deps.storage, &info.sender)? {
+                    return Err(StdError::generic_err(format!(
+                        "The proposed receiver already has an ASTRO allocation of {} ASTRO, that ends at {}",
+                        sender_params.amount,
+                        sender_params.unlock_schedule.start_time + sender_params.unlock_schedule.duration
+                    )));
+                }
+
                 // Transfers Allocation Parameters ::
                 // 1. Save the allocation for the new receiver
                 alloc_params.proposed_receiver = None;
-
-                if let Some(sender_params) = PARAMS.may_load(deps.storage, &info.sender)? {
-                    alloc_params.amount = alloc_params.amount.checked_add(sender_params.amount)?;
-                }
 
                 PARAMS.save(deps.storage, &info.sender, &alloc_params)?;
                 // 2. Remove the allocation info from the previous owner
