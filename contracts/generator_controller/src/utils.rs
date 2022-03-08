@@ -35,6 +35,7 @@ impl Operation {
     }
 }
 
+#[derive(Debug)]
 pub(crate) enum VotedPoolInfoResult {
     Unchanged(VotedPoolInfo),
     New(VotedPoolInfo),
@@ -79,7 +80,7 @@ pub(crate) fn get_lock_info(
 }
 
 pub(crate) fn cancel_user_changes(
-    mut deps: DepsMut,
+    deps: DepsMut,
     block_period: u64,
     pool_addr: &Addr,
     old_bps: BasicPoints,
@@ -92,8 +93,7 @@ pub(crate) fn cancel_user_changes(
     let last_pool_period = LAST_POOL_PERIOD
         .may_load(deps.storage, pool_addr)?
         .unwrap_or(block_period);
-    // We do not need to schedule a slope change in the past
-    if last_pool_period > block_period {
+    if last_pool_period < block_period {
         let old_scheduled_change =
             POOL_SLOPE_CHANGES.load(deps.as_ref().storage, (pool_addr, end_period_key.clone()))?;
         let new_slope = old_scheduled_change - old_bps * old_slope;
@@ -103,8 +103,9 @@ pub(crate) fn cancel_user_changes(
             POOL_SLOPE_CHANGES.remove(deps.storage, (pool_addr, end_period_key))
         }
     }
+
     update_pool_info(
-        deps.branch(),
+        deps,
         block_period,
         pool_addr,
         Some((old_bps, old_vp, old_slope, Operation::Sub)),
@@ -113,7 +114,7 @@ pub(crate) fn cancel_user_changes(
 }
 
 pub(crate) fn vote_for_pool(
-    mut deps: DepsMut,
+    deps: DepsMut,
     period: u64,
     pool_addr: &Addr,
     bps: BasicPoints,
@@ -134,7 +135,7 @@ pub(crate) fn vote_for_pool(
         },
     )?;
     update_pool_info(
-        deps.branch(),
+        deps,
         period,
         pool_addr,
         Some((bps, vp, slope, Operation::Add)),
