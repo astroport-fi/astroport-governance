@@ -111,6 +111,7 @@ impl Simulator {
                     user.to_string(),
                     (lock_info.slope, self.router.block_period(), vp),
                 );
+                self.user_votes.insert(user.to_string(), HashMap::new());
                 for (pool, bps) in votes {
                     self.user_votes
                         .get_mut(user)
@@ -301,11 +302,11 @@ proptest! {
 fn exact_simulation() {
     let case = (
         ["hbgknzmefktw"],
-        ["mcxl"],
-        [(1, "hbgknzmefktw", CreateLock(1000.0, 3628800))],
+        ["mcxl", "ltgb"],
+        [(1, "hbgknzmefktw", CreateLock(100.0, 3628800))],
         [
             (1, "hbgknzmefktw", Vote(vec![("mcxl".to_string(), 10000)])),
-            (3, "hbgknzmefktw", Vote(vec![("mcxl".to_string(), 554)])),
+            (3, "hbgknzmefktw", Vote(vec![("ltgb".to_string(), 10000)])),
         ],
     );
 
@@ -355,6 +356,7 @@ fn exact_simulation() {
                 //     .helper
                 //     .escrow_helper
                 //     .query_user_vp(&mut simulator.router, user));
+                dbg!(votes);
                 votes.iter().for_each(|(pool, &bps)| {
                     let vp = voted_pools.entry(pool.clone()).or_default();
                     *vp += (bps as f32 / BasicPoints::MAX as f32) * user_vp
