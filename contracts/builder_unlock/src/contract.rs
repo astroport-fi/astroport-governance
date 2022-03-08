@@ -305,7 +305,7 @@ fn execute_claim_receiver(
                     return Err(StdError::generic_err(format!(
                         "The proposed receiver already has an ASTRO allocation of {} ASTRO, that ends at {}",
                         sender_params.amount,
-                        sender_params.unlock_schedule.start_time + sender_params.unlock_schedule.duration
+                        sender_params.unlock_schedule.start_time + sender_params.unlock_schedule.duration + sender_params.unlock_schedule.cliff,
                     )));
                 }
 
