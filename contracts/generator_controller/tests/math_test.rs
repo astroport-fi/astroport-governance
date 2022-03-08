@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use anyhow::Result;
-use cosmwasm_std::Addr;
+use cosmwasm_std::{Addr, Decimal, Uint128};
 use proptest::prelude::*;
 use terra_multi_test::{AppResponse, Executor, TerraApp};
 
@@ -37,7 +37,7 @@ enum VeEvent {
 
 struct Simulator {
     user_votes: HashMap<String, HashMap<String, u16>>,
-    locks: HashMap<String, LockInfoResponse>,
+    locks: HashMap<String, (Decimal, u64, f32)>,
     helper: ControllerHelper,
     router: TerraApp,
     owner: Addr,
@@ -102,7 +102,15 @@ impl Simulator {
                     .escrow_helper
                     .query_lock_info(&mut self.router, user)
                     .unwrap();
-                self.locks.insert(user.to_string(), lock_info);
+                let vp = self
+                    .helper
+                    .escrow_helper
+                    .query_user_vp(&mut self.router, user)
+                    .unwrap();
+                self.locks.insert(
+                    user.to_string(),
+                    (lock_info.slope, self.router.block_period(), vp),
+                );
                 for (pool, bps) in votes {
                     self.user_votes
                         .get_mut(user)
@@ -256,11 +264,11 @@ proptest! {
             // Checking calculations
             for user in users.iter() {
                 let votes = simulator.user_votes.get(user).unwrap();
-                if let Some(lock_info) = simulator.locks.get(user) {
+                if let Some((slope, start, vp)) = simulator.locks.get(user) {
                     let user_vp = calc_voting_power(
-                        lock_info.slope,
-                        lock_info.amount * lock_info.coefficient,
-                        lock_info.start,
+                        *slope,
+                        Uint128::from((*vp * MULTIPLIER as f32) as u128),
+                        *start,
                         period as u64,
                     );
                     let user_vp = user_vp.u128() as f32 / MULTIPLIER as f32;
@@ -336,11 +344,11 @@ fn exact_simulation() {
         // Checking calculations
         for user in users {
             let votes = simulator.user_votes.get(user).unwrap();
-            if let Some(lock_info) = simulator.locks.get(user) {
+            if let Some((slope, start, vp)) = simulator.locks.get(user) {
                 let user_vp = calc_voting_power(
-                    lock_info.slope,
-                    lock_info.amount * lock_info.coefficient,
-                    lock_info.start,
+                    *slope,
+                    Uint128::from((*vp * MULTIPLIER as f32) as u128),
+                    *start,
                     period as u64,
                 );
                 let user_vp = user_vp.u128() as f32 / MULTIPLIER as f32;
