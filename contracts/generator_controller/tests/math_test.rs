@@ -300,15 +300,12 @@ proptest! {
 #[test]
 fn exact_simulation() {
     let case = (
-        ["knzmefktw"],
-        ["mcxl", "ltgb", "lzls"],
+        ["hbgknzmefktw"],
+        ["mcxl"],
+        [(1, "hbgknzmefktw", CreateLock(100.0, 3628800))],
         [
-            (1, "knzmefktw", CreateLock(1.0, 3024000)),
-            (1, "knzmefktw", Withdraw),
-        ],
-        [
-            (4, "knzmefktw", Vote(vec![("mcxl".to_string(), 1)])),
-            (4, "knzmefktw", GaugePools),
+            (1, "hbgknzmefktw", Vote(vec![("mcxl".to_string(), 10000)])),
+            (3, "hbgknzmefktw", Vote(vec![("mcxl".to_string(), 10000)])),
         ],
     );
 

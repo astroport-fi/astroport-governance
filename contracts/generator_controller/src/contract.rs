@@ -96,7 +96,7 @@ fn handle_vote(
     let user = info.sender;
     let block_period = get_period(env.block.time.seconds())?;
     let escrow_addr = CONFIG.load(deps.storage)?.escrow_addr;
-    let user_vp = get_voting_power(deps.querier, &escrow_addr, &user)?;
+    let mut user_vp = get_voting_power(deps.querier, &escrow_addr, &user)?;
 
     if user_vp.is_zero() {
         return Err(ContractError::ZeroVotingPower {});
@@ -159,6 +159,16 @@ fn handle_vote(
                 user_info.slope,
             )
         })?;
+    }
+
+    // User slope was not changed thus we continue to use last voting power decay
+    if user_info.slope == lock_info.slope {
+        user_vp = calc_voting_power(
+            user_info.slope,
+            user_info.voting_power,
+            get_period(user_info.vote_ts)?,
+            block_period + 1,
+        );
     }
 
     // Votes are applied to the next period
