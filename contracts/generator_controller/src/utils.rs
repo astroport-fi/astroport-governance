@@ -96,7 +96,7 @@ pub(crate) fn cancel_user_changes(
     if last_pool_period > block_period {
         let old_scheduled_change =
             POOL_SLOPE_CHANGES.load(deps.as_ref().storage, (pool_addr, end_period_key.clone()))?;
-        let new_slope = old_scheduled_change - old_slope;
+        let new_slope = old_scheduled_change - old_bps * old_slope;
         if !new_slope.is_zero() {
             POOL_SLOPE_CHANGES.save(deps.storage, (pool_addr, end_period_key), &new_slope)?
         } else {
@@ -127,9 +127,9 @@ pub(crate) fn vote_for_pool(
         (pool_addr, U64Key::new(lock_end + 1)),
         |slope_opt| {
             if let Some(saved_slope) = slope_opt {
-                Ok(saved_slope + slope)
+                Ok(saved_slope + bps * slope)
             } else {
-                Ok(slope)
+                Ok(bps * slope)
             }
         },
     )?;
