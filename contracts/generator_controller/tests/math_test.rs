@@ -169,10 +169,10 @@ impl Simulator {
     }
 }
 
-const MAX_PERIOD: usize = 5;
-const MAX_USERS: usize = 3;
+const MAX_PERIOD: usize = 10;
+const MAX_USERS: usize = 5;
 const MAX_POOLS: usize = 5;
-const MAX_EVENTS: usize = 10;
+const MAX_EVENTS: usize = 50;
 
 fn escrow_events_strategy() -> impl Strategy<Value = VeEvent> {
     prop_oneof![
@@ -301,12 +301,13 @@ proptest! {
 #[test]
 fn exact_simulation() {
     let case = (
-        ["hbgknzmefktw"],
-        ["mcxl", "ltgb"],
-        [(1, "hbgknzmefktw", CreateLock(100.0, 3628800))],
+        ["abeh"],
+        ["hboy", "goog"],
+        [(4, "abeh", CreateLock(1000.0, 4241160))],
         [
-            (1, "hbgknzmefktw", Vote(vec![("mcxl".to_string(), 10000)])),
-            (3, "hbgknzmefktw", Vote(vec![("ltgb".to_string(), 10000)])),
+            (9, "abeh", GaugePools),
+            (4, "abeh", Vote(vec![("goog".to_string(), 7752)])),
+            (9, "abeh", Vote(vec![("hboy".to_string(), 6727)])),
         ],
     );
 
@@ -352,11 +353,6 @@ fn exact_simulation() {
                     period as u64,
                 );
                 let user_vp = user_vp.u128() as f32 / MULTIPLIER as f32;
-                // dbg!(simulator
-                //     .helper
-                //     .escrow_helper
-                //     .query_user_vp(&mut simulator.router, user));
-                dbg!(votes);
                 votes.iter().for_each(|(pool, &bps)| {
                     let vp = voted_pools.entry(pool.clone()).or_default();
                     *vp += (bps as f32 / BasicPoints::MAX as f32) * user_vp

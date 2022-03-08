@@ -27,7 +27,7 @@ impl Operation {
     pub fn calc_voting_power(&self, cur_vp: Uint128, vp: Uint128, bps: BasicPoints) -> Uint128 {
         match self {
             Operation::Add => cur_vp + bps * vp,
-            Operation::Sub => cur_vp - bps * vp,
+            Operation::Sub => cur_vp.saturating_sub(bps * vp),
         }
     }
 }
@@ -116,8 +116,9 @@ pub(crate) fn update_pool_info(
     changes: Option<(BasicPoints, Uint128, Decimal, Operation)>,
 ) -> StdResult<VotedPoolInfo> {
     let pool_info = match get_pool_info(deps.as_ref(), period, pool_addr)? {
-        VotedPoolInfoResult::Unchanged(pool_info) => pool_info,
-        VotedPoolInfoResult::New(mut pool_info) => {
+        VotedPoolInfoResult::Unchanged(mut pool_info) | VotedPoolInfoResult::New(mut pool_info)
+            if changes.is_some() =>
+        {
             if let Some((bps, vp, slope, op)) = changes {
                 pool_info.slope = op.calc_slope(pool_info.slope, slope, bps);
                 pool_info.vxastro_amount = op.calc_voting_power(pool_info.vxastro_amount, vp, bps);
@@ -126,6 +127,12 @@ pub(crate) fn update_pool_info(
             POOL_VOTES.save(deps.storage, (U64Key::new(period), pool_addr), &pool_info)?;
             pool_info
         }
+        VotedPoolInfoResult::New(pool_info) => {
+            LAST_POOL_PERIOD.save(deps.storage, pool_addr, &period)?;
+            POOL_VOTES.save(deps.storage, (U64Key::new(period), pool_addr), &pool_info)?;
+            pool_info
+        }
+        VotedPoolInfoResult::Unchanged(pool_info) => pool_info,
     };
 
     Ok(pool_info)
