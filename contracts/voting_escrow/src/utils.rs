@@ -10,7 +10,6 @@ use std::convert::TryInto;
 
 use crate::state::{Point, BLACKLIST, CONFIG, HISTORY, LAST_SLOPE_CHANGE, SLOPE_CHANGES};
 
-/// # Description
 /// Checks that a timestamp is within limits.
 pub(crate) fn time_limits_check(time: u64) -> Result<(), ContractError> {
     if !(WEEK..=MAX_LOCK_TIME).contains(&time) {
@@ -20,7 +19,6 @@ pub(crate) fn time_limits_check(time: u64) -> Result<(), ContractError> {
     }
 }
 
-/// # Description
 /// Checks that the sender is the xASTRO token.
 pub(crate) fn xastro_token_check(deps: Deps, sender: Addr) -> Result<(), ContractError> {
     let config = CONFIG.load(deps.storage)?;
@@ -31,7 +29,6 @@ pub(crate) fn xastro_token_check(deps: Deps, sender: Addr) -> Result<(), Contrac
     }
 }
 
-/// # Description
 /// Checks if the blacklist contains a specific address.
 pub(crate) fn blacklist_check(deps: Deps, addr: &Addr) -> Result<(), ContractError> {
     let blacklist = BLACKLIST.load(deps.storage)?;
@@ -42,7 +39,6 @@ pub(crate) fn blacklist_check(deps: Deps, addr: &Addr) -> Result<(), ContractErr
     }
 }
 
-/// # Description
 /// This trait was implemented to eliminate Decimal rounding problems.
 trait DecimalRoundedCheckedMul {
     fn checked_mul(self, other: Uint128) -> Result<Uint128, OverflowError>;
@@ -77,7 +73,6 @@ impl DecimalRoundedCheckedMul for Decimal {
     }
 }
 
-/// # Description
 /// Main function used to calculate a user's voting power at a specific period as: previous_power - slope*(x - previous_x).
 pub(crate) fn calc_voting_power(point: &Point, period: u64) -> Uint128 {
     let shift = point
@@ -90,14 +85,12 @@ pub(crate) fn calc_voting_power(point: &Point, period: u64) -> Uint128 {
         .unwrap_or_else(|_| Uint128::zero())
 }
 
-/// # Description
 /// Coefficient calculation where 0 [`WEEK`] is equal to 1 and [`MAX_LOCK_TIME`] is 2.5.
 pub(crate) fn calc_coefficient(interval: u64) -> Decimal {
     // coefficient = 1 + 1.5 * (end - start) / MAX_LOCK_TIME
     Decimal::one() + Decimal::from_ratio(15_u64 * interval, get_periods_count(MAX_LOCK_TIME) * 10)
 }
 
-/// # Description
 /// Fetches the last checkpoint in [`HISTORY`] for the given address.
 pub(crate) fn fetch_last_checkpoint(
     deps: Deps,
@@ -160,7 +153,6 @@ pub(crate) fn schedule_slope_change(deps: DepsMut, slope: Decimal, period: u64) 
     }
 }
 
-/// # Description
 /// Helper function for deserialization.
 pub(crate) fn deserialize_pair(pair: StdResult<Pair<Decimal>>) -> StdResult<(u64, Decimal)> {
     let (period_serialized, change) = pair?;
@@ -170,7 +162,6 @@ pub(crate) fn deserialize_pair(pair: StdResult<Pair<Decimal>>) -> StdResult<(u64
     Ok((u64::from_be_bytes(period_bytes), change))
 }
 
-/// # Description
 /// Fetches all slope changes between `last_slope_change` and `period`.
 pub(crate) fn fetch_slope_changes(
     deps: Deps,
@@ -188,7 +179,6 @@ pub(crate) fn fetch_slope_changes(
         .collect()
 }
 
-/// # Description
 /// Bulk validation and conversion between [`String`] -> [`Addr`] for an array of addresses.
 /// If any address is invalid, the function returns [`StdError`].
 pub(crate) fn validate_addresses(deps: Deps, addresses: &[String]) -> StdResult<Vec<Addr>> {
