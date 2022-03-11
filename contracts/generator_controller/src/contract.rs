@@ -162,8 +162,11 @@ fn handle_vote(
         })?;
     }
 
-    // User slope was not changed thus we continue to use last voting power decay
-    if user_info.slope == lock_info.slope && !user_info.slope.is_zero() {
+    // User's lock was not changed thus we continue to use last voting power decay
+    if user_info.slope == lock_info.slope
+        && !user_info.slope.is_zero()
+        && user_info.lock_end == lock_info.end
+    {
         user_vp = calc_voting_power(
             user_info.slope,
             user_info.voting_power,

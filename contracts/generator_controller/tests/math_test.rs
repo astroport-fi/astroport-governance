@@ -300,16 +300,15 @@ proptest! {
 #[test]
 fn exact_simulation() {
     let case = (
-        ["pzxxgyzlfm", "xeogzaflzb"],
-        ["mcqd"],
+        ["sqzxtndjml"],
+        ["nwdm"],
         [
-            (1, "xeogzaflzb", CreateLock(100.0, 3628800)),
-            (2, "pzxxgyzlfm", CreateLock(100.0, 3628800)),
+            (1, "sqzxtndjml", CreateLock(100.0, 2419200)),
+            (4, "sqzxtndjml", IncreaseTime(1814400)),
         ],
         [
-            (5, "pzxxgyzlfm", Vote(vec![("mcqd".to_string(), 10000)])),
-            (1, "xeogzaflzb", Vote(vec![("mcqd".to_string(), 10000)])),
-            (5, "xeogzaflzb", Vote(vec![("mcqd".to_string(), 10000)])),
+            (4, "sqzxtndjml", Vote(vec![("nwdm".to_string(), 10000)])),
+            (1, "sqzxtndjml", Vote(vec![("nwdm".to_string(), 10000)])),
         ],
     );
 
