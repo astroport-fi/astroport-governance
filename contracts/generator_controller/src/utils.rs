@@ -1,7 +1,7 @@
 use crate::bps::BasicPoints;
 use std::convert::TryInto;
 
-use crate::state::{VotedPoolInfo, LAST_POOL_PERIOD, POOL_SLOPE_CHANGES, POOL_VOTES};
+use crate::state::{VotedPoolInfo, POOLS, POOL_PERIODS, POOL_SLOPE_CHANGES, POOL_VOTES};
 
 use astroport_governance::voting_escrow::QueryMsg::LockInfo;
 use astroport_governance::voting_escrow::{
@@ -14,6 +14,7 @@ use cw_storage_plus::{Bound, U64Key};
 
 use astroport_governance::utils::calc_voting_power;
 
+#[derive(Debug)]
 pub(crate) enum Operation {
     Add,
     Sub,
@@ -89,11 +90,10 @@ pub(crate) fn cancel_user_changes(
     old_lock_end: u64,
 ) -> StdResult<()> {
     // Cancel scheduled slope changes
-    let end_period_key = U64Key::new(old_lock_end - 1);
-    let last_pool_period = LAST_POOL_PERIOD
-        .may_load(deps.storage, pool_addr)?
-        .unwrap_or(block_period);
-    if last_pool_period < block_period {
+    let end_period_key = U64Key::new(old_lock_end + 1);
+    let last_pool_period =
+        fetch_last_pool_period(deps.as_ref(), block_period, pool_addr)?.unwrap_or(block_period);
+    if last_pool_period < old_lock_end + 1 {
         let old_scheduled_change =
             POOL_SLOPE_CHANGES.load(deps.as_ref().storage, (pool_addr, end_period_key.clone()))?;
         let new_slope = old_scheduled_change - old_bps * old_slope;
@@ -149,6 +149,7 @@ pub(crate) fn update_pool_info(
     pool_addr: &Addr,
     changes: Option<(BasicPoints, Uint128, Decimal, Operation)>,
 ) -> StdResult<VotedPoolInfo> {
+    let period_key = U64Key::new(period);
     let pool_info = match get_pool_info(deps.as_ref(), period, pool_addr)? {
         VotedPoolInfoResult::Unchanged(mut pool_info) | VotedPoolInfoResult::New(mut pool_info)
             if changes.is_some() =>
@@ -157,13 +158,19 @@ pub(crate) fn update_pool_info(
                 pool_info.slope = op.calc_slope(pool_info.slope, slope, bps);
                 pool_info.vxastro_amount = op.calc_voting_power(pool_info.vxastro_amount, vp, bps);
             }
-            LAST_POOL_PERIOD.save(deps.storage, pool_addr, &period)?;
-            POOL_VOTES.save(deps.storage, (U64Key::new(period), pool_addr), &pool_info)?;
+            if POOLS.may_load(deps.storage, pool_addr)?.is_none() {
+                POOLS.save(deps.storage, pool_addr, &())?
+            }
+            POOL_PERIODS.save(deps.storage, (pool_addr, period_key.clone()), &())?;
+            POOL_VOTES.save(deps.storage, (period_key, pool_addr), &pool_info)?;
             pool_info
         }
         VotedPoolInfoResult::New(pool_info) => {
-            LAST_POOL_PERIOD.save(deps.storage, pool_addr, &period)?;
-            POOL_VOTES.save(deps.storage, (U64Key::new(period), pool_addr), &pool_info)?;
+            if POOLS.may_load(deps.storage, pool_addr)?.is_none() {
+                POOLS.save(deps.storage, pool_addr, &())?
+            }
+            POOL_PERIODS.save(deps.storage, (pool_addr, period_key.clone()), &())?;
+            POOL_VOTES.save(deps.storage, (period_key, pool_addr), &pool_info)?;
             pool_info
         }
         VotedPoolInfoResult::Unchanged(pool_info) => pool_info,
@@ -182,47 +189,68 @@ pub(crate) fn get_pool_info(
         POOL_VOTES.may_load(deps.storage, (U64Key::new(period), pool_addr))?
     {
         VotedPoolInfoResult::Unchanged(pool_info)
-    } else if let Some(mut prev_period) = LAST_POOL_PERIOD.may_load(deps.storage, pool_addr)? {
-        let pool_info = if prev_period < period {
-            let mut pool_info =
-                POOL_VOTES.load(deps.storage, (U64Key::new(prev_period), pool_addr))?;
-            // Recalculating passed periods
-            let scheduled_slope_changes =
-                fetch_slope_changes(deps, pool_addr, prev_period, period)?;
-            for (recalc_period, scheduled_change) in scheduled_slope_changes {
-                pool_info = VotedPoolInfo {
+    } else {
+        let pool_info =
+            if let Some(mut prev_period) = fetch_last_pool_period(deps, period, pool_addr)? {
+                let mut pool_info =
+                    POOL_VOTES.load(deps.storage, (U64Key::new(prev_period), pool_addr))?;
+                // Recalculating passed periods
+                let scheduled_slope_changes =
+                    fetch_slope_changes(deps, pool_addr, prev_period, period)?;
+                for (recalc_period, scheduled_change) in scheduled_slope_changes {
+                    pool_info = VotedPoolInfo {
+                        vxastro_amount: calc_voting_power(
+                            pool_info.slope,
+                            pool_info.vxastro_amount,
+                            prev_period,
+                            recalc_period,
+                        ),
+                        slope: pool_info.slope - scheduled_change,
+                    };
+                    prev_period = recalc_period
+                }
+
+                VotedPoolInfo {
                     vxastro_amount: calc_voting_power(
                         pool_info.slope,
                         pool_info.vxastro_amount,
                         prev_period,
-                        recalc_period,
+                        period,
                     ),
-                    slope: pool_info.slope - scheduled_change,
-                };
-                prev_period = recalc_period
-            }
+                    ..pool_info
+                }
+            } else {
+                VotedPoolInfo::default()
+            };
 
-            VotedPoolInfo {
-                vxastro_amount: calc_voting_power(
-                    pool_info.slope,
-                    pool_info.vxastro_amount,
-                    prev_period,
-                    period,
-                ),
-                ..pool_info
-            }
-        } else {
-            VotedPoolInfo::default()
-        };
         VotedPoolInfoResult::New(pool_info)
-    } else {
-        VotedPoolInfoResult::New(VotedPoolInfo::default())
     };
+
     Ok(pool_info_result)
 }
 
+pub(crate) fn fetch_last_pool_period(
+    deps: Deps,
+    period: u64,
+    pool_addr: &Addr,
+) -> StdResult<Option<u64>> {
+    let period_opt = POOL_PERIODS
+        .prefix(pool_addr)
+        .range(
+            deps.storage,
+            None,
+            Some(Bound::Exclusive(U64Key::new(period).wrapped)),
+            Order::Descending,
+        )
+        .next()
+        .map(deserialize_pair)
+        .transpose()?
+        .map(|(period, _)| period);
+    Ok(period_opt)
+}
+
 /// Helper function for deserialization.
-pub(crate) fn deserialize_pair(pair: StdResult<Pair<Decimal>>) -> StdResult<(u64, Decimal)> {
+pub(crate) fn deserialize_pair<T>(pair: StdResult<Pair<T>>) -> StdResult<(u64, T)> {
     let (period_serialized, change) = pair?;
     let period_bytes: [u8; 8] = period_serialized
         .try_into()

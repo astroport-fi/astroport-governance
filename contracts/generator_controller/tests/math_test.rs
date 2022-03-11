@@ -301,10 +301,10 @@ proptest! {
 fn exact_simulation() {
     let case = (
         ["pzxxgyzlfm", "xeogzaflzb"],
-        ["mcqd", "pnmb", "feyp", "vbbo"],
+        ["mcqd"],
         [
             (1, "xeogzaflzb", CreateLock(100.0, 3628800)),
-            (2, "pzxxgyzlfm", CreateLock(100.0, 3024000)),
+            (2, "pzxxgyzlfm", CreateLock(100.0, 3628800)),
         ],
         [
             (5, "pzxxgyzlfm", Vote(vec![("mcqd".to_string(), 10000)])),

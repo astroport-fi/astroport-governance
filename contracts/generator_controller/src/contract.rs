@@ -18,7 +18,7 @@ use astroport_governance::utils::{calc_voting_power, get_period, WEEK};
 use crate::bps::BasicPoints;
 use crate::error::ContractError;
 use crate::state::{
-    Config, GaugeInfo, UserInfo, VotedPoolInfo, CONFIG, GAUGE_INFO, LAST_POOL_PERIOD, USER_INFO,
+    Config, GaugeInfo, UserInfo, VotedPoolInfo, CONFIG, GAUGE_INFO, POOLS, USER_INFO,
 };
 use crate::utils::{
     cancel_user_changes, get_lock_info, get_pool_info, get_voting_power, update_pool_info,
@@ -146,13 +146,13 @@ fn handle_vote(
             user_info.slope,
             user_info.voting_power,
             get_period(user_info.vote_ts)?,
-            block_period - 1,
+            block_period,
         );
         // Cancel changes applied by previous votes
         user_info.votes.iter().try_for_each(|(pool_addr, bps)| {
             cancel_user_changes(
                 deps.branch(),
-                block_period,
+                block_period + 1,
                 pool_addr,
                 *bps,
                 old_vp_at_period,
@@ -218,7 +218,8 @@ fn gauge_generators(mut deps: DepsMut, env: Env, info: MessageInfo) -> ExecuteRe
         // TODO: push msg to response.messages to cancel previous pool alloc points
     }
 
-    let mut pool_votes = LAST_POOL_PERIOD
+    // TODO: remove pool addr from POOLS if its voting power becomes zero
+    let mut pool_votes = POOLS
         .keys(deps.as_ref().storage, None, None, Order::Ascending)
         .collect::<Vec<_>>()
         .into_iter()

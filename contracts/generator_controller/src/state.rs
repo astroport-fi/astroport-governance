@@ -47,8 +47,11 @@ pub const CONFIG: Item<Config> = Item::new("config");
 /// ( period -> pool_addr )
 pub const POOL_VOTES: Map<(U64Key, &Addr), VotedPoolInfo> = Map::new("pool_votes");
 
-/// ( pool_addr -> period )
-pub const LAST_POOL_PERIOD: Map<&Addr, u64> = Map::new("last_pool_period");
+/// HashSet with pool addrs based on cw Map
+pub const POOLS: Map<&Addr, ()> = Map::new("pools");
+
+/// ( period -> pool_addr )
+pub const POOL_PERIODS: Map<(&Addr, U64Key), ()> = Map::new("pool_periods");
 
 /// ( pool_addr -> period )
 pub const POOL_SLOPE_CHANGES: Map<(&Addr, U64Key), Decimal> = Map::new("pool_slope_changes");
