@@ -140,7 +140,7 @@ fn handle_vote(
             acc.checked_add(*bps)
         })?;
 
-    let user_last_vote_period = get_period(user_info.vote_ts)?;
+    let user_last_vote_period = get_period(user_info.vote_ts).unwrap_or(block_period);
 
     // Calculate voting power before changes
     let old_vp_at_period = calc_voting_power(
