@@ -141,14 +141,16 @@ fn handle_vote(
         })?;
 
     let user_last_vote_period = get_period(user_info.vote_ts)?;
-    if !user_info.slope.is_zero() && user_last_vote_period > block_period {
-        // Calculate voting power before changes
-        let old_vp_at_period = calc_voting_power(
-            user_info.slope,
-            user_info.voting_power,
-            user_last_vote_period,
-            block_period,
-        );
+
+    // Calculate voting power before changes
+    let old_vp_at_period = calc_voting_power(
+        user_info.slope,
+        user_info.voting_power,
+        user_last_vote_period,
+        block_period,
+    );
+
+    if user_info.lock_end > block_period {
         // Cancel changes applied by previous votes
         user_info.votes.iter().try_for_each(|(pool_addr, bps)| {
             cancel_user_changes(
@@ -168,12 +170,7 @@ fn handle_vote(
         && !user_info.slope.is_zero()
         && user_info.lock_end == lock_info.end
     {
-        user_vp = calc_voting_power(
-            user_info.slope,
-            user_info.voting_power,
-            user_last_vote_period,
-            block_period,
-        );
+        user_vp = old_vp_at_period
     }
 
     // Votes are applied to the next period
