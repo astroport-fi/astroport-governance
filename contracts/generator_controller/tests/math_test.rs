@@ -168,10 +168,10 @@ impl Simulator {
     }
 }
 
-const MAX_PERIOD: usize = 5;
-const MAX_USERS: usize = 3;
+const MAX_PERIOD: usize = 20;
+const MAX_USERS: usize = 5;
 const MAX_POOLS: usize = 5;
-const MAX_EVENTS: usize = 30;
+const MAX_EVENTS: usize = 100;
 
 fn escrow_events_strategy() -> impl Strategy<Value = VeEvent> {
     prop_oneof![
@@ -300,15 +300,18 @@ proptest! {
 #[test]
 fn exact_simulation() {
     let case = (
-        ["sqzxtndjml"],
-        ["nwdm"],
+        ["bfuakfgvlk", "sqzxtndjml"],
+        ["nwdm", "kzlt", "pahh"],
         [
-            (1, "sqzxtndjml", CreateLock(100.0, 2419200)),
-            (4, "sqzxtndjml", IncreaseTime(1814400)),
+            (3, "sqzxtndjml", CreateLock(100.0, 3628800)),
+            (4, "bfuakfgvlk", CreateLock(100.0, 4233600)),
+            (9, "sqzxtndjml", Withdraw),
+            (9, "sqzxtndjml", CreateLock(100.0, 1814400)),
         ],
         [
-            (4, "sqzxtndjml", Vote(vec![("nwdm".to_string(), 10000)])),
-            (1, "sqzxtndjml", Vote(vec![("nwdm".to_string(), 10000)])),
+            (3, "sqzxtndjml", Vote(vec![("kzlt".to_string(), 10000)])),
+            (4, "bfuakfgvlk", Vote(vec![("kzlt".to_string(), 10000)])),
+            (10, "sqzxtndjml", Vote(vec![("nwdm".to_string(), 10000)])),
         ],
     );
 

@@ -140,12 +140,13 @@ fn handle_vote(
             acc.checked_add(*bps)
         })?;
 
-    if !user_info.slope.is_zero() {
+    let user_last_vote_period = get_period(user_info.vote_ts)?;
+    if !user_info.slope.is_zero() && user_last_vote_period > block_period {
         // Calculate voting power before changes
         let old_vp_at_period = calc_voting_power(
             user_info.slope,
             user_info.voting_power,
-            get_period(user_info.vote_ts)?,
+            user_last_vote_period,
             block_period,
         );
         // Cancel changes applied by previous votes
@@ -170,7 +171,7 @@ fn handle_vote(
         user_vp = calc_voting_power(
             user_info.slope,
             user_info.voting_power,
-            get_period(user_info.vote_ts)?,
+            user_last_vote_period,
             block_period,
         );
     }
