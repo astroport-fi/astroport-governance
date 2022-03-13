@@ -3,7 +3,9 @@ use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
 use cosmwasm_std::Timestamp;
 use terra_multi_test::{AppBuilder, BankKeeper, TerraApp, TerraMock};
 
+#[allow(clippy::all)]
 pub mod controller_helper;
+#[allow(clippy::all)]
 pub mod escrow_helper;
 
 pub fn mock_app() -> TerraApp {

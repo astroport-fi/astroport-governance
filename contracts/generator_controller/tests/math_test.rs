@@ -155,17 +155,17 @@ impl Simulator {
         match event {
             Vote(votes) => {
                 if let Err(err) = self.vote(user, votes) {
-                    println!("{}", err.to_string());
+                    println!("{}", err);
                 }
             }
             GaugePools => {
                 if let Err(err) = self.helper.gauge(&mut self.router, self.owner.as_str()) {
-                    println!("{}", err.to_string());
+                    println!("{}", err);
                 }
             }
             ChangePoolLimit(limit) => {
                 if let Err(err) = self.change_pool_limit(limit) {
-                    println!("{}", err.to_string());
+                    println!("{}", err);
                 }
             }
         }
@@ -371,11 +371,7 @@ fn exact_simulation() {
         for pool_addr in pools {
             let pool_vp = simulator
                 .helper
-                .query_voted_pool_info_at_period(
-                    &mut simulator.router,
-                    &pool_addr,
-                    block_period + 1,
-                )
+                .query_voted_pool_info_at_period(&mut simulator.router, pool_addr, block_period + 1)
                 .unwrap()
                 .vxastro_amount
                 .u128() as f32

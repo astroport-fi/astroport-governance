@@ -3,7 +3,7 @@ use terra_multi_test::Executor;
 
 use astroport_governance::generator_controller::{ExecuteMsg, QueryMsg};
 use astroport_governance::utils::{get_period, WEEK};
-use generator_controller::state::{GaugeInfo, UserInfo};
+use generator_controller::state::GaugeInfo;
 
 use crate::test_utils::controller_helper::ControllerHelper;
 use crate::test_utils::escrow_helper::MULTIPLIER;
@@ -28,7 +28,7 @@ fn check_vote_works() {
     // Create short lock
     helper
         .escrow_helper
-        .create_lock(&mut router, "user1", 1 * WEEK, 100f32)
+        .create_lock(&mut router, "user1", WEEK, 100f32)
         .unwrap();
     let err = helper
         .vote(&mut router, "user1", vec![("pool1", 1000)])
