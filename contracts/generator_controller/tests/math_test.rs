@@ -93,6 +93,10 @@ impl Simulator {
     }
 
     fn vote(&mut self, user: &str, votes: Vec<(String, u16)>) -> Result<AppResponse> {
+        let votes: Vec<_> = votes
+            .iter()
+            .map(|(pool, bps)| (pool.as_str(), *bps))
+            .collect();
         self.helper
             .vote(&mut self.router, user, votes.clone())
             .map(|response| {
@@ -115,7 +119,7 @@ impl Simulator {
                     self.user_votes
                         .get_mut(user)
                         .expect("User not found!")
-                        .insert(pool, bps);
+                        .insert(pool.to_string(), bps);
                 }
                 let user_info = self.helper.query_user_info(&mut self.router, user).unwrap();
                 let total_apoints: u16 = user_info

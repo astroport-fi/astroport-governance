@@ -80,12 +80,12 @@ impl ControllerHelper {
         &self,
         router: &mut TerraApp,
         user: &str,
-        votes: Vec<(String, u16)>,
+        votes: Vec<(&str, u16)>,
     ) -> AnyResult<AppResponse> {
         let msg = ExecuteMsg::Vote {
             votes: votes
                 .into_iter()
-                .map(|(pool, apoints)| (pool, apoints))
+                .map(|(pool, apoints)| (pool.to_string(), apoints))
                 .collect(),
         };
 
