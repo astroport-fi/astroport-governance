@@ -219,8 +219,7 @@ fn gauge_generators(mut deps: DepsMut, env: Env, info: MessageInfo) -> ExecuteRe
         .collect();
     messages.push(setup_pools_msg(&config.generator_addr, prev_pool_apoints)?);
 
-    // TODO: remove pool addr from POOLS if its voting power becomes zero
-    let mut pool_votes = POOLS
+    let mut pool_votes: Vec<_> = POOLS
         .keys(deps.as_ref().storage, None, None, Order::Ascending)
         .collect::<Vec<_>>()
         .into_iter()
@@ -229,14 +228,20 @@ fn gauge_generators(mut deps: DepsMut, env: Env, info: MessageInfo) -> ExecuteRe
                 .map_err(|_| StdError::generic_err("Deserialization error"))
                 .and_then(|pool_addr_string| addr_validate_to_lower(deps.api, &pool_addr_string))?;
             let pool_info = update_pool_info(deps.branch(), block_period, &pool_addr, None)?;
+            // Remove pools with zero voting power so we won't iterate over them in future
+            if pool_info.vxastro_amount.is_zero() {
+                POOLS.remove(deps.storage, &pool_addr)
+            }
             Ok((pool_addr, pool_info))
         })
-        .collect::<StdResult<Vec<_>>>()?;
+        .collect::<StdResult<Vec<_>>>()?
+        .into_iter()
+        .filter(|(_, pool_info)| !pool_info.vxastro_amount.is_zero())
+        .collect();
 
     pool_votes.sort_by(|(_, a), (_, b)| a.vxastro_amount.cmp(&b.vxastro_amount));
     let winners: Vec<_> = pool_votes
         .into_iter()
-        .filter(|(_, pool_info)| !pool_info.vxastro_amount.is_zero())
         .rev()
         .take(config.pools_limit as usize)
         .collect();
