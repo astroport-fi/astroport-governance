@@ -110,7 +110,7 @@ pub(crate) fn filter_pools(
             // However, new pair types have to inherit same formats. Otherwise we will get an error here
             let pair_info: PairInfo = deps
                 .querier
-                .query_wasm_smart(pair_addr.clone(), &astroport::pair::QueryMsg::Pair {})
+                .query_wasm_smart(pair_addr, &astroport::pair::QueryMsg::Pair {})
                 .ok()?;
 
             let condition = registered_pairs.pairs.contains(&pair_info)
@@ -118,7 +118,7 @@ pub(crate) fn filter_pools(
                 && !blocked_tokens.contains(&pair_info.asset_infos[0])
                 && !blocked_tokens.contains(&pair_info.asset_infos[1]);
             if condition {
-                Some((pair_addr, pool_info))
+                Some((pair_info.liquidity_token, pool_info))
             } else {
                 None
             }
