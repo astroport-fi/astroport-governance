@@ -1,3 +1,4 @@
+use astroport::asset::AssetInfo;
 use cosmwasm_std::Addr;
 use itertools::Itertools;
 use terra_multi_test::Executor;
@@ -231,6 +232,121 @@ fn check_gauging() {
         .unwrap();
     assert_eq!(get_period(resp.gauge_ts).unwrap(), router.block_period());
     assert_eq!(resp.pool_alloc_points.len(), limit as usize);
+    let total_apoints: u64 = resp
+        .pool_alloc_points
+        .iter()
+        .cloned()
+        .map(|(_, apoints)| apoints.u64())
+        .sum();
+    assert_eq!(total_apoints, 10000)
+}
+
+#[test]
+fn check_bad_pools_filtering() {
+    let mut router = mock_app();
+    let owner = "owner";
+    let owner_addr = Addr::unchecked(owner);
+    let helper = ControllerHelper::init(&mut router, &owner_addr);
+    let user = "user1";
+
+    let foo_token = helper.init_cw20_token(&mut router, "FOO").unwrap();
+    let bar_token = helper.init_cw20_token(&mut router, "BAR").unwrap();
+    let adn_token = helper.init_cw20_token(&mut router, "ADN").unwrap();
+    let tokens = [&foo_token, &bar_token, &adn_token];
+    let pairs: Vec<_> = tokens
+        .iter()
+        .cartesian_product(tokens.clone())
+        .filter_map(|(&token1, token2)| helper.create_pool(&mut router, token1, &token2).ok())
+        .collect();
+
+    helper.escrow_helper.mint_xastro(&mut router, user, 1000);
+    helper
+        .escrow_helper
+        .create_lock(&mut router, user, 10 * WEEK, 100f32)
+        .unwrap();
+
+    helper
+        .vote(
+            &mut router,
+            user,
+            vec![("random_pool", 5000), (pairs[0].as_str(), 5000)],
+        )
+        .unwrap();
+
+    router.next_block(2 * WEEK);
+
+    helper.gauge(&mut router, owner).unwrap();
+    let resp: GaugeInfo = router
+        .wrap()
+        .query_wasm_smart(helper.controller.clone(), &QueryMsg::GaugeInfo)
+        .unwrap();
+    // There was only one valid pool during voting
+    assert_eq!(resp.pool_alloc_points.len(), 1);
+
+    router.next_block(2 * WEEK);
+
+    // Deregister first pair
+    let asset_infos = [
+        AssetInfo::Token {
+            contract_addr: foo_token.clone(),
+        },
+        AssetInfo::Token {
+            contract_addr: bar_token.clone(),
+        },
+    ];
+    router
+        .execute_contract(
+            owner_addr.clone(),
+            helper.factory.clone(),
+            &astroport::factory::ExecuteMsg::Deregister { asset_infos },
+            &[],
+        )
+        .unwrap();
+
+    // Vote for deregistered pool
+    helper
+        .vote(&mut router, user, vec![(pairs[0].as_str(), 10000)])
+        .unwrap();
+    let err = helper.gauge(&mut router, owner).unwrap_err();
+    assert_eq!(err.to_string(), "There are no pools to gauge");
+
+    router.next_block(2 * WEEK);
+
+    // Blocking FOO token so pair[0] and pair[1] become blocked as well
+    let foo_asset_info = AssetInfo::Token {
+        contract_addr: foo_token.clone(),
+    };
+    router
+        .execute_contract(
+            owner_addr.clone(),
+            helper.generator.clone(),
+            &astroport::generator::ExecuteMsg::UpdateTokensBlockedlist {
+                add: Some(vec![foo_asset_info]),
+                remove: None,
+            },
+            &[],
+        )
+        .unwrap();
+
+    // Voting for 2 blocked pools and one valid pool
+    helper
+        .vote(
+            &mut router,
+            user,
+            vec![
+                (pairs[0].as_str(), 1000),
+                (pairs[1].as_str(), 1000),
+                (pairs[2].as_str(), 8000),
+            ],
+        )
+        .unwrap();
+
+    let resp: GaugeInfo = router
+        .wrap()
+        .query_wasm_smart(helper.controller.clone(), &QueryMsg::GaugeInfo)
+        .unwrap();
+    // Only one pool is eligible to receive alloc points
+    assert_eq!(resp.pool_alloc_points.len(), 1);
     let total_apoints: u64 = resp
         .pool_alloc_points
         .iter()

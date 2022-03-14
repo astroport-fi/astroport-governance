@@ -17,9 +17,6 @@ pub enum ContractError {
     #[error("Basic points sum exceeds limit")]
     BPSLimitError {},
 
-    #[error("Pool not found")]
-    PoolNotFound {},
-
     #[error("You can't vote with zero voting power")]
     ZeroVotingPower {},
 

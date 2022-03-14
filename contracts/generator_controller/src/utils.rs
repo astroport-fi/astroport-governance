@@ -1,4 +1,6 @@
 use crate::bps::BasicPoints;
+use astroport::asset::{AssetInfo, PairInfo};
+use astroport::factory::PairsResponse;
 use std::convert::TryInto;
 
 use crate::state::{VotedPoolInfo, POOLS, POOL_PERIODS, POOL_SLOPE_CHANGES, POOL_VOTES};
@@ -79,6 +81,51 @@ pub(crate) fn get_lock_info(
         },
     )?;
     Ok(lock_info)
+}
+
+pub(crate) fn filter_pools(
+    deps: Deps,
+    generator_addr: &Addr,
+    factory_addr: &Addr,
+    pools: Vec<(Addr, VotedPoolInfo)>,
+) -> StdResult<Vec<(Addr, VotedPoolInfo)>> {
+    let registered_pairs: PairsResponse = deps.querier.query_wasm_smart(
+        factory_addr.clone(),
+        &astroport::factory::QueryMsg::Pairs {
+            start_after: None,
+            limit: None,
+        },
+    )?;
+    let blocked_tokens: Vec<AssetInfo> = deps.querier.query_wasm_smart(
+        generator_addr.clone(),
+        &astroport::generator::QueryMsg::BlockedListTokens {},
+    )?;
+    // TODO: add blocklisted pair types query
+    let blocklisted_pair_types: Vec<_> = vec![];
+
+    let pools = pools
+        .into_iter()
+        .filter_map(|(pair_addr, pool_info)| {
+            // Both xyk and stable pair types have the same query and response formats.
+            // However, new pair types have to inherit same formats. Otherwise we will get an error here
+            let pair_info: PairInfo = deps
+                .querier
+                .query_wasm_smart(pair_addr.clone(), &astroport::pair::QueryMsg::Pair {})
+                .ok()?;
+
+            let condition = registered_pairs.pairs.contains(&pair_info)
+                && !blocklisted_pair_types.contains(&pair_info.pair_type)
+                && !blocked_tokens.contains(&pair_info.asset_infos[0])
+                && !blocked_tokens.contains(&pair_info.asset_infos[1]);
+            if condition {
+                Some((pair_addr, pool_info))
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    Ok(pools)
 }
 
 pub(crate) fn cancel_user_changes(

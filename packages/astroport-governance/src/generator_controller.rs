@@ -11,7 +11,9 @@ pub struct InstantiateMsg {
     pub escrow_addr: String,
     /// generator contract address
     pub generator_addr: String,
-    /// a max number of pools that can receive an ASTRO allocation
+    /// factory contract address
+    pub factory_addr: String,
+    /// max number of pools that can receive an ASTRO allocation
     pub pools_limit: u64,
 }
 

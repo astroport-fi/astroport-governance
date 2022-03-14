@@ -15,7 +15,9 @@ pub struct Config {
     pub escrow_addr: Addr,
     /// generator contract address
     pub generator_addr: Addr,
-    /// a max number of pools that can receive an ASTRO allocation
+    /// factory contract address
+    pub factory_addr: Addr,
+    /// max number of pools that can receive an ASTRO allocation
     pub pools_limit: u64,
 }
 

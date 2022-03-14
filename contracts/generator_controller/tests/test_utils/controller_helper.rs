@@ -102,6 +102,7 @@ impl ControllerHelper {
             owner: owner.to_string(),
             escrow_addr: escrow_helper.escrow_instance.to_string(),
             generator_addr: generator.to_string(),
+            factory_addr: factory.to_string(),
             pools_limit: 5,
         };
 
@@ -189,7 +190,7 @@ impl ControllerHelper {
             &astroport::factory::QueryMsg::Pair { asset_infos },
         )?;
 
-        Ok(res.liquidity_token)
+        Ok(res.contract_addr)
     }
 
     pub fn vote(

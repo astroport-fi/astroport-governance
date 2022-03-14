@@ -21,8 +21,8 @@ use crate::state::{
     Config, GaugeInfo, UserInfo, VotedPoolInfo, CONFIG, GAUGE_INFO, POOLS, USER_INFO,
 };
 use crate::utils::{
-    cancel_user_changes, get_lock_info, get_pool_info, get_voting_power, setup_pools_msg,
-    update_pool_info, vote_for_pool, VotedPoolInfoResult,
+    cancel_user_changes, filter_pools, get_lock_info, get_pool_info, get_voting_power,
+    setup_pools_msg, update_pool_info, vote_for_pool, VotedPoolInfoResult,
 };
 
 /// Contract name that is used for migration.
@@ -57,6 +57,7 @@ pub fn instantiate(
             owner: addr_validate_to_lower(deps.api, &msg.owner)?,
             escrow_addr: addr_validate_to_lower(deps.api, &msg.escrow_addr)?,
             generator_addr: addr_validate_to_lower(deps.api, &msg.generator_addr)?,
+            factory_addr: addr_validate_to_lower(deps.api, &msg.factory_addr)?,
             pools_limit: msg.pools_limit,
         },
     )?;
@@ -238,6 +239,13 @@ fn gauge_generators(mut deps: DepsMut, env: Env, info: MessageInfo) -> ExecuteRe
         .into_iter()
         .filter(|(_, pool_info)| !pool_info.vxastro_amount.is_zero())
         .collect();
+
+    pool_votes = filter_pools(
+        deps.as_ref(),
+        &config.generator_addr,
+        &config.factory_addr,
+        pool_votes,
+    )?;
 
     pool_votes.sort_by(|(_, a), (_, b)| a.vxastro_amount.cmp(&b.vxastro_amount));
     let winners: Vec<_> = pool_votes
