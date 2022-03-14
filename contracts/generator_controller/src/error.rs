@@ -29,9 +29,6 @@ pub enum ContractError {
     #[error("Votes contain duplicated pool addresses")]
     DuplicatedPools {},
 
-    #[error("Your lock will expire in less than a week")]
-    LockExpiresSoon {},
-
     #[error("There are no pools to gauge")]
     GaugeNoPools {},
 }

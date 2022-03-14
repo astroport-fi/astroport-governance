@@ -1,4 +1,5 @@
 use cosmwasm_std::Addr;
+use itertools::Itertools;
 use terra_multi_test::Executor;
 
 use astroport_governance::generator_controller::{ExecuteMsg, QueryMsg};
@@ -30,10 +31,9 @@ fn check_vote_works() {
         .escrow_helper
         .create_lock(&mut router, "user1", WEEK, 100f32)
         .unwrap();
-    let err = helper
+    helper
         .vote(&mut router, "user1", vec![("pool1", 1000)])
-        .unwrap_err();
-    assert_eq!(err.to_string(), "Your lock will expire in less than a week");
+        .unwrap();
 
     helper.escrow_helper.mint_xastro(&mut router, "user2", 100);
     helper
@@ -119,6 +119,16 @@ fn check_gauging() {
     let user3 = "user3";
     let ve_locks = vec![(user1, 10), (user2, 5), (user3, 50)];
 
+    let foo_token = helper.init_cw20_token(&mut router, "FOO").unwrap();
+    let bar_token = helper.init_cw20_token(&mut router, "BAR").unwrap();
+    let adn_token = helper.init_cw20_token(&mut router, "ADN").unwrap();
+    let tokens = [foo_token, bar_token, adn_token];
+    let pairs: Vec<_> = tokens
+        .iter()
+        .cartesian_product(tokens.clone())
+        .filter_map(|(token1, token2)| helper.create_pool(&mut router, token1, &token2).ok())
+        .collect();
+
     for (user, duration) in ve_locks {
         helper.escrow_helper.mint_xastro(&mut router, user, 1000);
         helper
@@ -128,20 +138,32 @@ fn check_gauging() {
     }
 
     helper
-        .vote(&mut router, user1, vec![("pool1", 5000), ("pool2", 5000)])
+        .vote(
+            &mut router,
+            user1,
+            vec![(pairs[0].as_str(), 5000), (pairs[1].as_str(), 5000)],
+        )
         .unwrap();
     helper
         .vote(
             &mut router,
             user2,
-            vec![("pool1", 5000), ("pool3", 2000), ("pool5", 3000)],
+            vec![
+                (pairs[0].as_str(), 5000),
+                (pairs[1].as_str(), 2000),
+                (pairs[2].as_str(), 3000),
+            ],
         )
         .unwrap();
     helper
         .vote(
             &mut router,
             user3,
-            vec![("pool2", 2000), ("pool3", 3000), ("pool4", 5000)],
+            vec![
+                (pairs[0].as_str(), 2000),
+                (pairs[1].as_str(), 3000),
+                (pairs[2].as_str(), 5000),
+            ],
         )
         .unwrap();
 
@@ -170,7 +192,7 @@ fn check_gauging() {
         .query_wasm_smart(helper.controller.clone(), &QueryMsg::GaugeInfo)
         .unwrap();
     assert_eq!(get_period(resp.gauge_ts).unwrap(), router.block_period());
-    assert_eq!(resp.pool_alloc_points.len(), 5);
+    assert_eq!(resp.pool_alloc_points.len(), pairs.len());
     let total_apoints: u64 = resp
         .pool_alloc_points
         .iter()

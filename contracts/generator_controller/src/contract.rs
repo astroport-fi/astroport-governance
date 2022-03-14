@@ -21,8 +21,8 @@ use crate::state::{
     Config, GaugeInfo, UserInfo, VotedPoolInfo, CONFIG, GAUGE_INFO, POOLS, USER_INFO,
 };
 use crate::utils::{
-    cancel_user_changes, get_lock_info, get_pool_info, get_voting_power, update_pool_info,
-    vote_for_pool, VotedPoolInfoResult,
+    cancel_user_changes, get_lock_info, get_pool_info, get_voting_power, setup_pools_msg,
+    update_pool_info, vote_for_pool, VotedPoolInfoResult,
 };
 
 /// Contract name that is used for migration.
@@ -102,11 +102,6 @@ fn handle_vote(
         return Err(ContractError::ZeroVotingPower {});
     }
 
-    let lock_info = get_lock_info(deps.querier, &escrow_addr, &user)?;
-    if lock_info.end <= block_period + 1 {
-        return Err(ContractError::LockExpiresSoon {});
-    }
-
     let user_info = USER_INFO.may_load(deps.storage, &user)?.unwrap_or_default();
     // Does the user eligible to vote again?
     if env.block.time.seconds() - user_info.vote_ts < VOTE_COOLDOWN {
@@ -165,6 +160,8 @@ fn handle_vote(
         })?;
     }
 
+    let lock_info = get_lock_info(deps.querier, &escrow_addr, &user)?;
+
     // User's lock was not changed thus we continue to use last voting power decay
     if user_info.slope == lock_info.slope
         && !user_info.slope.is_zero()
@@ -200,7 +197,7 @@ fn handle_vote(
 }
 
 fn gauge_generators(mut deps: DepsMut, env: Env, info: MessageInfo) -> ExecuteResult {
-    let gauge_info = GAUGE_INFO.may_load(deps.storage)?.unwrap_or_default();
+    let mut gauge_info = GAUGE_INFO.load(deps.storage)?;
     let config = CONFIG.load(deps.storage)?;
     let block_period = get_period(env.block.time.seconds())?;
 
@@ -212,12 +209,15 @@ fn gauge_generators(mut deps: DepsMut, env: Env, info: MessageInfo) -> ExecuteRe
         return Err(ContractError::CooldownError(GAUGE_COOLDOWN / DAY));
     }
 
-    let mut response = Response::new();
+    let mut messages = vec![];
 
     // Cancel previous alloc points
-    for (_pool_addr, _cur_alloc_points) in gauge_info.pool_alloc_points.iter() {
-        // TODO: push msg to response.messages to cancel previous pool alloc points
-    }
+    let prev_pool_apoints: Vec<_> = gauge_info
+        .pool_alloc_points
+        .iter()
+        .map(|(pool_addr, _)| (pool_addr.to_string(), Uint64::zero()))
+        .collect();
+    messages.push(setup_pools_msg(&config.generator_addr, prev_pool_apoints)?);
 
     // TODO: remove pool addr from POOLS if its voting power becomes zero
     let mut pool_votes = POOLS
@@ -247,23 +247,36 @@ fn gauge_generators(mut deps: DepsMut, env: Env, info: MessageInfo) -> ExecuteRe
 
     let total_vp = winners.iter().map(|(_, vp)| vp.vxastro_amount).sum();
 
-    let mut pool_alloc_points = vec![];
+    gauge_info.pool_alloc_points = vec![];
+    let mut new_pool_apoints = vec![];
     for (pool_addr, pool_info) in winners {
         let alloc_points: u16 = BasicPoints::from_ratio(pool_info.vxastro_amount, total_vp)?.into();
-        let alloc_points = Uint64::from(alloc_points);
-        pool_alloc_points.push((pool_addr.clone(), alloc_points));
-        // TODO: push msg to response.messages to set pool alloc points
+        let apoints = Uint64::from(alloc_points);
+        gauge_info
+            .pool_alloc_points
+            .push((pool_addr.clone(), apoints));
+        new_pool_apoints.push((pool_addr.to_string(), apoints))
     }
 
-    GAUGE_INFO.save(
-        deps.storage,
-        &GaugeInfo {
-            gauge_ts: env.block.time.seconds(),
-            pool_alloc_points,
-        },
-    )?;
+    // Small residual may exist because of integer division. Let the first place get it.
+    let total_apoints: u64 = new_pool_apoints.iter().map(|item| item.1.u64()).sum();
+    let residual = Uint64::from(BasicPoints::MAX as u64 - total_apoints);
+    if let Some((_, apoints)) = gauge_info.pool_alloc_points.first_mut() {
+        *apoints += residual
+    }
+    if let Some((_, apoints)) = new_pool_apoints.first_mut() {
+        *apoints += residual
+    }
 
-    Ok(response.add_attribute("action", "gauge_generators"))
+    // Set new alloc points
+    messages.push(setup_pools_msg(&config.generator_addr, new_pool_apoints)?);
+
+    gauge_info.gauge_ts = env.block.time.seconds();
+    GAUGE_INFO.save(deps.storage, &gauge_info)?;
+
+    Ok(Response::new()
+        .add_messages(messages)
+        .add_attribute("action", "gauge_generators"))
 }
 
 fn change_pools_limit(deps: DepsMut, info: MessageInfo, limit: u64) -> ExecuteResult {

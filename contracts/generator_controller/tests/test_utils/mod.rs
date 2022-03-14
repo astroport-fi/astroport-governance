@@ -4,8 +4,10 @@ use cosmwasm_std::Timestamp;
 use terra_multi_test::{AppBuilder, BankKeeper, TerraApp, TerraMock};
 
 #[allow(clippy::all)]
+#[allow(dead_code)]
 pub mod controller_helper;
 #[allow(clippy::all)]
+#[allow(dead_code)]
 pub mod escrow_helper;
 
 pub fn mock_app() -> TerraApp {

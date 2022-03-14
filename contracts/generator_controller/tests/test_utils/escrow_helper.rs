@@ -15,6 +15,7 @@ pub struct EscrowHelper {
     pub staking_instance: Addr,
     pub xastro_token: Addr,
     pub escrow_instance: Addr,
+    pub astro_token_code_id: u64,
 }
 
 impl EscrowHelper {
@@ -115,6 +116,7 @@ impl EscrowHelper {
             astro_token,
             staking_instance,
             escrow_instance: voting_instance,
+            astro_token_code_id,
         }
     }
 

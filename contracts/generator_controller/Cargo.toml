@@ -30,17 +30,20 @@ schemars = "0.8.1"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 terra-cosmwasm = { version = "2.2.0" }
 thiserror = { version = "1.0.20" }
-astroport = { git = "https://github.com/astroport-fi/astroport.git", tag = "v1.2.0" }
+astroport = { git = "https://github.com/astroport-fi/astroport.git", branch = "main" }
 astroport-governance = { path = "../../packages/astroport-governance", version = "1.0.0" }
 
 [dev-dependencies]
 cosmwasm-schema = { version = "0.16.0" }
 terra-multi-test = { git = "https://github.com/astroport-fi/terra-plus.git", tag = "v0.9.1-terra" }
 
-astroport-generator = { git = "https://github.com/astroport-fi/astroport.git", tag = "v1.2.0" }
+astroport-generator = { git = "https://github.com/astroport-fi/astroport.git", branch = "main" }
+astroport-pair = { git = "https://github.com/astroport-fi/astroport.git", branch = "main" }
+astroport-factory = { git = "https://github.com/astroport-fi/astroport.git", branch = "main" }
 astroport-token = { git = "https://github.com/astroport-fi/astroport.git", tag = "v1.2.0" }
 astroport-staking = { git = "https://github.com/astroport-fi/astroport.git", tag = "v1.2.0" }
 cw20 = "0.8"
 voting-escrow = { path = "../voting_escrow", version = "1.0.0" }
 anyhow = "1"
 proptest = "1.0.0"
+itertools = "0.10"

@@ -1,5 +1,7 @@
 use crate::test_utils::escrow_helper::EscrowHelper;
 use anyhow::Result as AnyResult;
+use astroport::asset::{AssetInfo, PairInfo};
+use astroport::factory::{PairConfig, PairType};
 use astroport_governance::generator_controller::{ExecuteMsg, QueryMsg};
 use cosmwasm_std::{Addr, StdResult};
 use generator_controller::state::{UserInfo, VotedPoolInfo};
@@ -9,12 +11,55 @@ pub struct ControllerHelper {
     pub owner: String,
     pub generator: Addr,
     pub controller: Addr,
+    pub factory: Addr,
     pub escrow_helper: EscrowHelper,
 }
 
 impl ControllerHelper {
     pub fn init(router: &mut TerraApp, owner: &Addr) -> Self {
         let escrow_helper = EscrowHelper::init(router, owner.clone());
+
+        let pair_contract = Box::new(
+            ContractWrapper::new_with_empty(
+                astroport_pair::contract::execute,
+                astroport_pair::contract::instantiate,
+                astroport_pair::contract::query,
+            )
+            .with_reply_empty(astroport_pair::contract::reply),
+        );
+
+        let pair_code_id = router.store_code(pair_contract);
+
+        let factory_contract = Box::new(
+            ContractWrapper::new_with_empty(
+                astroport_factory::contract::execute,
+                astroport_factory::contract::instantiate,
+                astroport_factory::contract::query,
+            )
+            .with_reply_empty(astroport_factory::contract::reply),
+        );
+
+        let factory_code_id = router.store_code(factory_contract);
+
+        let msg = astroport::factory::InstantiateMsg {
+            pair_configs: vec![PairConfig {
+                code_id: pair_code_id,
+                pair_type: PairType::Xyk {},
+                total_fee_bps: 100,
+                maker_fee_bps: 10,
+                is_disabled: false,
+                is_generator_disabled: false,
+            }],
+            token_code_id: escrow_helper.astro_token_code_id,
+            fee_address: None,
+            generator_address: None,
+            owner: owner.to_string(),
+            whitelist_code_id: 0,
+        };
+
+        let factory = router
+            .instantiate_contract(factory_code_id, owner.clone(), &msg, &[], "Factory", None)
+            .unwrap();
 
         let generator_contract = Box::new(ContractWrapper::new_with_empty(
             astroport_generator::contract::execute,
@@ -25,6 +70,9 @@ impl ControllerHelper {
         let generator_code_id = router.store_code(generator_contract);
         let init_msg = astroport::generator::InstantiateMsg {
             owner: owner.to_string(),
+            factory: factory.to_string(),
+            generator_controller: None,
+            guardian: None,
             astro_token: escrow_helper.astro_token.to_string(),
             tokens_per_block: Default::default(),
             start_block: Default::default(),
@@ -68,12 +116,80 @@ impl ControllerHelper {
             )
             .unwrap();
 
+        // Setup controller in generator contract
+        router
+            .execute_contract(
+                owner.clone(),
+                generator.clone(),
+                &astroport::generator::ExecuteMsg::UpdateConfig {
+                    vesting_contract: None,
+                    generator_controller: Some(controller.to_string()),
+                    guardian: None,
+                },
+                &[],
+            )
+            .unwrap();
+
         Self {
             owner: owner.to_string(),
             generator,
             controller,
+            factory,
             escrow_helper,
         }
+    }
+
+    pub fn init_cw20_token(&self, router: &mut TerraApp, name: &str) -> AnyResult<Addr> {
+        let msg = astroport::token::InstantiateMsg {
+            name: name.to_string(),
+            symbol: name.to_string(),
+            decimals: 6,
+            initial_balances: vec![],
+            mint: None,
+        };
+
+        router.instantiate_contract(
+            self.escrow_helper.astro_token_code_id,
+            Addr::unchecked(self.owner.clone()),
+            &msg,
+            &[],
+            name.to_string(),
+            None,
+        )
+    }
+
+    pub fn create_pool(
+        &self,
+        router: &mut TerraApp,
+        token1: &Addr,
+        token2: &Addr,
+    ) -> AnyResult<Addr> {
+        let asset_infos = [
+            AssetInfo::Token {
+                contract_addr: token1.clone(),
+            },
+            AssetInfo::Token {
+                contract_addr: token2.clone(),
+            },
+        ];
+
+        router.execute_contract(
+            Addr::unchecked(self.owner.clone()),
+            self.factory.clone(),
+            &astroport::factory::ExecuteMsg::CreatePair {
+                pair_type: PairType::Xyk {},
+                asset_infos: asset_infos.clone(),
+                init_params: None,
+            },
+            &[],
+        )?;
+
+        let res: PairInfo = router.wrap().query_wasm_smart(
+            self.factory.clone(),
+            &astroport::factory::QueryMsg::Pair { asset_infos },
+        )?;
+
+        Ok(res.liquidity_token)
     }
 
     pub fn vote(

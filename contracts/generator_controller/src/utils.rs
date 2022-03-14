@@ -8,7 +8,8 @@ use astroport_governance::voting_escrow::{
     LockInfoResponse, QueryMsg::UserVotingPower, VotingPowerResponse,
 };
 use cosmwasm_std::{
-    Addr, Decimal, Deps, DepsMut, Order, Pair, QuerierWrapper, StdError, StdResult, Uint128,
+    to_binary, Addr, CosmosMsg, Decimal, Deps, DepsMut, Order, Pair, QuerierWrapper, StdError,
+    StdResult, Uint128, Uint64, WasmMsg,
 };
 use cw_storage_plus::{Bound, U64Key};
 
@@ -275,4 +276,19 @@ pub(crate) fn fetch_slope_changes(
         )
         .map(deserialize_pair)
         .collect()
+}
+
+pub(crate) fn setup_pools_msg(
+    generator_addr: &Addr,
+    pool_apoints: Vec<(String, Uint64)>,
+) -> StdResult<CosmosMsg> {
+    let msg = CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: generator_addr.to_string(),
+        msg: to_binary(&astroport::generator::ExecuteMsg::SetupPools {
+            pools: pool_apoints,
+        })?,
+        funds: vec![],
+    });
+
+    Ok(msg)
 }
