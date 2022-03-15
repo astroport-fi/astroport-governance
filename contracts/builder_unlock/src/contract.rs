@@ -577,7 +577,7 @@ mod helpers {
         }
         // Tokens unlock linearly between start time and end time
         else if (timestamp < schedule.start_time + schedule.cliff + schedule.duration)
-            && !schedule.duration != 0
+            && schedule.duration != 0
         {
             amount.multiply_ratio(
                 timestamp - (schedule.start_time + schedule.cliff),
