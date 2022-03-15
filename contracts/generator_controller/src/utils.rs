@@ -327,8 +327,12 @@ pub(crate) fn fetch_slope_changes(
 
 pub(crate) fn setup_pools_msg(
     generator_addr: &Addr,
-    pool_apoints: Vec<(String, Uint64)>,
+    pool_apoints: &[(Addr, Uint64)],
 ) -> StdResult<CosmosMsg> {
+    let pool_apoints: Vec<_> = pool_apoints
+        .iter()
+        .map(|(pool_addr, apoints)| (pool_addr.to_string(), *apoints))
+        .collect();
     let msg = CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: generator_addr.to_string(),
         msg: to_binary(&astroport::generator::ExecuteMsg::SetupPools {

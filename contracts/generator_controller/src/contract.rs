@@ -210,16 +210,6 @@ fn gauge_generators(mut deps: DepsMut, env: Env, info: MessageInfo) -> ExecuteRe
         return Err(ContractError::CooldownError(GAUGE_COOLDOWN / DAY));
     }
 
-    let mut messages = vec![];
-
-    // Cancel previous alloc points
-    let prev_pool_apoints: Vec<_> = gauge_info
-        .pool_alloc_points
-        .iter()
-        .map(|(pool_addr, _)| (pool_addr.to_string(), Uint64::zero()))
-        .collect();
-    messages.push(setup_pools_msg(&config.generator_addr, prev_pool_apoints)?);
-
     let mut pool_votes: Vec<_> = POOLS
         .keys(deps.as_ref().storage, None, None, Order::Ascending)
         .collect::<Vec<_>>()
@@ -261,34 +251,33 @@ fn gauge_generators(mut deps: DepsMut, env: Env, info: MessageInfo) -> ExecuteRe
     let total_vp = winners.iter().map(|(_, vp)| vp.vxastro_amount).sum();
 
     gauge_info.pool_alloc_points = vec![];
-    let mut new_pool_apoints = vec![];
     for (pool_addr, pool_info) in winners {
         let alloc_points: u16 = BasicPoints::from_ratio(pool_info.vxastro_amount, total_vp)?.into();
         let apoints = Uint64::from(alloc_points);
         gauge_info
             .pool_alloc_points
             .push((pool_addr.clone(), apoints));
-        new_pool_apoints.push((pool_addr.to_string(), apoints))
     }
 
     // Small residual may exist because of integer division. Let the first place get it.
-    let total_apoints: u64 = new_pool_apoints.iter().map(|item| item.1.u64()).sum();
+    let total_apoints: u64 = gauge_info
+        .pool_alloc_points
+        .iter()
+        .map(|(_, apoints)| apoints.u64())
+        .sum();
     let residual = Uint64::from(BasicPoints::MAX as u64 - total_apoints);
     if let Some((_, apoints)) = gauge_info.pool_alloc_points.first_mut() {
         *apoints += residual
     }
-    if let Some((_, apoints)) = new_pool_apoints.first_mut() {
-        *apoints += residual
-    }
 
     // Set new alloc points
-    messages.push(setup_pools_msg(&config.generator_addr, new_pool_apoints)?);
+    let setup_pools_msg = setup_pools_msg(&config.generator_addr, &gauge_info.pool_alloc_points)?;
 
     gauge_info.gauge_ts = env.block.time.seconds();
     GAUGE_INFO.save(deps.storage, &gauge_info)?;
 
     Ok(Response::new()
-        .add_messages(messages)
+        .add_message(setup_pools_msg)
         .add_attribute("action", "gauge_generators"))
 }
 
