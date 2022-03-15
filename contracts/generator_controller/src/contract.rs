@@ -2,6 +2,7 @@ use std::collections::HashSet;
 use std::convert::TryInto;
 
 use astroport::asset::addr_validate_to_lower;
+use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
@@ -18,7 +19,8 @@ use astroport_governance::utils::{calc_voting_power, get_period, WEEK};
 use crate::bps::BasicPoints;
 use crate::error::ContractError;
 use crate::state::{
-    Config, GaugeInfo, UserInfo, VotedPoolInfo, CONFIG, GAUGE_INFO, POOLS, USER_INFO,
+    Config, GaugeInfo, UserInfo, VotedPoolInfo, CONFIG, GAUGE_INFO, OWNERSHIP_PROPOSAL, POOLS,
+    USER_INFO,
 };
 use crate::utils::{
     cancel_user_changes, filter_pools, get_lock_info, get_pool_info, get_voting_power,
@@ -85,6 +87,40 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> E
         ExecuteMsg::Vote { votes } => handle_vote(deps, env, info, votes),
         ExecuteMsg::GaugePools => gauge_generators(deps, env, info),
         ExecuteMsg::ChangePoolLimit { limit } => change_pools_limit(deps, info, limit),
+        ExecuteMsg::ProposeNewOwner {
+            new_owner,
+            expires_in,
+        } => {
+            let config: Config = CONFIG.load(deps.storage)?;
+
+            propose_new_owner(
+                deps,
+                info,
+                env,
+                new_owner,
+                expires_in,
+                config.owner,
+                OWNERSHIP_PROPOSAL,
+            )
+            .map_err(|e| e.into())
+        }
+        ExecuteMsg::DropOwnershipProposal {} => {
+            let config: Config = CONFIG.load(deps.storage)?;
+
+            drop_ownership_proposal(deps, info, config.owner, OWNERSHIP_PROPOSAL)
+                .map_err(|e| e.into())
+        }
+        ExecuteMsg::ClaimOwnership {} => {
+            claim_ownership(deps, info, env, OWNERSHIP_PROPOSAL, |deps, new_owner| {
+                CONFIG.update::<_, StdError>(deps.storage, |mut v| {
+                    v.owner = new_owner;
+                    Ok(v)
+                })?;
+
+                Ok(())
+            })
+            .map_err(|e| e.into())
+        }
     }
 }
 

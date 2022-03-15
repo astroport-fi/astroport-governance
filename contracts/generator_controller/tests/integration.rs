@@ -3,7 +3,7 @@ use cosmwasm_std::Addr;
 use itertools::Itertools;
 use terra_multi_test::Executor;
 
-use astroport_governance::generator_controller::{ExecuteMsg, QueryMsg};
+use astroport_governance::generator_controller::{ConfigResponse, ExecuteMsg, QueryMsg};
 use astroport_governance::utils::{get_period, WEEK};
 use generator_controller::state::GaugeInfo;
 
@@ -354,4 +354,82 @@ fn check_bad_pools_filtering() {
         .map(|(_, apoints)| apoints.u64())
         .sum();
     assert_eq!(total_apoints, 10000)
+}
+
+#[test]
+fn check_update_owner() {
+    let mut app = mock_app();
+    let owner = Addr::unchecked("owner");
+    let helper = ControllerHelper::init(&mut app, &owner);
+
+    let new_owner = String::from("new_owner");
+
+    // New owner
+    let msg = ExecuteMsg::ProposeNewOwner {
+        new_owner: new_owner.clone(),
+        expires_in: 100, // seconds
+    };
+
+    // Unauthed check
+    let err = app
+        .execute_contract(
+            Addr::unchecked("not_owner"),
+            helper.controller.clone(),
+            &msg,
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(err.to_string(), "Generic error: Unauthorized");
+
+    // Claim before proposal
+    let err = app
+        .execute_contract(
+            Addr::unchecked(new_owner.clone()),
+            helper.controller.clone(),
+            &ExecuteMsg::ClaimOwnership {},
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.to_string(),
+        "Generic error: Ownership proposal not found"
+    );
+
+    // Propose new owner
+    app.execute_contract(
+        Addr::unchecked("owner"),
+        helper.controller.clone(),
+        &msg,
+        &[],
+    )
+    .unwrap();
+
+    // Claim from invalid addr
+    let err = app
+        .execute_contract(
+            Addr::unchecked("invalid_addr"),
+            helper.controller.clone(),
+            &ExecuteMsg::ClaimOwnership {},
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(err.to_string(), "Generic error: Unauthorized");
+
+    // Claim ownership
+    app.execute_contract(
+        Addr::unchecked(new_owner.clone()),
+        helper.controller.clone(),
+        &ExecuteMsg::ClaimOwnership {},
+        &[],
+    )
+    .unwrap();
+
+    // Let's query the contract state
+    let msg = QueryMsg::Config {};
+    let res: ConfigResponse = app
+        .wrap()
+        .query_wasm_smart(&helper.controller, &msg)
+        .unwrap();
+
+    assert_eq!(res.owner, new_owner)
 }

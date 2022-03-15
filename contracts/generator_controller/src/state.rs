@@ -1,4 +1,5 @@
 use crate::bps::BasicPoints;
+use astroport::common::OwnershipProposal;
 
 use astroport_governance::generator_controller::{
     ConfigResponse, GaugeInfoResponse, UserInfoResponse, VotedPoolInfoResponse,
@@ -58,3 +59,7 @@ pub const POOL_SLOPE_CHANGES: Map<(&Addr, U64Key), Decimal> = Map::new("pool_slo
 pub const USER_INFO: Map<&Addr, UserInfo> = Map::new("user_info");
 
 pub const GAUGE_INFO: Item<GaugeInfo> = Item::new("gauge_info");
+
+/// ## Description
+/// Contains a proposal to change contract ownership
+pub const OWNERSHIP_PROPOSAL: Item<OwnershipProposal> = Item::new("ownership_proposal");

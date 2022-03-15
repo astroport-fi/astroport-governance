@@ -23,9 +23,22 @@ pub struct InstantiateMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
-    Vote { votes: Vec<(String, u16)> },
+    Vote {
+        votes: Vec<(String, u16)>,
+    },
     GaugePools,
-    ChangePoolLimit { limit: u64 },
+    ChangePoolLimit {
+        limit: u64,
+    },
+    /// Propose a new owner for the contract
+    ProposeNewOwner {
+        new_owner: String,
+        expires_in: u64,
+    },
+    /// Remove the ownership transfer proposal
+    DropOwnershipProposal {},
+    /// Claim contract ownership
+    ClaimOwnership {},
 }
 
 /// ## Description
