@@ -11,7 +11,7 @@ use cosmwasm_std::{
 use cw2::set_contract_version;
 
 use astroport_governance::generator_controller::{
-    ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg,
+    ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg, UserInfoResponse,
 };
 use astroport_governance::utils::{calc_voting_power, get_period, WEEK};
 
@@ -310,10 +310,11 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     }
 }
 
-fn user_info(deps: Deps, user: String) -> StdResult<UserInfo> {
+fn user_info(deps: Deps, user: String) -> StdResult<UserInfoResponse> {
     let user_addr = addr_validate_to_lower(deps.api, &user)?;
     USER_INFO
         .may_load(deps.storage, &user_addr)?
+        .map(UserInfo::into_response)
         .ok_or_else(|| StdError::generic_err("User not found"))
 }
 

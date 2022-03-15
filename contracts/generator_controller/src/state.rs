@@ -1,31 +1,16 @@
 use crate::bps::BasicPoints;
 
-use cosmwasm_std::{Addr, Decimal, Uint128, Uint64};
+use astroport_governance::generator_controller::{
+    ConfigResponse, GaugeInfoResponse, UserInfoResponse, VotedPoolInfoResponse,
+};
+use cosmwasm_std::{Addr, Decimal, Uint128};
 use cw_storage_plus::{Item, Map, U64Key};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-/// ## Description
-/// This structure describes the main control config of voting escrow contract.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct Config {
-    /// contract address that used for settings control
-    pub owner: Addr,
-    /// the vxASTRO token contract address
-    pub escrow_addr: Addr,
-    /// generator contract address
-    pub generator_addr: Addr,
-    /// factory contract address
-    pub factory_addr: Addr,
-    /// max number of pools that can receive an ASTRO allocation
-    pub pools_limit: u64,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Default)]
-pub struct VotedPoolInfo {
-    pub vxastro_amount: Uint128,
-    pub slope: Decimal,
-}
+pub type Config = ConfigResponse;
+pub type VotedPoolInfo = VotedPoolInfoResponse;
+pub type GaugeInfo = GaugeInfoResponse;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Default)]
 pub struct UserInfo {
@@ -36,10 +21,22 @@ pub struct UserInfo {
     pub votes: Vec<(Addr, BasicPoints)>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Default)]
-pub struct GaugeInfo {
-    pub gauge_ts: u64,
-    pub pool_alloc_points: Vec<(Addr, Uint64)>,
+impl UserInfo {
+    pub(crate) fn into_response(self) -> UserInfoResponse {
+        let votes = self
+            .votes
+            .iter()
+            .map(|(pool_addr, bps)| (pool_addr.clone(), u16::from(*bps)))
+            .collect();
+
+        UserInfoResponse {
+            vote_ts: self.vote_ts,
+            voting_power: self.voting_power,
+            slope: self.slope,
+            lock_end: self.lock_end,
+            votes,
+        }
+    }
 }
 
 /// ## Description
