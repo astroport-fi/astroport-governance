@@ -2,7 +2,6 @@ use cosmwasm_std::{Addr, Decimal, Uint128, Uint64};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-/// ## Description
 /// This structure describes the basic settings for creating a contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
@@ -18,7 +17,6 @@ pub struct InstantiateMsg {
     pub pools_limit: u64,
 }
 
-/// ## Description
 /// This structure describes the execute messages of the contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -41,7 +39,6 @@ pub enum ExecuteMsg {
     ClaimOwnership {},
 }
 
-/// ## Description
 /// This structure describes the query messages of the contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -53,40 +50,41 @@ pub enum QueryMsg {
     PoolInfoAtPeriod { pool_addr: String, period: u64 },
 }
 
-/// ## Description
 /// This structure describes a migration message.
 /// We currently take no arguments for migrations.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct MigrateMsg {}
 
-/// ## Description
-/// This structure describes the main control config of generator controller contract.
+/// This structure describes response with the main control config of generator controller contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigResponse {
     /// contract address that used for settings control
     pub owner: Addr,
-    /// the vxASTRO token contract address
+    /// The vxASTRO token contract address
     pub escrow_addr: Addr,
-    /// generator contract address
+    /// Generator contract address
     pub generator_addr: Addr,
-    /// factory contract address
+    /// Factory contract address
     pub factory_addr: Addr,
-    /// max number of pools that can receive an ASTRO allocation
+    /// Max number of pools that can receive an ASTRO allocation
     pub pools_limit: u64,
 }
 
+/// This structure describes response with voting parameters for a specific pool.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Default)]
 pub struct VotedPoolInfoResponse {
     pub vxastro_amount: Uint128,
     pub slope: Decimal,
 }
 
+/// This structure describes response with last gauge parameters.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Default)]
 pub struct GaugeInfoResponse {
     pub gauge_ts: u64,
     pub pool_alloc_points: Vec<(Addr, Uint64)>,
 }
 
+/// The struct describes response with last user's votes parameters.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Default)]
 pub struct UserInfoResponse {
     pub vote_ts: u64,

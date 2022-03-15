@@ -17,6 +17,8 @@ use cw_storage_plus::{Bound, U64Key};
 
 use astroport_governance::utils::calc_voting_power;
 
+/// ## Description
+/// The enum defines math operations with voting power and slope.
 #[derive(Debug)]
 pub(crate) enum Operation {
     Add,
@@ -39,6 +41,8 @@ impl Operation {
     }
 }
 
+/// ## Description
+/// Enum wraps [`VotedPoolInfo`] so the contract can leverage storage operations efficiently.
 #[derive(Debug)]
 pub(crate) enum VotedPoolInfoResult {
     Unchanged(VotedPoolInfo),
@@ -55,6 +59,8 @@ impl VotedPoolInfoResult {
     }
 }
 
+/// ## Description
+/// Queries current user's voting power from the voting escrow contract.
 pub(crate) fn get_voting_power(
     querier: QuerierWrapper,
     escrow_addr: &Addr,
@@ -69,6 +75,8 @@ pub(crate) fn get_voting_power(
     Ok(vp.voting_power)
 }
 
+/// ## Description
+/// Queries user's lockup information from the voting escrow contract.
 pub(crate) fn get_lock_info(
     querier: QuerierWrapper,
     escrow_addr: &Addr,
@@ -83,6 +91,11 @@ pub(crate) fn get_lock_info(
     Ok(lock_info)
 }
 
+/// ## Description
+/// Filters pairs (pool_address, voting parameters) by criteria:
+/// * pool's pair is registered in Factory,
+/// * pool's pair type is not in blocked list,
+/// * any of pair's token is not listed in blocked tokens list.
 pub(crate) fn filter_pools(
     deps: Deps,
     generator_addr: &Addr,
@@ -128,9 +141,13 @@ pub(crate) fn filter_pools(
     Ok(pools)
 }
 
+/// ## Description
+/// Cancels user changes using old voting parameters for a given pool.  
+/// Firstly, it removes slope change scheduled for previous lockup end period.  
+/// Secondly, it updates voting parameters for the given period, but without user's vote.
 pub(crate) fn cancel_user_changes(
     deps: DepsMut,
-    block_period: u64,
+    period: u64,
     pool_addr: &Addr,
     old_bps: BasicPoints,
     old_vp: Uint128,
@@ -138,10 +155,10 @@ pub(crate) fn cancel_user_changes(
     old_lock_end: u64,
 ) -> StdResult<()> {
     // Cancel scheduled slope changes
-    let end_period_key = U64Key::new(old_lock_end + 1);
     let last_pool_period =
-        fetch_last_pool_period(deps.as_ref(), block_period, pool_addr)?.unwrap_or(block_period);
+        fetch_last_pool_period(deps.as_ref(), period, pool_addr)?.unwrap_or(period);
     if last_pool_period < old_lock_end + 1 {
+        let end_period_key = U64Key::new(old_lock_end + 1);
         let old_scheduled_change =
             POOL_SLOPE_CHANGES.load(deps.as_ref().storage, (pool_addr, end_period_key.clone()))?;
         let new_slope = old_scheduled_change - old_bps * old_slope;
@@ -154,13 +171,17 @@ pub(crate) fn cancel_user_changes(
 
     update_pool_info(
         deps,
-        block_period,
+        period,
         pool_addr,
         Some((old_bps, old_vp, old_slope, Operation::Sub)),
     )
     .map(|_| ())
 }
 
+/// ## Description
+/// Applies user's vote for a given pool.   
+/// Firstly, it schedules slope change for lockup end period.  
+/// Secondly, it updates voting parameters with applied user's vote.
 pub(crate) fn vote_for_pool(
     deps: DepsMut,
     period: u64,
@@ -191,6 +212,11 @@ pub(crate) fn vote_for_pool(
     .map(|_| ())
 }
 
+/// ## Description
+/// Fetches voting parameters for a given pool at specific period, applies new changes, saves it in storage
+/// and returns new voting parameters in [`VotedPoolInfo`] object.
+/// If there are no changes in 'changes' parameter
+/// and voting parameters were already calculated before the function just returns [`VotedPoolInfo`].
 pub(crate) fn update_pool_info(
     deps: DepsMut,
     period: u64,
@@ -227,7 +253,8 @@ pub(crate) fn update_pool_info(
     Ok(pool_info)
 }
 
-/// Returns pool info at the period or tries to calculate it.
+/// ## Description
+/// Returns pool info at specified period or calculates it.
 pub(crate) fn get_pool_info(
     deps: Deps,
     period: u64,
@@ -277,6 +304,8 @@ pub(crate) fn get_pool_info(
     Ok(pool_info_result)
 }
 
+/// ## Description
+/// Fetches last period for specified pool which has saved result in [`POOL_PERIODS`].
 pub(crate) fn fetch_last_pool_period(
     deps: Deps,
     period: u64,
@@ -297,6 +326,7 @@ pub(crate) fn fetch_last_pool_period(
     Ok(period_opt)
 }
 
+/// ## Description
 /// Helper function for deserialization.
 pub(crate) fn deserialize_pair<T>(pair: StdResult<Pair<T>>) -> StdResult<(u64, T)> {
     let (period_serialized, change) = pair?;
@@ -306,7 +336,8 @@ pub(crate) fn deserialize_pair<T>(pair: StdResult<Pair<T>>) -> StdResult<(u64, T
     Ok((u64::from_be_bytes(period_bytes), change))
 }
 
-/// Fetches all slope changes between `last_period` and `period`.
+/// ## Description
+/// Fetches all slope changes between `last_period` and `period` for specific pool.
 pub(crate) fn fetch_slope_changes(
     deps: Deps,
     pool_addr: &Addr,
@@ -325,6 +356,8 @@ pub(crate) fn fetch_slope_changes(
         .collect()
 }
 
+/// ## Description
+/// Builds [`astroport::generator::ExecuteMsg::SetupPools`] message from &[([`Addr`], [`Uint64`])] slice.
 pub(crate) fn setup_pools_msg(
     generator_addr: &Addr,
     pool_apoints: &[(Addr, Uint64)],

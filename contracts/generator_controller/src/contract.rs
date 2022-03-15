@@ -77,10 +77,20 @@ pub fn instantiate(
 }
 
 /// ## Description
-/// Parses execute message and routes it to intended function. Returns [`Response`] if execution succeed
-/// or [`ContractError`] if error occurred.
-///  
+/// Exposes all the execute functions available in the contract.
+///
 /// ## Execute messages
+/// * **ExecuteMsg::Vote { votes }** Casts votes for pools
+///
+/// * **ExecuteMsg::GaugePools** Launches pool gauging
+///
+/// * **ExecuteMsg::ChangePoolLimit { limit }** Changes the number of pools which are eligible to receive allocation points
+///
+/// * **ExecuteMsg::ProposeNewOwner { owner, expires_in }** Creates a new request to change contract ownership.
+///
+/// * **ExecuteMsg::DropOwnershipProposal {}** Removes a request to change contract ownership.
+///
+/// * **ExecuteMsg::ClaimOwnership {}** Claims contract ownership.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> ExecuteResult {
     match msg {
@@ -124,6 +134,29 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> E
     }
 }
 
+/// ## Description
+/// The function checks that:
+/// * the user voting power is > 0,
+/// * user didn't vote for last 10 days,
+/// * all pool addresses are valid,
+/// * 'votes' vector doesn't contain duplicated pool addresses,
+/// * sum of all BPS values <= 10000.
+///
+/// The function cancels changes applied by previous votes and apply new votes for the next period.
+/// New vote parameters are saved in [`USER_INFO`].  
+///
+/// The function returns [`Response`] in case of success or [`ContractError`] in case of errors.
+///
+/// ## Params
+/// * **deps** is an object of type [`DepsMut`].
+///
+/// * **env** is an object of type [`Env`].
+///
+/// * **info** is an object of type [`MessageInfo`].
+///
+/// * **votes** is a vector of pairs ([`String`], [`u16`]).
+/// Pair consists of pool address and percentage of user's voting power for a given pool.
+/// Percentage should be in BPS form.
 fn handle_vote(
     mut deps: DepsMut,
     env: Env,
@@ -233,6 +266,21 @@ fn handle_vote(
     Ok(Response::new().add_attribute("action", "vote"))
 }
 
+/// ## Description
+/// Only contract owner can call this function.  
+/// The function checks that the last generator gauging happened >= 14 days ago.
+/// Then it calculates voting power for each pool at the current period, filters all pools which
+/// are not eligible to receive allocation points,
+/// takes top X pools by voting power, where X is 'config.pools_limit', calculates allocation points
+/// for these pools and applies allocation points in generator contract.   
+/// The function returns [`Response`] in case of success or [`ContractError`] in case of errors.
+///
+/// ## Params
+/// * **deps** is an object of type [`DepsMut`].
+///
+/// * **env** is an object of type [`Env`].
+///
+/// * **info** is an object of type [`MessageInfo`].
 fn gauge_generators(mut deps: DepsMut, env: Env, info: MessageInfo) -> ExecuteResult {
     let mut gauge_info = GAUGE_INFO.load(deps.storage)?;
     let config = CONFIG.load(deps.storage)?;
@@ -317,6 +365,16 @@ fn gauge_generators(mut deps: DepsMut, env: Env, info: MessageInfo) -> ExecuteRe
         .add_attribute("action", "gauge_generators"))
 }
 
+/// ## Description
+/// Only contract owner can call this function.  
+/// The function sets new limit of pools which are eligible to receive allocation points.
+///
+/// ## Params
+/// * **deps** is an object of type [`DepsMut`].
+///
+/// * **info** is an object of type [`MessageInfo`].
+///
+/// * **limit** is a new limit of pools which are eligible to receive allocation points.
 fn change_pools_limit(deps: DepsMut, info: MessageInfo, limit: u64) -> ExecuteResult {
     let mut config = CONFIG.load(deps.storage)?;
 
@@ -331,8 +389,23 @@ fn change_pools_limit(deps: DepsMut, info: MessageInfo, limit: u64) -> ExecuteRe
 }
 
 /// # Description
-/// Describes all query messages.
+/// Expose available contract queries.
+/// ## Params
+/// * **deps** is an object of type [`Deps`].
+///
+/// * **env** is an object of type [`Env`].
+///
+/// * **msg** is an object of type [`QueryMsg`].
 /// ## Queries
+/// * **QueryMsg::UserInfo { user }** Fetch user information
+///
+/// * **QueryMsg::GaugeInfo** Fetch last gauge information
+///
+/// * **QueryMsg::Config** Fetch contract config
+///
+/// * **QueryMsg::PoolInfo { pool_addr }** Fetch pool's voting information at the current period.
+///
+/// * **QueryMsg::PoolInfoAtPeriod { pool_addr, period }** Fetch pool's voting information at a specified period.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
@@ -346,6 +419,8 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     }
 }
 
+/// # Description
+/// Returns user information using a [`UserInfoResponse`] object.
 fn user_info(deps: Deps, user: String) -> StdResult<UserInfoResponse> {
     let user_addr = addr_validate_to_lower(deps.api, &user)?;
     USER_INFO
@@ -354,6 +429,8 @@ fn user_info(deps: Deps, user: String) -> StdResult<UserInfoResponse> {
         .ok_or_else(|| StdError::generic_err("User not found"))
 }
 
+/// # Description
+/// Returns pool's voting information using a [`VotedPoolInfo`] object at a specified period.
 fn pool_info(
     deps: Deps,
     env: Env,
