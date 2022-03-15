@@ -188,8 +188,8 @@ fn escrow_events_strategy() -> impl Strategy<Value = VeEvent> {
 
 fn controller_events_strategy(pools: Vec<String>) -> impl Strategy<Value = Event> {
     prop_oneof![
-        // Just(Event::GaugePools),
-        // (1..=10u64).prop_map(Event::ChangePoolLimit),
+        Just(Event::GaugePools),
+        (1..=10u64).prop_map(Event::ChangePoolLimit),
         prop::collection::vec((prop::sample::select(pools), 1..=10000u16), 1..10)
             .prop_map(Event::Vote)
     ]
