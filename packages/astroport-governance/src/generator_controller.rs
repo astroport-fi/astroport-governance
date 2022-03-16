@@ -24,7 +24,7 @@ pub enum ExecuteMsg {
     Vote {
         votes: Vec<(String, u16)>,
     },
-    GaugePools,
+    GaugePools {},
     ChangePoolLimit {
         limit: u64,
     },
@@ -44,8 +44,8 @@ pub enum ExecuteMsg {
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
     UserInfo { user: String },
-    GaugeInfo,
-    Config,
+    GaugeInfo {},
+    Config {},
     PoolInfo { pool_addr: String },
     PoolInfoAtPeriod { pool_addr: String, period: u64 },
 }

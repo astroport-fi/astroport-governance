@@ -190,7 +190,7 @@ fn check_gauging() {
 
     let resp: GaugeInfo = router
         .wrap()
-        .query_wasm_smart(helper.controller.clone(), &QueryMsg::GaugeInfo)
+        .query_wasm_smart(helper.controller.clone(), &QueryMsg::GaugeInfo {})
         .unwrap();
     assert_eq!(get_period(resp.gauge_ts).unwrap(), router.block_period());
     assert_eq!(resp.pool_alloc_points.len(), pairs.len());
@@ -228,7 +228,7 @@ fn check_gauging() {
 
     let resp: GaugeInfo = router
         .wrap()
-        .query_wasm_smart(helper.controller.clone(), &QueryMsg::GaugeInfo)
+        .query_wasm_smart(helper.controller.clone(), &QueryMsg::GaugeInfo {})
         .unwrap();
     assert_eq!(get_period(resp.gauge_ts).unwrap(), router.block_period());
     assert_eq!(resp.pool_alloc_points.len(), limit as usize);
@@ -278,7 +278,7 @@ fn check_bad_pools_filtering() {
     helper.gauge(&mut router, owner).unwrap();
     let resp: GaugeInfo = router
         .wrap()
-        .query_wasm_smart(helper.controller.clone(), &QueryMsg::GaugeInfo)
+        .query_wasm_smart(helper.controller.clone(), &QueryMsg::GaugeInfo {})
         .unwrap();
     // There was only one valid pool during voting
     assert_eq!(resp.pool_alloc_points.len(), 1);
@@ -343,7 +343,7 @@ fn check_bad_pools_filtering() {
 
     let resp: GaugeInfo = router
         .wrap()
-        .query_wasm_smart(helper.controller.clone(), &QueryMsg::GaugeInfo)
+        .query_wasm_smart(helper.controller.clone(), &QueryMsg::GaugeInfo {})
         .unwrap();
     // Only one pool is eligible to receive alloc points
     assert_eq!(resp.pool_alloc_points.len(), 1);

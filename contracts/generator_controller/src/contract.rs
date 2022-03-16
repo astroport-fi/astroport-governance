@@ -95,7 +95,7 @@ pub fn instantiate(
 pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> ExecuteResult {
     match msg {
         ExecuteMsg::Vote { votes } => handle_vote(deps, env, info, votes),
-        ExecuteMsg::GaugePools => gauge_generators(deps, env, info),
+        ExecuteMsg::GaugePools {} => gauge_generators(deps, env, info),
         ExecuteMsg::ChangePoolLimit { limit } => change_pools_limit(deps, info, limit),
         ExecuteMsg::ProposeNewOwner {
             new_owner,
@@ -410,8 +410,8 @@ fn change_pools_limit(deps: DepsMut, info: MessageInfo, limit: u64) -> ExecuteRe
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::UserInfo { user } => to_binary(&user_info(deps, user)?),
-        QueryMsg::GaugeInfo => to_binary(&GAUGE_INFO.load(deps.storage)?),
-        QueryMsg::Config => to_binary(&CONFIG.load(deps.storage)?),
+        QueryMsg::GaugeInfo {} => to_binary(&GAUGE_INFO.load(deps.storage)?),
+        QueryMsg::Config {} => to_binary(&CONFIG.load(deps.storage)?),
         QueryMsg::PoolInfo { pool_addr } => to_binary(&pool_info(deps, env, pool_addr, None)?),
         QueryMsg::PoolInfoAtPeriod { pool_addr, period } => {
             to_binary(&pool_info(deps, env, pool_addr, Some(period))?)
