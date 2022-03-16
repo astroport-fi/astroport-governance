@@ -195,7 +195,7 @@ Response:
 
 ### `pool_info_at_period`
 
-Returns pool voting parameters at the current block period.
+Returns pool voting parameters at specified period.
 
 Request:
 
