@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use anyhow::Result;
 use cosmwasm_std::{Addr, Decimal, Uint128};
+use itertools::Itertools;
 use proptest::prelude::*;
 use terra_multi_test::{AppResponse, Executor, TerraApp};
 
@@ -173,7 +174,7 @@ impl Simulator {
 }
 
 const MAX_PERIOD: usize = 20;
-const MAX_USERS: usize = 5;
+const MAX_USERS: usize = 10;
 const MAX_POOLS: usize = 5;
 const MAX_EVENTS: usize = 100;
 
@@ -181,17 +182,37 @@ fn escrow_events_strategy() -> impl Strategy<Value = VeEvent> {
     prop_oneof![
         Just(VeEvent::Withdraw),
         (1f64..=100f64).prop_map(VeEvent::ExtendLock),
-        (0..MAX_LOCK_TIME).prop_map(VeEvent::IncreaseTime),
-        ((1f64..=100f64), 0..MAX_LOCK_TIME).prop_map(|(a, b)| VeEvent::CreateLock(a, b)),
+        (WEEK..MAX_LOCK_TIME).prop_map(VeEvent::IncreaseTime),
+        ((1f64..=100f64), WEEK..MAX_LOCK_TIME).prop_map(|(a, b)| VeEvent::CreateLock(a, b)),
     ]
+}
+
+fn vote_strategy(pools: Vec<String>) -> impl Strategy<Value = Event> {
+    prop::collection::vec((prop::sample::select(pools), 1..=2500u16), 1..MAX_POOLS)
+        .prop_filter_map(
+            "Accepting only BPS sum <= 10000",
+            |vec: Vec<(String, u16)>| {
+                let votes = vec
+                    .iter()
+                    .into_grouping_map_by(|(pool, _)| pool.clone())
+                    .aggregate(|acc, _, (_, val)| Some(acc.unwrap_or(0) + *val))
+                    .into_iter()
+                    .collect_vec();
+                if votes.iter().map(|(_, bps)| bps).sum::<u16>() <= 10000 {
+                    Some(votes)
+                } else {
+                    None
+                }
+            },
+        )
+        .prop_map(Event::Vote)
 }
 
 fn controller_events_strategy(pools: Vec<String>) -> impl Strategy<Value = Event> {
     prop_oneof![
         Just(Event::GaugePools),
-        (1..=10u64).prop_map(Event::ChangePoolLimit),
-        prop::collection::vec((prop::sample::select(pools), 1..=10000u16), 1..10)
-            .prop_map(Event::Vote)
+        // (1..=10u64).prop_map(Event::ChangePoolLimit),
+        vote_strategy(pools)
     ]
 }
 
@@ -304,18 +325,17 @@ proptest! {
 #[test]
 fn exact_simulation() {
     let case = (
-        ["bfuakfgvlk", "sqzxtndjml"],
-        ["nwdm", "kzlt", "pahh"],
+        ["egzyhzadde", "rsgnawburh", "kxhuagnkvo"],
+        ["xyuq", "krhr"],
         [
-            (3, "sqzxtndjml", CreateLock(100.0, 3628800)),
-            (4, "bfuakfgvlk", CreateLock(100.0, 4233600)),
-            (9, "sqzxtndjml", Withdraw),
-            (9, "sqzxtndjml", CreateLock(100.0, 1814400)),
+            (4, "rsgnawburh", CreateLock(100.0, 1809600)),
+            (5, "rsgnawburh", IncreaseTime(604800)),
+            (6, "kxhuagnkvo", CreateLock(100.0, 604800)),
         ],
         [
-            (3, "sqzxtndjml", Vote(vec![("kzlt".to_string(), 10000)])),
-            (4, "bfuakfgvlk", Vote(vec![("kzlt".to_string(), 10000)])),
-            (10, "sqzxtndjml", Vote(vec![("nwdm".to_string(), 10000)])),
+            (4, "rsgnawburh", Vote(vec![("krhr".to_string(), 10000)])),
+            (6, "kxhuagnkvo", Vote(vec![("krhr".to_string(), 10000)])),
+            (6, "rsgnawburh", Vote(vec![("xyuq".to_string(), 10000)])),
         ],
     );
 
