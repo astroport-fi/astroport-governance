@@ -1,4 +1,5 @@
-use astroport::asset::AssetInfo;
+use astroport::asset::{AssetInfo, PairInfo};
+use astroport::generator::PoolInfoResponse;
 use cosmwasm_std::Addr;
 use itertools::Itertools;
 use terra_multi_test::Executor;
@@ -238,7 +239,37 @@ fn check_gauging() {
         .cloned()
         .map(|(_, apoints)| apoints.u64())
         .sum();
-    assert_eq!(total_apoints, 10000)
+    assert_eq!(total_apoints, 10000);
+
+    // Check alloc points are properly set in generator
+    for (pool_addr, apoints) in resp.pool_alloc_points {
+        let resp: PoolInfoResponse = router
+            .wrap()
+            .query_wasm_smart(
+                helper.generator.clone(),
+                &astroport::generator::QueryMsg::PoolInfo {
+                    lp_token: pool_addr.to_string(),
+                },
+            )
+            .unwrap();
+        assert_eq!(apoints, resp.alloc_point)
+    }
+
+    // Check the last pool did not receive alloc points
+    let pair_resp: PairInfo = router
+        .wrap()
+        .query_wasm_smart(pairs[2].clone(), &astroport::pair::QueryMsg::Pair {})
+        .unwrap();
+    let generator_resp: PoolInfoResponse = router
+        .wrap()
+        .query_wasm_smart(
+            helper.generator.clone(),
+            &astroport::generator::QueryMsg::PoolInfo {
+                lp_token: pair_resp.liquidity_token.to_string(),
+            },
+        )
+        .unwrap();
+    assert_eq!(generator_resp.alloc_point.u64(), 0)
 }
 
 #[test]
