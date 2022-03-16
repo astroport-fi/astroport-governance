@@ -188,24 +188,22 @@ fn escrow_events_strategy() -> impl Strategy<Value = VeEvent> {
 }
 
 fn vote_strategy(pools: Vec<String>) -> impl Strategy<Value = Event> {
-    prop::collection::vec((prop::sample::select(pools), 1..=2500u16), 1..MAX_POOLS)
-        .prop_filter_map(
-            "Accepting only BPS sum <= 10000",
-            |vec: Vec<(String, u16)>| {
-                let votes = vec
-                    .iter()
-                    .into_grouping_map_by(|(pool, _)| pool.clone())
-                    .aggregate(|acc, _, (_, val)| Some(acc.unwrap_or(0) + *val))
-                    .into_iter()
-                    .collect_vec();
-                if votes.iter().map(|(_, bps)| bps).sum::<u16>() <= 10000 {
-                    Some(votes)
-                } else {
-                    None
-                }
-            },
-        )
-        .prop_map(Event::Vote)
+    prop::collection::vec((prop::sample::select(pools), 1..=2500u16), 1..MAX_POOLS).prop_filter_map(
+        "Accepting only BPS sum <= 10000",
+        |vec: Vec<(String, u16)>| {
+            let votes = vec
+                .iter()
+                .into_grouping_map_by(|(pool, _)| pool.clone())
+                .aggregate(|acc, _, (_, val)| Some(acc.unwrap_or(0) + *val))
+                .into_iter()
+                .collect_vec();
+            if votes.iter().map(|(_, bps)| bps).sum::<u16>() <= 10000 {
+                Some(Event::Vote(votes))
+            } else {
+                None
+            }
+        },
+    )
 }
 
 fn controller_events_strategy(pools: Vec<String>) -> impl Strategy<Value = Event> {
