@@ -190,7 +190,7 @@ impl ControllerHelper {
             &astroport::factory::QueryMsg::Pair { asset_infos },
         )?;
 
-        Ok(res.contract_addr)
+        Ok(res.liquidity_token)
     }
 
     pub fn vote(

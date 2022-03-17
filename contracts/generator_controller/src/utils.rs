@@ -1,6 +1,6 @@
 use std::convert::TryInto;
 
-use astroport::asset::{AssetInfo, PairInfo};
+use astroport::asset::{pair_info_by_pool, AssetInfo};
 use astroport::factory::{PairType, PairsResponse};
 use cosmwasm_std::{
     Addr, Decimal, Deps, DepsMut, Order, Pair, QuerierWrapper, StdError, StdResult, Uint128,
@@ -119,14 +119,8 @@ pub(crate) fn filter_pools(
 
     let pools = pools
         .into_iter()
-        .filter_map(|(pair_addr, pool_info)| {
-            // Both xyk and stable pair types have the same query and response formats.
-            // However, new pair types have to inherit same formats. Otherwise we will get an error here
-            let pair_info: PairInfo = deps
-                .querier
-                .query_wasm_smart(pair_addr, &astroport::pair::QueryMsg::Pair {})
-                .ok()?;
-
+        .filter_map(|(pool_addr, pool_info)| {
+            let pair_info = pair_info_by_pool(deps, pool_addr).ok()?;
             let condition = registered_pairs.pairs.contains(&pair_info)
                 && !blocklisted_pair_types.contains(&pair_info.pair_type)
                 && !blocked_tokens.contains(&pair_info.asset_infos[0])

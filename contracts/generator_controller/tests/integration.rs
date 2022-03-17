@@ -1,4 +1,4 @@
-use astroport::asset::{AssetInfo, PairInfo};
+use astroport::asset::AssetInfo;
 use astroport::generator::PoolInfoResponse;
 use cosmwasm_std::Addr;
 use itertools::Itertools;
@@ -256,16 +256,12 @@ fn check_gauging() {
     }
 
     // Check the last pool did not receive alloc points
-    let pair_resp: PairInfo = router
-        .wrap()
-        .query_wasm_smart(pairs[2].clone(), &astroport::pair::QueryMsg::Pair {})
-        .unwrap();
     let generator_resp: PoolInfoResponse = router
         .wrap()
         .query_wasm_smart(
             helper.generator.clone(),
             &astroport::generator::QueryMsg::PoolInfo {
-                lp_token: pair_resp.liquidity_token.to_string(),
+                lp_token: pairs[2].to_string(),
             },
         )
         .unwrap();
