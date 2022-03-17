@@ -372,6 +372,9 @@ fn check_bad_pools_filtering() {
         )
         .unwrap();
 
+    router.next_block(WEEK);
+    helper.gauge(&mut router, owner).unwrap();
+
     let resp: GaugeInfo = router
         .wrap()
         .query_wasm_smart(helper.controller.clone(), &QueryMsg::GaugeInfo {})

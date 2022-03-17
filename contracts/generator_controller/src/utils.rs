@@ -1,7 +1,7 @@
 use std::convert::TryInto;
 
 use astroport::asset::{AssetInfo, PairInfo};
-use astroport::factory::PairsResponse;
+use astroport::factory::{PairType, PairsResponse};
 use cosmwasm_std::{
     Addr, Decimal, Deps, DepsMut, Order, Pair, QuerierWrapper, StdError, StdResult, Uint128,
 };
@@ -112,8 +112,10 @@ pub(crate) fn filter_pools(
         generator_addr.clone(),
         &astroport::generator::QueryMsg::BlockedListTokens {},
     )?;
-    // TODO: add blocklisted pair types query
-    let blocklisted_pair_types: Vec<_> = vec![];
+    let blocklisted_pair_types: Vec<PairType> = deps.querier.query_wasm_smart(
+        factory_addr.clone(),
+        &astroport::factory::QueryMsg::BlacklistedPairTypes {},
+    )?;
 
     let pools = pools
         .into_iter()
