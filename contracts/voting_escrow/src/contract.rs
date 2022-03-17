@@ -1,5 +1,6 @@
 use astroport::asset::addr_validate_to_lower;
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
+use astroport::DecimalCheckedOps;
 use astroport_governance::utils::{get_period, get_periods_count, EPOCH_START, WEEK};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
@@ -321,7 +322,7 @@ fn checkpoint(
             if end > point.end && add_amount.is_zero() {
                 // This is extend_lock_time. Recalculating user's voting power
                 let mut lock = LOCKED.load(deps.storage, addr.clone())?;
-                let new_voting_power = lock.amount * calc_coefficient(dt);
+                let new_voting_power = calc_coefficient(dt).checked_mul(lock.amount)?;
                 // new_voting_power should always be >= current_power. saturating_sub is used for extra safety
                 add_voting_power = new_voting_power.saturating_sub(current_power);
                 lock.last_extend_lock_period = cur_period;
@@ -329,8 +330,8 @@ fn checkpoint(
                 Decimal::from_ratio(new_voting_power, dt)
             } else {
                 // This is an increase in the user's lock amount
-                add_voting_power = add_amount * calc_coefficient(dt);
-                Decimal::from_ratio(current_power + add_voting_power, dt)
+                add_voting_power = calc_coefficient(dt).checked_mul(add_amount)?;
+                Decimal::from_ratio(current_power.checked_add(add_voting_power)?, dt)
             }
         } else {
             Decimal::zero()
@@ -353,7 +354,7 @@ fn checkpoint(
         let end =
             new_end.ok_or_else(|| StdError::generic_err("Checkpoint initialization error"))?;
         let dt = end - cur_period;
-        add_voting_power = add_amount * calc_coefficient(dt);
+        add_voting_power = calc_coefficient(dt).checked_mul(add_amount)?;
         let slope = Decimal::from_ratio(add_voting_power, dt);
         Point {
             power: add_voting_power,
