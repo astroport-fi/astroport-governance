@@ -6,8 +6,8 @@ use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_ow
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Order, Response, StdError, StdResult,
-    Uint64,
+    to_binary, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Order, Response, StdError,
+    StdResult, Uint64, WasmMsg,
 };
 use cw2::set_contract_version;
 
@@ -24,7 +24,7 @@ use crate::state::{
 };
 use crate::utils::{
     cancel_user_changes, filter_pools, get_lock_info, get_pool_info, get_voting_power,
-    setup_pools_msg, update_pool_info, vote_for_pool, VotedPoolInfoResult,
+    update_pool_info, vote_for_pool, VotedPoolInfoResult,
 };
 
 /// Contract name that is used for migration.
@@ -334,14 +334,14 @@ fn gauge_generators(mut deps: DepsMut, env: Env, info: MessageInfo) -> ExecuteRe
 
     let total_vp = winners.iter().map(|(_, vp)| vp.vxastro_amount).sum();
 
-    gauge_info.pool_alloc_points = vec![];
-    for (pool_addr, pool_info) in winners {
-        let alloc_points: u16 = BasicPoints::from_ratio(pool_info.vxastro_amount, total_vp)?.into();
-        let apoints = Uint64::from(alloc_points);
-        gauge_info
-            .pool_alloc_points
-            .push((pool_addr.clone(), apoints));
-    }
+    gauge_info.pool_alloc_points = winners
+        .iter()
+        .map(|(pool_addr, pool_info)| {
+            let alloc_points: u16 =
+                BasicPoints::from_ratio(pool_info.vxastro_amount, total_vp)?.into();
+            Ok((pool_addr.to_string(), alloc_points.into()))
+        })
+        .collect::<Result<Vec<_>, ContractError>>()?;
 
     // Small residual may exist because of integer division. Let the first place get it.
     let total_apoints: u64 = gauge_info
@@ -355,7 +355,13 @@ fn gauge_generators(mut deps: DepsMut, env: Env, info: MessageInfo) -> ExecuteRe
     }
 
     // Set new alloc points
-    let setup_pools_msg = setup_pools_msg(&config.generator_addr, &gauge_info.pool_alloc_points)?;
+    let setup_pools_msg = CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: config.generator_addr.to_string(),
+        msg: to_binary(&astroport::generator::ExecuteMsg::SetupPools {
+            pools: gauge_info.pool_alloc_points.clone(),
+        })?,
+        funds: vec![],
+    });
 
     gauge_info.gauge_ts = env.block.time.seconds();
     GAUGE_INFO.save(deps.storage, &gauge_info)?;

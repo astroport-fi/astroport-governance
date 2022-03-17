@@ -1,21 +1,20 @@
-use crate::bps::BasicPoints;
-use astroport::asset::{AssetInfo, PairInfo};
-use astroport::factory::PairsResponse;
 use std::convert::TryInto;
 
-use crate::state::{VotedPoolInfo, POOLS, POOL_PERIODS, POOL_SLOPE_CHANGES, POOL_VOTES};
-
-use astroport_governance::voting_escrow::QueryMsg::LockInfo;
-use astroport_governance::voting_escrow::{
-    LockInfoResponse, QueryMsg::UserVotingPower, VotingPowerResponse,
-};
+use astroport::asset::{AssetInfo, PairInfo};
+use astroport::factory::PairsResponse;
 use cosmwasm_std::{
-    to_binary, Addr, CosmosMsg, Decimal, Deps, DepsMut, Order, Pair, QuerierWrapper, StdError,
-    StdResult, Uint128, Uint64, WasmMsg,
+    Addr, Decimal, Deps, DepsMut, Order, Pair, QuerierWrapper, StdError, StdResult, Uint128,
 };
 use cw_storage_plus::{Bound, U64Key};
 
 use astroport_governance::utils::calc_voting_power;
+use astroport_governance::voting_escrow::QueryMsg::LockInfo;
+use astroport_governance::voting_escrow::{
+    LockInfoResponse, QueryMsg::UserVotingPower, VotingPowerResponse,
+};
+
+use crate::bps::BasicPoints;
+use crate::state::{VotedPoolInfo, POOLS, POOL_PERIODS, POOL_SLOPE_CHANGES, POOL_VOTES};
 
 /// ## Description
 /// The enum defines math operations with voting power and slope.
@@ -354,25 +353,4 @@ pub(crate) fn fetch_slope_changes(
         )
         .map(deserialize_pair)
         .collect()
-}
-
-/// ## Description
-/// Builds [`astroport::generator::ExecuteMsg::SetupPools`] message from &[([`Addr`], [`Uint64`])] slice.
-pub(crate) fn setup_pools_msg(
-    generator_addr: &Addr,
-    pool_apoints: &[(Addr, Uint64)],
-) -> StdResult<CosmosMsg> {
-    let pool_apoints: Vec<_> = pool_apoints
-        .iter()
-        .map(|(pool_addr, apoints)| (pool_addr.to_string(), *apoints))
-        .collect();
-    let msg = CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: generator_addr.to_string(),
-        msg: to_binary(&astroport::generator::ExecuteMsg::SetupPools {
-            pools: pool_apoints,
-        })?,
-        funds: vec![],
-    });
-
-    Ok(msg)
 }

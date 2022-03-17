@@ -81,7 +81,7 @@ pub struct VotedPoolInfoResponse {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Default)]
 pub struct GaugeInfoResponse {
     pub gauge_ts: u64,
-    pub pool_alloc_points: Vec<(Addr, Uint64)>,
+    pub pool_alloc_points: Vec<(String, Uint64)>,
 }
 
 /// The struct describes response with last user's votes parameters.
