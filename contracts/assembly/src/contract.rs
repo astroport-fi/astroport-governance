@@ -1,7 +1,6 @@
 use cosmwasm_std::{
     attr, entry_point, from_binary, to_binary, Addr, Binary, CosmosMsg, Decimal, Deps, DepsMut,
-    Env, MessageInfo, Order, QuerierWrapper, Response, StdResult, Storage, Uint128, Uint64,
-    WasmMsg,
+    Env, MessageInfo, Order, Response, StdResult, Uint128, Uint64, WasmMsg,
 };
 use cw2::set_contract_version;
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20ReceiveMsg};
@@ -318,12 +317,7 @@ pub fn cast_vote(
         return Err(ContractError::UserAlreadyVoted {});
     }
 
-    let voting_power = calc_voting_power(
-        deps.storage,
-        &deps.querier,
-        info.sender.to_string(),
-        &proposal,
-    )?;
+    let voting_power = calc_voting_power(deps.as_ref(), info.sender.to_string(), &proposal)?;
 
     if voting_power.is_zero() {
         return Err(ContractError::NoVotingPower {});
@@ -620,12 +614,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 
             addr_validate_to_lower(deps.api, &user)?;
 
-            to_binary(&calc_voting_power(
-                deps.storage,
-                &deps.querier,
-                user,
-                &proposal,
-            )?)
+            to_binary(&calc_voting_power(deps, user, &proposal)?)
         }
     }
 }
@@ -709,15 +698,10 @@ pub fn query_proposal_votes(deps: Deps, proposal_id: u64) -> StdResult<ProposalV
 /// * **sender** is an object of type [`String`]. This is the address whose voting power we calculate.
 ///
 /// * **proposal** is an object of type [`Proposal`]. This is the proposal for which we want to compute the `sender` (voter) voting power.
-pub fn calc_voting_power(
-    store: &dyn Storage,
-    querier: &QuerierWrapper,
-    sender: String,
-    proposal: &Proposal,
-) -> StdResult<Uint128> {
-    let config = CONFIG.load(store)?;
+pub fn calc_voting_power(deps: Deps, sender: String, proposal: &Proposal) -> StdResult<Uint128> {
+    let config = CONFIG.load(deps.storage)?;
 
-    let xastro_amount: BalanceResponse = querier.query_wasm_smart(
+    let xastro_amount: BalanceResponse = deps.querier.query_wasm_smart(
         config.xastro_token_addr,
         &XAstroTokenQueryMsg::BalanceAt {
             address: sender.clone(),
@@ -727,7 +711,7 @@ pub fn calc_voting_power(
 
     let mut total = xastro_amount.balance;
 
-    let locked_amount: AllocationResponse = querier.query_wasm_smart(
+    let locked_amount: AllocationResponse = deps.querier.query_wasm_smart(
         config.builder_unlock_addr,
         &BuilderUnlockQueryMsg::Allocation {
             account: sender.clone(),
@@ -739,7 +723,7 @@ pub fn calc_voting_power(
             .checked_add(locked_amount.params.amount - locked_amount.status.astro_withdrawn)?;
     }
 
-    let vxastro_amount: VotingPowerResponse = querier.query_wasm_smart(
+    let vxastro_amount: VotingPowerResponse = deps.querier.query_wasm_smart(
         config.vxastro_token_addr,
         &VotingEscrowQueryMsg::UserVotingPowerAt {
             user: sender,
