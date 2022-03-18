@@ -691,9 +691,7 @@ pub fn query_proposal_votes(deps: Deps, proposal_id: u64) -> StdResult<ProposalV
 /// ## Description
 /// Calculates an address' voting power at the specified block.
 /// ## Params
-/// * **store** is an object of type [`Storage`].
-///
-/// * **querier** is an object of type [`QuerierWrapper`].
+/// * **deps** is an object of type [`Deps`].
 ///
 /// * **sender** is an object of type [`String`]. This is the address whose voting power we calculate.
 ///
