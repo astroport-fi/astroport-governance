@@ -153,3 +153,15 @@ Returns information about the votes cast on a proposal.
   }
 }
 ```
+
+### `user_voting_power`
+
+Returns voting power of the given user.
+
+```json
+{
+  "user_voting_power": {
+    "user": "terra..."
+  }
+}
+```
