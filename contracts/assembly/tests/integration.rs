@@ -547,7 +547,7 @@ fn proper_successful_proposal() {
     for (addr, option, expected_vp) in votes {
         let sender = Addr::unchecked(addr);
 
-        check_user_vp(&mut app, &assembly_addr, &sender, expected_vp);
+        check_user_vp(&mut app, &assembly_addr, &sender, 1, expected_vp);
 
         cast_vote(&mut app, assembly_addr.clone(), 1, sender, option).unwrap();
     }
@@ -1162,13 +1162,20 @@ fn check_token_balance(app: &mut TerraApp, token: &Addr, address: &Addr, expecte
     assert_eq!(res.unwrap().balance, Uint128::from(expected));
 }
 
-fn check_user_vp(app: &mut TerraApp, assembly: &Addr, address: &Addr, expected: u128) {
+fn check_user_vp(
+    app: &mut TerraApp,
+    assembly: &Addr,
+    address: &Addr,
+    proposal_id: u64,
+    expected: u128,
+) {
     let res: Uint128 = app
         .wrap()
         .query_wasm_smart(
             assembly.to_string(),
             &QueryMsg::UserVotingPower {
                 user: address.to_string(),
+                proposal_id,
             },
         )
         .unwrap();

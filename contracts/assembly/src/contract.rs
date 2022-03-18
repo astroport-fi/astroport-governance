@@ -318,12 +318,11 @@ pub fn cast_vote(
         return Err(ContractError::UserAlreadyVoted {});
     }
 
-    let voting_power = calc_voting_power_at(
+    let voting_power = calc_voting_power(
         deps.storage,
         &deps.querier,
-        &info.sender,
-        proposal.start_block,
-        proposal.start_time - 1,
+        info.sender.to_string(),
+        &proposal,
     )?;
 
     if voting_power.is_zero() {
@@ -606,9 +605,9 @@ pub fn update_config(
 ///
 /// * **QueryMsg::ProposalVotes { proposal_id }** Returns proposal vote counts that are stored in the [`ProposalVotesResponse`] structure.
 ///
-/// * **QueryMsg::UserVotingPower { user }** Returns voting power of the given user.
+/// * **QueryMsg::UserVotingPower { user, proposal_id }** Returns user voting power for a specific proposal.
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Config {} => to_binary(&query_config(deps)?),
         QueryMsg::Proposals { start, limit } => to_binary(&query_proposals(deps, start, limit)?),
@@ -616,15 +615,16 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::ProposalVotes { proposal_id } => {
             to_binary(&query_proposal_votes(deps, proposal_id)?)
         }
-        QueryMsg::UserVotingPower { user } => {
-            let user = addr_validate_to_lower(deps.api, &user)?;
+        QueryMsg::UserVotingPower { user, proposal_id } => {
+            let proposal = PROPOSALS.load(deps.storage, U64Key::new(proposal_id))?;
 
-            to_binary(&calc_voting_power_at(
+            addr_validate_to_lower(deps.api, &user)?;
+
+            to_binary(&calc_voting_power(
                 deps.storage,
                 &deps.querier,
-                &user,
-                env.block.height,
-                env.block.time.seconds(),
+                user,
+                &proposal,
             )?)
         }
     }
@@ -706,25 +706,22 @@ pub fn query_proposal_votes(deps: Deps, proposal_id: u64) -> StdResult<ProposalV
 ///
 /// * **querier** is an object of type [`QuerierWrapper`].
 ///
-/// * **sender** is an object of type [`Addr`]. This is the address whose voting power we calculate.
+/// * **sender** is an object of type [`String`]. This is the address whose voting power we calculate.
 ///
-/// * **block** is a parameter of type `u64`. Block height for voting power calculation.
-///
-/// * **time** is a parameter of type `u64`. Timestamp for voting power calculation
-pub fn calc_voting_power_at(
+/// * **proposal** is an object of type [`Proposal`]. This is the proposal for which we want to compute the `sender` (voter) voting power.
+pub fn calc_voting_power(
     store: &dyn Storage,
     querier: &QuerierWrapper,
-    sender: &Addr,
-    block: u64,
-    time: u64,
+    sender: String,
+    proposal: &Proposal,
 ) -> StdResult<Uint128> {
     let config = CONFIG.load(store)?;
 
     let xastro_amount: BalanceResponse = querier.query_wasm_smart(
         config.xastro_token_addr,
         &XAstroTokenQueryMsg::BalanceAt {
-            address: sender.to_string(),
-            block,
+            address: sender.clone(),
+            block: proposal.start_block,
         },
     )?;
 
@@ -733,7 +730,7 @@ pub fn calc_voting_power_at(
     let locked_amount: AllocationResponse = querier.query_wasm_smart(
         config.builder_unlock_addr,
         &BuilderUnlockQueryMsg::Allocation {
-            account: sender.to_string(),
+            account: sender.clone(),
         },
     )?;
 
@@ -745,8 +742,8 @@ pub fn calc_voting_power_at(
     let vxastro_amount: VotingPowerResponse = querier.query_wasm_smart(
         config.vxastro_token_addr,
         &VotingEscrowQueryMsg::UserVotingPowerAt {
-            user: sender.to_string(),
-            time,
+            user: sender,
+            time: proposal.start_time - 1,
         },
     )?;
 

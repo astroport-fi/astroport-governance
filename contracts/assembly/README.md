@@ -156,12 +156,13 @@ Returns information about the votes cast on a proposal.
 
 ### `user_voting_power`
 
-Returns voting power of the given user.
+Returns user voting power for a specific proposal.
 
 ```json
 {
   "user_voting_power": {
-    "user": "terra..."
+    "user": "terra...",
+    "proposal_id": 123
   }
 }
 ```

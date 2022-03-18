@@ -78,16 +78,11 @@ pub enum QueryMsg {
         limit: Option<u32>,
     },
     /// Return information about a specific proposal
-    Proposal {
-        proposal_id: u64,
-    },
+    Proposal { proposal_id: u64 },
     /// Return information about the votes cast on a specific proposal
-    ProposalVotes {
-        proposal_id: u64,
-    },
-    UserVotingPower {
-        user: String,
-    },
+    ProposalVotes { proposal_id: u64 },
+    /// Return user voting power for a specific proposal
+    UserVotingPower { user: String, proposal_id: u64 },
 }
 
 /// ## Description
