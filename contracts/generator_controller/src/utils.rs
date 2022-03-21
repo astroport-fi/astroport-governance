@@ -3,7 +3,7 @@ use std::convert::TryInto;
 use astroport::asset::{pair_info_by_pool, AssetInfo};
 use astroport::factory::{PairType, PairsResponse};
 use cosmwasm_std::{
-    Addr, Decimal, Deps, DepsMut, Order, Pair, QuerierWrapper, StdError, StdResult, Uint128,
+    Addr, Decimal, Deps, Order, Pair, QuerierWrapper, StdError, StdResult, Storage, Uint128,
 };
 use cw_storage_plus::{Bound, U64Key};
 
@@ -46,16 +46,6 @@ impl Operation {
 pub(crate) enum VotedPoolInfoResult {
     Unchanged(VotedPoolInfo),
     New(VotedPoolInfo),
-}
-
-impl VotedPoolInfoResult {
-    pub fn get(self) -> VotedPoolInfo {
-        match self {
-            VotedPoolInfoResult::Unchanged(pool_info) | VotedPoolInfoResult::New(pool_info) => {
-                pool_info
-            }
-        }
-    }
 }
 
 /// ## Description
@@ -141,7 +131,7 @@ pub(crate) fn filter_pools(
 /// Firstly, it removes slope change scheduled for previous lockup end period.  
 /// Secondly, it updates voting parameters for the given period, but without user's vote.
 pub(crate) fn cancel_user_changes(
-    deps: DepsMut,
+    storage: &mut dyn Storage,
     period: u64,
     pool_addr: &Addr,
     old_bps: BasicPoints,
@@ -150,22 +140,21 @@ pub(crate) fn cancel_user_changes(
     old_lock_end: u64,
 ) -> StdResult<()> {
     // Cancel scheduled slope changes
-    let last_pool_period =
-        fetch_last_pool_period(deps.as_ref(), period, pool_addr)?.unwrap_or(period);
+    let last_pool_period = fetch_last_pool_period(storage, period, pool_addr)?.unwrap_or(period);
     if last_pool_period < old_lock_end + 1 {
         let end_period_key = U64Key::new(old_lock_end + 1);
         let old_scheduled_change =
-            POOL_SLOPE_CHANGES.load(deps.as_ref().storage, (pool_addr, end_period_key.clone()))?;
+            POOL_SLOPE_CHANGES.load(storage, (pool_addr, end_period_key.clone()))?;
         let new_slope = old_scheduled_change - old_bps * old_slope;
         if !new_slope.is_zero() {
-            POOL_SLOPE_CHANGES.save(deps.storage, (pool_addr, end_period_key), &new_slope)?
+            POOL_SLOPE_CHANGES.save(storage, (pool_addr, end_period_key), &new_slope)?
         } else {
-            POOL_SLOPE_CHANGES.remove(deps.storage, (pool_addr, end_period_key))
+            POOL_SLOPE_CHANGES.remove(storage, (pool_addr, end_period_key))
         }
     }
 
     update_pool_info(
-        deps,
+        storage,
         period,
         pool_addr,
         Some((old_bps, old_vp, old_slope, Operation::Sub)),
@@ -178,7 +167,7 @@ pub(crate) fn cancel_user_changes(
 /// Firstly, it schedules slope change for lockup end period.  
 /// Secondly, it updates voting parameters with applied user's vote.
 pub(crate) fn vote_for_pool(
-    deps: DepsMut,
+    storage: &mut dyn Storage,
     period: u64,
     pool_addr: &Addr,
     bps: BasicPoints,
@@ -188,7 +177,7 @@ pub(crate) fn vote_for_pool(
 ) -> StdResult<()> {
     // Schedule slope changes
     POOL_SLOPE_CHANGES.update::<_, StdError>(
-        deps.storage,
+        storage,
         (pool_addr, U64Key::new(lock_end + 1)),
         |slope_opt| {
             if let Some(saved_slope) = slope_opt {
@@ -199,7 +188,7 @@ pub(crate) fn vote_for_pool(
         },
     )?;
     update_pool_info(
-        deps,
+        storage,
         period,
         pool_addr,
         Some((bps, vp, slope, Operation::Add)),
@@ -213,13 +202,16 @@ pub(crate) fn vote_for_pool(
 /// If there are no changes in 'changes' parameter
 /// and voting parameters were already calculated before the function just returns [`VotedPoolInfo`].
 pub(crate) fn update_pool_info(
-    deps: DepsMut,
+    storage: &mut dyn Storage,
     period: u64,
     pool_addr: &Addr,
     changes: Option<(BasicPoints, Uint128, Decimal, Operation)>,
 ) -> StdResult<VotedPoolInfo> {
+    if POOLS.may_load(storage, pool_addr)?.is_none() {
+        POOLS.save(storage, pool_addr, &())?
+    }
     let period_key = U64Key::new(period);
-    let pool_info = match get_pool_info(deps.as_ref(), period, pool_addr)? {
+    let pool_info = match get_pool_info_mut(storage, period, pool_addr)? {
         VotedPoolInfoResult::Unchanged(mut pool_info) | VotedPoolInfoResult::New(mut pool_info)
             if changes.is_some() =>
         {
@@ -227,19 +219,13 @@ pub(crate) fn update_pool_info(
                 pool_info.slope = op.calc_slope(pool_info.slope, slope, bps);
                 pool_info.vxastro_amount = op.calc_voting_power(pool_info.vxastro_amount, vp, bps);
             }
-            if POOLS.may_load(deps.storage, pool_addr)?.is_none() {
-                POOLS.save(deps.storage, pool_addr, &())?
-            }
-            POOL_PERIODS.save(deps.storage, (pool_addr, period_key.clone()), &())?;
-            POOL_VOTES.save(deps.storage, (period_key, pool_addr), &pool_info)?;
+            POOL_PERIODS.save(storage, (pool_addr, period_key.clone()), &())?;
+            POOL_VOTES.save(storage, (period_key, pool_addr), &pool_info)?;
             pool_info
         }
         VotedPoolInfoResult::New(pool_info) => {
-            if POOLS.may_load(deps.storage, pool_addr)?.is_none() {
-                POOLS.save(deps.storage, pool_addr, &())?
-            }
-            POOL_PERIODS.save(deps.storage, (pool_addr, period_key.clone()), &())?;
-            POOL_VOTES.save(deps.storage, (period_key, pool_addr), &pool_info)?;
+            POOL_PERIODS.save(storage, (pool_addr, period_key.clone()), &())?;
+            POOL_VOTES.save(storage, (period_key, pool_addr), &pool_info)?;
             pool_info
         }
         VotedPoolInfoResult::Unchanged(pool_info) => pool_info,
@@ -248,68 +234,117 @@ pub(crate) fn update_pool_info(
     Ok(pool_info)
 }
 
-/// ## Description
-/// Returns pool info at specified period or calculates it.
-pub(crate) fn get_pool_info(
-    deps: Deps,
+pub(crate) fn get_pool_info_mut(
+    storage: &mut dyn Storage,
     period: u64,
     pool_addr: &Addr,
 ) -> StdResult<VotedPoolInfoResult> {
     let pool_info_result = if let Some(pool_info) =
-        POOL_VOTES.may_load(deps.storage, (U64Key::new(period), pool_addr))?
+        POOL_VOTES.may_load(storage, (U64Key::new(period), pool_addr))?
     {
         VotedPoolInfoResult::Unchanged(pool_info)
     } else {
-        let pool_info =
-            if let Some(mut prev_period) = fetch_last_pool_period(deps, period, pool_addr)? {
-                let mut pool_info =
-                    POOL_VOTES.load(deps.storage, (U64Key::new(prev_period), pool_addr))?;
-                // Recalculating passed periods
-                let scheduled_slope_changes =
-                    fetch_slope_changes(deps, pool_addr, prev_period, period)?;
-                for (recalc_period, scheduled_change) in scheduled_slope_changes {
-                    pool_info = VotedPoolInfo {
-                        vxastro_amount: calc_voting_power(
-                            pool_info.slope,
-                            pool_info.vxastro_amount,
-                            prev_period,
-                            recalc_period,
-                        ),
-                        slope: pool_info.slope - scheduled_change,
-                    };
-                    prev_period = recalc_period
-                }
-
-                VotedPoolInfo {
+        let pool_info_result = if let Some(mut prev_period) =
+            fetch_last_pool_period(storage, period, pool_addr)?
+        {
+            let mut pool_info = POOL_VOTES.load(storage, (U64Key::new(prev_period), pool_addr))?;
+            // Recalculating passed periods
+            let scheduled_slope_changes =
+                fetch_slope_changes(storage, pool_addr, prev_period, period)?;
+            for (recalc_period, scheduled_change) in scheduled_slope_changes {
+                pool_info = VotedPoolInfo {
                     vxastro_amount: calc_voting_power(
                         pool_info.slope,
                         pool_info.vxastro_amount,
                         prev_period,
-                        period,
+                        recalc_period,
                     ),
-                    ..pool_info
-                }
-            } else {
-                VotedPoolInfo::default()
-            };
+                    slope: pool_info.slope - scheduled_change,
+                };
+                // Save intermediate result
+                let recalc_period_key = U64Key::new(recalc_period);
+                POOL_PERIODS.save(storage, (pool_addr, recalc_period_key.clone()), &())?;
+                POOL_VOTES.save(storage, (recalc_period_key, pool_addr), &pool_info)?;
+                prev_period = recalc_period
+            }
 
-        VotedPoolInfoResult::New(pool_info)
+            VotedPoolInfo {
+                vxastro_amount: calc_voting_power(
+                    pool_info.slope,
+                    pool_info.vxastro_amount,
+                    prev_period,
+                    period,
+                ),
+                ..pool_info
+            }
+        } else {
+            VotedPoolInfo::default()
+        };
+
+        VotedPoolInfoResult::New(pool_info_result)
     };
 
     Ok(pool_info_result)
 }
 
 /// ## Description
+/// Returns pool info at specified period or calculates it.
+pub(crate) fn get_pool_info(
+    storage: &dyn Storage,
+    period: u64,
+    pool_addr: &Addr,
+) -> StdResult<VotedPoolInfo> {
+    let pool_info = if let Some(pool_info) =
+        POOL_VOTES.may_load(storage, (U64Key::new(period), pool_addr))?
+    {
+        pool_info
+    } else {
+        if let Some(mut prev_period) = fetch_last_pool_period(storage, period, pool_addr)? {
+            let mut pool_info = POOL_VOTES.load(storage, (U64Key::new(prev_period), pool_addr))?;
+            // Recalculating passed periods
+            let scheduled_slope_changes =
+                fetch_slope_changes(storage, pool_addr, prev_period, period)?;
+            for (recalc_period, scheduled_change) in scheduled_slope_changes {
+                pool_info = VotedPoolInfo {
+                    vxastro_amount: calc_voting_power(
+                        pool_info.slope,
+                        pool_info.vxastro_amount,
+                        prev_period,
+                        recalc_period,
+                    ),
+                    slope: pool_info.slope - scheduled_change,
+                };
+                prev_period = recalc_period
+            }
+
+            VotedPoolInfo {
+                vxastro_amount: calc_voting_power(
+                    pool_info.slope,
+                    pool_info.vxastro_amount,
+                    prev_period,
+                    period,
+                ),
+                ..pool_info
+            }
+        } else {
+            VotedPoolInfo::default()
+        }
+    };
+
+    Ok(pool_info)
+}
+
+/// ## Description
 /// Fetches last period for specified pool which has saved result in [`POOL_PERIODS`].
 pub(crate) fn fetch_last_pool_period(
-    deps: Deps,
+    storage: &dyn Storage,
     period: u64,
     pool_addr: &Addr,
 ) -> StdResult<Option<u64>> {
     let period_opt = POOL_PERIODS
         .prefix(pool_addr)
         .range(
-            deps.storage,
+            storage,
             None,
             Some(Bound::Exclusive(U64Key::new(period).wrapped)),
             Order::Descending,
@@ -334,7 +369,7 @@ pub(crate) fn deserialize_pair<T>(pair: StdResult<Pair<T>>) -> StdResult<(u64, T
 /// ## Description
 /// Fetches all slope changes between `last_period` and `period` for specific pool.
 pub(crate) fn fetch_slope_changes(
-    deps: Deps,
+    storage: &dyn Storage,
     pool_addr: &Addr,
     last_period: u64,
     period: u64,
@@ -342,7 +377,7 @@ pub(crate) fn fetch_slope_changes(
     POOL_SLOPE_CHANGES
         .prefix(pool_addr)
         .range(
-            deps.storage,
+            storage,
             Some(Bound::Exclusive(U64Key::new(last_period).wrapped)),
             Some(Bound::Inclusive(U64Key::new(period).wrapped)),
             Order::Ascending,

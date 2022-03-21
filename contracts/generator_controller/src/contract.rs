@@ -24,7 +24,7 @@ use crate::state::{
 };
 use crate::utils::{
     cancel_user_changes, filter_pools, get_lock_info, get_pool_info, get_voting_power,
-    update_pool_info, vote_for_pool, VotedPoolInfoResult,
+    update_pool_info, vote_for_pool,
 };
 
 /// Contract name that is used for migration.
@@ -158,7 +158,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> E
 /// Pair consists of pool address and percentage of user's voting power for a given pool.
 /// Percentage should be in BPS form.
 fn handle_vote(
-    mut deps: DepsMut,
+    deps: DepsMut,
     env: Env,
     info: MessageInfo,
     votes: Vec<(String, u16)>,
@@ -219,7 +219,7 @@ fn handle_vote(
         // Cancel changes applied by previous votes
         user_info.votes.iter().try_for_each(|(pool_addr, bps)| {
             cancel_user_changes(
-                deps.branch(),
+                deps.storage,
                 block_period + 1,
                 pool_addr,
                 *bps,
@@ -243,7 +243,7 @@ fn handle_vote(
     // Votes are applied to the next period
     votes.iter().try_for_each(|(pool_addr, bps)| {
         vote_for_pool(
-            deps.branch(),
+            deps.storage,
             block_period + 1,
             pool_addr,
             *bps,
@@ -281,7 +281,7 @@ fn handle_vote(
 /// * **env** is an object of type [`Env`].
 ///
 /// * **info** is an object of type [`MessageInfo`].
-fn gauge_generators(mut deps: DepsMut, env: Env, info: MessageInfo) -> ExecuteResult {
+fn gauge_generators(deps: DepsMut, env: Env, info: MessageInfo) -> ExecuteResult {
     let mut gauge_info = GAUGE_INFO.load(deps.storage)?;
     let config = CONFIG.load(deps.storage)?;
     let block_period = get_period(env.block.time.seconds())?;
@@ -302,7 +302,7 @@ fn gauge_generators(mut deps: DepsMut, env: Env, info: MessageInfo) -> ExecuteRe
             let pool_addr = String::from_utf8(pool_addr_serialized)
                 .map_err(|_| StdError::generic_err("Deserialization error"))
                 .and_then(|pool_addr_string| addr_validate_to_lower(deps.api, &pool_addr_string))?;
-            let pool_info = update_pool_info(deps.branch(), block_period, &pool_addr, None)?;
+            let pool_info = update_pool_info(deps.storage, block_period, &pool_addr, None)?;
             // Remove pools with zero voting power so we won't iterate over them in future
             if pool_info.vxastro_amount.is_zero() {
                 POOLS.remove(deps.storage, &pool_addr)
@@ -446,7 +446,7 @@ fn pool_info(
     let pool_addr = addr_validate_to_lower(deps.api, &pool_addr)?;
     let block_period = get_period(env.block.time.seconds())?;
     let period = period.unwrap_or(block_period);
-    get_pool_info(deps, period, &pool_addr).map(VotedPoolInfoResult::get)
+    get_pool_info(deps.storage, period, &pool_addr)
 }
 
 /// ## Description
