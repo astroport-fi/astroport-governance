@@ -282,8 +282,8 @@ fn check_bad_pools_filtering() {
     let tokens = [&foo_token, &bar_token, &adn_token];
     let pairs: Vec<_> = tokens
         .iter()
-        .cartesian_product(tokens.clone())
-        .filter_map(|(&token1, token2)| helper.create_pool(&mut router, token1, &token2).ok())
+        .cartesian_product(tokens)
+        .filter_map(|(&token1, token2)| helper.create_pool(&mut router, token1, token2).ok())
         .collect();
 
     helper.escrow_helper.mint_xastro(&mut router, user, 1000);

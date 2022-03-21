@@ -298,37 +298,34 @@ pub(crate) fn get_pool_info(
         POOL_VOTES.may_load(storage, (U64Key::new(period), pool_addr))?
     {
         pool_info
-    } else {
-        if let Some(mut prev_period) = fetch_last_pool_period(storage, period, pool_addr)? {
-            let mut pool_info = POOL_VOTES.load(storage, (U64Key::new(prev_period), pool_addr))?;
-            // Recalculating passed periods
-            let scheduled_slope_changes =
-                fetch_slope_changes(storage, pool_addr, prev_period, period)?;
-            for (recalc_period, scheduled_change) in scheduled_slope_changes {
-                pool_info = VotedPoolInfo {
-                    vxastro_amount: calc_voting_power(
-                        pool_info.slope,
-                        pool_info.vxastro_amount,
-                        prev_period,
-                        recalc_period,
-                    ),
-                    slope: pool_info.slope - scheduled_change,
-                };
-                prev_period = recalc_period
-            }
-
-            VotedPoolInfo {
+    } else if let Some(mut prev_period) = fetch_last_pool_period(storage, period, pool_addr)? {
+        let mut pool_info = POOL_VOTES.load(storage, (U64Key::new(prev_period), pool_addr))?;
+        // Recalculating passed periods
+        let scheduled_slope_changes = fetch_slope_changes(storage, pool_addr, prev_period, period)?;
+        for (recalc_period, scheduled_change) in scheduled_slope_changes {
+            pool_info = VotedPoolInfo {
                 vxastro_amount: calc_voting_power(
                     pool_info.slope,
                     pool_info.vxastro_amount,
                     prev_period,
-                    period,
+                    recalc_period,
                 ),
-                ..pool_info
-            }
-        } else {
-            VotedPoolInfo::default()
+                slope: pool_info.slope - scheduled_change,
+            };
+            prev_period = recalc_period
         }
+
+        VotedPoolInfo {
+            vxastro_amount: calc_voting_power(
+                pool_info.slope,
+                pool_info.vxastro_amount,
+                prev_period,
+                period,
+            ),
+            ..pool_info
+        }
+    } else {
+        VotedPoolInfo::default()
     };
 
     Ok(pool_info)
