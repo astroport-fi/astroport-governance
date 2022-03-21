@@ -1,7 +1,8 @@
 use std::convert::TryInto;
 
 use astroport::asset::{pair_info_by_pool, AssetInfo};
-use astroport::factory::{PairType, PairsResponse};
+use astroport::factory::PairType;
+use astroport::querier::query_pairs_info;
 use cosmwasm_std::{
     Addr, Decimal, Deps, Order, Pair, QuerierWrapper, StdError, StdResult, Storage, Uint128,
 };
@@ -91,13 +92,24 @@ pub(crate) fn filter_pools(
     factory_addr: &Addr,
     pools: Vec<(Addr, VotedPoolInfo)>,
 ) -> StdResult<Vec<(Addr, VotedPoolInfo)>> {
-    let registered_pairs: PairsResponse = deps.querier.query_wasm_smart(
-        factory_addr.clone(),
-        &astroport::factory::QueryMsg::Pairs {
-            start_after: None,
-            limit: None,
-        },
-    )?;
+    // Retrieving all pairs
+    let mut start_after = None;
+    let mut registered_pairs = vec![];
+    loop {
+        let mut pairs_response = query_pairs_info(
+            &deps.querier,
+            factory_addr.clone(),
+            start_after.clone(),
+            None,
+        )?;
+        if let Some(pair) = pairs_response.pairs.last() {
+            start_after = Some(pair.asset_infos.clone())
+        } else {
+            break;
+        }
+        registered_pairs.append(&mut pairs_response.pairs)
+    }
+
     let blocked_tokens: Vec<AssetInfo> = deps.querier.query_wasm_smart(
         generator_addr.clone(),
         &astroport::generator::QueryMsg::BlockedListTokens {},
@@ -111,7 +123,7 @@ pub(crate) fn filter_pools(
         .into_iter()
         .filter_map(|(pool_addr, pool_info)| {
             let pair_info = pair_info_by_pool(deps, pool_addr).ok()?;
-            let condition = registered_pairs.pairs.contains(&pair_info)
+            let condition = registered_pairs.contains(&pair_info)
                 && !blocklisted_pair_types.contains(&pair_info.pair_type)
                 && !blocked_tokens.contains(&pair_info.asset_infos[0])
                 && !blocked_tokens.contains(&pair_info.asset_infos[1]);
