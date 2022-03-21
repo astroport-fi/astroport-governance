@@ -48,21 +48,7 @@ dependencies = [
 [[package]]
 name = "astroport"
 version = "1.2.0"
-source = "git+https://github.com/astroport-fi/astroport.git?tag=v1.2.0#bd8f8599e1b1867b6e6a005bc4cef209699683e6"
-dependencies = [
- "cosmwasm-std",
- "cw-storage-plus 0.8.1",
- "cw20",
- "schemars",
- "serde",
- "terra-cosmwasm",
- "uint",
-]
-
-[[package]]
-name = "astroport"
-version = "1.2.0"
-source = "git+https://github.com/astroport-fi/astroport.git?branch=main#dd1e682f196dd0e3d382fda7bea6737f104f39c7"
+source = "git+https://github.com/astroport-fi/astroport-core.git?tag=v1.2.0#bd8f8599e1b1867b6e6a005bc4cef209699683e6"
 dependencies = [
  "cosmwasm-std",
  "cw-storage-plus 0.8.1",
@@ -151,9 +137,9 @@ dependencies = [
 [[package]]
 name = "astroport-factory"
 version = "1.2.0"
-source = "git+https://github.com/astroport-fi/astroport.git?branch=main#dd1e682f196dd0e3d382fda7bea6737f104f39c7"
+source = "git+https://github.com/astroport-fi/astroport-core.git?branch=main#dd1e682f196dd0e3d382fda7bea6737f104f39c7"
 dependencies = [
- "astroport 1.2.0 (git+https://github.com/astroport-fi/astroport.git?branch=main)",
+ "astroport 1.2.0 (git+https://github.com/astroport-fi/astroport-core.git?branch=main)",
  "cosmwasm-std",
  "cw-storage-plus 0.8.1",
  "cw2",
@@ -166,9 +152,9 @@ dependencies = [
 [[package]]
 name = "astroport-generator"
 version = "1.2.0"
-source = "git+https://github.com/astroport-fi/astroport.git?branch=main#dd1e682f196dd0e3d382fda7bea6737f104f39c7"
+source = "git+https://github.com/astroport-fi/astroport-core.git?branch=main#dd1e682f196dd0e3d382fda7bea6737f104f39c7"
 dependencies = [
- "astroport 1.2.0 (git+https://github.com/astroport-fi/astroport.git?branch=main)",
+ "astroport 1.2.0 (git+https://github.com/astroport-fi/astroport-core.git?branch=main)",
  "cosmwasm-std",
  "cw-storage-plus 0.8.1",
  "cw2",
@@ -194,9 +180,9 @@ dependencies = [
 [[package]]
 name = "astroport-pair"
 version = "1.0.0"
-source = "git+https://github.com/astroport-fi/astroport.git?branch=main#dd1e682f196dd0e3d382fda7bea6737f104f39c7"
+source = "git+https://github.com/astroport-fi/astroport-core.git?branch=main#dd1e682f196dd0e3d382fda7bea6737f104f39c7"
 dependencies = [
- "astroport 1.2.0 (git+https://github.com/astroport-fi/astroport.git?branch=main)",
+ "astroport 1.2.0 (git+https://github.com/astroport-fi/astroport-core.git?branch=main)",
  "cosmwasm-bignumber",
  "cosmwasm-std",
  "cw-storage-plus 0.8.1",
@@ -212,9 +198,9 @@ dependencies = [
 [[package]]
 name = "astroport-staking"
 version = "1.0.0"
-source = "git+https://github.com/astroport-fi/astroport.git?tag=v1.2.0#bd8f8599e1b1867b6e6a005bc4cef209699683e6"
+source = "git+https://github.com/astroport-fi/astroport-core.git?tag=v1.2.0#bd8f8599e1b1867b6e6a005bc4cef209699683e6"
 dependencies = [
- "astroport 1.2.0 (git+https://github.com/astroport-fi/astroport.git?tag=v1.2.0)",
+ "astroport 1.2.0 (git+https://github.com/astroport-fi/astroport-core.git?tag=v1.2.0)",
  "cosmwasm-std",
  "cw-storage-plus 0.8.1",
  "cw2",
@@ -280,9 +266,9 @@ dependencies = [
 [[package]]
 name = "astroport-token"
 version = "1.0.0"
-source = "git+https://github.com/astroport-fi/astroport.git?tag=v1.2.0#bd8f8599e1b1867b6e6a005bc4cef209699683e6"
+source = "git+https://github.com/astroport-fi/astroport-core.git?tag=v1.2.0#bd8f8599e1b1867b6e6a005bc4cef209699683e6"
 dependencies = [
- "astroport 1.2.0 (git+https://github.com/astroport-fi/astroport.git?tag=v1.2.0)",
+ "astroport 1.2.0 (git+https://github.com/astroport-fi/astroport-core.git?tag=v1.2.0)",
  "cosmwasm-std",
  "cw2",
  "cw20",
@@ -838,8 +824,8 @@ dependencies = [
  "astroport-generator",
  "astroport-governance",
  "astroport-pair",
- "astroport-staking 1.0.0 (git+https://github.com/astroport-fi/astroport.git?tag=v1.2.0)",
- "astroport-token 1.0.0 (git+https://github.com/astroport-fi/astroport.git?tag=v1.2.0)",
+ "astroport-staking 1.0.0 (git+https://github.com/astroport-fi/astroport-core.git?tag=v1.2.0)",
+ "astroport-token 1.0.0 (git+https://github.com/astroport-fi/astroport-core.git?tag=v1.2.0)",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 0.8.1",

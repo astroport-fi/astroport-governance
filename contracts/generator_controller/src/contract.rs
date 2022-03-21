@@ -307,27 +307,23 @@ fn gauge_generators(deps: DepsMut, env: Env, info: MessageInfo) -> ExecuteResult
             if pool_info.vxastro_amount.is_zero() {
                 POOLS.remove(deps.storage, &pool_addr)
             }
-            Ok((pool_addr, pool_info))
+            Ok((pool_addr, pool_info.vxastro_amount))
         })
         .collect::<StdResult<Vec<_>>>()?
         .into_iter()
-        .filter(|(_, pool_info)| !pool_info.vxastro_amount.is_zero())
+        .filter(|(_, vxastro_amount)| !vxastro_amount.is_zero())
         .collect();
 
-    pool_votes = filter_pools(
+    // Sort in descending order
+    pool_votes.sort_by(|(_, a), (_, b)| b.cmp(a));
+
+    gauge_info.pool_alloc_points = filter_pools(
         deps.as_ref(),
         &config.generator_addr,
         &config.factory_addr,
         pool_votes,
+        config.pools_limit,
     )?;
-
-    pool_votes.sort_by(|(_, a), (_, b)| a.vxastro_amount.cmp(&b.vxastro_amount));
-    gauge_info.pool_alloc_points = pool_votes
-        .iter()
-        .rev()
-        .take(config.pools_limit as usize)
-        .map(|(pool_addr, pool_info)| (pool_addr.to_string(), pool_info.vxastro_amount))
-        .collect();
 
     if gauge_info.pool_alloc_points.is_empty() {
         return Err(ContractError::GaugeNoPools {});
