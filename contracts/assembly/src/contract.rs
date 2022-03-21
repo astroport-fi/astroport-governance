@@ -317,7 +317,7 @@ pub fn cast_vote(
         return Err(ContractError::UserAlreadyVoted {});
     }
 
-    let voting_power = calc_voting_power(&deps, info.sender.to_string(), &proposal)?;
+    let voting_power = calc_voting_power(deps.as_ref(), info.sender.to_string(), &proposal)?;
 
     if voting_power.is_zero() {
         return Err(ContractError::NoVotingPower {});
@@ -598,6 +598,8 @@ pub fn update_config(
 /// * **QueryMsg::Proposal { proposal_id }** Returns a [`Proposal`] according to the specified `proposal_id`.
 ///
 /// * **QueryMsg::ProposalVotes { proposal_id }** Returns proposal vote counts that are stored in the [`ProposalVotesResponse`] structure.
+///
+/// * **QueryMsg::UserVotingPower { user, proposal_id }** Returns user voting power for a specific proposal.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
@@ -606,6 +608,13 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::Proposal { proposal_id } => to_binary(&query_proposal(deps, proposal_id)?),
         QueryMsg::ProposalVotes { proposal_id } => {
             to_binary(&query_proposal_votes(deps, proposal_id)?)
+        }
+        QueryMsg::UserVotingPower { user, proposal_id } => {
+            let proposal = PROPOSALS.load(deps.storage, U64Key::new(proposal_id))?;
+
+            addr_validate_to_lower(deps.api, &user)?;
+
+            to_binary(&calc_voting_power(deps, user, &proposal)?)
         }
     }
 }
@@ -682,16 +691,12 @@ pub fn query_proposal_votes(deps: Deps, proposal_id: u64) -> StdResult<ProposalV
 /// ## Description
 /// Calculates an address' voting power at the specified block.
 /// ## Params
-/// * **deps** is an object of type [`DepsMut`].
+/// * **deps** is an object of type [`Deps`].
 ///
 /// * **sender** is an object of type [`String`]. This is the address whose voting power we calculate.
 ///
 /// * **proposal** is an object of type [`Proposal`]. This is the proposal for which we want to compute the `sender` (voter) voting power.
-pub fn calc_voting_power(
-    deps: &DepsMut,
-    sender: String,
-    proposal: &Proposal,
-) -> StdResult<Uint128> {
+pub fn calc_voting_power(deps: Deps, sender: String, proposal: &Proposal) -> StdResult<Uint128> {
     let config = CONFIG.load(deps.storage)?;
 
     let xastro_amount: BalanceResponse = deps.querier.query_wasm_smart(

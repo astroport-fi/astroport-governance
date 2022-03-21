@@ -81,6 +81,8 @@ pub enum QueryMsg {
     Proposal { proposal_id: u64 },
     /// Return information about the votes cast on a specific proposal
     ProposalVotes { proposal_id: u64 },
+    /// Return user voting power for a specific proposal
+    UserVotingPower { user: String, proposal_id: u64 },
 }
 
 /// ## Description
