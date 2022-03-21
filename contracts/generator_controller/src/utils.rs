@@ -234,6 +234,8 @@ pub(crate) fn update_pool_info(
     Ok(pool_info)
 }
 
+/// ## Description
+/// Returns pool info at specified period or calculates it. Saves intermediate results in storage.
 pub(crate) fn get_pool_info_mut(
     storage: &mut dyn Storage,
     period: u64,
