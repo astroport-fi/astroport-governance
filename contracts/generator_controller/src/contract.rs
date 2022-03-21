@@ -7,7 +7,7 @@ use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_ow
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     to_binary, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Order, Response, StdError,
-    StdResult, Uint64, WasmMsg,
+    StdResult, WasmMsg,
 };
 use cw2::set_contract_version;
 
@@ -322,36 +322,15 @@ fn gauge_generators(deps: DepsMut, env: Env, info: MessageInfo) -> ExecuteResult
     )?;
 
     pool_votes.sort_by(|(_, a), (_, b)| a.vxastro_amount.cmp(&b.vxastro_amount));
-    let winners: Vec<_> = pool_votes
-        .into_iter()
+    gauge_info.pool_alloc_points = pool_votes
+        .iter()
         .rev()
         .take(config.pools_limit as usize)
+        .map(|(pool_addr, pool_info)| (pool_addr.to_string(), pool_info.vxastro_amount))
         .collect();
 
-    if winners.is_empty() {
+    if gauge_info.pool_alloc_points.is_empty() {
         return Err(ContractError::GaugeNoPools {});
-    }
-
-    let total_vp = winners.iter().map(|(_, vp)| vp.vxastro_amount).sum();
-
-    gauge_info.pool_alloc_points = winners
-        .iter()
-        .map(|(pool_addr, pool_info)| {
-            let alloc_points: u16 =
-                BasicPoints::from_ratio(pool_info.vxastro_amount, total_vp)?.into();
-            Ok((pool_addr.to_string(), alloc_points.into()))
-        })
-        .collect::<Result<Vec<_>, ContractError>>()?;
-
-    // Small residual may exist because of integer division. Let the first place get it.
-    let total_apoints: u64 = gauge_info
-        .pool_alloc_points
-        .iter()
-        .map(|(_, apoints)| apoints.u64())
-        .sum();
-    let residual = Uint64::from(BasicPoints::MAX as u64 - total_apoints);
-    if let Some((_, apoints)) = gauge_info.pool_alloc_points.first_mut() {
-        *apoints += residual
     }
 
     // Set new alloc points

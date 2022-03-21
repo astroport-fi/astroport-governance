@@ -195,13 +195,13 @@ fn check_gauging() {
         .unwrap();
     assert_eq!(get_period(resp.gauge_ts).unwrap(), router.block_period());
     assert_eq!(resp.pool_alloc_points.len(), pairs.len());
-    let total_apoints: u64 = resp
+    let total_apoints: u128 = resp
         .pool_alloc_points
         .iter()
         .cloned()
-        .map(|(_, apoints)| apoints.u64())
+        .map(|(_, apoints)| apoints.u128())
         .sum();
-    assert_eq!(total_apoints, 10000);
+    assert_eq!(total_apoints, 357423073);
 
     router.next_block(2 * WEEK);
     // Reduce pools limit 5 -> 2 (5 is initial limit in integration tests)
@@ -233,13 +233,13 @@ fn check_gauging() {
         .unwrap();
     assert_eq!(get_period(resp.gauge_ts).unwrap(), router.block_period());
     assert_eq!(resp.pool_alloc_points.len(), limit as usize);
-    let total_apoints: u64 = resp
+    let total_apoints: u128 = resp
         .pool_alloc_points
         .iter()
         .cloned()
-        .map(|(_, apoints)| apoints.u64())
+        .map(|(_, apoints)| apoints.u128())
         .sum();
-    assert_eq!(total_apoints, 10000);
+    assert_eq!(total_apoints, 191009613);
 
     // Check alloc points are properly set in generator
     for (pool_addr, apoints) in resp.pool_alloc_points {
@@ -265,7 +265,7 @@ fn check_gauging() {
             },
         )
         .unwrap();
-    assert_eq!(generator_resp.alloc_point.u64(), 0)
+    assert_eq!(generator_resp.alloc_point.u128(), 0)
 }
 
 #[test]
@@ -377,13 +377,13 @@ fn check_bad_pools_filtering() {
         .unwrap();
     // Only one pool is eligible to receive alloc points
     assert_eq!(resp.pool_alloc_points.len(), 1);
-    let total_apoints: u64 = resp
+    let total_apoints: u128 = resp
         .pool_alloc_points
         .iter()
         .cloned()
-        .map(|(_, apoints)| apoints.u64())
+        .map(|(_, apoints)| apoints.u128())
         .sum();
-    assert_eq!(total_apoints, 10000)
+    assert_eq!(total_apoints, 36615384)
 }
 
 #[test]
