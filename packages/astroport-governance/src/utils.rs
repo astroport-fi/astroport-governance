@@ -66,21 +66,15 @@ impl DecimalRoundedCheckedMul for Decimal {
 }
 
 /// # Description
-/// Wrapper over `calc_voting_power_by_dt()`, where `dt = (x - previous_x)`
+/// Main function used to calculate a user's voting power at a specific period as: previous_power - slope*(x - previous_x).
 pub fn calc_voting_power(
     slope: Decimal,
     old_vp: Uint128,
     start_period: u64,
     end_period: u64,
 ) -> Uint128 {
-    calc_voting_power_by_dt(slope, old_vp, end_period - start_period)
-}
-
-/// # Description
-/// Main function used to calculate a user's voting power at a specific period as: previous_power - slope*dt.
-pub fn calc_voting_power_by_dt(slope: Decimal, old_vp: Uint128, dt: u64) -> Uint128 {
     let shift = slope
-        .checked_mul(Uint128::from(dt))
+        .checked_mul(Uint128::from(end_period - start_period))
         .unwrap_or_else(|_| Uint128::zero());
     old_vp.saturating_sub(shift)
 }
