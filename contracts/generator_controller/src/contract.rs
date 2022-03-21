@@ -166,7 +166,7 @@ fn handle_vote(
     let user = info.sender;
     let block_period = get_period(env.block.time.seconds())?;
     let escrow_addr = CONFIG.load(deps.storage)?.escrow_addr;
-    let mut user_vp = get_voting_power(deps.querier, &escrow_addr, &user)?;
+    let user_vp = get_voting_power(deps.querier, &escrow_addr, &user)?;
 
     if user_vp.is_zero() {
         return Err(ContractError::ZeroVotingPower {});
@@ -231,14 +231,6 @@ fn handle_vote(
     }
 
     let lock_info = get_lock_info(deps.querier, &escrow_addr, &user)?;
-
-    // User's lock was not changed thus we continue to use last voting power decay
-    if user_info.slope == lock_info.slope
-        && !user_info.slope.is_zero()
-        && user_info.lock_end == lock_info.end
-    {
-        user_vp = old_vp_at_period
-    }
 
     // Votes are applied to the next period
     votes.iter().try_for_each(|(pool_addr, bps)| {
