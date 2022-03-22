@@ -210,7 +210,7 @@ fn check_gauging() {
         .execute_contract(
             Addr::unchecked("somebody"),
             helper.controller.clone(),
-            &ExecuteMsg::ChangePoolLimit { limit },
+            &ExecuteMsg::ChangePoolsLimit { limit },
             &[],
         )
         .unwrap_err();
@@ -220,7 +220,7 @@ fn check_gauging() {
         .execute_contract(
             owner_addr.clone(),
             helper.controller.clone(),
-            &ExecuteMsg::ChangePoolLimit { limit },
+            &ExecuteMsg::ChangePoolsLimit { limit },
             &[],
         )
         .unwrap();

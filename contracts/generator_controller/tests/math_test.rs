@@ -142,7 +142,7 @@ impl Simulator {
             .execute_contract(
                 self.owner.clone(),
                 self.helper.controller.clone(),
-                &ExecuteMsg::ChangePoolLimit { limit },
+                &ExecuteMsg::ChangePoolsLimit { limit },
                 &[],
             )
             .map(|response| {

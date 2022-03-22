@@ -25,7 +25,7 @@ pub enum ExecuteMsg {
         votes: Vec<(String, u16)>,
     },
     GaugePools {},
-    ChangePoolLimit {
+    ChangePoolsLimit {
         limit: u64,
     },
     /// Propose a new owner for the contract

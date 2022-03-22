@@ -96,7 +96,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> E
     match msg {
         ExecuteMsg::Vote { votes } => handle_vote(deps, env, info, votes),
         ExecuteMsg::GaugePools {} => gauge_generators(deps, env, info),
-        ExecuteMsg::ChangePoolLimit { limit } => change_pools_limit(deps, info, limit),
+        ExecuteMsg::ChangePoolsLimit { limit } => change_pools_limit(deps, info, limit),
         ExecuteMsg::ProposeNewOwner {
             new_owner,
             expires_in,
