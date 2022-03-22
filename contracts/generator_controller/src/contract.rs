@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 use std::convert::TryInto;
 
-use astroport::asset::addr_validate_to_lower;
+use astroport::asset::{addr_validate_to_lower, pair_info_by_pool};
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
@@ -193,6 +193,9 @@ fn handle_vote(
         .into_iter()
         .map(|(addr, bps)| {
             let addr = addr_validate_to_lower(deps.api, &addr)?;
+            // Check an address is a lp token
+            pair_info_by_pool(deps.as_ref(), addr.clone())
+                .map_err(|_| ContractError::InvalidLPTokenAddress(addr.to_string()))?;
             let bps: BasicPoints = bps.try_into()?;
             Ok((addr, bps))
         })

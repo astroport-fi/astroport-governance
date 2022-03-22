@@ -23,6 +23,9 @@ pub enum ContractError {
     #[error("You can only run this action every {0} days")]
     CooldownError(u64),
 
+    #[error("Invalid lp token address: {0}")]
+    InvalidLPTokenAddress(String),
+
     #[error("Votes contain duplicated pool addresses")]
     DuplicatedPools {},
 

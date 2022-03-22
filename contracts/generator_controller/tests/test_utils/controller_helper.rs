@@ -193,16 +193,28 @@ impl ControllerHelper {
         Ok(res.liquidity_token)
     }
 
+    pub fn create_pool_with_tokens(
+        &self,
+        router: &mut TerraApp,
+        name1: &str,
+        name2: &str,
+    ) -> AnyResult<Addr> {
+        let token1 = self.init_cw20_token(router, name1).unwrap();
+        let token2 = self.init_cw20_token(router, name2).unwrap();
+
+        self.create_pool(router, &token1, &token2)
+    }
+
     pub fn vote(
         &self,
         router: &mut TerraApp,
         user: &str,
-        votes: Vec<(&str, u16)>,
+        votes: Vec<(impl Into<String>, u16)>,
     ) -> AnyResult<AppResponse> {
         let msg = ExecuteMsg::Vote {
             votes: votes
                 .into_iter()
-                .map(|(pool, apoints)| (pool.to_string(), apoints))
+                .map(|(pool, apoints)| (pool.into(), apoints))
                 .collect(),
         };
 
