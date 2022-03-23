@@ -626,28 +626,25 @@ fn test_successful_proposal() {
         }]),
     );
 
-    let expected_voting_power: Vec<(&str, ProposalVoteOption)> = vec![
-        ("user1", ProposalVoteOption::For),
-        ("user2", ProposalVoteOption::For),
-        ("user3", ProposalVoteOption::For),
-        ("user4", ProposalVoteOption::For),
-        ("user5", ProposalVoteOption::For),
-        ("user6", ProposalVoteOption::For),
-        ("user7", ProposalVoteOption::For),
-        ("user8", ProposalVoteOption::Against),
-        ("user9", ProposalVoteOption::Against),
-        ("user10", ProposalVoteOption::Against),
+    let votes: Vec<(&str, ProposalVoteOption, u128)> = vec![
+        ("user1", ProposalVoteOption::For, 237u128),
+        ("user2", ProposalVoteOption::For, 272u128),
+        ("user3", ProposalVoteOption::For, 472u128),
+        ("user4", ProposalVoteOption::For, 336u128),
+        ("user5", ProposalVoteOption::For, 154u128),
+        ("user6", ProposalVoteOption::For, 444u128),
+        ("user7", ProposalVoteOption::For, 130u128),
+        ("user8", ProposalVoteOption::Against, 252u128),
+        ("user9", ProposalVoteOption::Against, 50u128),
+        ("user10", ProposalVoteOption::Against, 184u128),
     ];
 
-    for (addr, option) in expected_voting_power {
-        cast_vote(
-            &mut app,
-            assembly_addr.clone(),
-            1,
-            Addr::unchecked(addr),
-            option,
-        )
-        .unwrap();
+    for (addr, option, expected_vp) in votes {
+        let sender = Addr::unchecked(addr);
+
+        check_user_vp(&mut app, &assembly_addr, &sender, 1, expected_vp);
+
+        cast_vote(&mut app, assembly_addr.clone(), 1, sender, option).unwrap();
     }
 
     let proposal: Proposal = app
@@ -1378,6 +1375,27 @@ fn check_token_balance(app: &mut TerraApp, token: &Addr, address: &Addr, expecte
     };
     let res: StdResult<BalanceResponse> = app.wrap().query_wasm_smart(token, &msg);
     assert_eq!(res.unwrap().balance, Uint128::from(expected));
+}
+
+fn check_user_vp(
+    app: &mut TerraApp,
+    assembly: &Addr,
+    address: &Addr,
+    proposal_id: u64,
+    expected: u128,
+) {
+    let res: Uint128 = app
+        .wrap()
+        .query_wasm_smart(
+            assembly.to_string(),
+            &QueryMsg::UserVotingPower {
+                user: address.to_string(),
+                proposal_id,
+            },
+        )
+        .unwrap();
+
+    assert_eq!(res.u128(), expected);
 }
 
 fn cast_vote(
