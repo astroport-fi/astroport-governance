@@ -29,14 +29,14 @@ use terra_multi_test::{
 };
 
 const PROPOSAL_VOTING_PERIOD: u64 = 500;
-const PROPOSAL_EFFECTIVE_DELAY: u64 = 50;
-const PROPOSAL_EXPIRATION_PERIOD: u64 = 400;
+const PROPOSAL_EFFECTIVE_DELAY: u64 = 17_280;
+const PROPOSAL_EXPIRATION_PERIOD: u64 = 120_960;
 const PROPOSAL_REQUIRED_DEPOSIT: u128 = 1000u128;
 const PROPOSAL_REQUIRED_QUORUM: &str = "0.50";
 const PROPOSAL_REQUIRED_THRESHOLD: &str = "0.60";
 
 #[test]
-fn proper_contract_instantiation() {
+fn test_contract_instantiation() {
     let mut app = mock_app();
 
     let owner = Addr::unchecked("owner");
@@ -65,6 +65,7 @@ fn proper_contract_instantiation() {
         proposal_required_deposit: Uint128::from(PROPOSAL_REQUIRED_DEPOSIT),
         proposal_required_quorum: String::from(PROPOSAL_REQUIRED_QUORUM),
         proposal_required_threshold: String::from(PROPOSAL_REQUIRED_THRESHOLD),
+        whitelisted_links: None,
     };
 
     // Try to instantiate assembly with wrong threshold
@@ -125,6 +126,44 @@ fn proper_contract_instantiation() {
         "Generic error: The required quorum for a proposal cannot be higher than 100%"
     );
 
+    let res = app
+        .instantiate_contract(
+            assembly_code,
+            owner.clone(),
+            &InstantiateMsg {
+                proposal_expiration_period: 500,
+                ..assembly_default_instantiate_msg.clone()
+            },
+            &[],
+            "Assembly".to_string(),
+            Some(owner.to_string()),
+        )
+        .unwrap_err();
+
+    assert_eq!(
+        res.to_string(),
+        "Generic error: The expiration period for a proposal cannot be less than 120960 blocks."
+    );
+
+    let res = app
+        .instantiate_contract(
+            assembly_code,
+            owner.clone(),
+            &InstantiateMsg {
+                proposal_effective_delay: 400,
+                ..assembly_default_instantiate_msg.clone()
+            },
+            &[],
+            "Assembly".to_string(),
+            Some(owner.to_string()),
+        )
+        .unwrap_err();
+
+    assert_eq!(
+        res.to_string(),
+        "Generic error: The effective delay for a proposal cannot be less than 17280 blocks."
+    );
+
     let assembly_instance = app
         .instantiate_contract(
             assembly_code,
@@ -161,7 +200,7 @@ fn proper_contract_instantiation() {
 }
 
 #[test]
-fn proper_proposal_submitting() {
+fn test_proposal_submitting() {
     let mut app = mock_app();
 
     let owner = Addr::unchecked("owner");
@@ -226,7 +265,7 @@ fn proper_proposal_submitting() {
         )
         .unwrap_err();
 
-    assert_eq!(res.to_string(), "Title too short");
+    assert_eq!(res.to_string(), "Generic error: Title too short!");
 
     let res = app
         .execute_contract(
@@ -247,7 +286,7 @@ fn proper_proposal_submitting() {
         )
         .unwrap_err();
 
-    assert_eq!(res.to_string(), "Title too long");
+    assert_eq!(res.to_string(), "Generic error: Title too long!");
 
     // Try to create a proposal with wrong description
     let res = app
@@ -269,7 +308,7 @@ fn proper_proposal_submitting() {
         )
         .unwrap_err();
 
-    assert_eq!(res.to_string(), "Description too short");
+    assert_eq!(res.to_string(), "Generic error: Description too short!");
 
     let res = app
         .execute_contract(
@@ -290,7 +329,7 @@ fn proper_proposal_submitting() {
         )
         .unwrap_err();
 
-    assert_eq!(res.to_string(), "Description too long");
+    assert_eq!(res.to_string(), "Generic error: Description too long!");
 
     // Try to create a proposal with wrong link
     let res = app
@@ -312,7 +351,7 @@ fn proper_proposal_submitting() {
         )
         .unwrap_err();
 
-    assert_eq!(res.to_string(), "Link too short");
+    assert_eq!(res.to_string(), "Generic error: Link too short!");
 
     let res = app
         .execute_contract(
@@ -333,7 +372,54 @@ fn proper_proposal_submitting() {
         )
         .unwrap_err();
 
-    assert_eq!(res.to_string(), "Link too long");
+    assert_eq!(res.to_string(), "Generic error: Link too long!");
+
+    let res = app
+        .execute_contract(
+            user.clone(),
+            xastro_addr.clone(),
+            &Cw20ExecuteMsg::Send {
+                contract: assembly_addr.to_string(),
+                msg: to_binary(&Cw20HookMsg::SubmitProposal {
+                    title: String::from("Title"),
+                    description: String::from("Description"),
+                    link: Some(String::from("https://some1.link")),
+                    messages: None,
+                })
+                .unwrap(),
+                amount: Uint128::from(1000u128),
+            },
+            &[],
+        )
+        .unwrap_err();
+
+    assert_eq!(res.to_string(), "Generic error: Link is not whitelisted!");
+
+    let res = app
+        .execute_contract(
+            user.clone(),
+            xastro_addr.clone(),
+            &Cw20ExecuteMsg::Send {
+                contract: assembly_addr.to_string(),
+                msg: to_binary(&Cw20HookMsg::SubmitProposal {
+                    title: String::from("Title"),
+                    description: String::from("Description"),
+                    link: Some(String::from(
+                        "https://some.link/<script>alert('test');</script>",
+                    )),
+                    messages: None,
+                })
+                .unwrap(),
+                amount: Uint128::from(1000u128),
+            },
+            &[],
+        )
+        .unwrap_err();
+
+    assert_eq!(
+        res.to_string(),
+        "Generic error: Link is not in a secured format! Use ASCII format and avoid unsafe characters."
+    );
 
     // Valid proposal submission
     app.execute_contract(
@@ -344,7 +430,7 @@ fn proper_proposal_submitting() {
             msg: to_binary(&Cw20HookMsg::SubmitProposal {
                 title: String::from("Title"),
                 description: String::from("Description"),
-                link: Some(String::from("https://some.link")),
+                link: Some(String::from("https://some.link/q")),
                 messages: Some(vec![ProposalMessage {
                     order: Uint64::from(0u32),
                     msg: CosmosMsg::Wasm(WasmMsg::Execute {
@@ -359,6 +445,8 @@ fn proper_proposal_submitting() {
                             proposal_required_deposit: None,
                             proposal_required_quorum: None,
                             proposal_required_threshold: None,
+                            whitelist_add: None,
+                            whitelist_remove: None,
                         }))
                         .unwrap(),
                         funds: vec![],
@@ -391,7 +479,7 @@ fn proper_proposal_submitting() {
     assert_eq!(proposal.end_block, 12_345 + 500);
     assert_eq!(proposal.title, String::from("Title"));
     assert_eq!(proposal.description, String::from("Description"));
-    assert_eq!(proposal.link, Some(String::from("https://some.link")));
+    assert_eq!(proposal.link, Some(String::from("https://some.link/q")));
     assert_eq!(
         proposal.messages,
         Some(vec![ProposalMessage {
@@ -408,6 +496,8 @@ fn proper_proposal_submitting() {
                     proposal_required_deposit: None,
                     proposal_required_quorum: None,
                     proposal_required_threshold: None,
+                    whitelist_add: None,
+                    whitelist_remove: None,
                 }))
                 .unwrap(),
                 funds: vec![],
@@ -418,7 +508,7 @@ fn proper_proposal_submitting() {
 }
 
 #[test]
-fn proper_successful_proposal() {
+fn test_successful_proposal() {
     let mut app = mock_app();
 
     let owner = Addr::unchecked("owner");
@@ -524,6 +614,11 @@ fn proper_successful_proposal() {
                     proposal_required_deposit: None,
                     proposal_required_quorum: None,
                     proposal_required_threshold: None,
+                    whitelist_add: Some(vec![
+                        "https://some1.link".to_string(),
+                        "https://some2.link".to_string(),
+                    ]),
+                    whitelist_remove: Some(vec!["https://some.link".to_string()]),
                 }))
                 .unwrap(),
                 funds: vec![],
@@ -706,6 +801,13 @@ fn proper_successful_proposal() {
 
     // Check execution result
     assert_eq!(config.proposal_voting_period, 750);
+    assert_eq!(
+        config.whitelisted_links,
+        vec![
+            "https://some1.link".to_string(),
+            "https://some2.link".to_string(),
+        ]
+    );
     assert_eq!(proposal.status, ProposalStatus::Executed);
 
     // Try to remove proposal before expiration period
@@ -751,7 +853,119 @@ fn proper_successful_proposal() {
 }
 
 #[test]
-fn proper_unsuccessful_proposal() {
+fn test_voting_power_changes() {
+    let mut app = mock_app();
+
+    let owner = Addr::unchecked("owner");
+
+    let (_, xastro_addr, _, _, assembly_addr) = instantiate_contracts(&mut app, owner);
+
+    // Mint tokens for submitting proposal
+    mint_tokens(
+        &mut app,
+        &xastro_addr,
+        &Addr::unchecked("user0"),
+        PROPOSAL_REQUIRED_DEPOSIT,
+    );
+
+    // Mint tokens for casting votes at start block
+    mint_tokens(&mut app, &xastro_addr, &Addr::unchecked("user1"), 4000);
+
+    app.update_block(next_block);
+
+    // Create proposal
+    create_proposal(
+        &mut app,
+        &xastro_addr,
+        &assembly_addr,
+        Addr::unchecked("user0"),
+        Some(vec![ProposalMessage {
+            order: Uint64::from(0u32),
+            msg: CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: assembly_addr.to_string(),
+                msg: to_binary(&ExecuteMsg::UpdateConfig(UpdateConfig {
+                    xastro_token_addr: None,
+                    vxastro_token_addr: None,
+                    builder_unlock_addr: None,
+                    proposal_voting_period: Some(750),
+                    proposal_effective_delay: None,
+                    proposal_expiration_period: None,
+                    proposal_required_deposit: None,
+                    proposal_required_quorum: None,
+                    proposal_required_threshold: None,
+                    whitelist_add: None,
+                    whitelist_remove: None,
+                }))
+                .unwrap(),
+                funds: vec![],
+            }),
+        }]),
+    );
+    // Mint user2's tokens at the same block to increase total supply and add voting power to try to cast vote.
+    mint_tokens(&mut app, &xastro_addr, &Addr::unchecked("user2"), 50000);
+
+    app.update_block(next_block);
+
+    // user1 can vote as he had voting power before the proposal submitting.
+    cast_vote(
+        &mut app,
+        assembly_addr.clone(),
+        1,
+        Addr::unchecked("user1"),
+        ProposalVoteOption::For,
+    )
+    .unwrap();
+    // Should panic, because user2 doesn't have any voting power.
+    let res = cast_vote(
+        &mut app,
+        assembly_addr.clone(),
+        1,
+        Addr::unchecked("user2"),
+        ProposalVoteOption::Against,
+    )
+    .unwrap_err();
+
+    // user2 doesn't have voting power and doesn't affect on total voting power(total supply at)
+    // total supply = 5000
+    assert_eq!(res.to_string(), "You don't have any voting power!");
+
+    app.update_block(next_block);
+
+    // Skip voting period and delay
+    app.update_block(|bi| {
+        bi.height += PROPOSAL_VOTING_PERIOD + PROPOSAL_EFFECTIVE_DELAY + 1;
+        bi.time = bi
+            .time
+            .plus_seconds(5 * (PROPOSAL_VOTING_PERIOD + PROPOSAL_EFFECTIVE_DELAY + 1));
+    });
+
+    // End proposal
+    app.execute_contract(
+        Addr::unchecked("user0"),
+        assembly_addr.clone(),
+        &ExecuteMsg::EndProposal { proposal_id: 1 },
+        &[],
+    )
+    .unwrap();
+
+    let proposal: Proposal = app
+        .wrap()
+        .query_wasm_smart(
+            assembly_addr.clone(),
+            &QueryMsg::Proposal { proposal_id: 1 },
+        )
+        .unwrap();
+
+    // Check proposal votes
+    assert_eq!(proposal.for_power, Uint128::from(4000u32));
+    assert_eq!(proposal.against_power, Uint128::zero());
+    // Should be passed, as total_voting_power=5000, for_votes=4000.
+    // So user2 didn't affect the result. Because he had to have xASTRO before the vote was submitted.
+    assert_eq!(proposal.status, ProposalStatus::Passed);
+}
+
+#[test]
+fn test_unsuccessful_proposal() {
     let mut app = mock_app();
 
     let owner = Addr::unchecked("owner");
@@ -1068,6 +1282,7 @@ fn instantiate_assembly_contract(
         proposal_required_deposit: Uint128::new(PROPOSAL_REQUIRED_DEPOSIT),
         proposal_required_quorum: String::from(PROPOSAL_REQUIRED_QUORUM),
         proposal_required_threshold: String::from(PROPOSAL_REQUIRED_THRESHOLD),
+        whitelisted_links: Some(vec!["https://some.link".to_string()]),
     };
 
     router

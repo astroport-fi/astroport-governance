@@ -15,7 +15,10 @@ Instantiate the contract with proposal parameter limitations and the xASTRO and 
   "proposal_expiration_period": 123,
   "proposal_required_deposit": "123",
   "proposal_required_quorum": "0.55",
-  "proposal_required_threshold": "0.55"
+  "proposal_required_threshold": "0.55",
+  "whitelisted_links": [
+    "https://some.link"
+  ]
 }
 ```
 
@@ -98,7 +101,13 @@ Update contract parameters. Only the Assembly is allowed to update its own param
     "proposal_expiration_period": 123,
     "proposal_required_deposit": "123",
     "proposal_required_quorum": "0.55",
-    "proposal_required_threshold": "0.55"
+    "proposal_required_threshold": "0.55",
+    "whitelist_add": [
+      "https://some1.link"
+    ],
+    "whitelist_remove": [
+      "https://some2.link"
+    ]
   }
 }
 ```

@@ -6,6 +6,16 @@ use std::fmt::{Display, Formatter, Result};
 
 pub const MINIMUM_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE: u64 = 50;
 pub const MAX_PROPOSAL_REQUIRED_PERCENTAGE: u64 = 100;
+pub const MINIMUM_DELAY: u64 = 17_280; // 1 day in blocks (5 seconds as 1 block)
+pub const MINIMUM_EXPIRATION_PERIOD: u64 = 120_960; // 1 week in blocks (5 seconds as 1 block)
+
+// Proposal validation attributes
+const MIN_TITLE_LENGTH: usize = 4;
+const MAX_TITLE_LENGTH: usize = 64;
+const MIN_DESC_LENGTH: usize = 4;
+const MAX_DESC_LENGTH: usize = 1024;
+const MIN_LINK_LENGTH: usize = 12;
+const MAX_LINK_LENGTH: usize = 128;
 
 /// This structure holds the parameters used for creating an Assembly contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -28,6 +38,8 @@ pub struct InstantiateMsg {
     pub proposal_required_quorum: String,
     /// Proposal required threshold
     pub proposal_required_threshold: String,
+    /// Whitelisted links
+    pub whitelisted_links: Option<Vec<String>>,
 }
 
 /// This enum describes all execute functions available in the contract.
@@ -118,6 +130,8 @@ pub struct Config {
     pub proposal_required_quorum: Decimal,
     /// Proposal required threshold
     pub proposal_required_threshold: Decimal,
+    /// Whitelisted links
+    pub whitelisted_links: Vec<String>,
 }
 
 impl Config {
@@ -137,6 +151,32 @@ impl Config {
                 "The required quorum for a proposal cannot be higher than {}%",
                 MAX_PROPOSAL_REQUIRED_PERCENTAGE
             )));
+        }
+
+        if self.proposal_effective_delay < MINIMUM_DELAY {
+            return Err(StdError::generic_err(format!(
+                "The effective delay for a proposal cannot be less than {} blocks.",
+                MINIMUM_DELAY
+            )));
+        }
+
+        if self.proposal_expiration_period < MINIMUM_EXPIRATION_PERIOD {
+            return Err(StdError::generic_err(format!(
+                "The expiration period for a proposal cannot be less than {} blocks.",
+                MINIMUM_EXPIRATION_PERIOD
+            )));
+        }
+
+        for whitelisted_link in &self.whitelisted_links {
+            if !whitelisted_link
+                .chars()
+                .all(|c| char::is_ascii(&c) && !['<', '>', ' ', '\\', '{', '}'].contains(&c))
+            {
+                return Err(StdError::generic_err(format!(
+                    "Link is not in a secured format: {}. Use ASCII format and avoid unsafe characters.",
+                    whitelisted_link
+                )));
+            }
         }
 
         Ok(())
@@ -164,6 +204,10 @@ pub struct UpdateConfig {
     pub proposal_required_quorum: Option<String>,
     /// Proposal required threshold
     pub proposal_required_threshold: Option<String>,
+    /// Links to remove from whitelist
+    pub whitelist_remove: Option<Vec<String>>,
+    /// Links to add to whitelist
+    pub whitelist_add: Option<Vec<String>>,
 }
 
 /// This structure stores data for a proposal.
@@ -199,6 +243,59 @@ pub struct Proposal {
     pub messages: Option<Vec<ProposalMessage>>,
     /// Amount of xASTRO deposited in order to post the proposal
     pub deposit_amount: Uint128,
+}
+
+impl Proposal {
+    pub fn validate(&self, whitelisted_links: Vec<String>) -> StdResult<()> {
+        // Title validation
+        if self.title.len() < MIN_TITLE_LENGTH {
+            return Err(StdError::generic_err("Title too short!"));
+        }
+
+        if self.title.len() > MAX_TITLE_LENGTH {
+            return Err(StdError::generic_err("Title too long!"));
+        }
+        if !self.description.chars().all(char::is_alphanumeric) {
+            return Err(StdError::generic_err(
+                "Title is not in alphanumeric format!",
+            ));
+        }
+
+        // Description validation
+        if self.description.len() < MIN_DESC_LENGTH {
+            return Err(StdError::generic_err("Description too short!"));
+        }
+        if self.description.len() > MAX_DESC_LENGTH {
+            return Err(StdError::generic_err("Description too long!"));
+        }
+        if !self.description.chars().all(char::is_alphanumeric) {
+            return Err(StdError::generic_err(
+                "Description is not in alphanumeric format",
+            ));
+        }
+
+        // Link validation
+        if let Some(link) = &self.link {
+            if link.len() < MIN_LINK_LENGTH {
+                return Err(StdError::generic_err("Link too short!"));
+            }
+            if link.len() > MAX_LINK_LENGTH {
+                return Err(StdError::generic_err("Link too long!"));
+            }
+            if !whitelisted_links.iter().any(|wl| link.starts_with(wl)) {
+                return Err(StdError::generic_err("Link is not whitelisted!"));
+            }
+            // Avoid using unsafe characters
+            if !link
+                .chars()
+                .all(|c| char::is_ascii(&c) && !['<', '>', ' ', '\\', '{', '}'].contains(&c))
+            {
+                return Err(StdError::generic_err("Link is not in a secured format! Use ASCII format and avoid unsafe characters."));
+            }
+        }
+
+        Ok(())
+    }
 }
 
 /// This enum describes available statuses/states for a Proposal.

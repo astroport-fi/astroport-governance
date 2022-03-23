@@ -27,14 +27,6 @@ use crate::state::{CONFIG, PROPOSALS, PROPOSAL_COUNT};
 const CONTRACT_NAME: &str = "astro-assembly";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
-// Proposal validation attributes
-const MIN_TITLE_LENGTH: usize = 4;
-const MAX_TITLE_LENGTH: usize = 64;
-const MIN_DESC_LENGTH: usize = 4;
-const MAX_DESC_LENGTH: usize = 1024;
-const MIN_LINK_LENGTH: usize = 12;
-const MAX_LINK_LENGTH: usize = 128;
-
 // Default pagination constants
 const DEFAULT_LIMIT: u32 = 10;
 const MAX_LIMIT: u32 = 30;
@@ -70,6 +62,7 @@ pub fn instantiate(
         proposal_required_deposit: msg.proposal_required_deposit,
         proposal_required_quorum: Decimal::from_str(&msg.proposal_required_quorum)?,
         proposal_required_threshold: Decimal::from_str(&msg.proposal_required_threshold)?,
+        whitelisted_links: msg.whitelisted_links.unwrap_or_default(),
     };
 
     config.validate()?;
@@ -197,39 +190,6 @@ pub fn submit_proposal(
     link: Option<String>,
     messages: Option<Vec<ProposalMessage>>,
 ) -> Result<Response, ContractError> {
-    // Validate title
-    if title.len() < MIN_TITLE_LENGTH {
-        return Err(ContractError::InvalidProposal(
-            "Title too short".to_string(),
-        ));
-    }
-
-    if title.len() > MAX_TITLE_LENGTH {
-        return Err(ContractError::InvalidProposal("Title too long".to_string()));
-    }
-
-    // Validate the description
-    if description.len() < MIN_DESC_LENGTH {
-        return Err(ContractError::InvalidProposal(
-            "Description too short".to_string(),
-        ));
-    }
-    if description.len() > MAX_DESC_LENGTH {
-        return Err(ContractError::InvalidProposal(
-            "Description too long".to_string(),
-        ));
-    }
-
-    // Validate Link
-    if let Some(link) = &link {
-        if link.len() < MIN_LINK_LENGTH {
-            return Err(ContractError::InvalidProposal("Link too short".to_string()));
-        }
-        if link.len() > MAX_LINK_LENGTH {
-            return Err(ContractError::InvalidProposal("Link too long".to_string()));
-        }
-    }
-
     let config = CONFIG.load(deps.storage)?;
 
     if info.sender != config.xastro_token_addr {
@@ -242,30 +202,30 @@ pub fn submit_proposal(
 
     // Update the proposal count
     let count = PROPOSAL_COUNT.update(deps.storage, |c| -> StdResult<_> {
-        Ok(c.checked_add(Uint64::from(1u32))?)
+        Ok(c.checked_add(Uint64::new(1))?)
     })?;
 
-    PROPOSALS.save(
-        deps.storage,
-        U64Key::new(count.u64()),
-        &Proposal {
-            proposal_id: count,
-            submitter: sender.clone(),
-            status: ProposalStatus::Active,
-            for_power: Uint128::zero(),
-            against_power: Uint128::zero(),
-            for_voters: Vec::new(),
-            against_voters: Vec::new(),
-            start_block: env.block.height,
-            start_time: env.block.time.seconds(),
-            end_block: env.block.height + config.proposal_voting_period,
-            title,
-            description,
-            link,
-            messages,
-            deposit_amount,
-        },
-    )?;
+    let proposal = Proposal {
+        proposal_id: count,
+        submitter: sender.clone(),
+        status: ProposalStatus::Active,
+        for_power: Uint128::zero(),
+        against_power: Uint128::zero(),
+        for_voters: Vec::new(),
+        against_voters: Vec::new(),
+        start_block: env.block.height,
+        start_time: env.block.time.seconds(),
+        end_block: env.block.height + config.proposal_voting_period,
+        title,
+        description,
+        link,
+        messages,
+        deposit_amount,
+    };
+
+    proposal.validate(config.whitelisted_links)?;
+
+    PROPOSALS.save(deps.storage, U64Key::new(count.u64()), &proposal)?;
 
     Ok(Response::new()
         .add_attribute("action", "submit_proposal")
@@ -574,6 +534,23 @@ pub fn update_config(
         config.proposal_required_threshold = Decimal::from_str(&proposal_required_threshold)?;
     }
 
+    if let Some(whitelist_add) = updated_config.whitelist_add {
+        config.whitelisted_links.append(
+            &mut whitelist_add
+                .into_iter()
+                .filter(|link| !config.whitelisted_links.contains(link))
+                .collect(),
+        );
+    }
+
+    if let Some(whitelist_remove) = updated_config.whitelist_remove {
+        config.whitelisted_links = config
+            .whitelisted_links
+            .into_iter()
+            .filter(|link| !whitelist_remove.contains(link))
+            .collect();
+    }
+
     config.validate()?;
 
     CONFIG.save(deps.storage, &config)?;
@@ -713,7 +690,8 @@ pub fn calc_voting_power(
 
     if !locked_amount.params.amount.is_zero() {
         total = total
-            .checked_add(locked_amount.params.amount - locked_amount.status.astro_withdrawn)?;
+            .checked_add(locked_amount.params.amount)?
+            .checked_sub(locked_amount.status.astro_withdrawn)?;
     }
 
     let vxastro_amount: VotingPowerResponse = deps.querier.query_wasm_smart(
