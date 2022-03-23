@@ -1,4 +1,6 @@
-use cosmwasm_std::{StdError, StdResult};
+use std::convert::TryInto;
+
+use cosmwasm_std::{Decimal, Fraction, OverflowError, StdError, StdResult, Uint128, Uint256};
 
 /// Seconds in one week. Constant is intended for period number calculation.
 pub const WEEK: u64 = 7 * 86400; // lock period is rounded down by week
@@ -26,4 +28,53 @@ pub fn get_period(time: u64) -> StdResult<u64> {
 /// Calculates how many periods are in the specified time interval. The time should be in seconds.
 pub fn get_periods_count(interval: u64) -> u64 {
     interval / WEEK
+}
+
+/// # Description
+/// This trait was implemented to eliminate Decimal rounding problems.
+trait DecimalRoundedCheckedMul {
+    fn checked_mul(self, other: Uint128) -> Result<Uint128, OverflowError>;
+}
+
+impl DecimalRoundedCheckedMul for Decimal {
+    fn checked_mul(self, other: Uint128) -> Result<Uint128, OverflowError> {
+        if self.is_zero() || other.is_zero() {
+            return Ok(Uint128::zero());
+        }
+        let numerator = other.full_mul(self.numerator());
+        let multiply_ratio = numerator / Uint256::from(self.denominator());
+        if multiply_ratio > Uint256::from(Uint128::MAX) {
+            Err(OverflowError::new(
+                cosmwasm_std::OverflowOperation::Mul,
+                self,
+                other,
+            ))
+        } else {
+            let mut result: Uint128 = multiply_ratio.try_into().unwrap();
+            let rem: Uint128 = numerator
+                .checked_rem(Uint256::from(self.denominator()))
+                .unwrap()
+                .try_into()
+                .unwrap();
+            // 0.5 in Decimal
+            if rem.u128() >= 500000000000000000_u128 {
+                result += Uint128::from(1_u128);
+            }
+            Ok(result)
+        }
+    }
+}
+
+/// # Description
+/// Main function used to calculate a user's voting power at a specific period as: previous_power - slope*(x - previous_x).
+pub fn calc_voting_power(
+    slope: Decimal,
+    old_vp: Uint128,
+    start_period: u64,
+    end_period: u64,
+) -> Uint128 {
+    let shift = slope
+        .checked_mul(Uint128::from(end_period - start_period))
+        .unwrap_or_else(|_| Uint128::zero());
+    old_vp.saturating_sub(shift)
 }
