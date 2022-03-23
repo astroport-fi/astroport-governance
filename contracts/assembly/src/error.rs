@@ -46,6 +46,9 @@ pub enum ContractError {
 
     #[error("Proposal delay not ended!")]
     ProposalDelayNotEnded {},
+
+    #[error("Contract can't be migrated!")]
+    MigrationError {},
 }
 
 impl From<OverflowError> for ContractError {

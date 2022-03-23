@@ -2,16 +2,16 @@ use cosmwasm_std::{
     attr, entry_point, from_binary, to_binary, Addr, Binary, CosmosMsg, Decimal, Deps, DepsMut,
     Env, MessageInfo, Order, Response, StdResult, Uint128, Uint64, WasmMsg,
 };
-use cw2::set_contract_version;
+use cw2::{get_contract_version, set_contract_version};
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20ReceiveMsg};
 use cw_storage_plus::{Bound, U64Key};
 use std::str::FromStr;
 
 use astroport::asset::addr_validate_to_lower;
 use astroport_governance::assembly::{
-    Config, Cw20HookMsg, ExecuteMsg, InstantiateMsg, Proposal, ProposalListResponse,
-    ProposalMessage, ProposalStatus, ProposalVoteOption, ProposalVotesResponse, QueryMsg,
-    UpdateConfig,
+    helpers::validate_links, Config, Cw20HookMsg, ExecuteMsg, InstantiateMsg, Proposal,
+    ProposalListResponse, ProposalMessage, ProposalStatus, ProposalVoteOption,
+    ProposalVotesResponse, QueryMsg, UpdateConfig,
 };
 
 use astroport::xastro_token::QueryMsg as XAstroTokenQueryMsg;
@@ -21,19 +21,12 @@ use astroport_governance::builder_unlock::msg::{
 use astroport_governance::voting_escrow::{QueryMsg as VotingEscrowQueryMsg, VotingPowerResponse};
 
 use crate::error::ContractError;
+use crate::migration::{MigrateMsg, CONFIGV100};
 use crate::state::{CONFIG, PROPOSALS, PROPOSAL_COUNT};
 
 // Contract name and version used for migration.
 const CONTRACT_NAME: &str = "astro-assembly";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
-
-// Proposal validation attributes
-const MIN_TITLE_LENGTH: usize = 4;
-const MAX_TITLE_LENGTH: usize = 64;
-const MIN_DESC_LENGTH: usize = 4;
-const MAX_DESC_LENGTH: usize = 1024;
-const MIN_LINK_LENGTH: usize = 12;
-const MAX_LINK_LENGTH: usize = 128;
 
 // Default pagination constants
 const DEFAULT_LIMIT: u32 = 10;
@@ -60,6 +53,10 @@ pub fn instantiate(
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
+    if let Some(whitelist_links) = &msg.whitelisted_links {
+        validate_links(whitelist_links)?;
+    }
+
     let config = Config {
         xastro_token_addr: addr_validate_to_lower(deps.api, &msg.xastro_token_addr)?,
         vxastro_token_addr: addr_validate_to_lower(deps.api, &msg.vxastro_token_addr)?,
@@ -70,6 +67,7 @@ pub fn instantiate(
         proposal_required_deposit: msg.proposal_required_deposit,
         proposal_required_quorum: Decimal::from_str(&msg.proposal_required_quorum)?,
         proposal_required_threshold: Decimal::from_str(&msg.proposal_required_threshold)?,
+        whitelisted_links: msg.whitelisted_links.unwrap_or_default(),
     };
 
     config.validate()?;
@@ -197,39 +195,6 @@ pub fn submit_proposal(
     link: Option<String>,
     messages: Option<Vec<ProposalMessage>>,
 ) -> Result<Response, ContractError> {
-    // Validate title
-    if title.len() < MIN_TITLE_LENGTH {
-        return Err(ContractError::InvalidProposal(
-            "Title too short".to_string(),
-        ));
-    }
-
-    if title.len() > MAX_TITLE_LENGTH {
-        return Err(ContractError::InvalidProposal("Title too long".to_string()));
-    }
-
-    // Validate the description
-    if description.len() < MIN_DESC_LENGTH {
-        return Err(ContractError::InvalidProposal(
-            "Description too short".to_string(),
-        ));
-    }
-    if description.len() > MAX_DESC_LENGTH {
-        return Err(ContractError::InvalidProposal(
-            "Description too long".to_string(),
-        ));
-    }
-
-    // Validate Link
-    if let Some(link) = &link {
-        if link.len() < MIN_LINK_LENGTH {
-            return Err(ContractError::InvalidProposal("Link too short".to_string()));
-        }
-        if link.len() > MAX_LINK_LENGTH {
-            return Err(ContractError::InvalidProposal("Link too long".to_string()));
-        }
-    }
-
     let config = CONFIG.load(deps.storage)?;
 
     if info.sender != config.xastro_token_addr {
@@ -242,30 +207,30 @@ pub fn submit_proposal(
 
     // Update the proposal count
     let count = PROPOSAL_COUNT.update(deps.storage, |c| -> StdResult<_> {
-        Ok(c.checked_add(Uint64::from(1u32))?)
+        Ok(c.checked_add(Uint64::new(1))?)
     })?;
 
-    PROPOSALS.save(
-        deps.storage,
-        U64Key::new(count.u64()),
-        &Proposal {
-            proposal_id: count,
-            submitter: sender.clone(),
-            status: ProposalStatus::Active,
-            for_power: Uint128::zero(),
-            against_power: Uint128::zero(),
-            for_voters: Vec::new(),
-            against_voters: Vec::new(),
-            start_block: env.block.height,
-            start_time: env.block.time.seconds(),
-            end_block: env.block.height + config.proposal_voting_period,
-            title,
-            description,
-            link,
-            messages,
-            deposit_amount,
-        },
-    )?;
+    let proposal = Proposal {
+        proposal_id: count,
+        submitter: sender.clone(),
+        status: ProposalStatus::Active,
+        for_power: Uint128::zero(),
+        against_power: Uint128::zero(),
+        for_voters: Vec::new(),
+        against_voters: Vec::new(),
+        start_block: env.block.height,
+        start_time: env.block.time.seconds(),
+        end_block: env.block.height + config.proposal_voting_period,
+        title,
+        description,
+        link,
+        messages,
+        deposit_amount,
+    };
+
+    proposal.validate(config.whitelisted_links)?;
+
+    PROPOSALS.save(deps.storage, U64Key::new(count.u64()), &proposal)?;
 
     Ok(Response::new()
         .add_attribute("action", "submit_proposal")
@@ -574,6 +539,25 @@ pub fn update_config(
         config.proposal_required_threshold = Decimal::from_str(&proposal_required_threshold)?;
     }
 
+    if let Some(whitelist_add) = updated_config.whitelist_add {
+        validate_links(&whitelist_add)?;
+
+        config.whitelisted_links.append(
+            &mut whitelist_add
+                .into_iter()
+                .filter(|link| !config.whitelisted_links.contains(link))
+                .collect(),
+        );
+    }
+
+    if let Some(whitelist_remove) = updated_config.whitelist_remove {
+        config.whitelisted_links = config
+            .whitelisted_links
+            .into_iter()
+            .filter(|link| !whitelist_remove.contains(link))
+            .collect();
+    }
+
     config.validate()?;
 
     CONFIG.save(deps.storage, &config)?;
@@ -718,7 +702,8 @@ pub fn calc_voting_power(deps: Deps, sender: String, proposal: &Proposal) -> Std
 
     if !locked_amount.params.amount.is_zero() {
         total = total
-            .checked_add(locked_amount.params.amount - locked_amount.status.astro_withdrawn)?;
+            .checked_add(locked_amount.params.amount)?
+            .checked_sub(locked_amount.status.astro_withdrawn)?;
     }
 
     let vxastro_amount: VotingPowerResponse = deps.querier.query_wasm_smart(
@@ -775,4 +760,56 @@ pub fn calc_total_voting_power_at(deps: &DepsMut, proposal: &Proposal) -> StdRes
     }
 
     Ok(total)
+}
+
+/// ## Description
+/// Used for the contract migration. Returns a default object of type [`Response`].
+/// ## Params
+/// * **deps** is an object of type [`DepsMut`].
+///
+/// * **_env** is an object of type [`Env`].
+///
+/// * **msg** is an object of type [`MigrateMsg`].
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
+    let contract_version = get_contract_version(deps.storage)?;
+
+    match contract_version.contract.as_ref() {
+        "astro-assembly" => match contract_version.version.as_ref() {
+            "1.0.0" => {
+                let config_v100 = CONFIGV100.load(deps.storage)?;
+
+                if let Some(whitelisted_links) = &msg.whitelisted_links {
+                    validate_links(whitelisted_links)?;
+                }
+
+                let config = Config {
+                    xastro_token_addr: config_v100.xastro_token_addr,
+                    vxastro_token_addr: config_v100.vxastro_token_addr,
+                    builder_unlock_addr: config_v100.builder_unlock_addr,
+                    proposal_voting_period: msg.proposal_voting_period,
+                    proposal_effective_delay: msg.proposal_effective_delay,
+                    proposal_expiration_period: config_v100.proposal_expiration_period,
+                    proposal_required_deposit: config_v100.proposal_required_deposit,
+                    proposal_required_quorum: config_v100.proposal_required_quorum,
+                    proposal_required_threshold: config_v100.proposal_required_threshold,
+                    whitelisted_links: msg.whitelisted_links.unwrap_or_default(),
+                };
+
+                config.validate()?;
+
+                CONFIG.save(deps.storage, &config)?;
+            }
+            _ => return Err(ContractError::MigrationError {}),
+        },
+        _ => return Err(ContractError::MigrationError {}),
+    };
+
+    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    Ok(Response::new()
+        .add_attribute("previous_contract_name", &contract_version.contract)
+        .add_attribute("previous_contract_version", &contract_version.version)
+        .add_attribute("new_contract_name", CONTRACT_NAME)
+        .add_attribute("new_contract_version", CONTRACT_VERSION))
 }
