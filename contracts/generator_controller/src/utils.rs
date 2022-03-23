@@ -356,11 +356,11 @@ pub(crate) fn fetch_last_pool_period(
 /// ## Description
 /// Helper function for deserialization.
 pub(crate) fn deserialize_pair<T>(pair: StdResult<Pair<T>>) -> StdResult<(u64, T)> {
-    let (period_serialized, change) = pair?;
+    let (period_serialized, data) = pair?;
     let period_bytes: [u8; 8] = period_serialized
         .try_into()
         .map_err(|_| StdError::generic_err("Deserialization error"))?;
-    Ok((u64::from_be_bytes(period_bytes), change))
+    Ok((u64::from_be_bytes(period_bytes), data))
 }
 
 /// ## Description

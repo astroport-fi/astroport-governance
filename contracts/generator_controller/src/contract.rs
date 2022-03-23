@@ -10,6 +10,7 @@ use cosmwasm_std::{
     StdResult, WasmMsg,
 };
 use cw2::set_contract_version;
+use itertools::Itertools;
 
 use astroport_governance::generator_controller::{
     ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg, UserInfoResponse,
@@ -138,7 +139,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> E
 /// The function checks that:
 /// * the user voting power is > 0,
 /// * user didn't vote for last 10 days,
-/// * all pool addresses are valid,
+/// * all pool addresses are valid LP token addresses,
 /// * 'votes' vector doesn't contain duplicated pool addresses,
 /// * sum of all BPS values <= 10000.
 ///
@@ -208,17 +209,16 @@ fn handle_vote(
             acc.checked_add(*bps)
         })?;
 
-    let user_last_vote_period = get_period(user_info.vote_ts).unwrap_or(block_period);
-
-    // Calculate voting power before changes
-    let old_vp_at_period = calc_voting_power(
-        user_info.slope,
-        user_info.voting_power,
-        user_last_vote_period,
-        block_period,
-    );
-
     if user_info.lock_end > block_period {
+        let user_last_vote_period = get_period(user_info.vote_ts).unwrap_or(block_period);
+        // Calculate voting power before changes
+        let old_vp_at_period = calc_voting_power(
+            user_info.slope,
+            user_info.voting_power,
+            user_last_vote_period,
+            block_period,
+        );
+
         // Cancel changes applied by previous votes
         user_info.votes.iter().try_for_each(|(pool_addr, bps)| {
             cancel_user_changes(
@@ -233,7 +233,7 @@ fn handle_vote(
         })?;
     }
 
-    let lock_info = get_lock_info(deps.querier, &escrow_addr, &user)?;
+    let ve_lock_info = get_lock_info(deps.querier, &escrow_addr, &user)?;
 
     // Votes are applied to the next period
     votes.iter().try_for_each(|(pool_addr, bps)| {
@@ -243,16 +243,16 @@ fn handle_vote(
             pool_addr,
             *bps,
             user_vp,
-            lock_info.slope,
-            lock_info.end,
+            ve_lock_info.slope,
+            ve_lock_info.end,
         )
     })?;
 
     let user_info = UserInfo {
         vote_ts: env.block.time.seconds(),
         voting_power: user_vp,
-        slope: lock_info.slope,
-        lock_end: lock_info.end,
+        slope: ve_lock_info.slope,
+        lock_end: ve_lock_info.end,
         votes,
     };
 
@@ -289,7 +289,7 @@ fn gauge_generators(deps: DepsMut, env: Env, info: MessageInfo) -> ExecuteResult
         return Err(ContractError::CooldownError(GAUGE_COOLDOWN / DAY));
     }
 
-    let mut pool_votes: Vec<_> = POOLS
+    let pool_votes: Vec<_> = POOLS
         .keys(deps.as_ref().storage, None, None, Order::Ascending)
         .collect::<Vec<_>>()
         .into_iter()
@@ -307,10 +307,8 @@ fn gauge_generators(deps: DepsMut, env: Env, info: MessageInfo) -> ExecuteResult
         .collect::<StdResult<Vec<_>>>()?
         .into_iter()
         .filter(|(_, vxastro_amount)| !vxastro_amount.is_zero())
+        .sorted_by(|(_, a), (_, b)| b.cmp(a)) // Sort in descending order
         .collect();
-
-    // Sort in descending order
-    pool_votes.sort_by(|(_, a), (_, b)| b.cmp(a));
 
     gauge_info.pool_alloc_points = filter_pools(
         deps.as_ref(),

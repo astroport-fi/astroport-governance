@@ -278,7 +278,7 @@ impl Simulator {
 const MAX_PERIOD: usize = 20;
 const MAX_USERS: usize = 10;
 const MAX_POOLS: usize = 5;
-const MAX_EVENTS: usize = 500;
+const MAX_EVENTS: usize = 100;
 
 fn escrow_events_strategy() -> impl Strategy<Value = VeEvent> {
     prop_oneof![
