@@ -1350,8 +1350,8 @@ fn create_proposal(
     msgs: Option<Vec<ProposalMessage>>,
 ) {
     let submit_proposal_msg = Cw20HookMsg::SubmitProposal {
-        title: "Title".to_string(),
-        description: "Description".to_string(),
+        title: "Test title!".to_string(),
+        description: "Test description!".to_string(),
         link: None,
         messages: msgs,
     };

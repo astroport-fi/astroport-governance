@@ -1,8 +1,10 @@
+use crate::assembly::helpers::is_valid_link;
 use cosmwasm_std::{Addr, CosmosMsg, Decimal, StdError, StdResult, Uint128, Uint64};
 use cw20::Cw20ReceiveMsg;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::fmt::{Display, Formatter, Result};
+use std::ops::RangeInclusive;
 
 pub const MINIMUM_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE: u64 = 50;
 pub const MAX_PROPOSAL_REQUIRED_PERCENTAGE: u64 = 100;
@@ -16,6 +18,8 @@ const MIN_DESC_LENGTH: usize = 4;
 const MAX_DESC_LENGTH: usize = 1024;
 const MIN_LINK_LENGTH: usize = 12;
 const MAX_LINK_LENGTH: usize = 128;
+
+const ALLOWED_SIGNS: RangeInclusive<char> = '!'..='/';
 
 /// This structure holds the parameters used for creating an Assembly contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -169,18 +173,6 @@ impl Config {
             )));
         }
 
-        for whitelisted_link in &self.whitelisted_links {
-            if !whitelisted_link
-                .chars()
-                .all(|c| char::is_ascii(&c) && !['<', '>', ' ', '\\', '{', '}'].contains(&c))
-            {
-                return Err(StdError::generic_err(format!(
-                    "Link is not in a secured format: {}. Use ASCII format and avoid unsafe characters.",
-                    whitelisted_link
-                )));
-            }
-        }
-
         Ok(())
     }
 }
@@ -253,11 +245,14 @@ impl Proposal {
         if self.title.len() < MIN_TITLE_LENGTH {
             return Err(StdError::generic_err("Title too short!"));
         }
-
         if self.title.len() > MAX_TITLE_LENGTH {
             return Err(StdError::generic_err("Title too long!"));
         }
-        if !self.description.chars().all(char::is_alphanumeric) {
+        if !self
+            .title
+            .chars()
+            .all(|c| c.is_alphanumeric() || c.is_ascii_whitespace() || ALLOWED_SIGNS.contains(&c))
+        {
             return Err(StdError::generic_err(
                 "Title is not in alphanumeric format!",
             ));
@@ -270,7 +265,11 @@ impl Proposal {
         if self.description.len() > MAX_DESC_LENGTH {
             return Err(StdError::generic_err("Description too long!"));
         }
-        if !self.description.chars().all(char::is_alphanumeric) {
+        if !self
+            .description
+            .chars()
+            .all(|c| c.is_alphanumeric() || c.is_ascii_whitespace() || ALLOWED_SIGNS.contains(&c))
+        {
             return Err(StdError::generic_err(
                 "Description is not in alphanumeric format",
             ));
@@ -287,11 +286,7 @@ impl Proposal {
             if !whitelisted_links.iter().any(|wl| link.starts_with(wl)) {
                 return Err(StdError::generic_err("Link is not whitelisted!"));
             }
-            // Avoid using unsafe characters
-            if !link
-                .chars()
-                .all(|c| char::is_ascii(&c) && !['<', '>', ' ', '\\', '{', '}'].contains(&c))
-            {
+            if !is_valid_link(link) {
                 return Err(StdError::generic_err("Link is not in a secured format! Use ASCII format and avoid unsafe characters."));
             }
         }
@@ -372,4 +367,30 @@ pub struct ProposalVotesResponse {
 pub struct ProposalListResponse {
     pub proposal_count: Uint64,
     pub proposal_list: Vec<Proposal>,
+}
+
+pub mod helpers {
+    use cosmwasm_std::{StdError, StdResult};
+
+    const UNSAFE_CHARS: [char; 6] = ['<', '>', ' ', '\\', '{', '}'];
+
+    /// Checks if the link is valid. Returns a boolean value.
+    pub fn is_valid_link(link: &str) -> bool {
+        link.chars()
+            .all(|c| c.is_ascii() && !UNSAFE_CHARS.contains(&c))
+    }
+
+    /// Validating the list of links. Returns an error if a list has an invalid link.
+    pub fn validate_links(links: &[String]) -> StdResult<()> {
+        for link in links {
+            if !is_valid_link(link) {
+                return Err(StdError::generic_err(format!(
+                    "Link is not in a secured format: {}. Use ASCII format and avoid unsafe characters.",
+                    link
+                )));
+            }
+        }
+
+        Ok(())
+    }
 }

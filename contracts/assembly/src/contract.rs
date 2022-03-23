@@ -2,16 +2,16 @@ use cosmwasm_std::{
     attr, entry_point, from_binary, to_binary, Addr, Binary, CosmosMsg, Decimal, Deps, DepsMut,
     Env, MessageInfo, Order, Response, StdResult, Uint128, Uint64, WasmMsg,
 };
-use cw2::set_contract_version;
+use cw2::{get_contract_version, set_contract_version};
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20ReceiveMsg};
 use cw_storage_plus::{Bound, U64Key};
 use std::str::FromStr;
 
 use astroport::asset::addr_validate_to_lower;
 use astroport_governance::assembly::{
-    Config, Cw20HookMsg, ExecuteMsg, InstantiateMsg, Proposal, ProposalListResponse,
-    ProposalMessage, ProposalStatus, ProposalVoteOption, ProposalVotesResponse, QueryMsg,
-    UpdateConfig,
+    helpers::validate_links, Config, Cw20HookMsg, ExecuteMsg, InstantiateMsg, Proposal,
+    ProposalListResponse, ProposalMessage, ProposalStatus, ProposalVoteOption,
+    ProposalVotesResponse, QueryMsg, UpdateConfig,
 };
 
 use astroport::xastro_token::QueryMsg as XAstroTokenQueryMsg;
@@ -21,6 +21,7 @@ use astroport_governance::builder_unlock::msg::{
 use astroport_governance::voting_escrow::{QueryMsg as VotingEscrowQueryMsg, VotingPowerResponse};
 
 use crate::error::ContractError;
+use crate::migration::{MigrateMsg, CONFIGV100};
 use crate::state::{CONFIG, PROPOSALS, PROPOSAL_COUNT};
 
 // Contract name and version used for migration.
@@ -51,6 +52,10 @@ pub fn instantiate(
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    if let Some(whitelist_links) = &msg.whitelisted_links {
+        validate_links(whitelist_links)?;
+    }
 
     let config = Config {
         xastro_token_addr: addr_validate_to_lower(deps.api, &msg.xastro_token_addr)?,
@@ -535,6 +540,8 @@ pub fn update_config(
     }
 
     if let Some(whitelist_add) = updated_config.whitelist_add {
+        validate_links(&whitelist_add)?;
+
         config.whitelisted_links.append(
             &mut whitelist_add
                 .into_iter()
@@ -753,4 +760,56 @@ pub fn calc_total_voting_power_at(deps: &DepsMut, proposal: &Proposal) -> StdRes
     }
 
     Ok(total)
+}
+
+/// ## Description
+/// Used for the contract migration. Returns a default object of type [`Response`].
+/// ## Params
+/// * **deps** is an object of type [`DepsMut`].
+///
+/// * **_env** is an object of type [`Env`].
+///
+/// * **msg** is an object of type [`MigrateMsg`].
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
+    let contract_version = get_contract_version(deps.storage)?;
+
+    match contract_version.contract.as_ref() {
+        "astro-assembly" => match contract_version.version.as_ref() {
+            "1.0.0" => {
+                let config_v100 = CONFIGV100.load(deps.storage)?;
+
+                if let Some(whitelisted_links) = &msg.whitelisted_links {
+                    validate_links(whitelisted_links)?;
+                }
+
+                let config = Config {
+                    xastro_token_addr: config_v100.xastro_token_addr,
+                    vxastro_token_addr: config_v100.vxastro_token_addr,
+                    builder_unlock_addr: config_v100.builder_unlock_addr,
+                    proposal_voting_period: msg.proposal_voting_period,
+                    proposal_effective_delay: msg.proposal_effective_delay,
+                    proposal_expiration_period: config_v100.proposal_expiration_period,
+                    proposal_required_deposit: config_v100.proposal_required_deposit,
+                    proposal_required_quorum: config_v100.proposal_required_quorum,
+                    proposal_required_threshold: config_v100.proposal_required_threshold,
+                    whitelisted_links: msg.whitelisted_links.unwrap_or_default(),
+                };
+
+                config.validate()?;
+
+                CONFIG.save(deps.storage, &config)?;
+            }
+            _ => return Err(ContractError::MigrationError {}),
+        },
+        _ => return Err(ContractError::MigrationError {}),
+    };
+
+    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    Ok(Response::new()
+        .add_attribute("previous_contract_name", &contract_version.contract)
+        .add_attribute("previous_contract_version", &contract_version.version)
+        .add_attribute("new_contract_name", CONTRACT_NAME)
+        .add_attribute("new_contract_version", CONTRACT_VERSION))
 }
