@@ -156,7 +156,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> E
 /// * **info** is an object of type [`MessageInfo`].
 ///
 /// * **votes** is a vector of pairs ([`String`], [`u16`]).
-/// Pair consists of pool address and percentage of user's voting power for a given pool.
+/// Tuple consists of pool address and percentage of user's voting power for a given pool.
 /// Percentage should be in BPS form.
 fn handle_vote(
     deps: DepsMut,

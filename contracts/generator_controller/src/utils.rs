@@ -82,7 +82,7 @@ pub(crate) fn get_lock_info(
 }
 
 /// ## Description
-/// Filters pairs (pool_address, voting parameters) by criteria:
+/// Filters pairs (LP token address, voting parameters) by criteria:
 /// * pool's pair is registered in Factory,
 /// * pool's pair type is not in blocked list,
 /// * any of pair's token is not listed in blocked tokens list.
@@ -105,7 +105,7 @@ pub(crate) fn filter_pools(
     let pools = pools
         .into_iter()
         .filter_map(|(pool_addr, vxastro_amount)| {
-            // Check the addr is a pair contract and retrieve a pair info
+            // Check the address is a LP token and retrieve a pair info
             let pair_info = pair_info_by_pool(deps, pool_addr).ok()?;
             // Check a pair is registered in factory
             query_pair_info(&deps.querier, factory_addr.clone(), &pair_info.asset_infos).ok()?;
