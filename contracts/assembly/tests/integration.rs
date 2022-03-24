@@ -962,6 +962,97 @@ fn test_voting_power_changes() {
 }
 
 #[test]
+fn test_block_height_selection() {
+    // Block height is 12345 after app initialization
+    let mut app = mock_app();
+
+    let owner = Addr::unchecked("owner");
+    let user1 = Addr::unchecked("user1");
+    let user2 = Addr::unchecked("user2");
+    let user3 = Addr::unchecked("user3");
+
+    let (_, xastro_addr, _, _, assembly_addr) = instantiate_contracts(&mut app, owner);
+
+    // Mint tokens for submitting proposal
+    mint_tokens(
+        &mut app,
+        &xastro_addr,
+        &Addr::unchecked("user0"),
+        PROPOSAL_REQUIRED_DEPOSIT,
+    );
+
+    mint_tokens(&mut app, &xastro_addr, &user1, 6000);
+    mint_tokens(&mut app, &xastro_addr, &user2, 4000);
+
+    // Move to the next block(12346)
+    app.update_block(next_block);
+
+    // Create proposal
+    create_proposal(
+        &mut app,
+        &xastro_addr,
+        &assembly_addr,
+        Addr::unchecked("user0"),
+        None,
+    );
+
+    cast_vote(
+        &mut app,
+        assembly_addr.clone(),
+        1,
+        user1,
+        ProposalVoteOption::For,
+    )
+    .unwrap();
+
+    // Mint huge amount of xASTRO. These tokens cannot affect on total supply in proposal 1 because
+    // they were minted after the proposal submitting
+    mint_tokens(&mut app, &xastro_addr, &user3, 100000);
+    // Mint more xASTRO to user2, who will vote against the proposal, what is enough to make proposal unsuccessful.
+    mint_tokens(&mut app, &xastro_addr, &user2, 3000);
+
+    cast_vote(
+        &mut app,
+        assembly_addr.clone(),
+        1,
+        user2,
+        ProposalVoteOption::Against,
+    )
+    .unwrap();
+
+    // Skip voting period
+    app.update_block(|bi| {
+        bi.height += PROPOSAL_VOTING_PERIOD + PROPOSAL_EFFECTIVE_DELAY + 1;
+        bi.time = bi
+            .time
+            .plus_seconds(5 * (PROPOSAL_VOTING_PERIOD + PROPOSAL_EFFECTIVE_DELAY + 1));
+    });
+
+    // End proposal
+    app.execute_contract(
+        Addr::unchecked("user0"),
+        assembly_addr.clone(),
+        &ExecuteMsg::EndProposal { proposal_id: 1 },
+        &[],
+    )
+    .unwrap();
+
+    let proposal: Proposal = app
+        .wrap()
+        .query_wasm_smart(
+            assembly_addr.clone(),
+            &QueryMsg::Proposal { proposal_id: 1 },
+        )
+        .unwrap();
+
+    assert_eq!(proposal.for_power, Uint128::new(6000));
+    // Against power is 4000, as user2's balance was increased after the proposal submitting.
+    assert_eq!(proposal.against_power, Uint128::new(4000));
+    // Proposal is passed, as the total supply was increased after the proposal submitting.
+    assert_ne!(proposal.status, ProposalStatus::Passed);
+}
+
+#[test]
 fn test_unsuccessful_proposal() {
     let mut app = mock_app();
 
