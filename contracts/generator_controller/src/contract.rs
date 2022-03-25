@@ -16,7 +16,7 @@ use astroport_governance::generator_controller::{
     ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg, UserInfoResponse,
 };
 use astroport_governance::utils::{calc_voting_power, get_period, WEEK};
-use voting_escrow::querier::{get_lock_info, get_voting_power};
+use astroport_governance::voting_escrow::{get_lock_info, get_voting_power};
 
 use crate::bps::BasicPoints;
 use crate::error::ContractError;
