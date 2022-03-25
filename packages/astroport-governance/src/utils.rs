@@ -1,6 +1,8 @@
 use std::convert::TryInto;
 
-use crate::voting_escrow::QueryMsg::{LockInfo, UserVotingPower};
+use crate::voting_escrow::QueryMsg::{
+    LockInfo, TotalVotingPower, TotalVotingPowerAt, UserVotingPower, UserVotingPowerAt,
+};
 use crate::voting_escrow::{LockInfoResponse, VotingPowerResponse};
 use cosmwasm_std::{
     Addr, Decimal, Fraction, OverflowError, QuerierWrapper, StdError, StdResult, Uint128, Uint256,
@@ -96,6 +98,47 @@ pub fn get_voting_power(
             user: user.to_string(),
         },
     )?;
+    Ok(vp.voting_power)
+}
+
+/// ## Description
+/// Queries current user's voting power from the voting escrow contract by timestamp.
+pub fn get_voting_power_at(
+    querier: QuerierWrapper,
+    escrow_addr: &Addr,
+    user: &Addr,
+    timestamp: u64,
+) -> StdResult<Uint128> {
+    let vp: VotingPowerResponse = querier.query_wasm_smart(
+        escrow_addr.clone(),
+        &UserVotingPowerAt {
+            user: user.to_string(),
+            time: timestamp,
+        },
+    )?;
+
+    Ok(vp.voting_power)
+}
+
+/// ## Description
+/// Queries current total voting power from the voting escrow contract.
+pub fn get_total_voting(querier: QuerierWrapper, escrow_addr: &Addr) -> StdResult<Uint128> {
+    let vp: VotingPowerResponse =
+        querier.query_wasm_smart(escrow_addr.clone(), &TotalVotingPower {})?;
+
+    Ok(vp.voting_power)
+}
+
+/// ## Description
+/// Queries total voting power from the voting escrow contract by timestamp.
+pub fn get_total_voting_at(
+    querier: QuerierWrapper,
+    escrow_addr: &Addr,
+    timestamp: u64,
+) -> StdResult<Uint128> {
+    let vp: VotingPowerResponse =
+        querier.query_wasm_smart(escrow_addr.clone(), &TotalVotingPowerAt { time: timestamp })?;
+
     Ok(vp.voting_power)
 }
 
