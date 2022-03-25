@@ -15,7 +15,9 @@ use itertools::Itertools;
 use astroport_governance::generator_controller::{
     ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg, UserInfoResponse,
 };
-use astroport_governance::utils::{calc_voting_power, get_period, WEEK};
+use astroport_governance::utils::{
+    calc_voting_power, get_lock_info, get_period, get_voting_power, WEEK,
+};
 
 use crate::bps::BasicPoints;
 use crate::error::ContractError;
@@ -24,8 +26,7 @@ use crate::state::{
     USER_INFO,
 };
 use crate::utils::{
-    cancel_user_changes, filter_pools, get_lock_info, get_pool_info, get_voting_power,
-    update_pool_info, vote_for_pool,
+    cancel_user_changes, filter_pools, get_pool_info, update_pool_info, vote_for_pool,
 };
 
 /// Contract name that is used for migration.
