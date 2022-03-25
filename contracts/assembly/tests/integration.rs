@@ -981,7 +981,7 @@ fn test_block_height_selection() {
         PROPOSAL_REQUIRED_DEPOSIT,
     );
 
-    mint_tokens(&mut app, &xastro_addr, &user1, 6000);
+    mint_tokens(&mut app, &xastro_addr, &user1, 6001);
     mint_tokens(&mut app, &xastro_addr, &user2, 4000);
 
     // Move to the next block(12346)
@@ -1006,7 +1006,7 @@ fn test_block_height_selection() {
     .unwrap();
 
     // Mint huge amount of xASTRO. These tokens cannot affect on total supply in proposal 1 because
-    // they were minted after the proposal submitting
+    // they were minted after proposal.start_block - 1
     mint_tokens(&mut app, &xastro_addr, &user3, 100000);
     // Mint more xASTRO to user2, who will vote against the proposal, what is enough to make proposal unsuccessful.
     mint_tokens(&mut app, &xastro_addr, &user2, 3000);
@@ -1045,11 +1045,12 @@ fn test_block_height_selection() {
         )
         .unwrap();
 
-    assert_eq!(proposal.for_power, Uint128::new(6000));
-    // Against power is 4000, as user2's balance was increased after the proposal submitting.
+    assert_eq!(proposal.for_power, Uint128::new(6001));
+    // Against power is 4000, as user2's balance was increased after proposal.start_block - 1
+    // at which everyone's voting power are considered.
     assert_eq!(proposal.against_power, Uint128::new(4000));
-    // Proposal is passed, as the total supply was increased after the proposal submitting.
-    assert_ne!(proposal.status, ProposalStatus::Passed);
+    // Proposal is passed, as the total supply was increased after proposal.start_block - 1.
+    assert_eq!(proposal.status, ProposalStatus::Passed);
 }
 
 #[test]
