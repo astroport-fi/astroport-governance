@@ -122,7 +122,7 @@ pub fn get_voting_power_at(
 
 /// ## Description
 /// Queries current total voting power from the voting escrow contract.
-pub fn get_total_voting(querier: QuerierWrapper, escrow_addr: &Addr) -> StdResult<Uint128> {
+pub fn get_total_voting_power(querier: QuerierWrapper, escrow_addr: &Addr) -> StdResult<Uint128> {
     let vp: VotingPowerResponse =
         querier.query_wasm_smart(escrow_addr.clone(), &TotalVotingPower {})?;
 
@@ -131,7 +131,7 @@ pub fn get_total_voting(querier: QuerierWrapper, escrow_addr: &Addr) -> StdResul
 
 /// ## Description
 /// Queries total voting power from the voting escrow contract by timestamp.
-pub fn get_total_voting_at(
+pub fn get_total_voting_power_at(
     querier: QuerierWrapper,
     escrow_addr: &Addr,
     timestamp: u64,
