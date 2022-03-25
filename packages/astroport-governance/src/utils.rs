@@ -1,12 +1,6 @@
 use std::convert::TryInto;
 
-use crate::voting_escrow::QueryMsg::{
-    LockInfo, TotalVotingPower, TotalVotingPowerAt, UserVotingPower, UserVotingPowerAt,
-};
-use crate::voting_escrow::{LockInfoResponse, VotingPowerResponse};
-use cosmwasm_std::{
-    Addr, Decimal, Fraction, OverflowError, QuerierWrapper, StdError, StdResult, Uint128, Uint256,
-};
+use cosmwasm_std::{Decimal, Fraction, OverflowError, StdError, StdResult, Uint128, Uint256};
 
 /// Seconds in one week. Constant is intended for period number calculation.
 pub const WEEK: u64 = 7 * 86400; // lock period is rounded down by week
@@ -83,77 +77,4 @@ pub fn calc_voting_power(
         .checked_mul(Uint128::from(end_period - start_period))
         .unwrap_or_else(|_| Uint128::zero());
     old_vp.saturating_sub(shift)
-}
-
-/// ## Description
-/// Queries current user's voting power from the voting escrow contract.
-pub fn get_voting_power(
-    querier: QuerierWrapper,
-    escrow_addr: &Addr,
-    user: &Addr,
-) -> StdResult<Uint128> {
-    let vp: VotingPowerResponse = querier.query_wasm_smart(
-        escrow_addr.clone(),
-        &UserVotingPower {
-            user: user.to_string(),
-        },
-    )?;
-    Ok(vp.voting_power)
-}
-
-/// ## Description
-/// Queries current user's voting power from the voting escrow contract by timestamp.
-pub fn get_voting_power_at(
-    querier: QuerierWrapper,
-    escrow_addr: &Addr,
-    user: &Addr,
-    timestamp: u64,
-) -> StdResult<Uint128> {
-    let vp: VotingPowerResponse = querier.query_wasm_smart(
-        escrow_addr.clone(),
-        &UserVotingPowerAt {
-            user: user.to_string(),
-            time: timestamp,
-        },
-    )?;
-
-    Ok(vp.voting_power)
-}
-
-/// ## Description
-/// Queries current total voting power from the voting escrow contract.
-pub fn get_total_voting_power(querier: QuerierWrapper, escrow_addr: &Addr) -> StdResult<Uint128> {
-    let vp: VotingPowerResponse =
-        querier.query_wasm_smart(escrow_addr.clone(), &TotalVotingPower {})?;
-
-    Ok(vp.voting_power)
-}
-
-/// ## Description
-/// Queries total voting power from the voting escrow contract by timestamp.
-pub fn get_total_voting_power_at(
-    querier: QuerierWrapper,
-    escrow_addr: &Addr,
-    timestamp: u64,
-) -> StdResult<Uint128> {
-    let vp: VotingPowerResponse =
-        querier.query_wasm_smart(escrow_addr.clone(), &TotalVotingPowerAt { time: timestamp })?;
-
-    Ok(vp.voting_power)
-}
-
-/// ## Description
-/// Queries user's lockup information from the voting escrow contract.
-pub fn get_lock_info(
-    querier: QuerierWrapper,
-    escrow_addr: &Addr,
-    user: &Addr,
-) -> StdResult<LockInfoResponse> {
-    let lock_info: LockInfoResponse = querier.query_wasm_smart(
-        escrow_addr.clone(),
-        &LockInfo {
-            user: user.to_string(),
-        },
-    )?;
-    Ok(lock_info)
 }
