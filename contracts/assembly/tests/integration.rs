@@ -29,8 +29,8 @@ use terra_multi_test::{
 };
 
 const PROPOSAL_VOTING_PERIOD: u64 = 500;
-const PROPOSAL_EFFECTIVE_DELAY: u64 = 17_280;
-const PROPOSAL_EXPIRATION_PERIOD: u64 = 120_960;
+const PROPOSAL_EFFECTIVE_DELAY: u64 = 12_342;
+const PROPOSAL_EXPIRATION_PERIOD: u64 = 86_399;
 const PROPOSAL_REQUIRED_DEPOSIT: u128 = 1000u128;
 const PROPOSAL_REQUIRED_QUORUM: &str = "0.50";
 const PROPOSAL_REQUIRED_THRESHOLD: &str = "0.60";
@@ -142,7 +142,7 @@ fn test_contract_instantiation() {
 
     assert_eq!(
         res.to_string(),
-        "Generic error: The expiration period for a proposal cannot be less than 120960 blocks."
+        "Generic error: The expiration period for a proposal cannot be less than 86399 blocks."
     );
 
     let res = app
@@ -161,7 +161,7 @@ fn test_contract_instantiation() {
 
     assert_eq!(
         res.to_string(),
-        "Generic error: The effective delay for a proposal cannot be less than 17280 blocks."
+        "Generic error: The effective delay for a proposal cannot be less than 12342 blocks."
     );
 
     let assembly_instance = app
