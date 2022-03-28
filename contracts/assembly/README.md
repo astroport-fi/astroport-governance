@@ -175,3 +175,16 @@ Returns user voting power for a specific proposal.
   }
 }
 ```
+
+### `total_voting_power`
+
+Returns total voting power for a specific proposal.
+
+```json
+{
+  "total_voting_power": {
+    "proposal_id": 123
+  }
+}
+```
+
