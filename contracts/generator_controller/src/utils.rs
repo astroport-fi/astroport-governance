@@ -3,16 +3,10 @@ use std::convert::TryInto;
 use astroport::asset::{pair_info_by_pool, AssetInfo};
 use astroport::factory::PairType;
 use astroport::querier::query_pair_info;
-use cosmwasm_std::{
-    Addr, Deps, Order, Pair, QuerierWrapper, StdError, StdResult, Storage, Uint128,
-};
+use cosmwasm_std::{Addr, Deps, Order, Pair, StdError, StdResult, Storage, Uint128};
 use cw_storage_plus::{Bound, U64Key};
 
 use astroport_governance::utils::calc_voting_power;
-use astroport_governance::voting_escrow::QueryMsg::LockInfo;
-use astroport_governance::voting_escrow::{
-    LockInfoResponse, QueryMsg::UserVotingPower, VotingPowerResponse,
-};
 
 use crate::bps::BasicPoints;
 use crate::state::{VotedPoolInfo, POOLS, POOL_PERIODS, POOL_SLOPE_CHANGES, POOL_VOTES};
@@ -47,38 +41,6 @@ impl Operation {
 pub(crate) enum VotedPoolInfoResult {
     Unchanged(VotedPoolInfo),
     New(VotedPoolInfo),
-}
-
-/// ## Description
-/// Queries current user's voting power from the voting escrow contract.
-pub(crate) fn get_voting_power(
-    querier: QuerierWrapper,
-    escrow_addr: &Addr,
-    user: &Addr,
-) -> StdResult<Uint128> {
-    let vp: VotingPowerResponse = querier.query_wasm_smart(
-        escrow_addr.clone(),
-        &UserVotingPower {
-            user: user.to_string(),
-        },
-    )?;
-    Ok(vp.voting_power)
-}
-
-/// ## Description
-/// Queries user's lockup information from the voting escrow contract.
-pub(crate) fn get_lock_info(
-    querier: QuerierWrapper,
-    escrow_addr: &Addr,
-    user: &Addr,
-) -> StdResult<LockInfoResponse> {
-    let lock_info: LockInfoResponse = querier.query_wasm_smart(
-        escrow_addr.clone(),
-        &LockInfo {
-            user: user.to_string(),
-        },
-    )?;
-    Ok(lock_info)
 }
 
 /// ## Description
