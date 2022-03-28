@@ -683,6 +683,10 @@ pub fn query_proposal_votes(deps: Deps, proposal_id: u64) -> StdResult<ProposalV
 pub fn calc_voting_power(deps: Deps, sender: String, proposal: &Proposal) -> StdResult<Uint128> {
     let config = CONFIG.load(deps.storage)?;
 
+    // xASTRO balance of the specified user at previous block(proposal.start_block - 1),
+    // because the previous block always has an up-to-date checkpoint and more secured.
+    // BalanceAt will always return the balance information in the previous block,
+    // so you shouldn't subtract block because of the specific logic of the SnapshotMap.
     let xastro_amount: BalanceResponse = deps.querier.query_wasm_smart(
         config.xastro_token_addr,
         &XAstroTokenQueryMsg::BalanceAt {
@@ -730,7 +734,8 @@ pub fn calc_voting_power(deps: Deps, sender: String, proposal: &Proposal) -> Std
 pub fn calc_total_voting_power_at(deps: &DepsMut, proposal: &Proposal) -> StdResult<Uint128> {
     let config = CONFIG.load(deps.storage)?;
 
-    // Total xASTRO supply at a specified block
+    // Total xASTRO supply at a previous block(proposal.start_block - 1),
+    // because the previous block always has an up-to-date checkpoint and more secured
     let mut total: Uint128 = deps.querier.query_wasm_smart(
         config.xastro_token_addr,
         &XAstroTokenQueryMsg::TotalSupplyAt {

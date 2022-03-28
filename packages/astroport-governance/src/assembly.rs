@@ -8,8 +8,8 @@ use std::ops::RangeInclusive;
 
 pub const MINIMUM_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE: u64 = 50;
 pub const MAX_PROPOSAL_REQUIRED_PERCENTAGE: u64 = 100;
-pub const MINIMUM_DELAY: u64 = 17_280; // 1 day in blocks (5 seconds as 1 block)
-pub const MINIMUM_EXPIRATION_PERIOD: u64 = 120_960; // 1 week in blocks (5 seconds as 1 block)
+pub const MINIMUM_DELAY: u64 = 12_342; // 1 day in blocks (7 seconds as 1 block)
+pub const MINIMUM_EXPIRATION_PERIOD: u64 = 86_399; // 1 week in blocks (7 seconds as 1 block)
 
 // Proposal validation attributes
 const MIN_TITLE_LENGTH: usize = 4;

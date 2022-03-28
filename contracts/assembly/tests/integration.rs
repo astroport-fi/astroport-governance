@@ -29,8 +29,8 @@ use terra_multi_test::{
 };
 
 const PROPOSAL_VOTING_PERIOD: u64 = 500;
-const PROPOSAL_EFFECTIVE_DELAY: u64 = 17_280;
-const PROPOSAL_EXPIRATION_PERIOD: u64 = 120_960;
+const PROPOSAL_EFFECTIVE_DELAY: u64 = 12_342;
+const PROPOSAL_EXPIRATION_PERIOD: u64 = 86_399;
 const PROPOSAL_REQUIRED_DEPOSIT: u128 = 1000u128;
 const PROPOSAL_REQUIRED_QUORUM: &str = "0.50";
 const PROPOSAL_REQUIRED_THRESHOLD: &str = "0.60";
@@ -142,7 +142,7 @@ fn test_contract_instantiation() {
 
     assert_eq!(
         res.to_string(),
-        "Generic error: The expiration period for a proposal cannot be less than 120960 blocks."
+        "Generic error: The expiration period for a proposal cannot be less than 86399 blocks."
     );
 
     let res = app
@@ -161,7 +161,7 @@ fn test_contract_instantiation() {
 
     assert_eq!(
         res.to_string(),
-        "Generic error: The effective delay for a proposal cannot be less than 17280 blocks."
+        "Generic error: The effective delay for a proposal cannot be less than 12342 blocks."
     );
 
     let assembly_instance = app
@@ -958,6 +958,98 @@ fn test_voting_power_changes() {
     assert_eq!(proposal.against_power, Uint128::zero());
     // Should be passed, as total_voting_power=5000, for_votes=4000.
     // So user2 didn't affect the result. Because he had to have xASTRO before the vote was submitted.
+    assert_eq!(proposal.status, ProposalStatus::Passed);
+}
+
+#[test]
+fn test_block_height_selection() {
+    // Block height is 12345 after app initialization
+    let mut app = mock_app();
+
+    let owner = Addr::unchecked("owner");
+    let user1 = Addr::unchecked("user1");
+    let user2 = Addr::unchecked("user2");
+    let user3 = Addr::unchecked("user3");
+
+    let (_, xastro_addr, _, _, assembly_addr) = instantiate_contracts(&mut app, owner);
+
+    // Mint tokens for submitting proposal
+    mint_tokens(
+        &mut app,
+        &xastro_addr,
+        &Addr::unchecked("user0"),
+        PROPOSAL_REQUIRED_DEPOSIT,
+    );
+
+    mint_tokens(&mut app, &xastro_addr, &user1, 6001);
+    mint_tokens(&mut app, &xastro_addr, &user2, 4000);
+
+    // Move to the next block(12346)
+    app.update_block(next_block);
+
+    // Create proposal
+    create_proposal(
+        &mut app,
+        &xastro_addr,
+        &assembly_addr,
+        Addr::unchecked("user0"),
+        None,
+    );
+
+    cast_vote(
+        &mut app,
+        assembly_addr.clone(),
+        1,
+        user1,
+        ProposalVoteOption::For,
+    )
+    .unwrap();
+
+    // Mint huge amount of xASTRO. These tokens cannot affect on total supply in proposal 1 because
+    // they were minted after proposal.start_block - 1
+    mint_tokens(&mut app, &xastro_addr, &user3, 100000);
+    // Mint more xASTRO to user2, who will vote against the proposal, what is enough to make proposal unsuccessful.
+    mint_tokens(&mut app, &xastro_addr, &user2, 3000);
+
+    cast_vote(
+        &mut app,
+        assembly_addr.clone(),
+        1,
+        user2,
+        ProposalVoteOption::Against,
+    )
+    .unwrap();
+
+    // Skip voting period
+    app.update_block(|bi| {
+        bi.height += PROPOSAL_VOTING_PERIOD + PROPOSAL_EFFECTIVE_DELAY + 1;
+        bi.time = bi
+            .time
+            .plus_seconds(5 * (PROPOSAL_VOTING_PERIOD + PROPOSAL_EFFECTIVE_DELAY + 1));
+    });
+
+    // End proposal
+    app.execute_contract(
+        Addr::unchecked("user0"),
+        assembly_addr.clone(),
+        &ExecuteMsg::EndProposal { proposal_id: 1 },
+        &[],
+    )
+    .unwrap();
+
+    let proposal: Proposal = app
+        .wrap()
+        .query_wasm_smart(
+            assembly_addr.clone(),
+            &QueryMsg::Proposal { proposal_id: 1 },
+        )
+        .unwrap();
+
+    assert_eq!(proposal.for_power, Uint128::new(6001));
+    // Against power is 4000, as user2's balance was increased after proposal.start_block - 1
+    // at which everyone's voting power are considered.
+    assert_eq!(proposal.against_power, Uint128::new(4000));
+    // Proposal is passed, as the total supply was increased after proposal.start_block - 1.
     assert_eq!(proposal.status, ProposalStatus::Passed);
 }
 
