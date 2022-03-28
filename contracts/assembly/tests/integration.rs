@@ -532,16 +532,16 @@ fn proper_successful_proposal() {
     );
 
     let votes: Vec<(&str, ProposalVoteOption, u128)> = vec![
-        ("user1", ProposalVoteOption::For, 237u128),
-        ("user2", ProposalVoteOption::For, 272u128),
-        ("user3", ProposalVoteOption::For, 472u128),
-        ("user4", ProposalVoteOption::For, 336u128),
-        ("user5", ProposalVoteOption::For, 154u128),
-        ("user6", ProposalVoteOption::For, 444u128),
+        ("user1", ProposalVoteOption::For, 200u128),
+        ("user2", ProposalVoteOption::For, 250u128),
+        ("user3", ProposalVoteOption::For, 450u128),
+        ("user4", ProposalVoteOption::For, 300u128),
+        ("user5", ProposalVoteOption::For, 150u128),
+        ("user6", ProposalVoteOption::For, 400u128),
         ("user7", ProposalVoteOption::For, 130u128),
-        ("user8", ProposalVoteOption::Against, 252u128),
+        ("user8", ProposalVoteOption::Against, 230u128),
         ("user9", ProposalVoteOption::Against, 50u128),
-        ("user10", ProposalVoteOption::Against, 184u128),
+        ("user10", ProposalVoteOption::Against, 180u128),
     ];
 
     for (addr, option, expected_vp) in votes {
@@ -569,11 +569,11 @@ fn proper_successful_proposal() {
         .unwrap();
 
     // Check proposal votes
-    assert_eq!(proposal.for_power, Uint128::from(2045u32));
-    assert_eq!(proposal.against_power, Uint128::from(486u32));
+    assert_eq!(proposal.for_power, Uint128::from(1880u32));
+    assert_eq!(proposal.against_power, Uint128::from(460u32));
 
-    assert_eq!(proposal_votes.for_power, Uint128::from(2045u32));
-    assert_eq!(proposal_votes.against_power, Uint128::from(486u32));
+    assert_eq!(proposal_votes.for_power, Uint128::from(1880u32));
+    assert_eq!(proposal_votes.against_power, Uint128::from(460u32));
 
     assert_eq!(
         proposal.for_voters,
