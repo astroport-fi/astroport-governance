@@ -1,10 +1,7 @@
 use crate::error::ContractError;
 use astroport::asset::addr_validate_to_lower;
 use astroport_governance::utils::{get_periods_count, MAX_LOCK_TIME, WEEK};
-use cosmwasm_std::{
-    Addr, Decimal, Deps, DepsMut, Fraction, Order, OverflowError, Pair, StdError, StdResult,
-    Uint128, Uint256,
-};
+use cosmwasm_std::{Addr, Decimal, Deps, DepsMut, Order, Pair, StdError, StdResult, Uint128};
 use cw_storage_plus::{Bound, U64Key};
 use std::convert::TryInto;
 
@@ -39,38 +36,12 @@ pub(crate) fn blacklist_check(deps: Deps, addr: &Addr) -> Result<(), ContractErr
     }
 }
 
-/// This trait was implemented to eliminate Decimal rounding problems.
-trait DecimalRoundedCheckedMul {
-    fn checked_mul(self, other: Uint128) -> Result<Uint128, OverflowError>;
-}
-
-impl DecimalRoundedCheckedMul for Decimal {
-    fn checked_mul(self, other: Uint128) -> Result<Uint128, OverflowError> {
-        if self.is_zero() || other.is_zero() {
-            return Ok(Uint128::zero());
-        }
-        let numerator = other.full_mul(self.numerator());
-        let multiply_ratio = numerator / Uint256::from(self.denominator());
-        if multiply_ratio > Uint256::from(Uint128::MAX) {
-            Err(OverflowError::new(
-                cosmwasm_std::OverflowOperation::Mul,
-                self,
-                other,
-            ))
-        } else {
-            let mut result: Uint128 = multiply_ratio.try_into().unwrap();
-            let rem: Uint128 = numerator
-                .checked_rem(Uint256::from(self.denominator()))
-                .unwrap()
-                .try_into()
-                .unwrap();
-            // 0.5 in Decimal
-            if rem.u128() >= 500000000000000000_u128 {
-                result += Uint128::from(1_u128);
-            }
-            Ok(result)
-        }
-    }
+/// Adjusting voting power according to the slope. The maximum loss is 103/104 * 104 which is
+/// 0.000103 vxASTRO.
+pub(crate) fn adjust_vp_and_slope(vp: &mut Uint128, dt: u64) -> StdResult<Uint128> {
+    let slope = vp.checked_div(Uint128::from(dt))?;
+    *vp = slope * Uint128::from(dt);
+    Ok(slope)
 }
 
 /// Main function used to calculate a user's voting power at a specific period as: previous_power - slope*(x - previous_x).
@@ -109,7 +80,7 @@ pub(crate) fn fetch_last_checkpoint(
         .transpose()
 }
 
-pub(crate) fn cancel_scheduled_slope(deps: DepsMut, slope: Decimal, period: u64) -> StdResult<()> {
+pub(crate) fn cancel_scheduled_slope(deps: DepsMut, slope: Uint128, period: u64) -> StdResult<()> {
     let end_period_key = U64Key::new(period);
     let last_slope_change = LAST_SLOPE_CHANGE
         .may_load(deps.as_ref().storage)?
@@ -133,13 +104,13 @@ pub(crate) fn cancel_scheduled_slope(deps: DepsMut, slope: Decimal, period: u64)
     }
 }
 
-pub(crate) fn schedule_slope_change(deps: DepsMut, slope: Decimal, period: u64) -> StdResult<()> {
+pub(crate) fn schedule_slope_change(deps: DepsMut, slope: Uint128, period: u64) -> StdResult<()> {
     if !slope.is_zero() {
         SLOPE_CHANGES
             .update(
                 deps.storage,
                 U64Key::new(period),
-                |slope_opt| -> StdResult<Decimal> {
+                |slope_opt| -> StdResult<Uint128> {
                     if let Some(pslope) = slope_opt {
                         Ok(pslope + slope)
                     } else {
@@ -154,7 +125,7 @@ pub(crate) fn schedule_slope_change(deps: DepsMut, slope: Decimal, period: u64) 
 }
 
 /// Helper function for deserialization.
-pub(crate) fn deserialize_pair(pair: StdResult<Pair<Decimal>>) -> StdResult<(u64, Decimal)> {
+pub(crate) fn deserialize_pair(pair: StdResult<Pair<Uint128>>) -> StdResult<(u64, Uint128)> {
     let (period_serialized, change) = pair?;
     let period_bytes: [u8; 8] = period_serialized
         .try_into()
@@ -167,7 +138,7 @@ pub(crate) fn fetch_slope_changes(
     deps: Deps,
     last_slope_change: u64,
     period: u64,
-) -> StdResult<Vec<(u64, Decimal)>> {
+) -> StdResult<Vec<(u64, Uint128)>> {
     SLOPE_CHANGES
         .range(
             deps.storage,

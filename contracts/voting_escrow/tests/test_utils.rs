@@ -184,6 +184,26 @@ impl Helper {
         )
     }
 
+    pub fn create_lock2(
+        &self,
+        router: &mut TerraApp,
+        user: &str,
+        time: u64,
+        amount: u128,
+    ) -> Result<AppResponse> {
+        let cw20msg = Cw20ExecuteMsg::Send {
+            contract: self.voting_instance.to_string(),
+            amount: Uint128::from(amount),
+            msg: to_binary(&Cw20HookMsg::CreateLock { time }).unwrap(),
+        };
+        router.execute_contract(
+            Addr::unchecked(user),
+            self.xastro_token.clone(),
+            &cw20msg,
+            &[],
+        )
+    }
+
     pub fn extend_lock_amount(
         &self,
         router: &mut TerraApp,
@@ -280,6 +300,18 @@ impl Helper {
             .map(|vp: VotingPowerResponse| vp.voting_power.u128() as f32 / MULTIPLIER as f32)
     }
 
+    pub fn query_user_vp2(&self, router: &mut TerraApp, user: &str) -> StdResult<u128> {
+        router
+            .wrap()
+            .query_wasm_smart(
+                self.voting_instance.clone(),
+                &QueryMsg::UserVotingPower {
+                    user: user.to_string(),
+                },
+            )
+            .map(|vp: VotingPowerResponse| vp.voting_power.u128())
+    }
+
     pub fn query_user_vp_at(&self, router: &mut TerraApp, user: &str, time: u64) -> StdResult<f32> {
         router
             .wrap()
@@ -316,6 +348,13 @@ impl Helper {
             .wrap()
             .query_wasm_smart(self.voting_instance.clone(), &QueryMsg::TotalVotingPower {})
             .map(|vp: VotingPowerResponse| vp.voting_power.u128() as f32 / MULTIPLIER as f32)
+    }
+
+    pub fn query_total_vp2(&self, router: &mut TerraApp) -> StdResult<u128> {
+        router
+            .wrap()
+            .query_wasm_smart(self.voting_instance.clone(), &QueryMsg::TotalVotingPower {})
+            .map(|vp: VotingPowerResponse| vp.voting_power.u128())
     }
 
     pub fn query_total_vp_at(&self, router: &mut TerraApp, time: u64) -> StdResult<f32> {

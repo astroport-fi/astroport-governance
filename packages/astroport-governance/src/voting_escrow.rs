@@ -124,7 +124,7 @@ pub struct LockInfoResponse {
     pub start: u64,
     /// End time for the vxASTRO position decay
     pub end: u64,
-    pub slope: Decimal,
+    pub slope: Uint128,
 }
 
 /// This structure stores the parameters returned when querying for a contract's configuration.
