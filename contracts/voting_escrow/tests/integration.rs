@@ -752,17 +752,17 @@ fn check_residual() {
         let user = &format!("user{}", i);
         helper.mint_xastro(router_ref, user, 100);
         helper
-            .create_lock2(router_ref, user, WEEK * lock_duration, lock_amount)
+            .create_lock_u128(router_ref, user, WEEK * lock_duration, lock_amount)
             .unwrap();
     }
 
     let mut sum = 0;
     for i in 1..=users_num {
         let user = &format!("user{}", i);
-        sum += helper.query_user_vp2(router_ref, user).unwrap();
+        sum += helper.query_exact_user_vp(router_ref, user).unwrap();
     }
 
-    assert_eq!(sum, helper.query_total_vp2(router_ref).unwrap());
+    assert_eq!(sum, helper.query_exact_total_vp(router_ref).unwrap());
 
     router_ref.update_block(|bi| {
         bi.height += 1;
@@ -773,7 +773,7 @@ fn check_residual() {
         let user = &format!("user{}", i);
         helper.mint_xastro(router_ref, user, 1000000);
         helper
-            .create_lock2(router_ref, user, WEEK * lock_duration, lock_amount)
+            .create_lock_u128(router_ref, user, WEEK * lock_duration, lock_amount)
             .unwrap();
     }
 
@@ -781,10 +781,10 @@ fn check_residual() {
         sum = 0;
         for i in 1..=users_num {
             let user = &format!("user{}", i);
-            sum += helper.query_user_vp2(router_ref, user).unwrap();
+            sum += helper.query_exact_user_vp(router_ref, user).unwrap();
         }
 
-        let ve_vp = helper.query_total_vp2(router_ref).unwrap();
+        let ve_vp = helper.query_exact_total_vp(router_ref).unwrap();
         let diff = (sum as f64 - ve_vp as f64).abs();
         assert_eq!(diff, 0.0, "diff: {}, sum: {}, ve_vp: {}", diff, sum, ve_vp);
 

@@ -184,7 +184,7 @@ impl Helper {
         )
     }
 
-    pub fn create_lock2(
+    pub fn create_lock_u128(
         &self,
         router: &mut TerraApp,
         user: &str,
@@ -300,7 +300,7 @@ impl Helper {
             .map(|vp: VotingPowerResponse| vp.voting_power.u128() as f32 / MULTIPLIER as f32)
     }
 
-    pub fn query_user_vp2(&self, router: &mut TerraApp, user: &str) -> StdResult<u128> {
+    pub fn query_exact_user_vp(&self, router: &mut TerraApp, user: &str) -> StdResult<u128> {
         router
             .wrap()
             .query_wasm_smart(
@@ -350,7 +350,7 @@ impl Helper {
             .map(|vp: VotingPowerResponse| vp.voting_power.u128() as f32 / MULTIPLIER as f32)
     }
 
-    pub fn query_total_vp2(&self, router: &mut TerraApp) -> StdResult<u128> {
+    pub fn query_exact_total_vp(&self, router: &mut TerraApp) -> StdResult<u128> {
         router
             .wrap()
             .query_wasm_smart(self.voting_instance.clone(), &QueryMsg::TotalVotingPower {})
