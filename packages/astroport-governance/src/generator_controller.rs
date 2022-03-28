@@ -1,4 +1,4 @@
-use cosmwasm_std::{Addr, Decimal, Uint128};
+use cosmwasm_std::{Addr, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -74,7 +74,7 @@ pub struct ConfigResponse {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Default)]
 pub struct VotedPoolInfoResponse {
     pub vxastro_amount: Uint128,
-    pub slope: Decimal,
+    pub slope: Uint128,
 }
 
 /// This structure describes response with last gauge parameters.
@@ -89,7 +89,7 @@ pub struct GaugeInfoResponse {
 pub struct UserInfoResponse {
     pub vote_ts: u64,
     pub voting_power: Uint128,
-    pub slope: Decimal,
+    pub slope: Uint128,
     pub lock_end: u64,
     pub votes: Vec<(Addr, u16)>,
 }

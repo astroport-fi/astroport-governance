@@ -2,7 +2,7 @@ use std::cmp::Ordering;
 use std::collections::HashMap;
 
 use anyhow::Result;
-use cosmwasm_std::{Addr, Decimal, Uint128};
+use cosmwasm_std::{Addr, Uint128};
 use itertools::Itertools;
 use proptest::prelude::*;
 use terra_multi_test::{AppResponse, Executor, TerraApp};
@@ -38,7 +38,7 @@ enum VeEvent {
 
 struct Simulator {
     user_votes: HashMap<String, HashMap<String, u16>>,
-    locks: HashMap<String, (Decimal, u64, f32)>,
+    locks: HashMap<String, (Uint128, u64, f32)>,
     helper: ControllerHelper,
     router: TerraApp,
     owner: Addr,

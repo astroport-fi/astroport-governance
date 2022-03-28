@@ -230,7 +230,7 @@ fn check_gauging() {
         .cloned()
         .map(|(_, apoints)| apoints.u128())
         .sum();
-    assert_eq!(total_apoints, 357423073);
+    assert_eq!(total_apoints, 357423036);
 
     router.next_block(2 * WEEK);
     // Reduce pools limit 5 -> 2 (5 is initial limit in integration tests)
@@ -268,7 +268,7 @@ fn check_gauging() {
         .cloned()
         .map(|(_, apoints)| apoints.u128())
         .sum();
-    assert_eq!(total_apoints, 191009613);
+    assert_eq!(total_apoints, 191009600);
 
     // Check alloc points are properly set in generator
     for (pool_addr, apoints) in resp.pool_alloc_points {
@@ -421,7 +421,7 @@ fn check_bad_pools_filtering() {
         .cloned()
         .map(|(_, apoints)| apoints.u128())
         .sum();
-    assert_eq!(total_apoints, 36615384)
+    assert_eq!(total_apoints, 36615382)
 }
 
 #[test]
