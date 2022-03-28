@@ -4,7 +4,7 @@ use astroport::common::OwnershipProposal;
 use astroport_governance::generator_controller::{
     ConfigResponse, GaugeInfoResponse, UserInfoResponse, VotedPoolInfoResponse,
 };
-use cosmwasm_std::{Addr, Decimal, Uint128};
+use cosmwasm_std::{Addr, Uint128};
 use cw_storage_plus::{Item, Map, U64Key};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -21,7 +21,7 @@ pub type GaugeInfo = GaugeInfoResponse;
 pub struct UserInfo {
     pub vote_ts: u64,
     pub voting_power: Uint128,
-    pub slope: Decimal,
+    pub slope: Uint128,
     pub lock_end: u64,
     pub votes: Vec<(Addr, BasicPoints)>,
 }
@@ -60,7 +60,7 @@ pub const POOLS: Map<&Addr, ()> = Map::new("pools");
 pub const POOL_PERIODS: Map<(&Addr, U64Key), ()> = Map::new("pool_periods");
 
 /// Slope changes for a specific pool address by key ( pool_addr -> period ).
-pub const POOL_SLOPE_CHANGES: Map<(&Addr, U64Key), Decimal> = Map::new("pool_slope_changes");
+pub const POOL_SLOPE_CHANGES: Map<(&Addr, U64Key), Uint128> = Map::new("pool_slope_changes");
 
 /// User's voting information.
 pub const USER_INFO: Map<&Addr, UserInfo> = Map::new("user_info");

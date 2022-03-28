@@ -3,7 +3,7 @@ use std::convert::TryInto;
 use astroport::asset::{pair_info_by_pool, AssetInfo};
 use astroport::factory::PairType;
 use astroport::querier::query_pair_info;
-use cosmwasm_std::{Addr, Decimal, Deps, Order, Pair, StdError, StdResult, Storage, Uint128};
+use cosmwasm_std::{Addr, Deps, Order, Pair, StdError, StdResult, Storage, Uint128};
 use cw_storage_plus::{Bound, U64Key};
 
 use astroport_governance::utils::calc_voting_power;
@@ -20,7 +20,7 @@ pub(crate) enum Operation {
 }
 
 impl Operation {
-    pub fn calc_slope(&self, cur_slope: Decimal, slope: Decimal, bps: BasicPoints) -> Decimal {
+    pub fn calc_slope(&self, cur_slope: Uint128, slope: Uint128, bps: BasicPoints) -> Uint128 {
         match self {
             Operation::Add => cur_slope + bps * slope,
             Operation::Sub => cur_slope - bps * slope,
@@ -96,7 +96,7 @@ pub(crate) fn cancel_user_changes(
     pool_addr: &Addr,
     old_bps: BasicPoints,
     old_vp: Uint128,
-    old_slope: Decimal,
+    old_slope: Uint128,
     old_lock_end: u64,
 ) -> StdResult<()> {
     // Cancel scheduled slope changes
@@ -132,7 +132,7 @@ pub(crate) fn vote_for_pool(
     pool_addr: &Addr,
     bps: BasicPoints,
     vp: Uint128,
-    slope: Decimal,
+    slope: Uint128,
     lock_end: u64,
 ) -> StdResult<()> {
     // Schedule slope changes
@@ -165,7 +165,7 @@ pub(crate) fn update_pool_info(
     storage: &mut dyn Storage,
     period: u64,
     pool_addr: &Addr,
-    changes: Option<(BasicPoints, Uint128, Decimal, Operation)>,
+    changes: Option<(BasicPoints, Uint128, Uint128, Operation)>,
 ) -> StdResult<VotedPoolInfo> {
     if POOLS.may_load(storage, pool_addr)?.is_none() {
         POOLS.save(storage, pool_addr, &())?
@@ -332,7 +332,7 @@ pub(crate) fn fetch_slope_changes(
     pool_addr: &Addr,
     last_period: u64,
     period: u64,
-) -> StdResult<Vec<(u64, Decimal)>> {
+) -> StdResult<Vec<(u64, Uint128)>> {
     POOL_SLOPE_CHANGES
         .prefix(pool_addr)
         .range(

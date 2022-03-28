@@ -1,14 +1,16 @@
-mod test_utils;
-
-use crate::test_utils::{mock_app, Helper, MULTIPLIER};
 use astroport::token as astro;
+use cosmwasm_std::{attr, to_binary, Addr, Fraction, Uint128};
+use cw20::{Cw20ExecuteMsg, MinterResponse};
+use terra_multi_test::{next_block, ContractWrapper, Executor};
+
 use astroport_governance::utils::{get_period, MAX_LOCK_TIME, WEEK};
 use astroport_governance::voting_escrow::{
     ConfigResponse, Cw20HookMsg, ExecuteMsg, LockInfoResponse, QueryMsg,
 };
-use cosmwasm_std::{attr, to_binary, Addr, Fraction, Uint128};
-use cw20::{Cw20ExecuteMsg, MinterResponse};
-use terra_multi_test::{next_block, ContractWrapper, Executor};
+
+use crate::test_utils::{mock_app, Helper, MULTIPLIER};
+
+mod test_utils;
 
 #[test]
 fn lock_unlock_logic() {
@@ -226,9 +228,9 @@ fn new_lock_after_lock_expired() {
         .unwrap();
 
     let vp = helper.query_user_vp(router_ref, "user").unwrap();
-    assert_eq!(vp, 53.605766);
+    assert_eq!(vp, 53.605762);
     let vp = helper.query_total_vp(router_ref).unwrap();
-    assert_eq!(vp, 53.605766);
+    assert_eq!(vp, 53.605762);
 
     // Go to the future
     router_ref.update_block(next_block);
@@ -272,9 +274,9 @@ fn voting_constant_decay() {
         .unwrap();
 
     let vp = helper.query_user_vp(router_ref, "user").unwrap();
-    assert_eq!(vp, 34.326923);
+    assert_eq!(vp, 34.32692);
     let vp = helper.query_total_vp(router_ref).unwrap();
-    assert_eq!(vp, 34.326923);
+    assert_eq!(vp, 34.32692);
 
     // Since user2 did not lock their xASTRO, the contract does not have any information
     let vp = helper.query_user_vp(router_ref, "user2").unwrap();
@@ -292,7 +294,7 @@ fn voting_constant_decay() {
             router_ref.block_info().time.seconds() - WEEK,
         )
         .unwrap();
-    assert_eq!(res, 20.596153);
+    assert_eq!(res, 20.596151);
     let res = helper
         .query_user_vp_at(
             router_ref,
@@ -300,14 +302,14 @@ fn voting_constant_decay() {
             router_ref.block_info().time.seconds() - 3 * WEEK,
         )
         .unwrap();
-    assert_eq!(res, 27.461538);
+    assert_eq!(res, 27.461536);
     let res = helper
         .query_total_vp_at(
             router_ref,
             router_ref.block_info().time.seconds() - 5 * WEEK,
         )
         .unwrap();
-    assert_eq!(res, 34.326923);
+    assert_eq!(res, 34.32692);
 
     // And we can even check voting power in the future
     let res = helper
@@ -317,7 +319,7 @@ fn voting_constant_decay() {
             router_ref.block_info().time.seconds() + WEEK,
         )
         .unwrap();
-    assert_eq!(res, 13.730769);
+    assert_eq!(res, 13.730768);
     let res = helper
         .query_user_vp_at(
             router_ref,
@@ -335,7 +337,7 @@ fn voting_constant_decay() {
     let vp = helper.query_user_vp(router_ref, "user").unwrap();
     assert_eq!(vp, 17.16346);
     let vp = helper.query_user_vp(router_ref, "user2").unwrap();
-    assert_eq!(vp, 54.326923);
+    assert_eq!(vp, 54.32692);
     let vp = helper.query_total_vp(router_ref).unwrap();
     assert_eq!(vp, 71.49039);
     let res = helper
@@ -404,9 +406,9 @@ fn voting_variable_decay() {
     let vp = helper.query_user_vp(router_ref, "user").unwrap();
     assert_eq!(vp, 74.44231);
     let vp = helper.query_user_vp(router_ref, "user2").unwrap();
-    assert_eq!(vp, 57.211536);
+    assert_eq!(vp, 57.21153);
     let vp = helper.query_total_vp(router_ref).unwrap();
-    assert_eq!(vp, 131.65385);
+    assert_eq!(vp, 131.65384);
 
     let res = helper
         .query_user_vp_at(
@@ -415,11 +417,11 @@ fn voting_variable_decay() {
             router_ref.block_info().time.seconds() + 4 * WEEK,
         )
         .unwrap();
-    assert_eq!(res, 34.326923);
+    assert_eq!(res, 34.32692);
     let res = helper
         .query_total_vp_at(router_ref, router_ref.block_info().time.seconds() + WEEK)
         .unwrap();
-    assert_eq!(res, 51.490383);
+    assert_eq!(res, 51.490376);
 
     // Go to the future
     router_ref.update_block(next_block);
@@ -427,9 +429,9 @@ fn voting_variable_decay() {
     let vp = helper.query_user_vp(router_ref, "user").unwrap();
     assert_eq!(vp, 0.0);
     let vp = helper.query_user_vp(router_ref, "user2").unwrap();
-    assert_eq!(vp, 51.490383);
+    assert_eq!(vp, 51.490376);
     let vp = helper.query_total_vp(router_ref).unwrap();
-    assert_eq!(vp, 51.490383);
+    assert_eq!(vp, 51.490376);
 }
 
 #[test]
@@ -506,12 +508,12 @@ fn check_deposit_for() {
         .create_lock(router_ref, "user1", 104 * WEEK, 50f32)
         .unwrap();
     let vp = helper.query_user_vp(router_ref, "user1").unwrap();
-    assert_eq!(125.0, vp);
+    assert_eq!(124.99999, vp);
     helper
         .deposit_for(router_ref, "user2", "user1", 50f32)
         .unwrap();
     let vp = helper.query_user_vp(router_ref, "user1").unwrap();
-    assert_eq!(250.0, vp);
+    assert_eq!(249.99998, vp);
     helper.check_xastro_balance(router_ref, "user1", 50);
     helper.check_xastro_balance(router_ref, "user2", 50);
 }
@@ -705,7 +707,7 @@ fn check_blacklist() {
             router_ref.block_info().time.seconds() - WEEK,
         )
         .unwrap();
-    assert_eq!(vp, 51.490383);
+    assert_eq!(vp, 51.490376);
     // Total voting power should be zero as well since there was only one vxASTRO position created by user1
     let vp = helper.query_total_vp(router_ref).unwrap();
     assert_eq!(vp, 0.0);
@@ -734,4 +736,61 @@ fn check_blacklist() {
     helper
         .create_lock(router_ref, "user1", WEEK, 10f32)
         .unwrap();
+}
+
+#[test]
+fn check_residual() {
+    let mut router = mock_app();
+    let router_ref = &mut router;
+    let owner = Addr::unchecked("owner");
+    let helper = Helper::init(router_ref, owner);
+    let lock_duration = 104;
+    let users_num = 1000;
+    let lock_amount = 100_000_000;
+
+    for i in 1..(users_num / 2) {
+        let user = &format!("user{}", i);
+        helper.mint_xastro(router_ref, user, 100);
+        helper
+            .create_lock_u128(router_ref, user, WEEK * lock_duration, lock_amount)
+            .unwrap();
+    }
+
+    let mut sum = 0;
+    for i in 1..=users_num {
+        let user = &format!("user{}", i);
+        sum += helper.query_exact_user_vp(router_ref, user).unwrap();
+    }
+
+    assert_eq!(sum, helper.query_exact_total_vp(router_ref).unwrap());
+
+    router_ref.update_block(|bi| {
+        bi.height += 1;
+        bi.time = bi.time.plus_seconds(WEEK);
+    });
+
+    for i in (users_num / 2)..users_num {
+        let user = &format!("user{}", i);
+        helper.mint_xastro(router_ref, user, 1000000);
+        helper
+            .create_lock_u128(router_ref, user, WEEK * lock_duration, lock_amount)
+            .unwrap();
+    }
+
+    for _ in 1..104 {
+        sum = 0;
+        for i in 1..=users_num {
+            let user = &format!("user{}", i);
+            sum += helper.query_exact_user_vp(router_ref, user).unwrap();
+        }
+
+        let ve_vp = helper.query_exact_total_vp(router_ref).unwrap();
+        let diff = (sum as f64 - ve_vp as f64).abs();
+        assert_eq!(diff, 0.0, "diff: {}, sum: {}, ve_vp: {}", diff, sum, ve_vp);
+
+        router_ref.update_block(|bi| {
+            bi.height += 1;
+            bi.time = bi.time.plus_seconds(WEEK);
+        });
+    }
 }

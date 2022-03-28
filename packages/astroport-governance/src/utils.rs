@@ -68,7 +68,7 @@ impl DecimalRoundedCheckedMul for Decimal {
 /// # Description
 /// Main function used to calculate a user's voting power at a specific period as: previous_power - slope*(x - previous_x).
 pub fn calc_voting_power(
-    slope: Decimal,
+    slope: Uint128,
     old_vp: Uint128,
     start_period: u64,
     end_period: u64,
