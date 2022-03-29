@@ -19,9 +19,8 @@ const MAX_DESC_LENGTH: usize = 1024;
 const MIN_LINK_LENGTH: usize = 12;
 const MAX_LINK_LENGTH: usize = 128;
 
-const ALLOWED_SIGNS: &str = "!\"#&()*+'-./";
-const LINK_REGEX: &str =
-    r"^(?:http(s)?://)?[\w.-]+(?:\.[\w\.-]+)+[\w\-\._~:/?#\[\]@!\$&'\(\)\*\+,;=.]+$";
+const TEXT_REGEX: &str = r#"[^\w\s!&?#()*+'-./"]"#;
+const LINK_REGEX: &str = r"^(?:http(s)?://)?[\w.-]+(?:\.[\w.-]+)+[\w\-._~:/?#\[\]@!$&'()*+,;=.]+$";
 
 /// This structure holds the parameters used for creating an Assembly contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -245,6 +244,7 @@ pub struct Proposal {
 
 impl Proposal {
     pub fn validate(&self, whitelisted_links: Vec<String>) -> StdResult<()> {
+        let regex = Regex::new(TEXT_REGEX).map_err(|e| StdError::generic_err(e.to_string()))?;
         // Title validation
         if self.title.len() < MIN_TITLE_LENGTH {
             return Err(StdError::generic_err("Title too short!"));
@@ -252,11 +252,7 @@ impl Proposal {
         if self.title.len() > MAX_TITLE_LENGTH {
             return Err(StdError::generic_err("Title too long!"));
         }
-        if !self
-            .title
-            .chars()
-            .all(|c| c.is_alphanumeric() || c.is_ascii_whitespace() || ALLOWED_SIGNS.contains(c))
-        {
+        if regex.is_match(&self.title) {
             return Err(StdError::generic_err(
                 "Title is not in alphanumeric format!",
             ));
@@ -269,11 +265,7 @@ impl Proposal {
         if self.description.len() > MAX_DESC_LENGTH {
             return Err(StdError::generic_err("Description too long!"));
         }
-        if !self
-            .description
-            .chars()
-            .all(|c| c.is_alphanumeric() || c.is_ascii_whitespace() || ALLOWED_SIGNS.contains(c))
-        {
+        if regex.is_match(&self.description) {
             return Err(StdError::generic_err(
                 "Description is not in alphanumeric format",
             ));
@@ -290,8 +282,9 @@ impl Proposal {
             if !whitelisted_links.iter().any(|wl| link.starts_with(wl)) {
                 return Err(StdError::generic_err("Link is not whitelisted!"));
             }
-            let regex = Regex::new(LINK_REGEX).map_err(|e| StdError::generic_err(e.to_string()))?;
-            if !is_valid_link(link, &regex) {
+            let regex_link =
+                Regex::new(LINK_REGEX).map_err(|e| StdError::generic_err(e.to_string()))?;
+            if !is_valid_link(link, &regex_link) {
                 return Err(StdError::generic_err(
                     "Link is not properly formatted! Use ASCII format and avoid unsafe characters.",
                 ));
@@ -381,13 +374,9 @@ pub mod helpers {
     use cosmwasm_std::{StdError, StdResult};
     use regex::Regex;
 
-    const ALLOWED_LINK_SIGNS: &str = "./:?=&_-#";
-
     /// Checks if the link is valid. Returns a boolean value.
     pub fn is_valid_link(link: &str, regex: &Regex) -> bool {
-        link.chars()
-            .all(|c| c.is_ascii_alphanumeric() || ALLOWED_LINK_SIGNS.contains(c))
-            && regex.is_match(link)
+        regex.is_match(link)
     }
 
     /// Validating the list of links. Returns an error if a list has an invalid link.
