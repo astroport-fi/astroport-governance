@@ -65,7 +65,20 @@ fn test_contract_instantiation() {
         proposal_required_deposit: Uint128::from(PROPOSAL_REQUIRED_DEPOSIT),
         proposal_required_quorum: String::from(PROPOSAL_REQUIRED_QUORUM),
         proposal_required_threshold: String::from(PROPOSAL_REQUIRED_THRESHOLD),
-        whitelisted_links: None,
+        whitelisted_links: Some(vec![
+            "https://some.link".to_string(),
+            "https://www.example.com".to_string(),
+            "http://www.example.com".to_string(),
+            "www.example.com".to_string(),
+            "example.com".to_string(),
+            "http://blog.example.com".to_string(),
+            "http://www.example.com/product".to_string(),
+            "http://www.example.com/products?id=1&page=2".to_string(),
+            "http://www.example.com#up".to_string(),
+            "http://255.255.255.255".to_string(),
+            "255.255.255.255".to_string(),
+            "http://www.example.com:8008".to_string(),
+        ]),
     };
 
     // Try to instantiate assembly with wrong threshold
@@ -74,7 +87,7 @@ fn test_contract_instantiation() {
             assembly_code,
             owner.clone(),
             &InstantiateMsg {
-                proposal_required_threshold: "0.4".to_string(),
+                proposal_required_threshold: "0.3".to_string(),
                 ..assembly_default_instantiate_msg.clone()
             },
             &[],
@@ -85,7 +98,7 @@ fn test_contract_instantiation() {
 
     assert_eq!(
         res.to_string(),
-        "Generic error: The required threshold for a proposal cannot be lower than 50% or higher than 100%"
+        "Generic error: The required threshold for a proposal cannot be lower than 33% or higher than 100%"
     );
 
     let res = app
@@ -104,7 +117,7 @@ fn test_contract_instantiation() {
 
     assert_eq!(
         res.to_string(),
-        "Generic error: The required threshold for a proposal cannot be lower than 50% or higher than 100%"
+        "Generic error: The required threshold for a proposal cannot be lower than 33% or higher than 100%"
     );
 
     let res = app
@@ -196,6 +209,23 @@ fn test_contract_instantiation() {
     assert_eq!(
         res.proposal_required_threshold,
         Decimal::from_str(PROPOSAL_REQUIRED_THRESHOLD).unwrap()
+    );
+    assert_eq!(
+        res.whitelisted_links,
+        vec![
+            "https://some.link".to_string(),
+            "https://www.example.com".to_string(),
+            "http://www.example.com".to_string(),
+            "www.example.com".to_string(),
+            "example.com".to_string(),
+            "http://blog.example.com".to_string(),
+            "http://www.example.com/product".to_string(),
+            "http://www.example.com/products?id=1&page=2".to_string(),
+            "http://www.example.com#up".to_string(),
+            "http://255.255.255.255".to_string(),
+            "255.255.255.255".to_string(),
+            "http://www.example.com:8008".to_string(),
+        ]
     );
 }
 
@@ -418,7 +448,7 @@ fn test_proposal_submitting() {
 
     assert_eq!(
         res.to_string(),
-        "Generic error: Link is not in a secured format! Use ASCII format and avoid unsafe characters."
+        "Generic error: Link is not properly formatted! Use ASCII format and avoid unsafe characters."
     );
 
     // Valid proposal submission
