@@ -343,7 +343,7 @@ pub fn end_proposal(
     let against_votes = proposal.against_power;
     let total_votes = for_votes + against_votes;
 
-    let total_voting_power = calc_total_voting_power_at(&deps, &proposal)?;
+    let total_voting_power = calc_total_voting_power_at(deps.as_ref(), &proposal)?;
 
     let mut proposal_quorum: Decimal = Decimal::zero();
     let mut proposal_threshold: Decimal = Decimal::zero();
@@ -584,6 +584,8 @@ pub fn update_config(
 /// * **QueryMsg::ProposalVotes { proposal_id }** Returns proposal vote counts that are stored in the [`ProposalVotesResponse`] structure.
 ///
 /// * **QueryMsg::UserVotingPower { user, proposal_id }** Returns user voting power for a specific proposal.
+///
+/// * **QueryMsg::TotalVotingPower { proposal_id }** Returns total voting power for a specific proposal.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
@@ -599,6 +601,10 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             addr_validate_to_lower(deps.api, &user)?;
 
             to_binary(&calc_voting_power(deps, user, &proposal)?)
+        }
+        QueryMsg::TotalVotingPower { proposal_id } => {
+            let proposal = PROPOSALS.load(deps.storage, U64Key::new(proposal_id))?;
+            to_binary(&calc_total_voting_power_at(deps, &proposal)?)
         }
     }
 }
@@ -728,10 +734,10 @@ pub fn calc_voting_power(deps: Deps, sender: String, proposal: &Proposal) -> Std
 /// ## Description
 /// Calculates the total voting power at a specified block (that is relevant for a specific proposal).
 /// ## Params
-/// * **deps** is an object of type [`DepsMut`].
+/// * **deps** is an object of type [`Deps`].
 ///
 /// * **proposal** is an object of type [`Proposal`]. This is the proposal for which we calculate the total voting power.
-pub fn calc_total_voting_power_at(deps: &DepsMut, proposal: &Proposal) -> StdResult<Uint128> {
+pub fn calc_total_voting_power_at(deps: Deps, proposal: &Proposal) -> StdResult<Uint128> {
     let config = CONFIG.load(deps.storage)?;
 
     // Total xASTRO supply at a previous block(proposal.start_block - 1),

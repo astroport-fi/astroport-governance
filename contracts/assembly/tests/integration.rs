@@ -640,6 +640,8 @@ fn test_successful_proposal() {
         ("user10", ProposalVoteOption::Against, 180u128),
     ];
 
+    check_total_vp(&mut app, &assembly_addr, 1, 4650);
+
     for (addr, option, expected_vp) in votes {
         let sender = Addr::unchecked(addr);
 
@@ -1011,6 +1013,8 @@ fn test_block_height_selection() {
     mint_tokens(&mut app, &xastro_addr, &user3, 100000);
     // Mint more xASTRO to user2, who will vote against the proposal, what is enough to make proposal unsuccessful.
     mint_tokens(&mut app, &xastro_addr, &user2, 3000);
+    // Total voting power should be 11001
+    check_total_vp(&mut app, &assembly_addr, 1, 11001);
 
     cast_vote(
         &mut app,
@@ -1485,6 +1489,18 @@ fn check_user_vp(
                 user: address.to_string(),
                 proposal_id,
             },
+        )
+        .unwrap();
+
+    assert_eq!(res.u128(), expected);
+}
+
+fn check_total_vp(app: &mut TerraApp, assembly: &Addr, proposal_id: u64, expected: u128) {
+    let res: Uint128 = app
+        .wrap()
+        .query_wasm_smart(
+            assembly.to_string(),
+            &QueryMsg::TotalVotingPower { proposal_id },
         )
         .unwrap();
 
