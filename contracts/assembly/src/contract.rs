@@ -9,7 +9,7 @@ use std::str::FromStr;
 
 use astroport::asset::addr_validate_to_lower;
 use astroport_governance::assembly::{
-    helpers::validate_links, Config, Cw20HookMsg, ExecuteMsg, InstantiateMsg, Proposal,
+    helpers::validate_patterns, Config, Cw20HookMsg, ExecuteMsg, InstantiateMsg, Proposal,
     ProposalListResponse, ProposalMessage, ProposalStatus, ProposalVoteOption,
     ProposalVotesResponse, QueryMsg, UpdateConfig,
 };
@@ -54,7 +54,7 @@ pub fn instantiate(
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     if let Some(whitelist_links) = &msg.whitelisted_links {
-        validate_links(whitelist_links)?;
+        validate_patterns(whitelist_links)?;
     }
 
     let config = Config {
@@ -540,7 +540,7 @@ pub fn update_config(
     }
 
     if let Some(whitelist_add) = updated_config.whitelist_add {
-        validate_links(&whitelist_add)?;
+        validate_patterns(&whitelist_add)?;
 
         config.whitelisted_links.append(
             &mut whitelist_add
@@ -785,7 +785,7 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, Co
                 let config_v100 = CONFIGV100.load(deps.storage)?;
 
                 if let Some(whitelisted_links) = &msg.whitelisted_links {
-                    validate_links(whitelisted_links)?;
+                    validate_patterns(whitelisted_links)?;
                 }
 
                 let config = Config {

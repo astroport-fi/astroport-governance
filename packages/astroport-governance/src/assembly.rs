@@ -1,7 +1,6 @@
-use crate::assembly::helpers::is_valid_link;
 use cosmwasm_std::{Addr, CosmosMsg, Decimal, StdError, StdResult, Uint128, Uint64};
 use cw20::Cw20ReceiveMsg;
-use regex::Regex;
+use regex::{Regex, RegexSet};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::fmt::{Display, Formatter, Result};
@@ -20,7 +19,6 @@ const MIN_LINK_LENGTH: usize = 12;
 const MAX_LINK_LENGTH: usize = 128;
 
 const TEXT_REGEX: &str = r#"[^\w\s!&?#()*+'-./"]"#;
-const LINK_REGEX: &str = r"^(?:http(s)?://)?[\w.-]+(?:\.[\w.-]+)+[\w\-_~:/?#\[\]@!$&'()*+,;=.]+$";
 
 /// This structure holds the parameters used for creating an Assembly contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -43,7 +41,7 @@ pub struct InstantiateMsg {
     pub proposal_required_quorum: String,
     /// Proposal required threshold
     pub proposal_required_threshold: String,
-    /// Whitelisted links
+    /// Whitelisted links (Regular expression patterns)
     pub whitelisted_links: Option<Vec<String>>,
 }
 
@@ -201,9 +199,9 @@ pub struct UpdateConfig {
     pub proposal_required_quorum: Option<String>,
     /// Proposal required threshold
     pub proposal_required_threshold: Option<String>,
-    /// Links to remove from whitelist
+    /// Links(Regular expression patterns) to remove from whitelist
     pub whitelist_remove: Option<Vec<String>>,
-    /// Links to add to whitelist
+    /// Links(Regular expression patterns) to add to whitelist
     pub whitelist_add: Option<Vec<String>>,
 }
 
@@ -279,15 +277,12 @@ impl Proposal {
             if link.len() > MAX_LINK_LENGTH {
                 return Err(StdError::generic_err("Link too long!"));
             }
-            if !whitelisted_links.iter().any(|wl| link.starts_with(wl)) {
+
+            let whitelisted_patterns = RegexSet::new(&whitelisted_links)
+                .map_err(|o| StdError::generic_err(o.to_string()))?;
+
+            if !whitelisted_patterns.is_match(link) {
                 return Err(StdError::generic_err("Link is not whitelisted!"));
-            }
-            let regex_link =
-                Regex::new(LINK_REGEX).map_err(|e| StdError::generic_err(e.to_string()))?;
-            if !is_valid_link(link, &regex_link) {
-                return Err(StdError::generic_err(
-                    "Link is not properly formatted! Use ASCII format and avoid unsafe characters.",
-                ));
             }
         }
 
@@ -370,22 +365,15 @@ pub struct ProposalListResponse {
 }
 
 pub mod helpers {
-    use crate::assembly::LINK_REGEX;
     use cosmwasm_std::{StdError, StdResult};
     use regex::Regex;
 
-    /// Checks if the link is valid. Returns a boolean value.
-    pub fn is_valid_link(link: &str, regex: &Regex) -> bool {
-        regex.is_match(link)
-    }
-
-    /// Validating the list of links. Returns an error if a list has an invalid link.
-    pub fn validate_links(links: &[String]) -> StdResult<()> {
-        let regex = Regex::new(LINK_REGEX).map_err(|e| StdError::generic_err(e.to_string()))?;
+    /// Validating the list of patterns. Returns an error if a list has an invalid pattern.
+    pub fn validate_patterns(links: &[String]) -> StdResult<()> {
         for link in links {
-            if !is_valid_link(link, &regex) {
+            if Regex::new(link).is_err() {
                 return Err(StdError::generic_err(format!(
-                    "Link is not properly formatted: {}. Use ASCII format and avoid unsafe characters.",
+                    "Pattern is not properly formatted: {}.",
                     link
                 )));
             }
