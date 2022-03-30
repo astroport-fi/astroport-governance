@@ -20,7 +20,7 @@ const MIN_LINK_LENGTH: usize = 12;
 const MAX_LINK_LENGTH: usize = 128;
 
 const TEXT_REGEX: &str = r#"[^\w\s!&?#()*+'-./"]"#;
-const LINK_REGEX: &str = r"^(?:http(s)?://)?[\w.-]+(?:\.[\w.-]+)+[\w\-._~:/?#\[\]@!$&'()*+,;=.]+$";
+const LINK_REGEX: &str = r"^(?:http(s)?://)?[\w.-]+(?:\.[\w.-]+)+[\w\-_~:/?#\[\]@!$&'()*+,;=.]+$";
 
 /// This structure holds the parameters used for creating an Assembly contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
