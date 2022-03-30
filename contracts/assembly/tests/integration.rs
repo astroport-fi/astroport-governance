@@ -65,7 +65,7 @@ fn test_contract_instantiation() {
         proposal_required_deposit: Uint128::from(PROPOSAL_REQUIRED_DEPOSIT),
         proposal_required_quorum: String::from(PROPOSAL_REQUIRED_QUORUM),
         proposal_required_threshold: String::from(PROPOSAL_REQUIRED_THRESHOLD),
-        whitelisted_links: Some(vec!["https://some.link/[a-zA-Z0-9]+/".to_string()]),
+        whitelisted_link_patterns: Some(vec!["https://some.link/[a-zA-Z0-9]+/".to_string()]),
     };
 
     // Try to instantiate assembly with wrong threshold
@@ -198,7 +198,7 @@ fn test_contract_instantiation() {
         Decimal::from_str(PROPOSAL_REQUIRED_THRESHOLD).unwrap()
     );
     assert_eq!(
-        res.whitelisted_links,
+        res.whitelisted_link_patterns,
         vec!["https://some.link/[a-zA-Z0-9]+/".to_string(),]
     );
 }
@@ -802,7 +802,7 @@ fn test_successful_proposal() {
     // Check execution result
     assert_eq!(config.proposal_voting_period, 750);
     assert_eq!(
-        config.whitelisted_links,
+        config.whitelisted_link_patterns,
         vec![
             "https://some1.link/[a-zA-Z0-9]+/".to_string(),
             "https://some2.link/[a-zA-Z0-9]+/".to_string(),
@@ -1376,7 +1376,7 @@ fn instantiate_assembly_contract(
         proposal_required_deposit: Uint128::new(PROPOSAL_REQUIRED_DEPOSIT),
         proposal_required_quorum: String::from(PROPOSAL_REQUIRED_QUORUM),
         proposal_required_threshold: String::from(PROPOSAL_REQUIRED_THRESHOLD),
-        whitelisted_links: Some(vec!["https://some.link/[a-zA-Z0-9]+/".to_string()]),
+        whitelisted_link_patterns: Some(vec!["https://some.link/[a-zA-Z0-9]+/".to_string()]),
     };
 
     router

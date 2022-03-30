@@ -53,7 +53,7 @@ pub fn instantiate(
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    if let Some(whitelist_links) = &msg.whitelisted_links {
+    if let Some(whitelist_links) = &msg.whitelisted_link_patterns {
         validate_patterns(whitelist_links)?;
     }
 
@@ -67,7 +67,7 @@ pub fn instantiate(
         proposal_required_deposit: msg.proposal_required_deposit,
         proposal_required_quorum: Decimal::from_str(&msg.proposal_required_quorum)?,
         proposal_required_threshold: Decimal::from_str(&msg.proposal_required_threshold)?,
-        whitelisted_links: msg.whitelisted_links.unwrap_or_default(),
+        whitelisted_link_patterns: msg.whitelisted_link_patterns.unwrap_or_default(),
     };
 
     config.validate()?;
@@ -228,7 +228,7 @@ pub fn submit_proposal(
         deposit_amount,
     };
 
-    proposal.validate(config.whitelisted_links)?;
+    proposal.validate(config.whitelisted_link_patterns)?;
 
     PROPOSALS.save(deps.storage, U64Key::new(count.u64()), &proposal)?;
 
@@ -542,17 +542,17 @@ pub fn update_config(
     if let Some(whitelist_add) = updated_config.whitelist_add {
         validate_patterns(&whitelist_add)?;
 
-        config.whitelisted_links.append(
+        config.whitelisted_link_patterns.append(
             &mut whitelist_add
                 .into_iter()
-                .filter(|link| !config.whitelisted_links.contains(link))
+                .filter(|link| !config.whitelisted_link_patterns.contains(link))
                 .collect(),
         );
     }
 
     if let Some(whitelist_remove) = updated_config.whitelist_remove {
-        config.whitelisted_links = config
-            .whitelisted_links
+        config.whitelisted_link_patterns = config
+            .whitelisted_link_patterns
             .into_iter()
             .filter(|link| !whitelist_remove.contains(link))
             .collect();
@@ -790,8 +790,8 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, Co
             "1.0.0" => {
                 let config_v100 = CONFIGV100.load(deps.storage)?;
 
-                if let Some(whitelisted_links) = &msg.whitelisted_links {
-                    validate_patterns(whitelisted_links)?;
+                if let Some(whitelisted_patterns) = &msg.whitelisted_patterns {
+                    validate_patterns(whitelisted_patterns)?;
                 }
 
                 let config = Config {
@@ -804,7 +804,7 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, Co
                     proposal_required_deposit: config_v100.proposal_required_deposit,
                     proposal_required_quorum: config_v100.proposal_required_quorum,
                     proposal_required_threshold: config_v100.proposal_required_threshold,
-                    whitelisted_links: msg.whitelisted_links.unwrap_or_default(),
+                    whitelisted_link_patterns: msg.whitelisted_patterns.unwrap_or_default(),
                 };
 
                 config.validate()?;

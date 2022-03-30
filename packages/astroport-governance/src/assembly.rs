@@ -41,8 +41,8 @@ pub struct InstantiateMsg {
     pub proposal_required_quorum: String,
     /// Proposal required threshold
     pub proposal_required_threshold: String,
-    /// Whitelisted links (Regular expression patterns)
-    pub whitelisted_links: Option<Vec<String>>,
+    /// Whitelisted link patterns
+    pub whitelisted_link_patterns: Option<Vec<String>>,
 }
 
 /// This enum describes all execute functions available in the contract.
@@ -137,8 +137,8 @@ pub struct Config {
     pub proposal_required_quorum: Decimal,
     /// Proposal required threshold
     pub proposal_required_threshold: Decimal,
-    /// Whitelisted links
-    pub whitelisted_links: Vec<String>,
+    /// Whitelisted link patterns
+    pub whitelisted_link_patterns: Vec<String>,
 }
 
 impl Config {
@@ -201,9 +201,9 @@ pub struct UpdateConfig {
     pub proposal_required_quorum: Option<String>,
     /// Proposal required threshold
     pub proposal_required_threshold: Option<String>,
-    /// Links(Regular expression patterns) to remove from whitelist
+    /// Link patterns to remove from whitelist
     pub whitelist_remove: Option<Vec<String>>,
-    /// Links(Regular expression patterns) to add to whitelist
+    /// Link patterns to add to whitelist
     pub whitelist_add: Option<Vec<String>>,
 }
 
@@ -243,7 +243,7 @@ pub struct Proposal {
 }
 
 impl Proposal {
-    pub fn validate(&self, whitelisted_links: Vec<String>) -> StdResult<()> {
+    pub fn validate(&self, patterns: Vec<String>) -> StdResult<()> {
         let regex = Regex::new(TEXT_REGEX).map_err(|e| StdError::generic_err(e.to_string()))?;
         // Title validation
         if self.title.len() < MIN_TITLE_LENGTH {
@@ -280,10 +280,9 @@ impl Proposal {
                 return Err(StdError::generic_err("Link too long!"));
             }
 
-            let whitelisted_patterns = RegexSet::new(&whitelisted_links)
-                .map_err(|o| StdError::generic_err(o.to_string()))?;
-
-            if !whitelisted_patterns.is_match(link) {
+            let patterns =
+                RegexSet::new(&patterns).map_err(|e| StdError::generic_err(e.to_string()))?;
+            if !patterns.is_match(link) {
                 return Err(StdError::generic_err("Link is not whitelisted!"));
             }
         }
@@ -371,12 +370,12 @@ pub mod helpers {
     use regex::Regex;
 
     /// Validating the list of patterns. Returns an error if a list has an invalid pattern.
-    pub fn validate_patterns(links: &[String]) -> StdResult<()> {
-        for link in links {
-            if Regex::new(link).is_err() {
+    pub fn validate_patterns(patterns: &[String]) -> StdResult<()> {
+        for pattern in patterns {
+            if Regex::new(pattern).is_err() {
                 return Err(StdError::generic_err(format!(
                     "Pattern is not properly formatted: {}.",
-                    link
+                    pattern
                 )));
             }
         }
