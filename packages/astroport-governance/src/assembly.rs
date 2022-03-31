@@ -1,6 +1,6 @@
+use crate::assembly::helpers::is_safe_link;
 use cosmwasm_std::{Addr, CosmosMsg, Decimal, StdError, StdResult, Uint128, Uint64};
 use cw20::Cw20ReceiveMsg;
-use regex::{Regex, RegexSet};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::fmt::{Display, Formatter, Result};
@@ -18,7 +18,7 @@ const MAX_DESC_LENGTH: usize = 1024;
 const MIN_LINK_LENGTH: usize = 12;
 const MAX_LINK_LENGTH: usize = 128;
 
-const TEXT_REGEX: &str = r#"[^\w\s!&?#()*+'-./"]"#;
+const SAFE_TEXT_CHARS: &str = "!&?#()*+'-./\"";
 
 /// This structure holds the parameters used for creating an Assembly contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -41,8 +41,8 @@ pub struct InstantiateMsg {
     pub proposal_required_quorum: String,
     /// Proposal required threshold
     pub proposal_required_threshold: String,
-    /// Whitelisted link patterns
-    pub whitelisted_link_patterns: Option<Vec<String>>,
+    /// Whitelisted links
+    pub whitelisted_links: Vec<String>,
 }
 
 /// This enum describes all execute functions available in the contract.
@@ -137,8 +137,8 @@ pub struct Config {
     pub proposal_required_quorum: Decimal,
     /// Proposal required threshold
     pub proposal_required_threshold: Decimal,
-    /// Whitelisted link patterns
-    pub whitelisted_link_patterns: Vec<String>,
+    /// Whitelisted links
+    pub whitelisted_links: Vec<String>,
 }
 
 impl Config {
@@ -155,7 +155,9 @@ impl Config {
             )));
         }
 
-        if self.proposal_required_quorum > Decimal::percent(100u64) {
+        if self.proposal_required_quorum
+            > Decimal::percent(MAX_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE)
+        {
             return Err(StdError::generic_err(format!(
                 "The required quorum for a proposal cannot be higher than {}%",
                 MAX_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE
@@ -201,9 +203,9 @@ pub struct UpdateConfig {
     pub proposal_required_quorum: Option<String>,
     /// Proposal required threshold
     pub proposal_required_threshold: Option<String>,
-    /// Link patterns to remove from whitelist
+    /// Links to remove from whitelist
     pub whitelist_remove: Option<Vec<String>>,
-    /// Link patterns to add to whitelist
+    /// Links to add to whitelist
     pub whitelist_add: Option<Vec<String>>,
 }
 
@@ -243,8 +245,7 @@ pub struct Proposal {
 }
 
 impl Proposal {
-    pub fn validate(&self, patterns: Vec<String>) -> StdResult<()> {
-        let regex = Regex::new(TEXT_REGEX).map_err(|e| StdError::generic_err(e.to_string()))?;
+    pub fn validate(&self, whitelisted_links: Vec<String>) -> StdResult<()> {
         // Title validation
         if self.title.len() < MIN_TITLE_LENGTH {
             return Err(StdError::generic_err("Title too short!"));
@@ -252,7 +253,9 @@ impl Proposal {
         if self.title.len() > MAX_TITLE_LENGTH {
             return Err(StdError::generic_err("Title too long!"));
         }
-        if regex.is_match(&self.title) {
+        if !self.title.chars().all(|c| {
+            c.is_ascii_alphanumeric() || c.is_ascii_whitespace() || SAFE_TEXT_CHARS.contains(c)
+        }) {
             return Err(StdError::generic_err(
                 "Title is not in alphanumeric format!",
             ));
@@ -265,7 +268,9 @@ impl Proposal {
         if self.description.len() > MAX_DESC_LENGTH {
             return Err(StdError::generic_err("Description too long!"));
         }
-        if regex.is_match(&self.description) {
+        if !self.description.chars().all(|c| {
+            c.is_ascii_alphanumeric() || c.is_ascii_whitespace() || SAFE_TEXT_CHARS.contains(c)
+        }) {
             return Err(StdError::generic_err(
                 "Description is not in alphanumeric format",
             ));
@@ -279,11 +284,13 @@ impl Proposal {
             if link.len() > MAX_LINK_LENGTH {
                 return Err(StdError::generic_err("Link too long!"));
             }
-
-            let patterns =
-                RegexSet::new(&patterns).map_err(|e| StdError::generic_err(e.to_string()))?;
-            if !patterns.is_match(link) {
+            if !whitelisted_links.iter().any(|wl| link.starts_with(wl)) {
                 return Err(StdError::generic_err("Link is not whitelisted!"));
+            }
+            if !is_safe_link(link) {
+                return Err(StdError::generic_err(
+                    "Link is not properly formatted or contains unsafe characters!",
+                ));
             }
         }
 
@@ -367,15 +374,22 @@ pub struct ProposalListResponse {
 
 pub mod helpers {
     use cosmwasm_std::{StdError, StdResult};
-    use regex::Regex;
 
-    /// Validating the list of patterns. Returns an error if a list has an invalid pattern.
-    pub fn validate_patterns(patterns: &[String]) -> StdResult<()> {
-        for pattern in patterns {
-            if Regex::new(pattern).is_err() {
+    const SAFE_LINK_CHARS: &str = "-_:/?#@!$&()*+,;=.~[]'%";
+
+    /// Checks if the link is valid. Returns a boolean value.
+    pub fn is_safe_link(link: &str) -> bool {
+        link.chars()
+            .all(|c| c.is_ascii_alphanumeric() || SAFE_LINK_CHARS.contains(c))
+    }
+
+    /// Validating the list of links. Returns an error if a list has an invalid link.
+    pub fn validate_links(links: &[String]) -> StdResult<()> {
+        for link in links {
+            if !(is_safe_link(link) && link.ends_with('/')) {
                 return Err(StdError::generic_err(format!(
-                    "Pattern is not properly formatted: {}.",
-                    pattern
+                    "Link is not properly formatted or contains unsafe characters: {}.",
+                    link
                 )));
             }
         }
