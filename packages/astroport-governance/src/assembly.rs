@@ -18,7 +18,7 @@ const MAX_DESC_LENGTH: usize = 1024;
 const MIN_LINK_LENGTH: usize = 12;
 const MAX_LINK_LENGTH: usize = 128;
 
-const SAFE_TEXT_CHARS: &str = "!&?#()*+'-./";
+const SAFE_TEXT_CHARS: &str = "!&?#()*+'-./\"";
 
 /// This structure holds the parameters used for creating an Assembly contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -245,7 +245,7 @@ pub struct Proposal {
 }
 
 impl Proposal {
-    pub fn validate(&self, links: Vec<String>) -> StdResult<()> {
+    pub fn validate(&self, whitelisted_links: Vec<String>) -> StdResult<()> {
         // Title validation
         if self.title.len() < MIN_TITLE_LENGTH {
             return Err(StdError::generic_err("Title too short!"));
@@ -284,7 +284,7 @@ impl Proposal {
             if link.len() > MAX_LINK_LENGTH {
                 return Err(StdError::generic_err("Link too long!"));
             }
-            if !links.iter().any(|wl| link.starts_with(wl)) {
+            if !whitelisted_links.iter().any(|wl| link.starts_with(wl)) {
                 return Err(StdError::generic_err("Link is not whitelisted!"));
             }
             if !is_safe_link(link) {
