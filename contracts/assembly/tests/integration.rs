@@ -65,7 +65,7 @@ fn test_contract_instantiation() {
         proposal_required_deposit: Uint128::from(PROPOSAL_REQUIRED_DEPOSIT),
         proposal_required_quorum: String::from(PROPOSAL_REQUIRED_QUORUM),
         proposal_required_threshold: String::from(PROPOSAL_REQUIRED_THRESHOLD),
-        whitelisted_link_patterns: Some(vec!["https://some.link/[a-zA-Z0-9]+/".to_string()]),
+        whitelisted_links: Some(vec!["https://some.link/".to_string()]),
     };
 
     // Try to instantiate assembly with wrong threshold
@@ -198,8 +198,8 @@ fn test_contract_instantiation() {
         Decimal::from_str(PROPOSAL_REQUIRED_THRESHOLD).unwrap()
     );
     assert_eq!(
-        res.whitelisted_link_patterns,
-        vec!["https://some.link/[a-zA-Z0-9]+/".to_string(),]
+        res.whitelisted_links,
+        vec!["https://some.link/".to_string(),]
     );
 }
 
@@ -259,7 +259,7 @@ fn test_proposal_submitting() {
                 msg: to_binary(&Cw20HookMsg::SubmitProposal {
                     title: String::from("X"),
                     description: String::from("Description"),
-                    link: Some(String::from("https://some.link")),
+                    link: Some(String::from("https://some.link/")),
                     messages: None,
                 })
                 .unwrap(),
@@ -280,7 +280,7 @@ fn test_proposal_submitting() {
                 msg: to_binary(&Cw20HookMsg::SubmitProposal {
                     title: String::from_utf8(vec![b'X'; 65]).unwrap(),
                     description: String::from("Description"),
-                    link: Some(String::from("https://some.link")),
+                    link: Some(String::from("https://some.link/")),
                     messages: None,
                 })
                 .unwrap(),
@@ -302,7 +302,7 @@ fn test_proposal_submitting() {
                 msg: to_binary(&Cw20HookMsg::SubmitProposal {
                     title: String::from("Title"),
                     description: String::from("X"),
-                    link: Some(String::from("https://some.link")),
+                    link: Some(String::from("https://some.link/")),
                     messages: None,
                 })
                 .unwrap(),
@@ -323,7 +323,7 @@ fn test_proposal_submitting() {
                 msg: to_binary(&Cw20HookMsg::SubmitProposal {
                     title: String::from("Title"),
                     description: String::from_utf8(vec![b'X'; 1025]).unwrap(),
-                    link: Some(String::from("https://some.link")),
+                    link: Some(String::from("https://some.link/")),
                     messages: None,
                 })
                 .unwrap(),
@@ -420,7 +420,10 @@ fn test_proposal_submitting() {
         )
         .unwrap_err();
 
-    assert_eq!(res.to_string(), "Generic error: Link is not whitelisted!");
+    assert_eq!(
+        res.to_string(),
+        "Generic error: Link is not properly formatted or contains unsafe characters!"
+    );
 
     // Valid proposal submission
     app.execute_contract(
@@ -616,10 +619,10 @@ fn test_successful_proposal() {
                     proposal_required_quorum: None,
                     proposal_required_threshold: None,
                     whitelist_add: Some(vec![
-                        "https://some1.link/[a-zA-Z0-9]+/".to_string(),
-                        "https://some2.link/[a-zA-Z0-9]+/".to_string(),
+                        "https://some1.link/".to_string(),
+                        "https://some2.link/".to_string(),
                     ]),
-                    whitelist_remove: Some(vec!["https://some.link/[a-zA-Z0-9]+/".to_string()]),
+                    whitelist_remove: Some(vec!["https://some.link/".to_string()]),
                 }))
                 .unwrap(),
                 funds: vec![],
@@ -802,10 +805,10 @@ fn test_successful_proposal() {
     // Check execution result
     assert_eq!(config.proposal_voting_period, 750);
     assert_eq!(
-        config.whitelisted_link_patterns,
+        config.whitelisted_links,
         vec![
-            "https://some1.link/[a-zA-Z0-9]+/".to_string(),
-            "https://some2.link/[a-zA-Z0-9]+/".to_string(),
+            "https://some1.link/".to_string(),
+            "https://some2.link/".to_string(),
         ]
     );
     assert_eq!(proposal.status, ProposalStatus::Executed);
@@ -1376,7 +1379,7 @@ fn instantiate_assembly_contract(
         proposal_required_deposit: Uint128::new(PROPOSAL_REQUIRED_DEPOSIT),
         proposal_required_quorum: String::from(PROPOSAL_REQUIRED_QUORUM),
         proposal_required_threshold: String::from(PROPOSAL_REQUIRED_THRESHOLD),
-        whitelisted_link_patterns: Some(vec!["https://some.link/[a-zA-Z0-9]+/".to_string()]),
+        whitelisted_links: Some(vec!["https://some.link/".to_string()]),
     };
 
     router

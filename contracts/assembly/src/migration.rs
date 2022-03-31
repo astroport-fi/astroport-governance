@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 pub struct MigrateMsg {
     pub proposal_voting_period: u64,
     pub proposal_effective_delay: u64,
-    pub whitelisted_patterns: Option<Vec<String>>,
+    pub whitelisted_links: Option<Vec<String>>,
 }
 
 /// This structure stores general parameters for the Assembly contract.
