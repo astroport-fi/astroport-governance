@@ -49,6 +49,9 @@ pub enum ContractError {
 
     #[error("Contract can't be migrated!")]
     MigrationError {},
+
+    #[error("Whitelist cannot be empty!")]
+    WhitelistEmpty {},
 }
 
 impl From<OverflowError> for ContractError {

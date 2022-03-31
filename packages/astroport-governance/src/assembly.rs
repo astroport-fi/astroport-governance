@@ -42,7 +42,7 @@ pub struct InstantiateMsg {
     /// Proposal required threshold
     pub proposal_required_threshold: String,
     /// Whitelisted links
-    pub whitelisted_links: Option<Vec<String>>,
+    pub whitelisted_links: Vec<String>,
 }
 
 /// This enum describes all execute functions available in the contract.
@@ -375,7 +375,7 @@ pub struct ProposalListResponse {
 pub mod helpers {
     use cosmwasm_std::{StdError, StdResult};
 
-    const SAFE_LINK_CHARS: &str = "-_:/?#@!$&()*+,;=.";
+    const SAFE_LINK_CHARS: &str = "-_:/?#@!$&()*+,;=.~[]'%";
 
     /// Checks if the link is valid. Returns a boolean value.
     pub fn is_safe_link(link: &str) -> bool {

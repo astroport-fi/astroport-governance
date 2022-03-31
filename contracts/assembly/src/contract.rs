@@ -53,9 +53,11 @@ pub fn instantiate(
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    if let Some(whitelist_links) = &msg.whitelisted_links {
-        validate_links(whitelist_links)?;
+    if msg.whitelisted_links.is_empty() {
+        return Err(ContractError::WhitelistEmpty {});
     }
+
+    validate_links(&msg.whitelisted_links)?;
 
     let config = Config {
         xastro_token_addr: addr_validate_to_lower(deps.api, &msg.xastro_token_addr)?,
@@ -67,7 +69,7 @@ pub fn instantiate(
         proposal_required_deposit: msg.proposal_required_deposit,
         proposal_required_quorum: Decimal::from_str(&msg.proposal_required_quorum)?,
         proposal_required_threshold: Decimal::from_str(&msg.proposal_required_threshold)?,
-        whitelisted_links: msg.whitelisted_links.unwrap_or_default(),
+        whitelisted_links: msg.whitelisted_links,
     };
 
     config.validate()?;
@@ -556,6 +558,10 @@ pub fn update_config(
             .into_iter()
             .filter(|link| !whitelist_remove.contains(link))
             .collect();
+
+        if config.whitelisted_links.is_empty() {
+            return Err(ContractError::WhitelistEmpty {});
+        }
     }
 
     config.validate()?;
@@ -790,9 +796,10 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, Co
             "1.0.0" => {
                 let config_v100 = CONFIGV100.load(deps.storage)?;
 
-                if let Some(whitelisted_links) = &msg.whitelisted_links {
-                    validate_links(whitelisted_links)?;
+                if msg.whitelisted_links.is_empty() {
+                    return Err(ContractError::WhitelistEmpty {});
                 }
+                validate_links(&msg.whitelisted_links)?;
 
                 let config = Config {
                     xastro_token_addr: config_v100.xastro_token_addr,
@@ -804,7 +811,7 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, Co
                     proposal_required_deposit: config_v100.proposal_required_deposit,
                     proposal_required_quorum: config_v100.proposal_required_quorum,
                     proposal_required_threshold: config_v100.proposal_required_threshold,
-                    whitelisted_links: msg.whitelisted_links.unwrap_or_default(),
+                    whitelisted_links: msg.whitelisted_links,
                 };
 
                 config.validate()?;

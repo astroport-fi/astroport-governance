@@ -65,7 +65,7 @@ fn test_contract_instantiation() {
         proposal_required_deposit: Uint128::from(PROPOSAL_REQUIRED_DEPOSIT),
         proposal_required_quorum: String::from(PROPOSAL_REQUIRED_QUORUM),
         proposal_required_threshold: String::from(PROPOSAL_REQUIRED_THRESHOLD),
-        whitelisted_links: Some(vec!["https://some.link/".to_string()]),
+        whitelisted_links: vec!["https://some.link/".to_string()],
     };
 
     // Try to instantiate assembly with wrong threshold
@@ -1379,7 +1379,7 @@ fn instantiate_assembly_contract(
         proposal_required_deposit: Uint128::new(PROPOSAL_REQUIRED_DEPOSIT),
         proposal_required_quorum: String::from(PROPOSAL_REQUIRED_QUORUM),
         proposal_required_threshold: String::from(PROPOSAL_REQUIRED_THRESHOLD),
-        whitelisted_links: Some(vec!["https://some.link/".to_string()]),
+        whitelisted_links: vec!["https://some.link/".to_string()],
     };
 
     router
