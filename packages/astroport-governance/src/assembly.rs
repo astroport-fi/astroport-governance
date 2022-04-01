@@ -26,7 +26,7 @@ pub struct InstantiateMsg {
     /// Address of xASTRO token
     pub xastro_token_addr: String,
     /// Address of vxASTRO token
-    pub vxastro_token_addr: String,
+    pub vxastro_token_addr: Option<String>,
     /// Address of the builder unlock contract
     pub builder_unlock_addr: String,
     /// Proposal voting period
@@ -122,7 +122,7 @@ pub struct Config {
     /// xASTRO token address
     pub xastro_token_addr: Addr,
     /// vxASTRO token address
-    pub vxastro_token_addr: Addr,
+    pub vxastro_token_addr: Option<Addr>,
     /// Builder unlock contract address
     pub builder_unlock_addr: Addr,
     /// Proposal voting period

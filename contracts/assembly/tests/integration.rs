@@ -57,7 +57,7 @@ fn test_contract_instantiation() {
 
     let assembly_default_instantiate_msg = InstantiateMsg {
         xastro_token_addr: xastro_token_addr.to_string(),
-        vxastro_token_addr: vxastro_token_addr.to_string(),
+        vxastro_token_addr: Some(vxastro_token_addr.to_string()),
         builder_unlock_addr: builder_unlock_addr.to_string(),
         proposal_voting_period: PROPOSAL_VOTING_PERIOD,
         proposal_effective_delay: PROPOSAL_EFFECTIVE_DELAY,
@@ -1371,7 +1371,7 @@ fn instantiate_assembly_contract(
 
     let msg = InstantiateMsg {
         xastro_token_addr: xastro.to_string(),
-        vxastro_token_addr: vxastro.to_string(),
+        vxastro_token_addr: Some(vxastro.to_string()),
         builder_unlock_addr: builder.to_string(),
         proposal_voting_period: PROPOSAL_VOTING_PERIOD,
         proposal_effective_delay: PROPOSAL_EFFECTIVE_DELAY,

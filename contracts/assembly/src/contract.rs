@@ -21,7 +21,7 @@ use astroport_governance::builder_unlock::msg::{
 use astroport_governance::voting_escrow::{QueryMsg as VotingEscrowQueryMsg, VotingPowerResponse};
 
 use crate::error::ContractError;
-use crate::migration::{MigrateMsg, CONFIGV100};
+use crate::migration::{MigrateMsg, CONFIGV100, CONFIGV101};
 use crate::state::{CONFIG, PROPOSALS, PROPOSAL_COUNT};
 
 // Contract name and version used for migration.
@@ -59,9 +59,9 @@ pub fn instantiate(
 
     validate_links(&msg.whitelisted_links)?;
 
-    let config = Config {
+    let mut config = Config {
         xastro_token_addr: addr_validate_to_lower(deps.api, &msg.xastro_token_addr)?,
-        vxastro_token_addr: addr_validate_to_lower(deps.api, &msg.vxastro_token_addr)?,
+        vxastro_token_addr: None,
         builder_unlock_addr: addr_validate_to_lower(deps.api, &msg.builder_unlock_addr)?,
         proposal_voting_period: msg.proposal_voting_period,
         proposal_effective_delay: msg.proposal_effective_delay,
@@ -71,6 +71,10 @@ pub fn instantiate(
         proposal_required_threshold: Decimal::from_str(&msg.proposal_required_threshold)?,
         whitelisted_links: msg.whitelisted_links,
     };
+
+    if let Some(vxastro_token_addr) = msg.vxastro_token_addr {
+        config.vxastro_token_addr = Some(addr_validate_to_lower(deps.api, &vxastro_token_addr)?);
+    }
 
     config.validate()?;
 
@@ -510,7 +514,7 @@ pub fn update_config(
     }
 
     if let Some(vxastro_token_addr) = updated_config.vxastro_token_addr {
-        config.vxastro_token_addr = addr_validate_to_lower(deps.api, &vxastro_token_addr)?;
+        config.vxastro_token_addr = Some(addr_validate_to_lower(deps.api, &vxastro_token_addr)?);
     }
 
     if let Some(builder_unlock_addr) = updated_config.builder_unlock_addr {
@@ -722,16 +726,18 @@ pub fn calc_voting_power(deps: Deps, sender: String, proposal: &Proposal) -> Std
             .checked_sub(locked_amount.status.astro_withdrawn)?;
     }
 
-    let vxastro_amount: VotingPowerResponse = deps.querier.query_wasm_smart(
-        config.vxastro_token_addr,
-        &VotingEscrowQueryMsg::UserVotingPowerAt {
-            user: sender,
-            time: proposal.start_time - 1,
-        },
-    )?;
+    if let Some(vxastro_token_addr) = config.vxastro_token_addr {
+        let vxastro_amount: VotingPowerResponse = deps.querier.query_wasm_smart(
+            vxastro_token_addr,
+            &VotingEscrowQueryMsg::UserVotingPowerAt {
+                user: sender,
+                time: proposal.start_time - 1,
+            },
+        )?;
 
-    if !vxastro_amount.voting_power.is_zero() {
-        total = total.checked_add(vxastro_amount.voting_power)?;
+        if !vxastro_amount.voting_power.is_zero() {
+            total = total.checked_add(vxastro_amount.voting_power)?;
+        }
     }
 
     Ok(total)
@@ -764,16 +770,17 @@ pub fn calc_total_voting_power_at(deps: Deps, proposal: &Proposal) -> StdResult<
         total = total.checked_add(builder_state.remaining_astro_tokens)?;
     }
 
-    // Total vxASTRO voting power
-    let vxastro: VotingPowerResponse = deps.querier.query_wasm_smart(
-        config.vxastro_token_addr,
-        &VotingEscrowQueryMsg::TotalVotingPowerAt {
-            time: proposal.start_time - 1,
-        },
-    )?;
-
-    if !vxastro.voting_power.is_zero() {
-        total = total.checked_add(vxastro.voting_power)?;
+    if let Some(vxastro_token_addr) = config.vxastro_token_addr {
+        // Total vxASTRO voting power
+        let vxastro: VotingPowerResponse = deps.querier.query_wasm_smart(
+            vxastro_token_addr,
+            &VotingEscrowQueryMsg::TotalVotingPowerAt {
+                time: proposal.start_time - 1,
+            },
+        )?;
+        if !vxastro.voting_power.is_zero() {
+            total = total.checked_add(vxastro.voting_power)?;
+        }
     }
 
     Ok(total)
@@ -803,7 +810,7 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, Co
 
                 let config = Config {
                     xastro_token_addr: config_v100.xastro_token_addr,
-                    vxastro_token_addr: config_v100.vxastro_token_addr,
+                    vxastro_token_addr: Some(config_v100.vxastro_token_addr),
                     builder_unlock_addr: config_v100.builder_unlock_addr,
                     proposal_voting_period: msg.proposal_voting_period,
                     proposal_effective_delay: msg.proposal_effective_delay,
@@ -815,6 +822,24 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, Co
                 };
 
                 config.validate()?;
+
+                CONFIG.save(deps.storage, &config)?;
+            }
+            "1.0.1" => {
+                let config_v101 = CONFIGV101.load(deps.storage)?;
+
+                let config = Config {
+                    xastro_token_addr: config_v101.xastro_token_addr,
+                    vxastro_token_addr: Some(config_v101.vxastro_token_addr),
+                    builder_unlock_addr: config_v101.builder_unlock_addr,
+                    proposal_voting_period: config_v101.proposal_voting_period,
+                    proposal_effective_delay: config_v101.proposal_effective_delay,
+                    proposal_expiration_period: config_v101.proposal_expiration_period,
+                    proposal_required_deposit: config_v101.proposal_required_deposit,
+                    proposal_required_quorum: config_v101.proposal_required_quorum,
+                    proposal_required_threshold: config_v101.proposal_required_threshold,
+                    whitelisted_links: config_v101.whitelisted_links,
+                };
 
                 CONFIG.save(deps.storage, &config)?;
             }
