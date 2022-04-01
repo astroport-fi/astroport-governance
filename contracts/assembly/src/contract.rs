@@ -21,7 +21,7 @@ use astroport_governance::builder_unlock::msg::{
 use astroport_governance::voting_escrow::{QueryMsg as VotingEscrowQueryMsg, VotingPowerResponse};
 
 use crate::error::ContractError;
-use crate::migration::{MigrateMsg, CONFIGV100};
+use crate::migration::{MigrateMsg, CONFIGV100, CONFIGV101};
 use crate::state::{CONFIG, PROPOSALS, PROPOSAL_COUNT};
 
 // Contract name and version used for migration.
@@ -826,27 +826,20 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, Co
                 CONFIG.save(deps.storage, &config)?;
             }
             "1.0.1" => {
-                let config_v100 = CONFIGV100.load(deps.storage)?;
-
-                if msg.whitelisted_links.is_empty() {
-                    return Err(ContractError::WhitelistEmpty {});
-                }
-                validate_links(&msg.whitelisted_links)?;
+                let config_v101 = CONFIGV101.load(deps.storage)?;
 
                 let config = Config {
-                    xastro_token_addr: config_v100.xastro_token_addr,
-                    vxastro_token_addr: Some(config_v100.vxastro_token_addr),
-                    builder_unlock_addr: config_v100.builder_unlock_addr,
-                    proposal_voting_period: msg.proposal_voting_period,
-                    proposal_effective_delay: msg.proposal_effective_delay,
-                    proposal_expiration_period: config_v100.proposal_expiration_period,
-                    proposal_required_deposit: config_v100.proposal_required_deposit,
-                    proposal_required_quorum: config_v100.proposal_required_quorum,
-                    proposal_required_threshold: config_v100.proposal_required_threshold,
-                    whitelisted_links: msg.whitelisted_links,
+                    xastro_token_addr: config_v101.xastro_token_addr,
+                    vxastro_token_addr: Some(config_v101.vxastro_token_addr),
+                    builder_unlock_addr: config_v101.builder_unlock_addr,
+                    proposal_voting_period: config_v101.proposal_voting_period,
+                    proposal_effective_delay: config_v101.proposal_effective_delay,
+                    proposal_expiration_period: config_v101.proposal_expiration_period,
+                    proposal_required_deposit: config_v101.proposal_required_deposit,
+                    proposal_required_quorum: config_v101.proposal_required_quorum,
+                    proposal_required_threshold: config_v101.proposal_required_threshold,
+                    whitelisted_links: config_v101.whitelisted_links,
                 };
-
-                config.validate()?;
 
                 CONFIG.save(deps.storage, &config)?;
             }

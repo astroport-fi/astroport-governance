@@ -35,3 +35,30 @@ pub struct ConfigV100 {
 }
 
 pub const CONFIGV100: Item<ConfigV100> = Item::new("config");
+
+/// This structure stores general parameters for the Assembly contract.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct ConfigV101 {
+    /// xASTRO token address
+    pub xastro_token_addr: Addr,
+    /// vxASTRO token address
+    pub vxastro_token_addr: Addr,
+    /// Builder unlock contract address
+    pub builder_unlock_addr: Addr,
+    /// Proposal voting period
+    pub proposal_voting_period: u64,
+    /// Proposal effective delay
+    pub proposal_effective_delay: u64,
+    /// Proposal expiration period
+    pub proposal_expiration_period: u64,
+    /// Proposal required deposit
+    pub proposal_required_deposit: Uint128,
+    /// Proposal required quorum
+    pub proposal_required_quorum: Decimal,
+    /// Proposal required threshold
+    pub proposal_required_threshold: Decimal,
+    /// Whitelisted links
+    pub whitelisted_links: Vec<String>,
+}
+
+pub const CONFIGV101: Item<ConfigV101> = Item::new("config");
