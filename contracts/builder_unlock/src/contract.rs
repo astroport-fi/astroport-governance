@@ -1,3 +1,5 @@
+use astroport::asset::addr_validate_to_lower;
+use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 
@@ -8,13 +10,14 @@ use cosmwasm_std::{
 use cw2::set_contract_version;
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 
+use crate::contract::helpers::compute_unlocked_amount;
 use astroport_governance::builder_unlock::msg::{
     AllocationResponse, ExecuteMsg, InstantiateMsg, QueryMsg, ReceiveMsg, SimulateWithdrawResponse,
     StateResponse,
 };
 use astroport_governance::builder_unlock::{AllocationParams, AllocationStatus, Config};
 
-use crate::state::{CONFIG, PARAMS, STATE, STATUS};
+use crate::state::{CONFIG, OWNERSHIP_PROPOSAL, PARAMS, STATE, STATUS};
 
 // Version and name used for contract migration.
 const CONTRACT_NAME: &str = "builder-unlock";
@@ -70,15 +73,59 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
     match msg {
         ExecuteMsg::Receive(cw20_msg) => execute_receive_cw20(deps, env, info, cw20_msg),
         ExecuteMsg::Withdraw {} => execute_withdraw(deps, env, info),
-        ExecuteMsg::TransferOwnership { new_owner } => {
-            execute_transfer_ownership(deps, env, info, new_owner)
-        }
         ExecuteMsg::ProposeNewReceiver { new_receiver } => {
             execute_propose_new_receiver(deps, env, info, new_receiver)
         }
         ExecuteMsg::DropNewReceiver {} => execute_drop_new_receiver(deps, env, info),
         ExecuteMsg::ClaimReceiver { prev_receiver } => {
             execute_claim_receiver(deps, env, info, prev_receiver)
+        }
+        ExecuteMsg::IncreaseAllocation { receiver, amount } => {
+            let config = CONFIG.load(deps.storage)?;
+            if info.sender != config.owner {
+                return Err(StdError::generic_err(
+                    "Only the contract owner can increase allocations",
+                ));
+            }
+
+            execute_increase_allocation(deps, env, info, receiver, amount, None)
+        }
+        ExecuteMsg::DecreaseAllocation { receiver, amount } => {
+            execute_decrease_allocation(deps, env, info, receiver, amount)
+        }
+        ExecuteMsg::TransferUnallocated { amount, recipient } => {
+            execute_transfer_unallocated(deps, env, info, amount, recipient)
+        }
+        ExecuteMsg::ProposeNewOwner {
+            new_owner,
+            expires_in,
+        } => {
+            let config: Config = CONFIG.load(deps.storage)?;
+
+            propose_new_owner(
+                deps,
+                info,
+                env,
+                new_owner,
+                expires_in,
+                config.owner,
+                OWNERSHIP_PROPOSAL,
+            )
+        }
+        ExecuteMsg::DropOwnershipProposal {} => {
+            let config: Config = CONFIG.load(deps.storage)?;
+
+            drop_ownership_proposal(deps, info, config.owner, OWNERSHIP_PROPOSAL)
+        }
+        ExecuteMsg::ClaimOwnership {} => {
+            claim_ownership(deps, info, env, OWNERSHIP_PROPOSAL, |deps, new_owner| {
+                CONFIG.update::<_, StdError>(deps.storage, |mut v| {
+                    v.owner = new_owner;
+                    Ok(v)
+                })?;
+
+                Ok(())
+            })
         }
     }
 }
@@ -111,6 +158,20 @@ fn execute_receive_cw20(
             cw20_msg.amount,
             allocations,
         ),
+        ReceiveMsg::IncreaseAllocations { user, amount } => {
+            let config = CONFIG.load(deps.storage)?;
+
+            if config.astro_token != info.sender {
+                return Err(StdError::generic_err("Only ASTRO can be deposited"));
+            }
+            if addr_validate_to_lower(deps.api, &cw20_msg.sender)? != config.owner {
+                return Err(StdError::generic_err(
+                    "Only the contract owner can increase allocations",
+                ));
+            }
+
+            execute_increase_allocation(deps, env, info, user, amount, Some(cw20_msg.amount))
+        }
     }
 }
 
@@ -274,39 +335,6 @@ fn execute_withdraw(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Res
 }
 
 /// ## Description
-/// Transfer contract ownership.
-/// ## Params
-/// * **deps** is an object of type [`DepsMut`].
-///
-/// * **env** is an object of type [`Env`].
-///
-/// * **info** is an object of type [`MessageInfo`].
-///
-/// * **new_owner** is an [`Option`] of type [`String`]. This is the newly proposed owner.
-fn execute_transfer_ownership(
-    deps: DepsMut,
-    _env: Env,
-    info: MessageInfo,
-    new_owner: Option<String>,
-) -> StdResult<Response> {
-    let mut config = CONFIG.load(deps.storage)?;
-
-    if info.sender != config.owner {
-        return Err(StdError::generic_err(
-            "Only the current owner can transfer ownership",
-        ));
-    }
-
-    if new_owner.is_some() {
-        config.owner = deps.api.addr_validate(&new_owner.unwrap())?;
-    }
-
-    CONFIG.save(deps.storage, &config)?;
-
-    Ok(Response::new())
-}
-
-/// ## Description
 /// Allows the current allocation receiver to propose a new receiver/.
 /// ## Params
 /// * **deps** is an object of type [`DepsMut`].
@@ -378,6 +406,184 @@ fn execute_drop_new_receiver(deps: DepsMut, _env: Env, info: MessageInfo) -> Std
     Ok(Response::new()
         .add_attribute("action", "DropNewReceiver")
         .add_attribute("dropped_proposed_receiver", prev_proposed_receiver))
+}
+
+/// ## Description
+/// Decrease allocation.
+/// ## Params
+/// * **deps** is an object of type [`DepsMut`].
+///
+/// * **env** is an object of type [`Env`].
+///
+/// * **info** is an object of type [`MessageInfo`].
+///
+/// * **receiver** is an object of type [`String`]. Decreasing receiver.
+///
+/// * **amount** is an object of type [`Uint128`]. ASTRO amount to decrease.
+fn execute_decrease_allocation(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    receiver: String,
+    amount: Uint128,
+) -> StdResult<Response> {
+    let config = CONFIG.load(deps.storage)?;
+    if info.sender != config.owner {
+        return Err(StdError::generic_err(
+            "Only the contract owner can decrease allocations",
+        ));
+    }
+
+    let receiver = addr_validate_to_lower(deps.api, &receiver)?;
+
+    let mut state = STATE.load(deps.storage)?;
+    let mut params = PARAMS.load(deps.storage, &receiver)?;
+    let mut status = STATUS.load(deps.storage, &receiver)?;
+
+    let unlocked_amount = compute_unlocked_amount(
+        env.block.time.seconds(),
+        params.amount,
+        &params.unlock_schedule,
+        status.unlocked_amount_checkpoint,
+    );
+    let astro_withdrawable = unlocked_amount - status.astro_withdrawn;
+    let locked_amount = params.amount - astro_withdrawable;
+
+    if locked_amount < amount {
+        return Err(StdError::generic_err(format!(
+            "Insufficient amount of lock to decrease allocation, User has locked {} ASTRO.",
+            locked_amount
+        )));
+    }
+
+    params.amount = params.amount.checked_sub(amount)?;
+    status.unlocked_amount_checkpoint = unlocked_amount;
+    state.unallocated_tokens = state.unallocated_tokens.checked_add(amount)?;
+
+    STATUS.save(deps.storage, &receiver, &status)?;
+    PARAMS.save(deps.storage, &receiver, &params)?;
+    STATE.save(deps.storage, &state)?;
+
+    Ok(Response::new()
+        .add_attribute("action", "execute_decrease_allocation")
+        .add_attribute("receiver", receiver)
+        .add_attribute("amount", amount))
+}
+
+/// ## Description
+/// Increase allocation.
+/// ## Params
+/// * **deps** is an object of type [`DepsMut`].
+///
+/// * **_env** is an object of type [`Env`].
+///
+/// * **_info** is an object of type [`MessageInfo`].
+///
+/// * **receiver** is an object of type [`String`]. Increasing receiver.
+///
+/// * **amount** is an object of type [`Uint128`]. ASTRO amount to increase.
+///
+/// * **deposit_amount** is an [`Option`] of type [`Uint128`]. Amount of ASTRO to increase using CW20 Receive.
+fn execute_increase_allocation(
+    deps: DepsMut,
+    _env: Env,
+    _info: MessageInfo,
+    receiver: String,
+    amount: Uint128,
+    deposit_amount: Option<Uint128>,
+) -> StdResult<Response> {
+    let receiver = addr_validate_to_lower(deps.api, &receiver)?;
+
+    match PARAMS.may_load(deps.storage, &receiver)? {
+        Some(mut params) => {
+            let mut state = STATE.load(deps.storage)?;
+
+            if let Some(deposit_amount) = deposit_amount {
+                state.total_astro_deposited =
+                    state.total_astro_deposited.checked_add(deposit_amount)?;
+                state.remaining_astro_tokens =
+                    state.remaining_astro_tokens.checked_add(deposit_amount)?;
+                state.unallocated_tokens = state.unallocated_tokens.checked_add(deposit_amount)?;
+            }
+
+            if state.unallocated_tokens < amount {
+                return Err(StdError::generic_err(format!(
+                    "Insufficient unallocated ASTRO to increase allocation. Contract has: {} unallocated ASTRO.",
+                    state.unallocated_tokens
+                )));
+            }
+
+            params.amount = params.amount.checked_add(amount)?;
+            state.unallocated_tokens = state.unallocated_tokens.checked_sub(amount)?;
+
+            PARAMS.save(deps.storage, &receiver, &params)?;
+            STATE.save(deps.storage, &state)?;
+        }
+        None => {
+            return Err(StdError::generic_err("Proposed receiver not set"));
+        }
+    }
+
+    Ok(Response::new())
+}
+
+/// ## Description
+/// Transfer unallocated ASTRO tokens to recipient.
+/// ## Params
+/// * **deps** is an object of type [`DepsMut`].
+///
+/// * **_env** is an object of type [`Env`].
+///
+/// * **info** is an object of type [`MessageInfo`].
+///
+/// * **amount** is an object of type [`Uint128`]. Amount ASTRO to transfer.
+///
+/// * **recipient** is an [`Option`] of type [`u64`]. Transfer recipient.
+fn execute_transfer_unallocated(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    amount: Uint128,
+    recipient: Option<String>,
+) -> StdResult<Response> {
+    let recipient = match recipient {
+        Some(addr) => addr_validate_to_lower(deps.api, &addr)?,
+        None => info.sender.clone(),
+    };
+
+    let config = CONFIG.load(deps.storage)?;
+    let mut state = STATE.load(deps.storage)?;
+
+    if config.owner != info.sender {
+        return Err(StdError::generic_err(
+            "Only contract owner can transfer unallocated ASTRO.",
+        ));
+    }
+
+    if state.unallocated_tokens < amount {
+        return Err(StdError::generic_err(format!(
+            "Insufficient unallocated ASTRO to transfer. Contract has: {} unallocated ASTRO.",
+            state.unallocated_tokens
+        )));
+    }
+
+    state.unallocated_tokens = state.unallocated_tokens.checked_sub(amount)?;
+
+    let msg = WasmMsg::Execute {
+        contract_addr: config.astro_token.to_string(),
+        msg: to_binary(&Cw20ExecuteMsg::Transfer {
+            recipient: recipient.to_string(),
+            amount,
+        })?,
+        funds: vec![],
+    };
+
+    STATE.save(deps.storage, &state)?;
+
+    Ok(Response::new()
+        .add_attribute("action", "execute_transfer_unallocated")
+        .add_attribute("amount", amount)
+        .add_message(msg))
 }
 
 /// ## Description
@@ -465,6 +671,7 @@ pub fn query_state(deps: Deps) -> StdResult<StateResponse> {
     Ok(StateResponse {
         total_astro_deposited: state.total_astro_deposited,
         remaining_astro_tokens: state.remaining_astro_tokens,
+        unallocated_astro_tokens: state.unallocated_tokens,
     })
 }
 
@@ -501,11 +708,13 @@ fn query_tokens_unlocked(deps: Deps, env: Env, account: String) -> StdResult<Uin
     let account_checked = deps.api.addr_validate(&account)?;
 
     let params = PARAMS.load(deps.storage, &account_checked)?;
+    let status = STATUS.load(deps.storage, &account_checked)?;
 
     Ok(helpers::compute_unlocked_amount(
         env.block.time.seconds(),
         params.amount,
         &params.unlock_schedule,
+        status.unlocked_amount_checkpoint,
     ))
 }
 
@@ -570,6 +779,7 @@ mod helpers {
         timestamp: u64,
         amount: Uint128,
         schedule: &Schedule,
+        unlock_checkpoint: Uint128,
     ) -> Uint128 {
         // Tokens haven't begun unlocking
         if timestamp < schedule.start_time + schedule.cliff {
@@ -579,10 +789,16 @@ mod helpers {
         else if (timestamp < schedule.start_time + schedule.cliff + schedule.duration)
             && schedule.duration != 0
         {
-            amount.multiply_ratio(
+            let unlocked_amount = amount.multiply_ratio(
                 timestamp - (schedule.start_time + schedule.cliff),
                 schedule.duration,
-            )
+            );
+
+            if unlocked_amount > unlock_checkpoint {
+                unlocked_amount
+            } else {
+                unlock_checkpoint
+            }
         }
         // After end time, all tokens are fully unlocked
         else {
@@ -597,8 +813,12 @@ mod helpers {
         status: &mut AllocationStatus,
     ) -> SimulateWithdrawResponse {
         // "Unlocked" amount
-        let astro_unlocked =
-            compute_unlocked_amount(timestamp, params.amount, &params.unlock_schedule);
+        let astro_unlocked = compute_unlocked_amount(
+            timestamp,
+            params.amount,
+            &params.unlock_schedule,
+            status.unlocked_amount_checkpoint,
+        );
 
         // Withdrawable amount is unlocked amount minus the amount already withdrawn
         let astro_withdrawable = astro_unlocked - status.astro_withdrawn;
