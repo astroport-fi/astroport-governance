@@ -7,15 +7,16 @@ use cosmwasm_std::{
     from_binary, to_binary, Addr, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response,
     StdError, StdResult, Uint128, WasmMsg,
 };
-use cw2::set_contract_version;
+use cw2::{get_contract_version, set_contract_version};
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 
 use crate::contract::helpers::compute_unlocked_amount;
+use crate::migration::{STATEV100, STATUSV100};
 use astroport_governance::builder_unlock::msg::{
     AllocationResponse, ExecuteMsg, InstantiateMsg, QueryMsg, ReceiveMsg, SimulateWithdrawResponse,
     StateResponse,
 };
-use astroport_governance::builder_unlock::{AllocationParams, AllocationStatus, Config};
+use astroport_governance::builder_unlock::{AllocationParams, AllocationStatus, Config, State};
 
 use crate::state::{CONFIG, OWNERSHIP_PROPOSAL, PARAMS, STATE, STATUS};
 
@@ -760,8 +761,48 @@ fn query_simulate_withdraw(
 ///
 /// * **_msg** is an object of type [`Empty`].
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(_deps: DepsMut, _env: Env, _msg: Empty) -> StdResult<Response> {
-    Ok(Response::default())
+pub fn migrate(deps: DepsMut, _env: Env, _msg: Empty) -> StdResult<Response> {
+    let contract_version = get_contract_version(deps.storage)?;
+
+    match contract_version.contract.as_ref() {
+        "builder-unlock" => match contract_version.version.as_ref() {
+            "1.0.0" => {
+                let state_v100 = STATEV100.load(deps.storage)?;
+                STATE.save(
+                    deps.storage,
+                    &State {
+                        total_astro_deposited: state_v100.total_astro_deposited,
+                        remaining_astro_tokens: state_v100.remaining_astro_tokens,
+                        unallocated_tokens: Uint128::zero(),
+                    },
+                )?;
+
+                let keys = STATUSV100
+                    .keys(deps.storage, None, None, cosmwasm_std::Order::Ascending {})
+                    .map(|v| String::from_utf8(v).map_err(StdError::from))
+                    .collect::<Result<Vec<String>, StdError>>()?;
+
+                for key in keys {
+                    let status_v110 = STATUSV100.load(deps.storage, &Addr::unchecked(&key))?;
+                    let status = AllocationStatus {
+                        astro_withdrawn: status_v110.astro_withdrawn,
+                        unlocked_amount_checkpoint: Uint128::zero(),
+                    };
+                    STATUS.save(deps.storage, &Addr::unchecked(key), &status)?;
+                }
+            }
+            _ => return Err(StdError::generic_err("Contract can't be migrated!")),
+        },
+        _ => return Err(StdError::generic_err("Contract can't be migrated!")),
+    };
+
+    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    Ok(Response::new()
+        .add_attribute("previous_contract_name", &contract_version.contract)
+        .add_attribute("previous_contract_version", &contract_version.version)
+        .add_attribute("new_contract_name", CONTRACT_NAME)
+        .add_attribute("new_contract_version", CONTRACT_VERSION))
 }
 
 //----------------------------------------------------------------------------------------
