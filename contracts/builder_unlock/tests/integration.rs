@@ -1486,7 +1486,7 @@ fn test_increase_and_decrease_allocation() {
         &cw20::Cw20ExecuteMsg::Send {
             contract: unlock_instance.clone().to_string(),
             amount: Uint128::from(1_000u64),
-            msg: to_binary(&ReceiveMsg::IncreaseAllocations {
+            msg: to_binary(&ReceiveMsg::IncreaseAllocation {
                 amount: Uint128::from(500_000_001_000u128),
                 user: "investor".to_string(),
             })

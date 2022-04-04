@@ -158,7 +158,7 @@ fn execute_receive_cw20(
             cw20_msg.amount,
             allocations,
         ),
-        ReceiveMsg::IncreaseAllocations { user, amount } => {
+        ReceiveMsg::IncreaseAllocation { user, amount } => {
             let config = CONFIG.load(deps.storage)?;
 
             if config.astro_token != info.sender {

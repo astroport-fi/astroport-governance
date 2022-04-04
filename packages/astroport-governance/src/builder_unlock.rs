@@ -152,7 +152,7 @@ pub mod msg {
             allocations: Vec<(String, AllocationParams)>,
         },
         /// Increase ASTRO allocation
-        IncreaseAllocations { user: String, amount: Uint128 },
+        IncreaseAllocation { user: String, amount: Uint128 },
     }
 
     /// Thie enum describes all the queries available in the contract.
