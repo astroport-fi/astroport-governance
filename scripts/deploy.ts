@@ -148,12 +148,13 @@ async function deployAssembly(terra: LCDClient, wallet: any) {
             "xastro_token_addr": network.xastroAddress,
             "vxastro_token_addr": network.votingEscrow,
             "builder_unlock_addr": network.builderUnlockAddress,
-            "proposal_voting_period": 360,
-            "proposal_effective_delay": 100,
-            "proposal_expiration_period": 100,
-            "proposal_required_deposit": '1000000', // 1 xASTRO
-            "proposal_required_quorum": '0.000001', // 0.0001%
-            "proposal_required_threshold": '0.51'   // 51%
+            "proposal_voting_period": 57600,
+            "proposal_effective_delay": 28800,
+            "proposal_expiration_period": 201600,
+            "proposal_required_deposit": "30000000000", // 30k ASTRO
+            "proposal_required_quorum": "0.1", // 10%
+            "proposal_required_threshold": '0.50',   // 50%
+            "whitelisted_links": ["https://forum.astroport.fi/", "http://forum.astroport.fi/", "https://astroport.fi/", "http://astroport.fi/"]
         }
     )
 
