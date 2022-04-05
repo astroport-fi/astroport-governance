@@ -783,9 +783,9 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: Empty) -> StdResult<Response> {
                     .collect::<Result<Vec<String>, StdError>>()?;
 
                 for key in keys {
-                    let status_v110 = STATUSV100.load(deps.storage, &Addr::unchecked(&key))?;
+                    let status_v100 = STATUSV100.load(deps.storage, &Addr::unchecked(&key))?;
                     let status = AllocationStatus {
-                        astro_withdrawn: status_v110.astro_withdrawn,
+                        astro_withdrawn: status_v100.astro_withdrawn,
                         unlocked_amount_checkpoint: Uint128::zero(),
                     };
                     STATUS.save(deps.storage, &Addr::unchecked(key), &status)?;

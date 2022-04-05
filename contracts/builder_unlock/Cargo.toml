@@ -20,10 +20,10 @@ cw-storage-plus = {version = "0.8.0", features = ['iterator']}
 schemars = "0.8.1"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 astroport-governance = { path = "../../packages/astroport-governance", default-features = false, version = "1.0.0"}
-astroport = {git = "https://github.com/astroport-fi/astroport.git", branch = "master"}
+astroport = {git = "https://github.com/astroport-fi/astroport.git", branch = "main"}
 thiserror = { version = "1.0.20" }
 
 [dev-dependencies]
 cosmwasm-schema = { version = "0.16.0", default-features = false  }
 terra-multi-test = {git = "https://github.com/astroport-fi/terra-plus.git", tag = "v0.8.0-terra1"}
-astroport-token = {git = "https://github.com/astroport-fi/astroport.git", branch = "master", package = "astroport-token"}
+astroport-token = {git = "https://github.com/astroport-fi/astroport.git", branch = "main", package = "astroport-token"}

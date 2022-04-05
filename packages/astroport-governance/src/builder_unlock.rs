@@ -12,7 +12,7 @@ pub struct Config {
 }
 
 /// This structure stores the total and the remaining amount of ASTRO to be unlocked by all accounts.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Default)]
 pub struct State {
     /// Amount of ASTRO tokens deposited into the contract
     pub total_astro_deposited: Uint128,
@@ -22,18 +22,8 @@ pub struct State {
     pub unallocated_tokens: Uint128,
 }
 
-impl Default for State {
-    fn default() -> Self {
-        State {
-            total_astro_deposited: Uint128::zero(),
-            remaining_astro_tokens: Uint128::zero(),
-            unallocated_tokens: Uint128::zero(),
-        }
-    }
-}
-
 /// This structure stores the parameters describing a typical unlock schedule.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Default)]
 pub struct Schedule {
     /// Timestamp for the start of the unlock schedule (in seconds)
     pub start_time: u64,
@@ -44,7 +34,7 @@ pub struct Schedule {
 }
 
 /// This structure stores the parameters used to describe an ASTRO allocation.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Default)]
 pub struct AllocationParams {
     /// Total amount of ASTRO tokens allocated to a specific account
     pub amount: Uint128,
@@ -54,36 +44,13 @@ pub struct AllocationParams {
     pub proposed_receiver: Option<Addr>,
 }
 
-impl Default for AllocationParams {
-    fn default() -> Self {
-        AllocationParams {
-            amount: Uint128::zero(),
-            unlock_schedule: Schedule {
-                start_time: 0u64,
-                cliff: 0u64,
-                duration: 0u64,
-            },
-            proposed_receiver: None,
-        }
-    }
-}
-
 /// This structure stores the parameters used to describe the status of an allocation.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Default)]
 pub struct AllocationStatus {
     /// Amount of ASTRO already withdrawn
     pub astro_withdrawn: Uint128,
     /// Already unlocked amount after decreasing
     pub unlocked_amount_checkpoint: Uint128,
-}
-
-impl Default for AllocationStatus {
-    fn default() -> Self {
-        AllocationStatus {
-            astro_withdrawn: Uint128::zero(),
-            unlocked_amount_checkpoint: Uint128::zero(),
-        }
-    }
 }
 
 impl AllocationStatus {
@@ -207,7 +174,7 @@ pub mod msg {
         pub total_astro_deposited: Uint128,
         /// Currently available ASTRO tokens that weren't yet withdrawn from the contract
         pub remaining_astro_tokens: Uint128,
-        /// Currently available ASTRO tokens to withdraw or increase allocations be the owner
+        /// Currently available ASTRO tokens to withdraw or increase allocations by the owner
         pub unallocated_astro_tokens: Uint128,
     }
 }
