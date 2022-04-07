@@ -64,7 +64,7 @@ pub fn instantiate(
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    // Accept values within [0,1] limit
+    // Accept values within [0,1] limit. If max_exit_penalty is empty then 100% penalty is considered.
     let max_exit_penalty = msg
         .max_exit_penalty
         .map(|penalty| {
@@ -75,7 +75,7 @@ pub fn instantiate(
             }
         })
         .transpose()?
-        .unwrap_or_default();
+        .unwrap_or_else(Decimal::one);
     let slashed_fund_receiver = msg
         .slashed_fund_receiver
         .map(|addr| addr_validate_to_lower(deps.api, &addr))
