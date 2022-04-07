@@ -829,8 +829,13 @@ fn early_withdraw() {
     helper.check_astro_balance(router_ref, helper.voting_instance.as_str(), 0);
     helper.check_xastro_balance(router_ref, helper.voting_instance.as_str(), 200);
 
+    let early_withdrawal_amount = helper
+        .query_early_withdraw_amount(router_ref, "user2")
+        .unwrap();
+    assert_eq!(early_withdrawal_amount, 25.0);
     helper.withdraw_early(router_ref, "user2").unwrap();
 
+    // 75% penalty
     helper.check_xastro_balance(router_ref, "user2", 25);
     helper.check_astro_balance(router_ref, "holder", 75);
     helper.check_astro_balance(router_ref, helper.voting_instance.as_str(), 0);
@@ -852,8 +857,13 @@ fn early_withdraw() {
     helper.check_astro_balance(router_ref, helper.voting_instance.as_str(), 0);
     helper.check_xastro_balance(router_ref, helper.voting_instance.as_str(), 100);
 
+    let early_withdrawal_amount = helper
+        .query_early_withdraw_amount(router_ref, "user1")
+        .unwrap();
+    assert_eq!(early_withdrawal_amount, 50.0);
     helper.withdraw_early(router_ref, "user1").unwrap();
 
+    // 50% penalty
     helper.check_xastro_balance(router_ref, "user1", 50);
     helper.check_astro_balance(router_ref, "holder", 125);
     helper.check_astro_balance(router_ref, helper.voting_instance.as_str(), 0);

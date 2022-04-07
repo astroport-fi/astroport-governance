@@ -421,6 +421,18 @@ impl Helper {
             )
             .map(|vp: VotingPowerResponse| vp.voting_power.u128() as f32 / MULTIPLIER as f32)
     }
+
+    pub fn query_early_withdraw_amount(&self, router: &mut TerraApp, user: &str) -> StdResult<f32> {
+        router
+            .wrap()
+            .query_wasm_smart(
+                self.voting_instance.clone(),
+                &QueryMsg::EarlyWithdrawAmount {
+                    user: user.to_string(),
+                },
+            )
+            .map(|amount: Uint128| amount.u128() as f32 / MULTIPLIER as f32)
+    }
 }
 
 pub fn mock_app() -> TerraApp {

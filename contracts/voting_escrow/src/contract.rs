@@ -2,9 +2,7 @@ use astroport::asset::addr_validate_to_lower;
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::DecimalCheckedOps;
 use astroport_governance::querier::query_token_balance;
-use astroport_governance::utils::{
-    get_period, get_periods_count, EPOCH_START, MAX_LOCK_TIME, WEEK,
-};
+use astroport_governance::utils::{get_period, get_periods_count, EPOCH_START, WEEK};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
@@ -21,7 +19,6 @@ use cw20_base::contract::{
 };
 use cw20_base::state::{MinterData, TokenInfo, LOGO, MARKETING_INFO, TOKEN_INFO};
 use cw_storage_plus::U64Key;
-use std::cmp::min;
 
 use astroport_governance::voting_escrow::{
     ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, LockInfoResponse, MigrateMsg,
@@ -34,9 +31,9 @@ use crate::state::{
     OWNERSHIP_PROPOSAL, WITHDRAWAL_PARAMS,
 };
 use crate::utils::{
-    adjust_vp_and_slope, blacklist_check, calc_coefficient, calc_voting_power,
-    cancel_scheduled_slope, fetch_last_checkpoint, fetch_slope_changes, schedule_slope_change,
-    time_limits_check, validate_addresses, xastro_token_check,
+    adjust_vp_and_slope, blacklist_check, calc_coefficient, calc_early_withdraw_amount,
+    calc_voting_power, cancel_scheduled_slope, fetch_last_checkpoint, fetch_slope_changes,
+    schedule_slope_change, time_limits_check, validate_addresses, xastro_token_check,
 };
 
 /// Contract name that is used for migration.
@@ -664,11 +661,8 @@ fn withdraw_early(
     } else {
         let config = CONFIG.load(deps.storage)?;
 
-        let user_penalty =
-            Decimal::from_ratio(lock.end - cur_period, get_periods_count(MAX_LOCK_TIME));
-        let exact_penalty = min(config.max_exit_penalty, user_penalty);
-        let slashed_amount = lock.amount * exact_penalty;
-        let return_amount = lock.amount.saturating_sub(slashed_amount);
+        let (slashed_amount, return_amount) =
+            calc_early_withdraw_amount(config.max_exit_penalty, lock.end - cur_period, lock.amount);
 
         let slashed_funds_receiver = config
             .slashed_fund_receiver
@@ -1049,8 +1043,26 @@ fn get_user_lock_info(deps: Deps, env: Env, user: String) -> StdResult<LockInfoR
     }
 }
 
-fn get_early_withdraw_amount(_deps: Deps, _env: Env, _user: String) -> StdResult<Uint128> {
-    todo!()
+fn get_early_withdraw_amount(deps: Deps, env: Env, user: String) -> StdResult<Uint128> {
+    let user = addr_validate_to_lower(deps.api, &user)?;
+    let lock = LOCKED.may_load(deps.storage, user)?;
+
+    let cur_period = get_period(env.block.time.seconds())?;
+    match lock {
+        None => Ok(Uint128::zero()),
+        Some(lock) if lock.end <= cur_period => Ok(lock.amount),
+        Some(lock) => {
+            let config = CONFIG.load(deps.storage)?;
+
+            let (_, return_amount) = calc_early_withdraw_amount(
+                config.max_exit_penalty,
+                lock.end - cur_period,
+                lock.amount,
+            );
+
+            Ok(return_amount)
+        }
+    }
 }
 
 /// ## Description
