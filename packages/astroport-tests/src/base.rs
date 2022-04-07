@@ -154,6 +154,8 @@ impl BaseAstroportTestPackage {
             marketing: None,
             owner: owner.to_string(),
             deposit_token_addr: self.get_staking_xastro(router).to_string(),
+            max_exit_penalty: None,
+            slashed_fund_receiver: None,
         };
 
         let voting_instance = router

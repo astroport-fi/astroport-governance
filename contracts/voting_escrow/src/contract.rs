@@ -1,15 +1,13 @@
 use astroport::asset::addr_validate_to_lower;
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::DecimalCheckedOps;
-use astroport_governance::querier::query_token_balance;
-use astroport_governance::utils::{get_period, get_periods_count, EPOCH_START, WEEK};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     from_binary, to_binary, Addr, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo,
     Response, StdError, StdResult, SubMsg, Uint128, WasmMsg,
 };
-use cw2::set_contract_version;
+use cw2::{get_contract_version, set_contract_version};
 use cw20::{
     BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, Cw20ReceiveMsg, Logo, LogoInfo,
     MarketingInfoResponse, MinterResponse, TokenInfoResponse,
@@ -20,12 +18,16 @@ use cw20_base::contract::{
 use cw20_base::state::{MinterData, TokenInfo, LOGO, MARKETING_INFO, TOKEN_INFO};
 use cw_storage_plus::U64Key;
 
+use astroport_governance::querier::query_token_balance;
+use astroport_governance::utils::{get_period, get_periods_count, EPOCH_START, WEEK};
 use astroport_governance::voting_escrow::{
     ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, LockInfoResponse, MigrateMsg,
     QueryMsg, VotingPowerResponse,
 };
 
 use crate::error::ContractError;
+use crate::migration::v110::MigrationV110;
+use crate::migration::Migration;
 use crate::state::{
     Config, Lock, Point, WithdrawalParams, BLACKLIST, CONFIG, HISTORY, LAST_SLOPE_CHANGE, LOCKED,
     OWNERSHIP_PROPOSAL, WITHDRAWAL_PARAMS,
@@ -36,9 +38,9 @@ use crate::utils::{
     schedule_slope_change, time_limits_check, validate_addresses, xastro_token_check,
 };
 
-/// Contract name that is used for migration.
+/// Contract name that is used for Migration.
 const CONTRACT_NAME: &str = "astro-voting-escrow";
-/// Contract version that is used for migration.
+/// Contract version that is used for Migration.
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// ## Description
@@ -93,7 +95,7 @@ pub fn instantiate(
         .querier
         .query_wasm_smart(&config.deposit_token_addr, &Cw20QueryMsg::Minter {})?;
     let staking_config: astroport::staking::ConfigResponse = deps.querier.query_wasm_smart(
-        &xastro_minter_resp.minter.clone(),
+        &xastro_minter_resp.minter,
         &astroport::staking::QueryMsg::Config {},
     )?;
     WITHDRAWAL_PARAMS.save(
@@ -717,10 +719,12 @@ fn withdraw_early(
         let last_checkpoint = fetch_last_checkpoint(deps.as_ref(), &sender, &cur_period_key)?;
 
         // If a user has voting power they must have checkpoint.
-        let (_, point) = last_checkpoint.ok_or(StdError::generic_err(format!(
-            "There is no previous checkpoint for user: {}",
-            sender.as_str()
-        )))?;
+        let (_, point) = last_checkpoint.ok_or_else(|| {
+            StdError::generic_err(format!(
+                "There is no previous checkpoint for user: {}",
+                sender.as_str()
+            ))
+        })?;
         // We need to checkpoint with zero power and zero slope
         HISTORY.save(
             deps.storage,
@@ -769,7 +773,7 @@ fn withdraw_early_callback(
     let current_astro_balance = query_token_balance(
         &deps.querier,
         withdrawal_params.astro_addr.clone(),
-        env.contract.address.clone(),
+        env.contract.address,
     )?;
     let return_astro_amount = current_astro_balance.saturating_sub(preupgrade_astro);
 
@@ -1219,7 +1223,7 @@ fn query_token_info(deps: Deps, env: Env) -> StdResult<TokenInfoResponse> {
 }
 
 /// ## Description
-/// Used for contract migration. Returns a default object of type [`Response`].
+/// Used for contract Migration. Returns a default object of type [`Response`].
 /// ## Params
 /// * **_deps** is an object of type [`DepsMut`].
 ///
@@ -1227,6 +1231,25 @@ fn query_token_info(deps: Deps, env: Env) -> StdResult<TokenInfoResponse> {
 ///
 /// * **_msg** is an object of type [`MigrateMsg`].
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
-    Ok(Response::default())
+pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
+    let contract_version = get_contract_version(deps.storage)?;
+
+    match contract_version.contract.as_str() {
+        "voting-escrow" => match contract_version.version.as_ref() {
+            "1.0.0" => {
+                // 1.0.0 -> 1.1.0
+                MigrationV110::migrate(deps.branch(), env, msg)?;
+            }
+            _ => return Err(ContractError::MigrationError {}),
+        },
+        _ => return Err(ContractError::MigrationError {}),
+    }
+
+    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    Ok(Response::new()
+        .add_attribute("previous_contract_name", &contract_version.contract)
+        .add_attribute("previous_contract_version", &contract_version.version)
+        .add_attribute("new_contract_name", CONTRACT_NAME)
+        .add_attribute("new_contract_version", CONTRACT_VERSION))
 }

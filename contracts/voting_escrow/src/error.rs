@@ -35,4 +35,7 @@ pub enum ContractError {
 
     #[error("Slashed fund receiver is not set yet. Early withdrawal is not available")]
     EarlyWithdrawNotAvailable {},
+
+    #[error("Can not migrate the contract")]
+    MigrationError {},
 }

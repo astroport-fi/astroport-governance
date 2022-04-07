@@ -1,7 +1,7 @@
 use crate::voting_escrow::QueryMsg::{
     LockInfo, TotalVotingPower, TotalVotingPowerAt, UserVotingPower, UserVotingPowerAt,
 };
-use cosmwasm_std::{Addr, Decimal, QuerierWrapper, StdResult, Uint128};
+use cosmwasm_std::{Addr, Binary, Decimal, QuerierWrapper, StdResult, Uint128};
 use cw20::{Cw20ReceiveMsg, Logo};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -157,10 +157,11 @@ pub struct ConfigResponse {
     pub deposit_token_addr: String,
 }
 
-/// This structure describes a migration message.
-/// We currently take no arguments for migrations.
+/// This structure describes a Migration message.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct MigrateMsg {}
+pub struct MigrateMsg {
+    pub params: Binary,
+}
 
 /// ## Description
 /// Queries current user's voting power from the voting escrow contract.
