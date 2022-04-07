@@ -667,8 +667,8 @@ fn withdraw_early(
         let user_penalty =
             Decimal::from_ratio(lock.end - cur_period, get_periods_count(MAX_LOCK_TIME));
         let exact_penalty = min(config.max_exit_penalty, user_penalty);
-        let return_amount = lock.amount * exact_penalty;
-        let slashed_amount = lock.amount.saturating_sub(return_amount);
+        let slashed_amount = lock.amount * exact_penalty;
+        let return_amount = lock.amount.saturating_sub(slashed_amount);
 
         let slashed_funds_receiver = config
             .slashed_fund_receiver
