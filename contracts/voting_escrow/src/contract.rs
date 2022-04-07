@@ -1,23 +1,27 @@
 use astroport::asset::addr_validate_to_lower;
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::DecimalCheckedOps;
-use astroport_governance::utils::{get_period, get_periods_count, EPOCH_START, WEEK};
+use astroport_governance::querier::query_token_balance;
+use astroport_governance::utils::{
+    get_period, get_periods_count, EPOCH_START, MAX_LOCK_TIME, WEEK,
+};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    from_binary, to_binary, Addr, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Response,
-    StdError, StdResult, Uint128, WasmMsg,
+    from_binary, to_binary, Addr, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo,
+    Response, StdError, StdResult, SubMsg, Uint128, WasmMsg,
 };
 use cw2::set_contract_version;
 use cw20::{
-    BalanceResponse, Cw20ExecuteMsg, Cw20ReceiveMsg, Logo, LogoInfo, MarketingInfoResponse,
-    TokenInfoResponse,
+    BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, Cw20ReceiveMsg, Logo, LogoInfo,
+    MarketingInfoResponse, MinterResponse, TokenInfoResponse,
 };
 use cw20_base::contract::{
     execute_update_marketing, execute_upload_logo, query_download_logo, query_marketing_info,
 };
 use cw20_base::state::{MinterData, TokenInfo, LOGO, MARKETING_INFO, TOKEN_INFO};
 use cw_storage_plus::U64Key;
+use std::cmp::min;
 
 use astroport_governance::voting_escrow::{
     ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, LockInfoResponse, MigrateMsg,
@@ -26,7 +30,8 @@ use astroport_governance::voting_escrow::{
 
 use crate::error::ContractError;
 use crate::state::{
-    Config, Lock, Point, BLACKLIST, CONFIG, HISTORY, LAST_SLOPE_CHANGE, LOCKED, OWNERSHIP_PROPOSAL,
+    Config, Lock, Point, WithdrawalParams, BLACKLIST, CONFIG, HISTORY, LAST_SLOPE_CHANGE, LOCKED,
+    OWNERSHIP_PROPOSAL, WITHDRAWAL_PARAMS,
 };
 use crate::utils::{
     adjust_vp_and_slope, blacklist_check, calc_coefficient, calc_voting_power,
@@ -60,12 +65,47 @@ pub fn instantiate(
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
+    // Accept values within [0,1] limit
+    let max_exit_penalty = msg
+        .max_exit_penalty
+        .map(|penalty| {
+            if penalty > Decimal::one() {
+                Err(StdError::generic_err("Max exit penalty should be <= 1"))
+            } else {
+                Ok(penalty)
+            }
+        })
+        .transpose()?
+        .unwrap_or_default();
+    let slashed_fund_receiver = msg
+        .slashed_fund_receiver
+        .map(|addr| addr_validate_to_lower(deps.api, &addr))
+        .transpose()?;
+
     let config = Config {
         owner: addr_validate_to_lower(deps.api, &msg.owner)?,
         guardian_addr: addr_validate_to_lower(deps.api, &msg.guardian_addr)?,
         deposit_token_addr: addr_validate_to_lower(deps.api, &msg.deposit_token_addr)?,
+        max_exit_penalty,
+        slashed_fund_receiver,
     };
     CONFIG.save(deps.storage, &config)?;
+
+    // Initialize early withdraw parameters
+    let xastro_minter_resp: MinterResponse = deps
+        .querier
+        .query_wasm_smart(&config.deposit_token_addr, &Cw20QueryMsg::Minter {})?;
+    let staking_config: astroport::staking::ConfigResponse = deps.querier.query_wasm_smart(
+        &xastro_minter_resp.minter.clone(),
+        &astroport::staking::QueryMsg::Config {},
+    )?;
+    WITHDRAWAL_PARAMS.save(
+        deps.storage,
+        &WithdrawalParams {
+            astro_addr: staking_config.deposit_token_addr,
+            staking_addr: Addr::unchecked(xastro_minter_resp.minter),
+        },
+    )?;
 
     let cur_period = get_period(env.block.time.seconds())?;
     let point = Point {
@@ -148,6 +188,21 @@ pub fn execute(
         ExecuteMsg::ExtendLockTime { time } => extend_lock_time(deps, env, info, time),
         ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
         ExecuteMsg::Withdraw {} => withdraw(deps, env, info),
+        ExecuteMsg::WithdrawEarly {} => withdraw_early(deps, env, info),
+        ExecuteMsg::EarlyWithdrawCallback {
+            preupgrade_astro,
+            slashed_funds_receiver,
+        } => withdraw_early_callback(
+            deps.as_ref(),
+            env,
+            info,
+            preupgrade_astro,
+            slashed_funds_receiver,
+        ),
+        ExecuteMsg::ConfigureEarlyWithdrawal {
+            max_penalty,
+            slashed_fund_receiver,
+        } => configure_early_withdrawal(deps, info, max_penalty, slashed_fund_receiver),
         ExecuteMsg::ProposeNewOwner {
             new_owner,
             expires_in,
@@ -510,7 +565,7 @@ fn deposit_for(
 ///
 /// * **env** is an object of type [`Env`].
 ///
-/// * **info** is an object of type [`MessageInfo`]. This is the withdrawal message coming from the xASTRO token contract.
+/// * **info** is an object of type [`MessageInfo`]. This is the withdrawal message coming from a user.
 fn withdraw(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, ContractError> {
     let sender = info.sender;
     // 'LockDoesntExist' is either a lock does not exist in LOCKED or a lock exits but lock.amount == 0
@@ -550,6 +605,193 @@ fn withdraw(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, Cont
         Ok(Response::default()
             .add_message(transfer_msg)
             .add_attribute("action", "withdraw"))
+    }
+}
+
+fn configure_early_withdrawal(
+    deps: DepsMut,
+    info: MessageInfo,
+    max_exit_penalty: Option<Decimal>,
+    slashed_fund_receiver: Option<String>,
+) -> Result<Response, ContractError> {
+    let mut config = CONFIG.load(deps.storage)?;
+    // Permission check
+    if info.sender != config.owner {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    // Accept values within [0,1] limit
+    if let Some(max_exit_penalty) = max_exit_penalty {
+        if max_exit_penalty > Decimal::one() {
+            return Err(StdError::generic_err("Max exit penalty should be <= 1").into());
+        } else {
+            config.max_exit_penalty = max_exit_penalty;
+        }
+    }
+    if let Some(slashed_fund_receiver) = slashed_fund_receiver {
+        config.slashed_fund_receiver =
+            Some(addr_validate_to_lower(deps.api, &slashed_fund_receiver)?);
+    }
+
+    CONFIG.save(deps.storage, &config)?;
+
+    Ok(Response::default().add_attribute("action", "configure_early_withdrawal"))
+}
+
+/// ## Description
+/// ...
+/// ## Params
+/// * **deps** is an object of type [`DepsMut`].
+///
+/// * **env** is an object of type [`Env`].
+///
+/// * **info** is an object of type [`MessageInfo`]. This is the withdrawal message coming from a user.
+fn withdraw_early(
+    mut deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+) -> Result<Response, ContractError> {
+    let sender = info.sender;
+    // 'LockDoesntExist' is either a lock does not exist in LOCKED or a lock exits but lock.amount == 0
+    let mut lock = LOCKED
+        .may_load(deps.storage, sender.clone())?
+        .filter(|lock| !lock.amount.is_zero())
+        .ok_or(ContractError::LockDoesntExist {})?;
+
+    let cur_period = get_period(env.block.time.seconds())?;
+    if lock.end <= cur_period {
+        Err(ContractError::LockExpired {})
+    } else {
+        let config = CONFIG.load(deps.storage)?;
+
+        let user_penalty =
+            Decimal::from_ratio(lock.end - cur_period, get_periods_count(MAX_LOCK_TIME));
+        let exact_penalty = min(config.max_exit_penalty, user_penalty);
+        let return_amount = lock.amount * exact_penalty;
+        let slashed_amount = lock.amount.saturating_sub(return_amount);
+
+        let slashed_funds_receiver = config
+            .slashed_fund_receiver
+            .clone()
+            .ok_or(ContractError::EarlyWithdrawNotAvailable {})?;
+
+        let mut transfer_msgs = vec![];
+        if !return_amount.is_zero() {
+            let transfer_msg = SubMsg::new(WasmMsg::Execute {
+                contract_addr: config.deposit_token_addr.to_string(),
+                msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                    recipient: sender.to_string(),
+                    amount: return_amount,
+                })?,
+                funds: vec![],
+            });
+            transfer_msgs.push(transfer_msg);
+        }
+        if !slashed_amount.is_zero() {
+            let withdrawal_params = WITHDRAWAL_PARAMS.load(deps.storage)?;
+            let send_msg = SubMsg::new(WasmMsg::Execute {
+                contract_addr: config.deposit_token_addr.to_string(),
+                msg: to_binary(&Cw20ExecuteMsg::Send {
+                    contract: withdrawal_params.staking_addr.to_string(),
+                    amount: slashed_amount,
+                    msg: to_binary(&astroport::staking::Cw20HookMsg::Leave {})?,
+                })?,
+                funds: vec![],
+            });
+            transfer_msgs.push(send_msg);
+
+            let preupgrade_astro = query_token_balance(
+                &deps.querier,
+                withdrawal_params.astro_addr,
+                env.contract.address.clone(),
+            )?;
+            let callback_msg = SubMsg::new(WasmMsg::Execute {
+                contract_addr: env.contract.address.to_string(),
+                msg: to_binary(&ExecuteMsg::EarlyWithdrawCallback {
+                    preupgrade_astro,
+                    slashed_funds_receiver,
+                })?,
+                funds: vec![],
+            });
+            transfer_msgs.push(callback_msg);
+        }
+
+        lock.amount = Uint128::zero();
+        LOCKED.save(deps.storage, sender.clone(), &lock)?;
+
+        let cur_period_key = U64Key::new(cur_period);
+        let last_checkpoint = fetch_last_checkpoint(deps.as_ref(), &sender, &cur_period_key)?;
+
+        // If a user has voting power they must have checkpoint.
+        let (_, point) = last_checkpoint.ok_or(StdError::generic_err(format!(
+            "There is no previous checkpoint for user: {}",
+            sender.as_str()
+        )))?;
+        // We need to checkpoint with zero power and zero slope
+        HISTORY.save(
+            deps.storage,
+            (sender, cur_period_key),
+            &Point {
+                power: Uint128::zero(),
+                slope: Default::default(),
+                start: cur_period,
+                end: cur_period,
+            },
+        )?;
+
+        let cur_power = calc_voting_power(&point, cur_period);
+        if !cur_power.is_zero() {
+            cancel_scheduled_slope(deps.branch(), point.slope, point.end)?;
+            // We need to checkpoint total VP and eliminate the slope influence on a future lock
+            checkpoint_total(
+                deps,
+                env,
+                None,
+                Some(cur_power),
+                point.slope,
+                Default::default(),
+            )?
+        }
+
+        Ok(Response::default()
+            .add_submessages(transfer_msgs)
+            .add_attribute("action", "withdraw_early"))
+    }
+}
+
+fn withdraw_early_callback(
+    deps: Deps,
+    env: Env,
+    info: MessageInfo,
+    preupgrade_astro: Uint128,
+    slashed_funds_receiver: Addr,
+) -> Result<Response, ContractError> {
+    if info.sender != env.contract.address {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    let withdrawal_params = WITHDRAWAL_PARAMS.load(deps.storage)?;
+
+    let current_astro_balance = query_token_balance(
+        &deps.querier,
+        withdrawal_params.astro_addr.clone(),
+        env.contract.address.clone(),
+    )?;
+    let return_astro_amount = current_astro_balance.saturating_sub(preupgrade_astro);
+
+    if !return_astro_amount.is_zero() {
+        let transfer_msg = SubMsg::new(WasmMsg::Execute {
+            contract_addr: withdrawal_params.astro_addr.to_string(),
+            msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                recipient: slashed_funds_receiver.to_string(),
+                amount: return_astro_amount,
+            })?,
+            funds: vec![],
+        });
+
+        Ok(Response::new().add_submessage(transfer_msg))
+    } else {
+        Err(StdError::generic_err("Failed to unstake ASTRO").into())
     }
 }
 
@@ -764,6 +1006,9 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             to_binary(&get_user_voting_power_at_period(deps, user, period)?)
         }
         QueryMsg::LockInfo { user } => to_binary(&get_user_lock_info(deps, env, user)?),
+        QueryMsg::EarlyWithdrawAmount { user } => {
+            to_binary(&get_early_withdraw_amount(deps, env, user)?)
+        }
         QueryMsg::Config {} => {
             let config = CONFIG.load(deps.storage)?;
             to_binary(&ConfigResponse {
@@ -802,6 +1047,10 @@ fn get_user_lock_info(deps: Deps, env: Env, user: String) -> StdResult<LockInfoR
     } else {
         Err(StdError::generic_err("User is not found"))
     }
+}
+
+fn get_early_withdraw_amount(_deps: Deps, _env: Env, _user: String) -> StdResult<Uint128> {
+    todo!()
 }
 
 /// ## Description

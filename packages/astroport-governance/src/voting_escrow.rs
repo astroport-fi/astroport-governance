@@ -30,6 +30,8 @@ pub struct InstantiateMsg {
     pub deposit_token_addr: String,
     /// Marketing info for vxASTRO
     pub marketing: Option<InstantiateMarketingInfo>,
+    pub max_exit_penalty: Option<Decimal>,
+    pub slashed_fund_receiver: Option<String>,
 }
 
 /// This structure describes the execute functions in the contract.
@@ -43,6 +45,21 @@ pub enum ExecuteMsg {
     Receive(Cw20ReceiveMsg),
     /// Withdraw xASTRO from the vxASTRO contract
     Withdraw {},
+    /// Early withdrawal with slashing penalty
+    WithdrawEarly {},
+    ConfigureEarlyWithdrawal {
+        /// The maximum penalty that can be applied to a user
+        max_penalty: Option<Decimal>,
+        /// The address that will receive the slashed funds
+        slashed_fund_receiver: Option<String>,
+    },
+    /// A callback after early withdrawal to send slashed ASTRO to the slashed funds receiver
+    EarlyWithdrawCallback {
+        /// Contracts' ASTRO balance before callback
+        preupgrade_astro: Uint128,
+        /// Slashed funds receiver
+        slashed_funds_receiver: Addr,
+    },
     /// Propose a new owner for the contract
     ProposeNewOwner { new_owner: String, expires_in: u64 },
     /// Remove the ownership transfer proposal
@@ -105,6 +122,9 @@ pub enum QueryMsg {
     UserVotingPowerAtPeriod { user: String, period: u64 },
     /// Return information about a user's lock position
     LockInfo { user: String },
+    /// Return the amount of xASTRO that the staker can withdraw right now after the penalty is applied
+    /// for early withdrawal
+    EarlyWithdrawAmount { user: String },
     /// Return the  vxASTRO contract configuration
     Config {},
 }

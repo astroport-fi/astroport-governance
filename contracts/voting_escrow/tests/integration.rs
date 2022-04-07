@@ -794,3 +794,36 @@ fn check_residual() {
         });
     }
 }
+
+#[test]
+fn early_withdraw() {
+    let mut router = mock_app();
+    let router_ref = &mut router;
+    let owner = Addr::unchecked("owner");
+    let helper = Helper::init(router_ref, owner);
+    helper
+        .configure_early_withdrawal(router_ref, "0.75", "holder")
+        .unwrap();
+
+    helper.mint_xastro(router_ref, "user1", 100);
+    helper
+        .create_lock(router_ref, "user1", MAX_LOCK_TIME, 100f32)
+        .unwrap();
+
+    router_ref.update_block(|bi| {
+        bi.height += 1;
+        bi.time = bi.time.plus_seconds(52 * WEEK);
+    });
+
+    helper.check_xastro_balance(router_ref, "user1", 0);
+    helper.check_astro_balance(router_ref, "holder", 0);
+    helper.check_astro_balance(router_ref, helper.voting_instance.as_str(), 0);
+    helper.check_xastro_balance(router_ref, helper.voting_instance.as_str(), 100);
+
+    helper.withdraw_early(router_ref, "user1").unwrap();
+
+    helper.check_xastro_balance(router_ref, "user1", 50);
+    helper.check_astro_balance(router_ref, "holder", 50);
+    helper.check_astro_balance(router_ref, helper.voting_instance.as_str(), 0);
+    helper.check_xastro_balance(router_ref, helper.voting_instance.as_str(), 0);
+}

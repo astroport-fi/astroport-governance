@@ -1,5 +1,5 @@
 use astroport::common::OwnershipProposal;
-use cosmwasm_std::{Addr, Uint128};
+use cosmwasm_std::{Addr, Decimal, Uint128};
 use cw_storage_plus::{Item, Map, U64Key};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -14,6 +14,10 @@ pub struct Config {
     pub guardian_addr: Addr,
     /// The xASTRO token contract address
     pub deposit_token_addr: Addr,
+    /// The maximum % of staked xASTRO that is confiscated upon an early exit
+    pub max_exit_penalty: Decimal,
+    /// The address that receives slashed ASTRO (slashed xASTRO is burned in order to claim ASTRO)
+    pub slashed_fund_receiver: Option<Addr>,
 }
 
 /// ## Description
@@ -45,6 +49,14 @@ pub struct Lock {
 }
 
 /// ## Description
+/// This structure stores ASTRO token and staking addresses
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct WithdrawalParams {
+    pub astro_addr: Addr,
+    pub staking_addr: Addr,
+}
+
+/// ## Description
 /// Stores the contract config at the given key
 pub const CONFIG: Item<Config> = Item::new("config");
 
@@ -72,3 +84,6 @@ pub const OWNERSHIP_PROPOSAL: Item<OwnershipProposal> = Item::new("ownership_pro
 /// ## Description
 /// Contains blacklisted staker addresses
 pub const BLACKLIST: Item<Vec<Addr>> = Item::new("blacklist");
+
+/// Contains early withdrawal parameters
+pub const WITHDRAWAL_PARAMS: Item<WithdrawalParams> = Item::new("withdrawal_params");
