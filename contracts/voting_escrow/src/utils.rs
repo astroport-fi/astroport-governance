@@ -160,6 +160,8 @@ pub(crate) fn validate_addresses(deps: Deps, addresses: &[String]) -> StdResult<
         .collect()
 }
 
+/// Calculate slashed and return amount based on a given parameters.
+/// The penalty is calculated as min(max_exit_penalty, time_left_until_unlock / MAX_LOCK_TIME).
 pub(crate) fn calc_early_withdraw_amount(
     max_exit_penalty: Decimal,
     periods_upon_unlock: u64,

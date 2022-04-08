@@ -30,7 +30,9 @@ pub struct InstantiateMsg {
     pub deposit_token_addr: String,
     /// Marketing info for vxASTRO
     pub marketing: Option<InstantiateMarketingInfo>,
+    /// The maximum % of staked xASTRO that is confiscated upon an early exit
     pub max_exit_penalty: Option<Decimal>,
+    /// The address that receives slashed ASTRO (slashed xASTRO is burned in order to claim ASTRO)
     pub slashed_fund_receiver: Option<String>,
 }
 

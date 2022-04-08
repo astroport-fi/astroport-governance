@@ -38,9 +38,9 @@ use crate::utils::{
     schedule_slope_change, time_limits_check, validate_addresses, xastro_token_check,
 };
 
-/// Contract name that is used for Migration.
+/// Contract name that is used for migration.
 const CONTRACT_NAME: &str = "astro-voting-escrow";
-/// Contract version that is used for Migration.
+/// Contract version that is used for migration.
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// ## Description
@@ -607,6 +607,8 @@ fn withdraw(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, Cont
     }
 }
 
+/// ## Description
+/// Sets a max exit penalty and a slashed funds receiver. Can be called by the owner only.
 fn configure_early_withdrawal(
     deps: DepsMut,
     info: MessageInfo,
@@ -638,7 +640,9 @@ fn configure_early_withdrawal(
 }
 
 /// ## Description
-/// ...
+/// Withdraws stacked funds with penalty before the lock expires.
+/// The penalty is calculated as min(max_exit_penalty, time_left_until_unlock / MAX_LOCK_TIME).
+/// Slashed funds are sent to the slashed funds receiver address.
 /// ## Params
 /// * **deps** is an object of type [`DepsMut`].
 ///
@@ -757,6 +761,19 @@ fn withdraw_early(
     }
 }
 
+/// ## Description
+/// A callback after early withdraw. Can be called only by the contract itself.
+/// This is intended for transferring converted xASTRO (in form of ASTRO) to the slashed funds receiver.
+/// ## Parameters
+/// * **deps** is an object of type [`DepsMut`].
+///
+/// * **env** is an object of type [`Env`].
+///
+/// * **info** is an object of type [`MessageInfo`].
+///
+/// * **preupgrade_astro** is a number of contracts' ASTRO balance before a callback
+///
+/// * **slashed_funds_receiver** is a slashed funds receiver address
 fn withdraw_early_callback(
     deps: Deps,
     env: Env,
@@ -1047,6 +1064,14 @@ fn get_user_lock_info(deps: Deps, env: Env, user: String) -> StdResult<LockInfoR
     }
 }
 
+/// ## Description
+/// Return early withdraw amount for a given user.
+/// ## Params
+/// * **deps** is an object of type [`Deps`].
+///
+/// * **env** is an object of type [`Env`].
+///
+/// * **user** is an object of type [`String`].
 fn get_early_withdraw_amount(deps: Deps, env: Env, user: String) -> StdResult<Uint128> {
     let user = addr_validate_to_lower(deps.api, &user)?;
     let lock = LOCKED.may_load(deps.storage, user)?;
@@ -1223,13 +1248,13 @@ fn query_token_info(deps: Deps, env: Env) -> StdResult<TokenInfoResponse> {
 }
 
 /// ## Description
-/// Used for contract Migration. Returns a default object of type [`Response`].
+/// Used for contract migration. Returns a default object of type [`Response`].
 /// ## Params
 /// * **_deps** is an object of type [`DepsMut`].
 ///
-/// * **_env** is an object of type [`Env`].
+/// * **env** is an object of type [`Env`].
 ///
-/// * **_msg** is an object of type [`MigrateMsg`].
+/// * **msg** is an object of type [`MigrateMsg`].
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
     let contract_version = get_contract_version(deps.storage)?;
