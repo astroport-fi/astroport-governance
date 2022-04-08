@@ -1,4 +1,4 @@
-use crate::test_utils::escrow_helper::EscrowHelper;
+use crate::escrow_helper::EscrowHelper;
 use anyhow::Result as AnyResult;
 use astroport::asset::{AssetInfo, PairInfo};
 use astroport::factory::{PairConfig, PairType};
