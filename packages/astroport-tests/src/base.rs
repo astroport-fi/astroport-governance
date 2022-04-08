@@ -142,9 +142,9 @@ impl BaseAstroportTestPackage {
 
     fn init_voting_escrow(&mut self, router: &mut TerraApp, owner: Addr) {
         let voting_contract = Box::new(ContractWrapper::new_with_empty(
-            astroport_voting_escrow::contract::execute,
-            astroport_voting_escrow::contract::instantiate,
-            astroport_voting_escrow::contract::query,
+            voting_escrow::contract::execute,
+            voting_escrow::contract::instantiate,
+            voting_escrow::contract::query,
         ));
 
         let voting_code_id = router.store_code(voting_contract);

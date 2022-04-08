@@ -13,13 +13,9 @@ use generator_controller::bps::BasicPoints;
 use Event::*;
 use VeEvent::*;
 
-use crate::test_utils::controller_helper::ControllerHelper;
-use crate::test_utils::escrow_helper::MULTIPLIER;
-use crate::test_utils::mock_app;
-use crate::test_utils::TerraAppExtension;
-
-#[cfg(test)]
-mod test_utils;
+use astroport_tests::{
+    controller_helper::ControllerHelper, escrow_helper::MULTIPLIER, mock_app, TerraAppExtension,
+};
 
 #[derive(Clone, Debug)]
 enum Event {

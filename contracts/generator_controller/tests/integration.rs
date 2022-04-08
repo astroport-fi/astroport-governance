@@ -7,13 +7,9 @@ use astroport_governance::generator_controller::{ConfigResponse, ExecuteMsg, Que
 use astroport_governance::utils::{get_period, WEEK};
 use generator_controller::state::GaugeInfo;
 
-use crate::test_utils::controller_helper::ControllerHelper;
-use crate::test_utils::escrow_helper::MULTIPLIER;
-use crate::test_utils::{mock_app, TerraAppExtension};
-
-// TODO: move this module into astroport-tests crate
-#[cfg(test)]
-mod test_utils;
+use astroport_tests::{
+    controller_helper::ControllerHelper, escrow_helper::MULTIPLIER, mock_app, TerraAppExtension,
+};
 
 #[test]
 fn check_vote_works() {
