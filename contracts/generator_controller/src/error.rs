@@ -31,4 +31,7 @@ pub enum ContractError {
 
     #[error("There are no pools to tune")]
     TuneNoPools {},
+
+    #[error("Invalid pool number: {0}. Must be within [2, 100] range")]
+    InvalidPoolNumber(u64),
 }

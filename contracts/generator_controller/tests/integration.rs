@@ -248,6 +248,19 @@ fn check_tuning() {
         )
         .unwrap();
 
+    let err = router
+        .execute_contract(
+            owner_addr.clone(),
+            helper.controller.clone(),
+            &ExecuteMsg::ChangePoolsLimit { limit: 101 },
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.to_string(),
+        "Invalid pool number: 101. Must be within [2, 100] range"
+    );
+
     helper.tune(&mut router).unwrap();
 
     let resp: TuneInfo = router

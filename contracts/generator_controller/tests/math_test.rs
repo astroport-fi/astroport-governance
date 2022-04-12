@@ -315,7 +315,7 @@ fn vote_strategy(tokens: Vec<String>) -> impl Strategy<Value = Event> {
 fn controller_events_strategy(tokens: Vec<String>) -> impl Strategy<Value = Event> {
     prop_oneof![
         Just(Event::GaugePools),
-        (1..=MAX_POOLS as u64).prop_map(Event::ChangePoolLimit),
+        (2..=MAX_POOLS as u64).prop_map(Event::ChangePoolLimit),
         vote_strategy(tokens)
     ]
 }

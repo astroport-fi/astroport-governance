@@ -25,7 +25,8 @@ use crate::state::{
     USER_INFO,
 };
 use crate::utils::{
-    cancel_user_changes, filter_pools, get_pool_info, update_pool_info, vote_for_pool,
+    cancel_user_changes, filter_pools, get_pool_info, update_pool_info, validate_pools_limit,
+    vote_for_pool,
 };
 
 /// Contract name that is used for migration.
@@ -61,7 +62,7 @@ pub fn instantiate(
             escrow_addr: addr_validate_to_lower(deps.api, &msg.escrow_addr)?,
             generator_addr: addr_validate_to_lower(deps.api, &msg.generator_addr)?,
             factory_addr: addr_validate_to_lower(deps.api, &msg.factory_addr)?,
-            pools_limit: msg.pools_limit,
+            pools_limit: validate_pools_limit(msg.pools_limit)?,
         },
     )?;
 
@@ -349,7 +350,7 @@ fn change_pools_limit(deps: DepsMut, info: MessageInfo, limit: u64) -> ExecuteRe
         return Err(ContractError::Unauthorized {});
     }
 
-    config.pools_limit = limit;
+    config.pools_limit = validate_pools_limit(limit)?;
     CONFIG.save(deps.storage, &config)?;
 
     Ok(Response::default().add_attribute("action", "change_pools_limit"))
