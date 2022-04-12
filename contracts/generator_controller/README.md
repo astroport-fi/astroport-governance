@@ -49,8 +49,7 @@ all basic points should be within [0, 10000] limit.
 
 ### `tune_pools`
 
-Only contract owner can call this function. Calculate voting power for all pools and apply new allocation points in
-generator contract.
+Calculate voting power for all pools and apply new allocation points in generator contract.
 
 ```json
 {

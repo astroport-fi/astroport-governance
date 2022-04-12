@@ -96,7 +96,7 @@ pub fn instantiate(
 pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> ExecuteResult {
     match msg {
         ExecuteMsg::Vote { votes } => handle_vote(deps, env, info, votes),
-        ExecuteMsg::TunePools {} => tune_generators(deps, env, info),
+        ExecuteMsg::TunePools {} => tune_generators(deps, env),
         ExecuteMsg::ChangePoolsLimit { limit } => change_pools_limit(deps, info, limit),
         ExecuteMsg::ProposeNewOwner {
             new_owner,
@@ -262,7 +262,6 @@ fn handle_vote(
 }
 
 /// ## Description
-/// Only contract owner can call this function.  
 /// The function checks that the last generators tuning happened >= 14 days ago.
 /// Then it calculates voting power for each pool at the current period, filters all pools which
 /// are not eligible to receive allocation points,
@@ -274,16 +273,10 @@ fn handle_vote(
 /// * **deps** is an object of type [`DepsMut`].
 ///
 /// * **env** is an object of type [`Env`].
-///
-/// * **info** is an object of type [`MessageInfo`].
-fn tune_generators(deps: DepsMut, env: Env, info: MessageInfo) -> ExecuteResult {
+fn tune_generators(deps: DepsMut, env: Env) -> ExecuteResult {
     let mut tune_info = TUNE_INFO.load(deps.storage)?;
     let config = CONFIG.load(deps.storage)?;
     let block_period = get_period(env.block.time.seconds())?;
-
-    if info.sender != config.owner {
-        return Err(ContractError::Unauthorized {});
-    }
 
     if env.block.time.seconds() - tune_info.tune_ts < TUNE_COOLDOWN {
         return Err(ContractError::CooldownError(TUNE_COOLDOWN / DAY));

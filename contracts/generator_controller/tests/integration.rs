@@ -195,24 +195,22 @@ fn check_tuning() {
         .unwrap();
 
     // The contract was just created so we need to wait for 2 weeks
-    let err = helper.tune(&mut router, owner).unwrap_err();
+    let err = helper.tune(&mut router).unwrap_err();
     assert_eq!(
         err.to_string(),
         "You can only run this action every 14 days"
     );
 
     router.next_block(WEEK);
-    let err = helper.tune(&mut router, owner).unwrap_err();
+    let err = helper.tune(&mut router).unwrap_err();
     assert_eq!(
         err.to_string(),
         "You can only run this action every 14 days"
     );
 
     router.next_block(WEEK);
-    let err = helper.tune(&mut router, "somebody").unwrap_err();
-    assert_eq!(err.to_string(), "Unauthorized");
 
-    helper.tune(&mut router, owner).unwrap();
+    helper.tune(&mut router).unwrap();
 
     let resp: TuneInfo = router
         .wrap()
@@ -250,7 +248,7 @@ fn check_tuning() {
         )
         .unwrap();
 
-    helper.tune(&mut router, owner).unwrap();
+    helper.tune(&mut router).unwrap();
 
     let resp: TuneInfo = router
         .wrap()
@@ -336,7 +334,7 @@ fn check_bad_pools_filtering() {
 
     router.next_block(2 * WEEK);
 
-    helper.tune(&mut router, owner).unwrap();
+    helper.tune(&mut router).unwrap();
     let resp: TuneInfo = router
         .wrap()
         .query_wasm_smart(helper.controller.clone(), &QueryMsg::TuneInfo {})
@@ -368,7 +366,7 @@ fn check_bad_pools_filtering() {
     helper
         .vote(&mut router, user, vec![(pools[0].as_str(), 10000)])
         .unwrap();
-    let err = helper.tune(&mut router, owner).unwrap_err();
+    let err = helper.tune(&mut router).unwrap_err();
     assert_eq!(err.to_string(), "There are no pools to tune");
 
     router.next_block(2 * WEEK);
@@ -403,7 +401,7 @@ fn check_bad_pools_filtering() {
         .unwrap();
 
     router.next_block(WEEK);
-    helper.tune(&mut router, owner).unwrap();
+    helper.tune(&mut router).unwrap();
 
     let resp: TuneInfo = router
         .wrap()
