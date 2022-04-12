@@ -166,7 +166,7 @@ impl Simulator {
                 }
             }
             GaugePools => {
-                if let Err(err) = self.helper.gauge(&mut self.router, self.owner.as_str()) {
+                if let Err(err) = self.helper.tune(&mut self.router, self.owner.as_str()) {
                     println!("{}", err);
                 }
             }

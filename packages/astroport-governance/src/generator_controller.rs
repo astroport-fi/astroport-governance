@@ -24,7 +24,7 @@ pub enum ExecuteMsg {
     Vote {
         votes: Vec<(String, u16)>,
     },
-    GaugePools {},
+    TunePools {},
     ChangePoolsLimit {
         limit: u64,
     },
@@ -44,7 +44,7 @@ pub enum ExecuteMsg {
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
     UserInfo { user: String },
-    GaugeInfo {},
+    TuneInfo {},
     Config {},
     PoolInfo { pool_addr: String },
     PoolInfoAtPeriod { pool_addr: String, period: u64 },
@@ -77,10 +77,10 @@ pub struct VotedPoolInfoResponse {
     pub slope: Uint128,
 }
 
-/// This structure describes response with last gauge parameters.
+/// This structure describes response with last tuning parameters.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Default)]
 pub struct GaugeInfoResponse {
-    pub gauge_ts: u64,
+    pub tune_ts: u64,
     pub pool_alloc_points: Vec<(String, Uint128)>,
 }
 

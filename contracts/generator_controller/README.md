@@ -47,14 +47,14 @@ all basic points should be within [0, 10000] limit.
 }
 ```
 
-### `gauge_pools`
+### `tune_pools`
 
 Only contract owner can call this function. Calculate voting power for all pools and apply new allocation points in
 generator contract.
 
 ```json
 {
-  "gauge_pools": {}
+  "tune_pools": {}
 }
 ```
 
@@ -147,14 +147,14 @@ Returns last user's voting parameters.
 }
 ```
 
-### `gauge_info`
+### `tune_info`
 
-Returns last gauge information.
+Returns last tune information.
 
 ```json
 {
-  "gauge_info_response": {
-    "gauge_ts": 1234567,
+  "tune_info_response": {
+    "tune_ts": 1234567,
     "pool_alloc_points": [
       [
         "terra...",
