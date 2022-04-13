@@ -189,13 +189,13 @@ pub fn execute(
         ExecuteMsg::Withdraw {} => withdraw(deps, env, info),
         ExecuteMsg::WithdrawEarly {} => withdraw_early(deps, env, info),
         ExecuteMsg::EarlyWithdrawCallback {
-            preupgrade_astro,
+            precallback_astro,
             slashed_funds_receiver,
         } => withdraw_early_callback(
             deps.as_ref(),
             env,
             info,
-            preupgrade_astro,
+            precallback_astro,
             slashed_funds_receiver,
         ),
         ExecuteMsg::ConfigureEarlyWithdrawal {
@@ -700,7 +700,7 @@ fn withdraw_early(
             });
             transfer_msgs.push(send_msg);
 
-            let preupgrade_astro = query_token_balance(
+            let precallback_astro = query_token_balance(
                 &deps.querier,
                 withdrawal_params.astro_addr,
                 env.contract.address.clone(),
@@ -708,7 +708,7 @@ fn withdraw_early(
             let callback_msg = SubMsg::new(WasmMsg::Execute {
                 contract_addr: env.contract.address.to_string(),
                 msg: to_binary(&ExecuteMsg::EarlyWithdrawCallback {
-                    preupgrade_astro,
+                    precallback_astro,
                     slashed_funds_receiver,
                 })?,
                 funds: vec![],
@@ -771,14 +771,14 @@ fn withdraw_early(
 ///
 /// * **info** is an object of type [`MessageInfo`].
 ///
-/// * **preupgrade_astro** is a number of contracts' ASTRO balance before a callback
+/// * **precallback_astro** is a contracts' ASTRO balance before a callback
 ///
 /// * **slashed_funds_receiver** is a slashed funds receiver address
 fn withdraw_early_callback(
     deps: Deps,
     env: Env,
     info: MessageInfo,
-    preupgrade_astro: Uint128,
+    precallback_astro: Uint128,
     slashed_funds_receiver: Addr,
 ) -> Result<Response, ContractError> {
     if info.sender != env.contract.address {
@@ -792,7 +792,7 @@ fn withdraw_early_callback(
         withdrawal_params.astro_addr.clone(),
         env.contract.address,
     )?;
-    let return_astro_amount = current_astro_balance.saturating_sub(preupgrade_astro);
+    let return_astro_amount = current_astro_balance.saturating_sub(precallback_astro);
 
     if !return_astro_amount.is_zero() {
         let transfer_msg = SubMsg::new(WasmMsg::Execute {

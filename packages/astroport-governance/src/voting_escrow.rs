@@ -58,7 +58,7 @@ pub enum ExecuteMsg {
     /// A callback after early withdrawal to send slashed ASTRO to the slashed funds receiver
     EarlyWithdrawCallback {
         /// Contracts' ASTRO balance before callback
-        preupgrade_astro: Uint128,
+        precallback_astro: Uint128,
         /// Slashed funds receiver
         slashed_funds_receiver: Addr,
     },
