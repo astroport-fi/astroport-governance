@@ -37,7 +37,7 @@ const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 const DAY: u64 = 86400;
 /// The user can only vote once every 10 days
 const VOTE_COOLDOWN: u64 = DAY * 10;
-/// It is possible to tune generators once every 14 days
+/// It is possible to tune pools once every 14 days
 const TUNE_COOLDOWN: u64 = WEEK * 2;
 
 type ExecuteResult = Result<Response, ContractError>;
@@ -97,7 +97,7 @@ pub fn instantiate(
 pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> ExecuteResult {
     match msg {
         ExecuteMsg::Vote { votes } => handle_vote(deps, env, info, votes),
-        ExecuteMsg::TunePools {} => tune_generators(deps, env),
+        ExecuteMsg::TunePools {} => tune_pools(deps, env),
         ExecuteMsg::ChangePoolsLimit { limit } => change_pools_limit(deps, info, limit),
         ExecuteMsg::ProposeNewOwner {
             new_owner,
@@ -263,7 +263,7 @@ fn handle_vote(
 }
 
 /// ## Description
-/// The function checks that the last generators tuning happened >= 14 days ago.
+/// The function checks that the last pools tuning happened >= 14 days ago.
 /// Then it calculates voting power for each pool at the current period, filters all pools which
 /// are not eligible to receive allocation points,
 /// takes top X pools by voting power, where X is 'config.pools_limit', calculates allocation points
@@ -274,7 +274,7 @@ fn handle_vote(
 /// * **deps** is an object of type [`DepsMut`].
 ///
 /// * **env** is an object of type [`Env`].
-fn tune_generators(deps: DepsMut, env: Env) -> ExecuteResult {
+fn tune_pools(deps: DepsMut, env: Env) -> ExecuteResult {
     let mut tune_info = TUNE_INFO.load(deps.storage)?;
     let config = CONFIG.load(deps.storage)?;
     let block_period = get_period(env.block.time.seconds())?;
@@ -330,7 +330,7 @@ fn tune_generators(deps: DepsMut, env: Env) -> ExecuteResult {
 
     Ok(Response::new()
         .add_message(setup_pools_msg)
-        .add_attribute("action", "tune_generators"))
+        .add_attribute("action", "tune_pools"))
 }
 
 /// ## Description
