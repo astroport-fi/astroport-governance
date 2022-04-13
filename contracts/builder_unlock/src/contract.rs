@@ -261,7 +261,7 @@ fn execute_create_allocations(
     state.total_astro_deposited += deposit_amount;
     state.remaining_astro_tokens += deposit_amount;
 
-    if state.remaining_astro_tokens > config.max_allocations_amount {
+    if state.total_astro_deposited > config.max_allocations_amount {
         return Err(StdError::generic_err(format!(
             "The total allocation for all recipients cannot exceed total ASTRO amount allocated to unlock (currently {} ASTRO)",
             config.max_allocations_amount,
@@ -508,6 +508,13 @@ fn execute_increase_allocation(
                 state.total_astro_deposited =
                     state.total_astro_deposited.checked_add(deposit_amount)?;
                 state.unallocated_tokens = state.unallocated_tokens.checked_add(deposit_amount)?;
+
+                if state.total_astro_deposited > config.max_allocations_amount {
+                    return Err(StdError::generic_err(format!(
+                        "The total allocation for all recipients cannot exceed total ASTRO amount allocated to unlock (currently {} ASTRO)",
+                        config.max_allocations_amount,
+                    )));
+                }
             }
 
             if state.unallocated_tokens < amount {
@@ -520,13 +527,6 @@ fn execute_increase_allocation(
             params.amount = params.amount.checked_add(amount)?;
             state.unallocated_tokens = state.unallocated_tokens.checked_sub(amount)?;
             state.remaining_astro_tokens = state.remaining_astro_tokens.checked_add(amount)?;
-
-            if state.remaining_astro_tokens > config.max_allocations_amount {
-                return Err(StdError::generic_err(format!(
-                    "The total allocation for all recipients cannot exceed total ASTRO amount allocated to unlock (currently {} ASTRO)",
-                    config.max_allocations_amount,
-                )));
-            }
 
             PARAMS.save(deps.storage, &receiver, &params)?;
             STATE.save(deps.storage, &state)?;
