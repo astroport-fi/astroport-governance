@@ -66,6 +66,7 @@ fn init_contracts(app: &mut App) -> (Addr, Addr, InstantiateMsg) {
     let unlock_instantiate_msg = InstantiateMsg {
         owner: OWNER.clone().to_string(),
         astro_token: astro_token_instance.to_string(),
+        max_allocations_amount: Uint128::new(300_000_000_000_000u128),
     };
 
     // Init contract
@@ -1383,8 +1384,23 @@ fn test_increase_and_decrease_allocation() {
 
     // Skip blocks
     app.update_block(|bi| {
-        bi.height += 5000;
-        bi.time = bi.time.plus_seconds(25_000);
+        bi.height += 1000;
+        bi.time = bi.time.plus_seconds(5_000);
+    });
+
+    // Withdraw ASTRO
+    app.execute_contract(
+        Addr::unchecked("investor".to_string()),
+        unlock_instance.clone(),
+        &ExecuteMsg::Withdraw {},
+        &[],
+    )
+    .unwrap();
+
+    // Skip blocks
+    app.update_block(|bi| {
+        bi.height += 4000;
+        bi.time = bi.time.plus_seconds(20_000);
     });
 
     check_unlock_amount(
@@ -1435,8 +1451,12 @@ fn test_increase_and_decrease_allocation() {
         .unwrap();
 
     assert_eq!(
-        res.unallocated_astro_tokens,
-        Uint128::new(1_000_000_000_000u128)
+        res,
+        StateResponse {
+            total_astro_deposited: Uint128::new(5_000_000_000_000u128),
+            remaining_astro_tokens: Uint128::new(3_984_687_561_087u128),
+            unallocated_astro_tokens: Uint128::new(1_000_000_000_000u128)
+        }
     );
 
     // Try to increase
@@ -1535,10 +1555,17 @@ fn test_increase_and_decrease_allocation() {
         )
         .unwrap();
     assert_eq!(res.astro_to_withdraw, Uint128::zero());
-    // Check amount of unallocated ASTRO
+    // Check state
     let res: StateResponse = app
         .wrap()
         .query_wasm_smart(unlock_instance.clone(), &QueryMsg::State {})
         .unwrap();
-    assert_eq!(res.unallocated_astro_tokens, Uint128::zero());
+    assert_eq!(
+        res,
+        StateResponse {
+            total_astro_deposited: Uint128::new(5_000_000_001_000u128),
+            remaining_astro_tokens: Uint128::new(4_419_528_247_563u128),
+            unallocated_astro_tokens: Uint128::zero()
+        }
+    );
 }

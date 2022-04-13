@@ -3,6 +3,12 @@ use cw_storage_plus::{Item, Map};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+/// This structure describes a migration message.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct MigrateMsg {
+    pub max_allocations_amount: Uint128,
+}
+
 /// This structure stores the total and the remaining amount of ASTRO to be unlocked by all accounts.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct StateV100 {
@@ -22,3 +28,15 @@ pub struct AllocationStatusV100 {
 }
 
 pub const STATUSV100: Map<&Addr, AllocationStatusV100> = Map::new("status");
+
+/// This structure stores general parameters for the builder unlock contract.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct ConfigV100 {
+    /// Account that can create new unlock schedules
+    pub owner: Addr,
+    /// Address of ASTRO token
+    pub astro_token: Addr,
+}
+
+/// Stores the contract configuration
+pub const CONFIGV100: Item<ConfigV100> = Item::new("config");

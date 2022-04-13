@@ -9,6 +9,8 @@ pub struct Config {
     pub owner: Addr,
     /// Address of ASTRO token
     pub astro_token: Addr,
+    /// Max ASTRO tokens to allocate
+    pub max_allocations_amount: Uint128,
 }
 
 /// This structure stores the total and the remaining amount of ASTRO to be unlocked by all accounts.
@@ -77,6 +79,8 @@ pub mod msg {
         pub owner: String,
         /// ASTRO token address
         pub astro_token: String,
+        /// Max ASTRO tokens to allocate
+        pub max_allocations_amount: Uint128,
     }
 
     /// This enum describes all execute functions available in the contract.
@@ -108,6 +112,8 @@ pub mod msg {
         DropOwnershipProposal {},
         /// Claim contract ownership
         ClaimOwnership {},
+        /// Update parameters in the contract configuration
+        UpdateConfig { new_max_allocations_amount: Uint128 },
     }
 
     /// This enum describes the receive msg templates.
