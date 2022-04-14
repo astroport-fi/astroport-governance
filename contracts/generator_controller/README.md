@@ -1,12 +1,12 @@
-# GeneratorController contract
+# Generator Controller
 
-The GeneratorController contract allows voting for pools using vxASTRO amount. Note: Here and everywhere in the
-contract, the word "pool" also means the LP token, because in the generator they are synonyms.
+The GeneratorController contract allows voting for pools using vxASTRO amount. Note: here and everywhere in the controller
+contract, the word "pool" also means LP token, because in the generator they are synonyms.
 
 ## InstantiateMsg
 
 Initialize the contract with the initial owner, the addresses of the xvASTRO, the Generator and the Factory contracts
-and limit of pools which can receive allocation points.
+and limit of pools which can receive ASTRO emissions at the same time.
 
 ```json
 {
