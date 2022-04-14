@@ -819,7 +819,7 @@ fn withdraw_early_callback(
 /// ## Note
 /// The time is added to the lock's `end`.
 /// For example, at period 0, the user has their xASTRO locked for 3 weeks.
-/// In 1 week, they increase their lock time by 10 weeks, thus the unlock period becomes 13 weeks.
+/// In 1 week, they increase their lock time by 10 weeks, thus the unlock period becomes 12 weeks.
 ///
 /// ## Params
 /// * **deps** is an object of type [`DepsMut`].
