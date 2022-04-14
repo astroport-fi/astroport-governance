@@ -728,9 +728,9 @@ pub fn calc_voting_power(deps: Deps, sender: String, proposal: &Proposal) -> Std
 
     if let Some(vxastro_token_addr) = config.vxastro_token_addr {
         let vxastro_amount: VotingPowerResponse = deps.querier.query_wasm_smart(
-            vxastro_token_addr,
+            &vxastro_token_addr,
             &VotingEscrowQueryMsg::UserVotingPowerAt {
-                user: sender,
+                user: sender.clone(),
                 time: proposal.start_time - 1,
             },
         )?;
@@ -738,6 +738,16 @@ pub fn calc_voting_power(deps: Deps, sender: String, proposal: &Proposal) -> Std
         if !vxastro_amount.voting_power.is_zero() {
             total = total.checked_add(vxastro_amount.voting_power)?;
         }
+
+        let locked_xastro: Uint128 = deps.querier.query_wasm_smart(
+            vxastro_token_addr,
+            &VotingEscrowQueryMsg::UserDepositAtHeight {
+                user: sender,
+                height: proposal.start_block,
+            },
+        )?;
+
+        total = total.checked_add(locked_xastro)?;
     }
 
     Ok(total)
@@ -755,7 +765,7 @@ pub fn calc_total_voting_power_at(deps: Deps, proposal: &Proposal) -> StdResult<
     // Total xASTRO supply at a previous block(proposal.start_block - 1),
     // because the previous block always has an up-to-date checkpoint and more secured
     let mut total: Uint128 = deps.querier.query_wasm_smart(
-        config.xastro_token_addr,
+        &config.xastro_token_addr,
         &XAstroTokenQueryMsg::TotalSupplyAt {
             block: proposal.start_block - 1,
         },
@@ -773,7 +783,7 @@ pub fn calc_total_voting_power_at(deps: Deps, proposal: &Proposal) -> StdResult<
     if let Some(vxastro_token_addr) = config.vxastro_token_addr {
         // Total vxASTRO voting power
         let vxastro: VotingPowerResponse = deps.querier.query_wasm_smart(
-            vxastro_token_addr,
+            &vxastro_token_addr,
             &VotingEscrowQueryMsg::TotalVotingPowerAt {
                 time: proposal.start_time - 1,
             },
@@ -781,6 +791,16 @@ pub fn calc_total_voting_power_at(deps: Deps, proposal: &Proposal) -> StdResult<
         if !vxastro.voting_power.is_zero() {
             total = total.checked_add(vxastro.voting_power)?;
         }
+
+        let locked_xastro: BalanceResponse = deps.querier.query_wasm_smart(
+            config.xastro_token_addr,
+            &XAstroTokenQueryMsg::BalanceAt {
+                address: vxastro_token_addr.to_string(),
+                block: proposal.start_block,
+            },
+        )?;
+
+        total = total.checked_add(locked_xastro.balance)?;
     }
 
     Ok(total)

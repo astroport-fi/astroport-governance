@@ -631,19 +631,19 @@ fn test_successful_proposal() {
     );
 
     let votes: Vec<(&str, ProposalVoteOption, u128)> = vec![
-        ("user1", ProposalVoteOption::For, 200u128),
-        ("user2", ProposalVoteOption::For, 250u128),
-        ("user3", ProposalVoteOption::For, 450u128),
-        ("user4", ProposalVoteOption::For, 300u128),
-        ("user5", ProposalVoteOption::For, 150u128),
-        ("user6", ProposalVoteOption::For, 400u128),
+        ("user1", ProposalVoteOption::For, 280u128),
+        ("user2", ProposalVoteOption::For, 350u128),
+        ("user3", ProposalVoteOption::For, 550u128),
+        ("user4", ProposalVoteOption::For, 350u128),
+        ("user5", ProposalVoteOption::For, 240u128),
+        ("user6", ProposalVoteOption::For, 600u128),
         ("user7", ProposalVoteOption::For, 130u128),
-        ("user8", ProposalVoteOption::Against, 230u128),
+        ("user8", ProposalVoteOption::Against, 330u128),
         ("user9", ProposalVoteOption::Against, 50u128),
-        ("user10", ProposalVoteOption::Against, 180u128),
+        ("user10", ProposalVoteOption::Against, 270u128),
     ];
 
-    check_total_vp(&mut app, &assembly_addr, 1, 4650);
+    check_total_vp(&mut app, &assembly_addr, 1, 5460);
 
     for (addr, option, expected_vp) in votes {
         let sender = Addr::unchecked(addr);
@@ -670,11 +670,11 @@ fn test_successful_proposal() {
         .unwrap();
 
     // Check proposal votes
-    assert_eq!(proposal.for_power, Uint128::from(1880u32));
-    assert_eq!(proposal.against_power, Uint128::from(460u32));
+    assert_eq!(proposal.for_power, Uint128::from(2500u32));
+    assert_eq!(proposal.against_power, Uint128::from(650u32));
 
-    assert_eq!(proposal_votes.for_power, Uint128::from(1880u32));
-    assert_eq!(proposal_votes.against_power, Uint128::from(460u32));
+    assert_eq!(proposal_votes.for_power, Uint128::from(2500u32));
+    assert_eq!(proposal_votes.against_power, Uint128::from(650u32));
 
     assert_eq!(
         proposal.for_voters,
