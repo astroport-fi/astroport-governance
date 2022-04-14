@@ -130,7 +130,7 @@ fn execute_receive_cw20(
 ///
 /// * **QueryMsg::Allocation {}** Return the allocation details for a specific account.
 ///
-/// * **QueryMsg::UnlockedTokens {}** Return the amoint of unlocked ASTRO for a specific account.
+/// * **QueryMsg::UnlockedTokens {}** Return the amount of unlocked ASTRO for a specific account.
 ///
 /// * **QueryMsg::SimulateWithdraw {}** Return the result of a withdrawal simulation.
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -149,7 +149,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 }
 
 /// ## Description
-/// Admin function facilitating creation of new allocations.
+/// Admin function facilitating the creation of new allocations.
 /// ## Params
 /// * **deps** is an object of type [`DepsMut`].
 ///
@@ -307,7 +307,7 @@ fn execute_transfer_ownership(
 }
 
 /// ## Description
-/// Allows the current allocation receiver to propose a new receiver/.
+/// Allows the current allocation receiver to propose a new receiver.
 /// ## Params
 /// * **deps** is an object of type [`DepsMut`].
 ///
@@ -389,7 +389,7 @@ fn execute_drop_new_receiver(deps: DepsMut, _env: Env, info: MessageInfo) -> Std
 ///
 /// * **info** is an object of type [`MessageInfo`].
 ///
-/// * **prev_receiver** is an object of type [`String`]. This is the previous receiver for hte allocation.
+/// * **prev_receiver** is an object of type [`String`]. This is the previous receiver for the allocation.
 fn execute_claim_receiver(
     deps: DepsMut,
     _env: Env,
@@ -409,14 +409,14 @@ fn execute_claim_receiver(
                     )));
                 }
 
-                // Transfers Allocation Parameters ::
+                // Transfers allocation parameters
                 // 1. Save the allocation for the new receiver
                 alloc_params.proposed_receiver = None;
 
                 PARAMS.save(deps.storage, &info.sender, &alloc_params)?;
                 // 2. Remove the allocation info from the previous owner
                 PARAMS.remove(deps.storage, &deps.api.addr_validate(&prev_receiver)?);
-                // Transfers Allocation Status ::
+                // Transfers Allocation Status
                 let mut status =
                     STATUS.load(deps.storage, &deps.api.addr_validate(&prev_receiver)?)?;
 

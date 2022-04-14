@@ -2,19 +2,18 @@ use std::convert::TryInto;
 
 use cosmwasm_std::{Decimal, Fraction, OverflowError, StdError, StdResult, Uint128, Uint256};
 
-/// Seconds in one week. Constant is intended for period number calculation.
+/// Seconds in one week. It is intended for period number calculation.
 pub const WEEK: u64 = 7 * 86400; // lock period is rounded down by week
 
-/// Seconds in 2 years which is maximum lock period.
+/// Seconds in 2 years which is the maximum lock period.
 pub const MAX_LOCK_TIME: u64 = 2 * 365 * 86400; // 2 years (104 weeks)
 
-/// The constant describes the maximum number of accounts for claim.
+/// The constant describes the maximum number of accounts for which to claim accrued staking rewards in a single transaction.
 pub const CLAIM_LIMIT: u64 = 10;
 
 /// Feb 28 2022 00:00 UTC, Monday
 pub const EPOCH_START: u64 = 1646006400;
 
-/// ## Description
 /// Calculates the period number. Time should be formatted as a timestamp.
 pub fn get_period(time: u64) -> StdResult<u64> {
     if time < EPOCH_START {
@@ -24,13 +23,11 @@ pub fn get_period(time: u64) -> StdResult<u64> {
     }
 }
 
-/// ## Description
 /// Calculates how many periods are in the specified time interval. The time should be in seconds.
 pub fn get_periods_count(interval: u64) -> u64 {
     interval / WEEK
 }
 
-/// # Description
 /// This trait was implemented to eliminate Decimal rounding problems.
 trait DecimalRoundedCheckedMul {
     fn checked_mul(self, other: Uint128) -> Result<Uint128, OverflowError>;
@@ -65,7 +62,6 @@ impl DecimalRoundedCheckedMul for Decimal {
     }
 }
 
-/// # Description
 /// Main function used to calculate a user's voting power at a specific period as: previous_power - slope*(x - previous_x).
 pub fn calc_voting_power(
     slope: Uint128,

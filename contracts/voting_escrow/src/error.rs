@@ -19,7 +19,7 @@ pub enum ContractError {
     LockAlreadyExists {},
 
     #[error("Lock does not exist")]
-    LockDoesntExist {},
+    LockDoesNotExist {},
 
     #[error("Lock time must be within limits (week <= lock time < 2 years)")]
     LockTimeLimitsError {},

@@ -200,11 +200,10 @@ pub fn execute(
 
 /// ## Description
 /// Checkpoint the total voting power (total supply of vxASTRO).
-/// This function fetches last available vxASTRO checkpoint, recalculates passed periods since the checkpoint and until now,
+/// This function fetches the last available vxASTRO checkpoint, recalculates passed periods since the checkpoint and until now,
 /// applies slope changes and saves all recalculated periods in [`HISTORY`].
 /// The function returns Ok(()) in case of success or [`StdError`]
 /// in case of a serialization/deserialization error.
-///
 /// ## Params
 /// * **deps** is an object of type [`DepsMut`].
 ///
@@ -278,27 +277,22 @@ fn checkpoint_total(
 }
 
 /// ## Description
-/// Checkpoint a user's voting power (vxASTRO supply).
-/// This function fetches the user's last available checkpoint, calculates the user's current voting power,
-/// applies slope changes based on `add_amount` and `new_end` parameters,
-/// schedules slope changes for total voting power
-/// and saves the new checkpoint for the current period in [`HISTORY`] (using the user's address).
-/// If a user already checkpointed themselves for the current period, then
-/// this function uses the current checkpoint as the latest available one.
-/// The function returns Ok(()) in case of success or [`StdError`]
-/// in case of a serialization/deserialization error.
-///
+/// Checkpoint a user's voting power (vxASTRO balance).
+/// This function fetches the user's last available checkpoint, calculates the user's current voting power, applies slope changes based on
+/// `add_amount` and `new_end` parameters, schedules slope changes for total voting power and saves the new checkpoint for the current
+/// period in [`HISTORY`] (using the user's address).
+/// If a user already checkpointed themselves for the current period, then this function uses the current checkpoint as the latest
+/// available one. The function returns Ok(()) in case of success or [`StdError`] in case of a serialization/deserialization error.
 /// ## Params
-///
 /// * **deps** is an object of type [`DepsMut`].
 ///
 /// * **env** is an object of type [`Env`].
 ///
 /// * **addr** is an object of type [`Addr`]. This is the staker for which we checkpoint the voting power.
 ///
-/// * **add_amount** is an object of type [`Option<Uint128>`]. This is an amount of vxASTRO to add to the user's balance.
+/// * **add_amount** is an object of type [`Option<Uint128>`]. This is an amount of vxASTRO to add to the staker's balance.
 ///
-/// * **new_end** is an object of type [`Option<u64>`]. This is a new lock time for the user's vxASTRO position.
+/// * **new_end** is an object of type [`Option<u64>`]. This is a new lock time for the staker's vxASTRO position.
 fn checkpoint(
     mut deps: DepsMut,
     env: Env,
@@ -312,7 +306,7 @@ fn checkpoint(
     let mut old_slope = Default::default();
     let mut add_voting_power = Uint128::zero();
 
-    // Get last user checkpoint
+    // Get the last user checkpoint
     let last_checkpoint = fetch_last_checkpoint(deps.as_ref(), &addr, &cur_period_key)?;
     let new_point = if let Some((_, point)) = last_checkpoint {
         let end = new_end.unwrap_or(point.end);
@@ -423,7 +417,6 @@ fn receive_cw20(
 /// Creates a lock if it doesn't exist and triggers a [`checkpoint`] for the staker.
 /// If a lock already exists, then a [`ContractError`] is returned,
 /// otherwise it returns a [`Response`] with the specified attributes if the operation was successful.
-///
 /// ## Params
 /// * **deps** is an object of type [`DepsMut`].
 ///
@@ -469,7 +462,6 @@ fn create_lock(
 /// Triggers a [`checkpoint`] for the user.
 /// If the user does not have a lock, then a [`ContractError`] is returned,
 /// otherwise it returns a [`Response`] with the specified attributes if the operation was successful.
-///
 /// ## Params
 /// * **deps** is an object of type [`DepsMut`].
 ///
@@ -493,7 +485,7 @@ fn deposit_for(
                 Ok(lock)
             }
         }
-        _ => Err(ContractError::LockDoesntExist {}),
+        _ => Err(ContractError::LockDoesNotExist {}),
     })?;
     checkpoint(deps, env, user, Some(amount), None)?;
 
@@ -504,7 +496,6 @@ fn deposit_for(
 /// Withdraws the whole amount of locked xASTRO from a specific user lock.
 /// If the user lock doesn't exist or if it has not yet expired, then a [`ContractError`] is returned,
 /// otherwise it returns a [`Response`] with the specified attributes if the operation was successful.
-///
 /// ## Params
 /// * **deps** is an object of type [`DepsMut`].
 ///
@@ -513,11 +504,11 @@ fn deposit_for(
 /// * **info** is an object of type [`MessageInfo`]. This is the withdrawal message coming from the xASTRO token contract.
 fn withdraw(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, ContractError> {
     let sender = info.sender;
-    // 'LockDoesntExist' is either a lock does not exist in LOCKED or a lock exits but lock.amount == 0
+    // 'LockDoesNotExist' is thrown either when a lock does not exist in LOCKED or when a lock exists but lock.amount == 0
     let mut lock = LOCKED
         .may_load(deps.storage, sender.clone())?
         .filter(|lock| !lock.amount.is_zero())
-        .ok_or(ContractError::LockDoesntExist {})?;
+        .ok_or(ContractError::LockDoesNotExist {})?;
 
     let cur_period = get_period(env.block.time.seconds())?;
     if lock.end > cur_period {
@@ -559,6 +550,7 @@ fn withdraw(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, Cont
 /// and then it triggers a [`checkpoint`].
 /// If the user lock doesn't exist or if it expired, then a [`ContractError`] is returned,
 /// otherwise it returns a [`Response`] with the specified attributes if the operation was successful
+///
 /// ## Note
 /// The time is added to the lock's `end`.
 /// For example, at period 0, the user has their xASTRO locked for 3 weeks.
@@ -583,7 +575,7 @@ fn extend_lock_time(
     let mut lock = LOCKED
         .may_load(deps.storage, user.clone())?
         .filter(|lock| !lock.amount.is_zero())
-        .ok_or(ContractError::LockDoesntExist {})?;
+        .ok_or(ContractError::LockDoesNotExist {})?;
 
     // Disable the ability to extend the lock time by less than a week
     time_limits_check(time)?;
@@ -607,7 +599,6 @@ fn extend_lock_time(
 /// and blacklists new addresses specified in 'append_addrs'. Nullifies staker voting power and
 /// cancels their contribution in the total voting power (total vxASTRO supply).
 /// Returns a [`ContractError`] in case of a (de/ser)ialization or address validation error.
-///
 /// ## Params
 /// * **deps** is an object of type [`DepsMut`].
 ///
@@ -648,8 +639,9 @@ fn update_blacklist(
 
     let cur_period = get_period(env.block.time.seconds())?;
     let cur_period_key = U64Key::new(cur_period);
-    let mut reduce_total_vp = Uint128::zero(); // accumulator for decreasing total voting power
-    let mut old_slopes = Uint128::zero(); // accumulator for old slopes
+    let mut reduce_total_vp = Uint128::zero();              // accumulator for decreasing total voting power
+    let mut old_slopes = Uint128::zero();                   // accumulator for old slopes
+
     for addr in append.iter() {
         let last_checkpoint = fetch_last_checkpoint(deps.as_ref(), addr, &cur_period_key)?;
         if let Some((_, point)) = last_checkpoint {
@@ -783,7 +775,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 /// ## Params
 /// * **deps** is an object of type [`Deps`].
 ///
-/// * **user** is an object of type String. This is the address of the user for which we return lock information.
+/// * **user** is an object of type [`String`]. This is the address of the user for which we return lock information.
 fn get_user_lock_info(deps: Deps, env: Env, user: String) -> StdResult<LockInfoResponse> {
     let addr = addr_validate_to_lower(deps.api, &user)?;
     if let Some(lock) = LOCKED.may_load(deps.storage, addr.clone())? {

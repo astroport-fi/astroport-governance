@@ -105,29 +105,29 @@ pub mod msg {
         pub astro_token: String,
     }
 
-    /// This enum describes all execute functions available in the contract.
+    /// This enum describes all the execute functions available in the contract.
     #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
     #[serde(rename_all = "snake_case")]
     pub enum ExecuteMsg {
-        /// Implementation for the cw20 receive msg
+        /// Receive is an implementation for the CW20 receive msg
         Receive(Cw20ReceiveMsg),
-        /// Claim withdrawable ASTRO
+        /// Withdraw claims withdrawable ASTRO
         Withdraw {},
-        /// Transfer contract ownership
+        /// TransferOwnership transfers contract ownership
         TransferOwnership { new_owner: Option<String> },
-        /// Allows a user to change the receiver address for their ASTRO allocation
+        /// ProposeNewReceiver allows a user to change the receiver address for their ASTRO allocation
         ProposeNewReceiver { new_receiver: String },
-        /// Allows a user to remove the previously proposed new receiver for their ASTRO allocation
+        /// DropNewReceiver allows a user to remove the previously proposed new receiver for their ASTRO allocation
         DropNewReceiver {},
-        /// Allows newly proposed receivers to claim ASTRO allocations ownership
+        /// ClaimReceiver allows newly proposed receivers to claim ASTRO allocations ownership
         ClaimReceiver { prev_receiver: String },
     }
 
-    /// This enum describes the receive msg templates.
+    /// This enum describes receive msg templates.
     #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
     #[serde(rename_all = "snake_case")]
     pub enum ReceiveMsg {
-        /// Create new ASTRO allocations
+        /// CreateAllocations creates new ASTRO allocations
         CreateAllocations {
             allocations: Vec<(String, AllocationParams)>,
         },
@@ -137,25 +137,25 @@ pub mod msg {
     #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
     #[serde(rename_all = "snake_case")]
     pub enum QueryMsg {
-        // Config for this contract
+        // Config returns the configuration for this contract
         Config {},
-        // State of this contract
+        // State returns the state of this contract
         State {},
-        // Parameters and current status of an allocation
+        // Allocation returns the parameters and current status of an allocation
         Allocation {
             /// Account whose allocation status we query
             account: String,
         },
-        // Unlocked tokens from an allocation
+        // UnlockedTokens returns the unlocked tokens from an allocation
         UnlockedTokens {
             /// Account whose amount of unlocked ASTRO we query for
             account: String,
         },
-        // Simulate how many ASTRO will be released if a withdrawal is attempted
+        // SimulateWithdraw simulates how many ASTRO will be released if a withdrawal is attempted
         SimulateWithdraw {
             /// Account for which we simulate a withdrawal
             account: String,
-            /// Timestmpa used to simulate how many ASTRO the account can withdraw
+            /// Timestamp used to simulate how many ASTRO the account can withdraw
             timestamp: Option<u64>,
         },
     }
@@ -171,14 +171,14 @@ pub mod msg {
         pub status: AllocationStatus,
     }
 
-    /// This structure stores the parameters used to return the response when simulating a withdrawal.
+    /// This structure stores the parameters used to return a response when simulating a withdrawal.
     #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
     pub struct SimulateWithdrawResponse {
         /// Amount of ASTRO to receive
         pub astro_to_withdraw: Uint128,
     }
 
-    /// This structure stores the parameters used to return the response when querying for the contract state.
+    /// This structure stores parameters used to return the response when querying for the contract state.
     #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
     pub struct StateResponse {
         /// ASTRO tokens deposited into the contract and that are meant to unlock

@@ -144,7 +144,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> E
 /// * sum of all BPS values <= 10000.
 ///
 /// The function cancels changes applied by previous votes and apply new votes for the next period.
-/// New vote parameters are saved in [`USER_INFO`].  
+/// New vote parameters are saved in [`USER_INFO`].
 ///
 /// The function returns [`Response`] in case of success or [`ContractError`] in case of errors.
 ///
@@ -262,12 +262,12 @@ fn handle_vote(
 }
 
 /// ## Description
-/// Only contract owner can call this function.  
+/// Only contract owner can call this function.
 /// The function checks that the last generator gauging happened >= 14 days ago.
 /// Then it calculates voting power for each pool at the current period, filters all pools which
 /// are not eligible to receive allocation points,
 /// takes top X pools by voting power, where X is 'config.pools_limit', calculates allocation points
-/// for these pools and applies allocation points in generator contract.   
+/// for these pools and applies allocation points in generator contract.
 /// The function returns [`Response`] in case of success or [`ContractError`] in case of errors.
 ///
 /// ## Params
@@ -340,7 +340,7 @@ fn gauge_generators(deps: DepsMut, env: Env, info: MessageInfo) -> ExecuteResult
 }
 
 /// ## Description
-/// Only contract owner can call this function.  
+/// Only contract owner can call this function.
 /// The function sets new limit of pools which are eligible to receive allocation points.
 ///
 /// ## Params

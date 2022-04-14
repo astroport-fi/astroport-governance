@@ -96,7 +96,7 @@ pub fn instantiate(
 ///
 /// * **msg** is an object of type [`ExecuteMsg`].
 ///
-/// ## Queries
+/// ## Execute messages
 /// * **ExecuteMsg::Receive(cw20_msg)** Receives a message of type [`Cw20ReceiveMsg`] and processes
 /// it depending on the received template.
 ///
@@ -699,10 +699,10 @@ pub fn query_proposal_votes(deps: Deps, proposal_id: u64) -> StdResult<ProposalV
 pub fn calc_voting_power(deps: Deps, sender: String, proposal: &Proposal) -> StdResult<Uint128> {
     let config = CONFIG.load(deps.storage)?;
 
-    // xASTRO balance of the specified user at previous block(proposal.start_block - 1),
-    // because the previous block always has an up-to-date checkpoint and more secured.
+    // This is the address' xASTRO balance at the previous block (proposal.start_block - 1).
+    // We use the previous block because it always has an up-to-date checkpoint.
     // BalanceAt will always return the balance information in the previous block,
-    // so you shouldn't subtract block because of the specific logic of the SnapshotMap.
+    // so we don't subtract one block from proposal.start_block.
     let xastro_amount: BalanceResponse = deps.querier.query_wasm_smart(
         config.xastro_token_addr,
         &XAstroTokenQueryMsg::BalanceAt {
@@ -752,8 +752,8 @@ pub fn calc_voting_power(deps: Deps, sender: String, proposal: &Proposal) -> Std
 pub fn calc_total_voting_power_at(deps: Deps, proposal: &Proposal) -> StdResult<Uint128> {
     let config = CONFIG.load(deps.storage)?;
 
-    // Total xASTRO supply at a previous block(proposal.start_block - 1),
-    // because the previous block always has an up-to-date checkpoint and more secured
+    // This is the address' xASTRO balance at the previous block (proposal.start_block - 1).
+    // We use the previous block because it always has an up-to-date checkpoint.
     let mut total: Uint128 = deps.querier.query_wasm_smart(
         config.xastro_token_addr,
         &XAstroTokenQueryMsg::TotalSupplyAt {
@@ -787,7 +787,7 @@ pub fn calc_total_voting_power_at(deps: Deps, proposal: &Proposal) -> StdResult<
 }
 
 /// ## Description
-/// Used for the contract migration. Returns a default object of type [`Response`].
+/// Used for contract migration. Returns a default object of type [`Response`].
 /// ## Params
 /// * **deps** is an object of type [`DepsMut`].
 ///
