@@ -105,6 +105,8 @@ pub enum QueryMsg {
     UserVotingPowerAtPeriod { user: String, period: u64 },
     /// Return information about a user's lock position
     LockInfo { user: String },
+    /// Return user's locked xASTRO balance at the given block height
+    UserDepositAtHeight { user: String, height: u64 },
     /// Return the  vxASTRO contract configuration
     Config {},
 }

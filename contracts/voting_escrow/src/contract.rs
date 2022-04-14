@@ -327,7 +327,7 @@ fn checkpoint(
                 // new_voting_power should always be >= current_power. saturating_sub is used for extra safety
                 add_voting_power = new_voting_power.saturating_sub(current_power);
                 lock.last_extend_lock_period = cur_period;
-                LOCKED.save(deps.storage, addr.clone(), &lock)?;
+                LOCKED.save(deps.storage, addr.clone(), &lock, env.block.height)?;
                 slope
             } else {
                 // This is an increase in the user's lock amount
@@ -446,7 +446,7 @@ fn create_lock(
     let block_period = get_period(env.block.time.seconds())?;
     let end = block_period + get_periods_count(time);
 
-    LOCKED.update(deps.storage, user.clone(), |lock_opt| {
+    LOCKED.update(deps.storage, user.clone(), env.block.height, |lock_opt| {
         if lock_opt.is_some() && !lock_opt.unwrap().amount.is_zero() {
             return Err(ContractError::LockAlreadyExists {});
         }
@@ -484,17 +484,22 @@ fn deposit_for(
     amount: Uint128,
     user: Addr,
 ) -> Result<Response, ContractError> {
-    LOCKED.update(deps.storage, user.clone(), |lock_opt| match lock_opt {
-        Some(mut lock) if !lock.amount.is_zero() => {
-            if lock.end <= get_period(env.block.time.seconds())? {
-                Err(ContractError::LockExpired {})
-            } else {
-                lock.amount += amount;
-                Ok(lock)
+    LOCKED.update(
+        deps.storage,
+        user.clone(),
+        env.block.height,
+        |lock_opt| match lock_opt {
+            Some(mut lock) if !lock.amount.is_zero() => {
+                if lock.end <= get_period(env.block.time.seconds())? {
+                    Err(ContractError::LockExpired {})
+                } else {
+                    lock.amount += amount;
+                    Ok(lock)
+                }
             }
-        }
-        _ => Err(ContractError::LockDoesntExist {}),
-    })?;
+            _ => Err(ContractError::LockDoesntExist {}),
+        },
+    )?;
     checkpoint(deps, env, user, Some(amount), None)?;
 
     Ok(Response::default().add_attribute("action", "deposit_for"))
@@ -533,7 +538,7 @@ fn withdraw(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, Cont
             funds: vec![],
         });
         lock.amount = Uint128::zero();
-        LOCKED.save(deps.storage, sender.clone(), &lock)?;
+        LOCKED.save(deps.storage, sender.clone(), &lock, env.block.height)?;
 
         // We need to checkpoint and eliminate the slope influence on a future lock
         HISTORY.save(
@@ -595,7 +600,7 @@ fn extend_lock_time(
     // Should not exceed MAX_LOCK_TIME
     time_limits_check(EPOCH_START + lock.end * WEEK + time - env.block.time.seconds())?;
     lock.end += get_periods_count(time);
-    LOCKED.save(deps.storage, user.clone(), &lock)?;
+    LOCKED.save(deps.storage, user.clone(), &lock, env.block.height)?;
 
     checkpoint(deps, env, user, None, Some(lock.end))?;
 
@@ -764,6 +769,9 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             to_binary(&get_user_voting_power_at_period(deps, user, period)?)
         }
         QueryMsg::LockInfo { user } => to_binary(&get_user_lock_info(deps, env, user)?),
+        QueryMsg::UserDepositAtHeight { user, height } => {
+            to_binary(&get_user_deposit_at_height(deps, user, height)?)
+        }
         QueryMsg::Config {} => {
             let config = CONFIG.load(deps.storage)?;
             to_binary(&ConfigResponse {
@@ -801,6 +809,24 @@ fn get_user_lock_info(deps: Deps, env: Env, user: String) -> StdResult<LockInfoR
         Ok(resp)
     } else {
         Err(StdError::generic_err("User is not found"))
+    }
+}
+
+/// ## Description
+/// Return a user's staked xASTRO amount at a given block height.
+/// ## Params
+/// * **deps** is an object of type [`Deps`].
+///
+/// * **user** is an object of type String. This is the address of the user for which we return lock information.
+///
+/// * **block_height** is an object of type u64. This is the block height at which we return the staked xASTRO amount.
+fn get_user_deposit_at_height(deps: Deps, user: String, block_height: u64) -> StdResult<Uint128> {
+    let addr = addr_validate_to_lower(deps.api, &user)?;
+    let locked_opt = LOCKED.may_load_at_height(deps.storage, addr, block_height)?;
+    if let Some(lock) = locked_opt {
+        Ok(lock.amount)
+    } else {
+        Ok(Uint128::zero())
     }
 }
 

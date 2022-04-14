@@ -376,6 +376,24 @@ impl Helper {
             )
             .map(|vp: VotingPowerResponse| vp.voting_power.u128() as f32 / MULTIPLIER as f32)
     }
+
+    pub fn query_locked_balance_at(
+        &self,
+        router: &mut TerraApp,
+        user: &str,
+        height: u64,
+    ) -> StdResult<f32> {
+        router
+            .wrap()
+            .query_wasm_smart(
+                self.voting_instance.clone(),
+                &QueryMsg::UserDepositAtHeight {
+                    user: user.to_string(),
+                    height,
+                },
+            )
+            .map(|vp: Uint128| vp.u128() as f32 / MULTIPLIER as f32)
+    }
 }
 
 pub fn mock_app() -> TerraApp {
