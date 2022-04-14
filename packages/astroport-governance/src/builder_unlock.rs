@@ -9,28 +9,23 @@ pub struct Config {
     pub owner: Addr,
     /// Address of ASTRO token
     pub astro_token: Addr,
+    /// Max ASTRO tokens to allocate
+    pub max_allocations_amount: Uint128,
 }
 
 /// This structure stores the total and the remaining amount of ASTRO to be unlocked by all accounts.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Default)]
 pub struct State {
     /// Amount of ASTRO tokens deposited into the contract
     pub total_astro_deposited: Uint128,
     /// Currently available ASTRO tokens that still need to be unlocked and/or withdrawn
     pub remaining_astro_tokens: Uint128,
-}
-
-impl Default for State {
-    fn default() -> Self {
-        State {
-            total_astro_deposited: Uint128::zero(),
-            remaining_astro_tokens: Uint128::zero(),
-        }
-    }
+    /// Amount of ASTRO tokens deposited into contract but without allocation
+    pub unallocated_tokens: Uint128,
 }
 
 /// This structure stores the parameters describing a typical unlock schedule.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Default)]
 pub struct Schedule {
     /// Timestamp for the start of the unlock schedule (in seconds)
     pub start_time: u64,
@@ -41,7 +36,7 @@ pub struct Schedule {
 }
 
 /// This structure stores the parameters used to describe an ASTRO allocation.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Default)]
 pub struct AllocationParams {
     /// Total amount of ASTRO tokens allocated to a specific account
     pub amount: Uint128,
@@ -51,39 +46,20 @@ pub struct AllocationParams {
     pub proposed_receiver: Option<Addr>,
 }
 
-impl Default for AllocationParams {
-    fn default() -> Self {
-        AllocationParams {
-            amount: Uint128::zero(),
-            unlock_schedule: Schedule {
-                start_time: 0u64,
-                cliff: 0u64,
-                duration: 0u64,
-            },
-            proposed_receiver: None,
-        }
-    }
-}
-
 /// This structure stores the parameters used to describe the status of an allocation.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Default)]
 pub struct AllocationStatus {
     /// Amount of ASTRO already withdrawn
     pub astro_withdrawn: Uint128,
-}
-
-impl Default for AllocationStatus {
-    fn default() -> Self {
-        AllocationStatus {
-            astro_withdrawn: Uint128::zero(),
-        }
-    }
+    /// Already unlocked amount after decreasing
+    pub unlocked_amount_checkpoint: Uint128,
 }
 
 impl AllocationStatus {
     pub const fn new() -> Self {
         Self {
             astro_withdrawn: Uint128::zero(),
+            unlocked_amount_checkpoint: Uint128::zero(),
         }
     }
 }
@@ -103,6 +79,8 @@ pub mod msg {
         pub owner: String,
         /// ASTRO token address
         pub astro_token: String,
+        /// Max ASTRO tokens to allocate
+        pub max_allocations_amount: Uint128,
     }
 
     /// This enum describes all the execute functions available in the contract.
@@ -121,6 +99,23 @@ pub mod msg {
         DropNewReceiver {},
         /// ClaimReceiver allows newly proposed receivers to claim ASTRO allocations ownership
         ClaimReceiver { prev_receiver: String },
+        /// Increase ASTRO allocation for receiver
+        IncreaseAllocation { receiver: String, amount: Uint128 },
+        /// Decrease ASTRO allocation of the receiver
+        DecreaseAllocation { receiver: String, amount: Uint128 },
+        /// Transfer unallocated tokens (only accessible to the owner)
+        TransferUnallocated {
+            amount: Uint128,
+            recipient: Option<String>,
+        },
+        /// Propose a new owner for the contract
+        ProposeNewOwner { new_owner: String, expires_in: u64 },
+        /// Remove the ownership transfer proposal
+        DropOwnershipProposal {},
+        /// Claim contract ownership
+        ClaimOwnership {},
+        /// Update parameters in the contract configuration
+        UpdateConfig { new_max_allocations_amount: Uint128 },
     }
 
     /// This enum describes receive msg templates.
@@ -131,6 +126,8 @@ pub mod msg {
         CreateAllocations {
             allocations: Vec<(String, AllocationParams)>,
         },
+        /// Increase ASTRO allocation
+        IncreaseAllocation { user: String, amount: Uint128 },
     }
 
     /// Thie enum describes all the queries available in the contract.
@@ -185,5 +182,7 @@ pub mod msg {
         pub total_astro_deposited: Uint128,
         /// Currently available ASTRO tokens that weren't yet withdrawn from the contract
         pub remaining_astro_tokens: Uint128,
+        /// Currently available ASTRO tokens to withdraw or increase allocations by the owner
+        pub unallocated_astro_tokens: Uint128,
     }
 }
