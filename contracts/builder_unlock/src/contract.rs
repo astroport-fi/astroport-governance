@@ -451,7 +451,7 @@ fn execute_drop_new_receiver(deps: DepsMut, info: MessageInfo) -> StdResult<Resp
 }
 
 /// ## Description
-/// Decrease allocation.
+/// Decrease an address' ASTRO allocation.
 /// ## Params
 /// * **deps** is an object of type [`DepsMut`].
 ///
@@ -459,9 +459,9 @@ fn execute_drop_new_receiver(deps: DepsMut, info: MessageInfo) -> StdResult<Resp
 ///
 /// * **info** is an object of type [`MessageInfo`].
 ///
-/// * **receiver** is an object of type [`String`]. Decreasing receiver.
+/// * **receiver** is an object of type [`String`]. The address that will have its allocation decreased.
 ///
-/// * **amount** is an object of type [`Uint128`]. ASTRO amount to decrease.
+/// * **amount** is an object of type [`Uint128`]. ASTRO amount to decrease the allocation by.
 fn execute_decrease_allocation(
     deps: DepsMut,
     env: Env,
@@ -492,7 +492,7 @@ fn execute_decrease_allocation(
 
     if locked_amount < amount {
         return Err(StdError::generic_err(format!(
-            "Insufficient amount of lock to decrease allocation, User has locked {} ASTRO.",
+            "Insufficient amount of lock to decrease allocation, user has locked {} ASTRO.",
             locked_amount
         )));
     }
@@ -513,17 +513,17 @@ fn execute_decrease_allocation(
 }
 
 /// ## Description
-/// Increase allocation.
+/// Increase an address' ASTRO allocation.
 /// ## Params
 /// * **deps** is an object of type [`DepsMut`].
 ///
 /// * **config** is an object of type [`Config`].
 ///
-/// * **receiver** is an object of type [`String`]. Increasing receiver.
+/// * **receiver** is an object of type [`String`]. The address that will have its allocation incrased.
 ///
-/// * **amount** is an object of type [`Uint128`]. ASTRO amount to increase.
+/// * **amount** is an object of type [`Uint128`]. ASTRO amount to increase the allocation by.
 ///
-/// * **deposit_amount** is an [`Option`] of type [`Uint128`]. Amount of ASTRO to increase using CW20 Receive.
+/// * **deposit_amount** is an [`Option`] of type [`Uint128`]. Amount of ASTRO to increase the allocation by using CW20 Receive.
 fn execute_increase_allocation(
     deps: DepsMut,
     config: &Config,
@@ -576,7 +576,7 @@ fn execute_increase_allocation(
 }
 
 /// ## Description
-/// Transfer unallocated ASTRO tokens to recipient.
+/// Transfer unallocated ASTRO tokens to a recipient.
 /// ## Params
 /// * **deps** is an object of type [`DepsMut`].
 ///
