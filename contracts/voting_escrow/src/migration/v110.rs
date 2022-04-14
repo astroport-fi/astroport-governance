@@ -1,5 +1,5 @@
 use astroport::asset::addr_validate_to_lower;
-use cosmwasm_std::{Addr, Decimal, DepsMut, Env, StdResult};
+use cosmwasm_std::{Addr, Decimal, DepsMut, Env, StdError, StdResult};
 use cw20::{Cw20QueryMsg, MinterResponse};
 use cw_storage_plus::Item;
 use schemars::JsonSchema;
@@ -19,7 +19,7 @@ pub const CONFIG_V100: Item<ConfigV100> = Item::new("config");
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema)]
 pub struct ParamsV110 {
-    pub max_exit_penalty: Option<Decimal>,
+    pub max_exit_penalty: Decimal,
     pub slashed_fund_receiver: Option<String>,
 }
 
@@ -28,12 +28,10 @@ pub struct MigrationV110;
 impl Migration<ParamsV110> for MigrationV110 {
     fn handle_migration(deps: DepsMut, _env: Env, params: ParamsV110) -> StdResult<()> {
         let config = CONFIG_V100.load(deps.storage)?;
-        // Accept values within [0,1] limit. Otherwise set 100% penalty.
-        let max_exit_penalty = params
-            .max_exit_penalty
-            .filter(|penalty| *penalty <= Decimal::one())
-            .unwrap_or_else(Decimal::one);
-
+        // Accept values within [0,1] limit.
+        if params.max_exit_penalty > Decimal::one() {
+            return Err(StdError::generic_err("Max exit penalty should be <= 1"));
+        }
         let slashed_fund_receiver = params
             .slashed_fund_receiver
             .map(|addr| addr_validate_to_lower(deps.api, &addr))
@@ -45,7 +43,7 @@ impl Migration<ParamsV110> for MigrationV110 {
                 owner: config.owner,
                 guardian_addr: config.guardian_addr,
                 deposit_token_addr: config.deposit_token_addr.clone(),
-                max_exit_penalty,
+                max_exit_penalty: params.max_exit_penalty,
                 slashed_fund_receiver,
             },
         )?;

@@ -31,7 +31,7 @@ pub struct InstantiateMsg {
     /// Marketing info for vxASTRO
     pub marketing: Option<InstantiateMarketingInfo>,
     /// The maximum % of staked xASTRO that is confiscated upon an early exit
-    pub max_exit_penalty: Option<Decimal>,
+    pub max_exit_penalty: Decimal,
     /// The address that receives slashed ASTRO (slashed xASTRO is burned in order to claim ASTRO)
     pub slashed_fund_receiver: Option<String>,
 }
@@ -51,7 +51,7 @@ pub enum ExecuteMsg {
     WithdrawEarly {},
     ConfigureEarlyWithdrawal {
         /// The maximum penalty that can be applied to a user
-        max_penalty: Option<Decimal>,
+        max_penalty: Decimal,
         /// The address that will receive the slashed funds
         slashed_fund_receiver: Option<String>,
     },

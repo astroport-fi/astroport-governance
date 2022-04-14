@@ -64,18 +64,10 @@ pub fn instantiate(
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    // Accept values within [0,1] limit. If max_exit_penalty is empty then 100% penalty is considered.
-    let max_exit_penalty = msg
-        .max_exit_penalty
-        .map(|penalty| {
-            if penalty > Decimal::one() {
-                Err(StdError::generic_err("Max exit penalty should be <= 1"))
-            } else {
-                Ok(penalty)
-            }
-        })
-        .transpose()?
-        .unwrap_or_else(Decimal::one);
+    // Accept values within [0,1] limit.
+    if msg.max_exit_penalty > Decimal::one() {
+        return Err(StdError::generic_err("Max exit penalty should be <= 1").into());
+    }
     let slashed_fund_receiver = msg
         .slashed_fund_receiver
         .map(|addr| addr_validate_to_lower(deps.api, &addr))
@@ -85,7 +77,7 @@ pub fn instantiate(
         owner: addr_validate_to_lower(deps.api, &msg.owner)?,
         guardian_addr: addr_validate_to_lower(deps.api, &msg.guardian_addr)?,
         deposit_token_addr: addr_validate_to_lower(deps.api, &msg.deposit_token_addr)?,
-        max_exit_penalty,
+        max_exit_penalty: msg.max_exit_penalty,
         slashed_fund_receiver,
     };
     CONFIG.save(deps.storage, &config)?;
@@ -612,7 +604,7 @@ fn withdraw(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, Cont
 fn configure_early_withdrawal(
     deps: DepsMut,
     info: MessageInfo,
-    max_exit_penalty: Option<Decimal>,
+    max_exit_penalty: Decimal,
     slashed_fund_receiver: Option<String>,
 ) -> Result<Response, ContractError> {
     let mut config = CONFIG.load(deps.storage)?;
@@ -622,12 +614,10 @@ fn configure_early_withdrawal(
     }
 
     // Accept values within [0,1] limit
-    if let Some(max_exit_penalty) = max_exit_penalty {
-        if max_exit_penalty > Decimal::one() {
-            return Err(StdError::generic_err("Max exit penalty should be <= 1").into());
-        } else {
-            config.max_exit_penalty = max_exit_penalty;
-        }
+    if max_exit_penalty > Decimal::one() {
+        return Err(StdError::generic_err("Max exit penalty should be <= 1").into());
+    } else {
+        config.max_exit_penalty = max_exit_penalty;
     }
     if let Some(slashed_fund_receiver) = slashed_fund_receiver {
         config.slashed_fund_receiver =
