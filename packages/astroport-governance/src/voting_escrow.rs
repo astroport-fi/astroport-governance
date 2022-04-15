@@ -127,6 +127,8 @@ pub enum QueryMsg {
     /// Return the amount of xASTRO that the staker can withdraw right now after the penalty is applied
     /// for early withdrawal
     EarlyWithdrawAmount { user: String },
+    /// Return user's locked xASTRO balance at the given block height
+    UserDepositAtHeight { user: String, height: u64 },
     /// Return the  vxASTRO contract configuration
     Config {},
 }

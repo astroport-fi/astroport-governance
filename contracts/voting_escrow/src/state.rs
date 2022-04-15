@@ -1,6 +1,6 @@
 use astroport::common::OwnershipProposal;
 use cosmwasm_std::{Addr, Decimal, Uint128};
-use cw_storage_plus::{Item, Map, U64Key};
+use cw_storage_plus::{Item, Map, SnapshotMap, Strategy, U64Key};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -57,8 +57,13 @@ pub struct Lock {
 pub const CONFIG: Item<Config> = Item::new("config");
 
 /// ## Description
-/// Stores all user locks
-pub const LOCKED: Map<Addr, Lock> = Map::new("locked");
+/// Stores all user locks history
+pub const LOCKED: SnapshotMap<Addr, Lock> = SnapshotMap::new(
+    "locked",
+    "locked__checkpoints",
+    "locked__changelog",
+    Strategy::EveryBlock,
+);
 
 /// ## Description
 /// Stores the checkpoint history for every staker (addr => period)

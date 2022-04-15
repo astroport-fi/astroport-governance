@@ -487,7 +487,61 @@ fn check_queries() {
     let user_vp = helper
         .query_user_vp_at(router_ref, "user", router_ref.block_info().time.seconds())
         .unwrap();
-    assert_eq!(user_vp_at_period, user_vp)
+    assert_eq!(user_vp_at_period, user_vp);
+
+    // Check users' locked xASTRO balance history
+    helper.mint_xastro(router_ref, "user", 90);
+    // SnapshotMap checkpoints the data at the next block
+    let start_height = router_ref.block_info().height + 1;
+    let balance = helper
+        .query_locked_balance_at(router_ref, "user", start_height)
+        .unwrap();
+    assert_eq!(balance, 90f32);
+    // Make the lockup to live longer
+    helper
+        .extend_lock_time(router_ref, "user", WEEK * 100)
+        .unwrap();
+
+    router_ref.update_block(next_block);
+    helper
+        .extend_lock_amount(router_ref, "user", 100f32)
+        .unwrap();
+    let balance = helper
+        .query_locked_balance_at(router_ref, "user", start_height)
+        .unwrap();
+    assert_eq!(balance, 90f32);
+
+    router_ref.update_block(|bi| bi.height += 100000);
+    let balance = helper
+        .query_locked_balance_at(router_ref, "user", start_height)
+        .unwrap();
+    assert_eq!(balance, 90f32);
+    let balance = helper
+        .query_locked_balance_at(router_ref, "user", start_height + 2)
+        .unwrap();
+    assert_eq!(balance, 190f32);
+    // The user still has 190 xASTRO locked
+    let balance = helper
+        .query_locked_balance_at(router_ref, "user", router_ref.block_info().height)
+        .unwrap();
+    assert_eq!(balance, 190f32);
+
+    router_ref.update_block(|bi| {
+        bi.height += 1;
+        bi.time = bi.time.plus_seconds(WEEK * 102);
+    });
+    helper.withdraw(router_ref, "user").unwrap();
+    // Now the users' balance is zero
+    let cur_height = router_ref.block_info().height + 1;
+    let balance = helper
+        .query_locked_balance_at(router_ref, "user", cur_height)
+        .unwrap();
+    // But one block before it had 190 xASTRO locked
+    assert_eq!(balance, 0f32);
+    let balance = helper
+        .query_locked_balance_at(router_ref, "user", cur_height - 1)
+        .unwrap();
+    assert_eq!(balance, 190f32)
 }
 
 #[test]
