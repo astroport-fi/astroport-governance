@@ -709,7 +709,7 @@ fn withdraw_early(
     }
 
     lock.amount = Uint128::zero();
-    LOCKED.save(deps.storage, sender.clone(), &lock)?;
+    LOCKED.save(deps.storage, sender.clone(), &lock, env.block.height)?;
 
     let cur_period_key = U64Key::new(cur_period);
     let last_checkpoint = fetch_last_checkpoint(deps.as_ref(), &sender, &cur_period_key)?;
