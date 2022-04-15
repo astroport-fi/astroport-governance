@@ -650,101 +650,101 @@ fn withdraw_early(
 
     let cur_period = get_period(env.block.time.seconds())?;
     if lock.end <= cur_period {
-        Err(ContractError::LockExpired {})
-    } else {
-        let config = CONFIG.load(deps.storage)?;
-
-        let (slashed_amount, return_amount) =
-            calc_early_withdraw_amount(config.max_exit_penalty, lock.end - cur_period, lock.amount);
-
-        let slashed_funds_receiver = config
-            .slashed_fund_receiver
-            .clone()
-            .ok_or(ContractError::EarlyWithdrawNotAvailable {})?;
-
-        let mut transfer_msgs = vec![];
-        if !return_amount.is_zero() {
-            let transfer_msg = SubMsg::new(WasmMsg::Execute {
-                contract_addr: config.deposit_token_addr.to_string(),
-                msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                    recipient: sender.to_string(),
-                    amount: return_amount,
-                })?,
-                funds: vec![],
-            });
-            transfer_msgs.push(transfer_msg);
-        }
-        if !slashed_amount.is_zero() {
-            let send_msg = SubMsg::new(WasmMsg::Execute {
-                contract_addr: config.deposit_token_addr.to_string(),
-                msg: to_binary(&Cw20ExecuteMsg::Send {
-                    contract: config.xastro_staking_addr.to_string(),
-                    amount: slashed_amount,
-                    msg: to_binary(&astroport::staking::Cw20HookMsg::Leave {})?,
-                })?,
-                funds: vec![],
-            });
-            transfer_msgs.push(send_msg);
-
-            let precallback_astro = query_token_balance(
-                &deps.querier,
-                config.astro_addr,
-                env.contract.address.clone(),
-            )?;
-            let callback_msg = SubMsg::new(WasmMsg::Execute {
-                contract_addr: env.contract.address.to_string(),
-                msg: to_binary(&ExecuteMsg::EarlyWithdrawCallback {
-                    precallback_astro,
-                    slashed_funds_receiver,
-                })?,
-                funds: vec![],
-            });
-            transfer_msgs.push(callback_msg);
-        }
-
-        lock.amount = Uint128::zero();
-        LOCKED.save(deps.storage, sender.clone(), &lock)?;
-
-        let cur_period_key = U64Key::new(cur_period);
-        let last_checkpoint = fetch_last_checkpoint(deps.as_ref(), &sender, &cur_period_key)?;
-
-        // If a user has voting power they must have checkpoint.
-        let (_, point) = last_checkpoint.ok_or_else(|| {
-            StdError::generic_err(format!(
-                "There is no previous checkpoint for user: {}",
-                sender.as_str()
-            ))
-        })?;
-        // We need to checkpoint with zero power and zero slope
-        HISTORY.save(
-            deps.storage,
-            (sender, cur_period_key),
-            &Point {
-                power: Uint128::zero(),
-                slope: Default::default(),
-                start: cur_period,
-                end: cur_period,
-            },
-        )?;
-
-        let cur_power = calc_voting_power(&point, cur_period);
-        if !cur_power.is_zero() {
-            cancel_scheduled_slope(deps.branch(), point.slope, point.end)?;
-            // We need to checkpoint total VP and eliminate the slope influence on a future lock
-            checkpoint_total(
-                deps,
-                env,
-                None,
-                Some(cur_power),
-                point.slope,
-                Default::default(),
-            )?
-        }
-
-        Ok(Response::default()
-            .add_submessages(transfer_msgs)
-            .add_attribute("action", "withdraw_early"))
+        return Err(ContractError::LockExpired {});
     }
+
+    let config = CONFIG.load(deps.storage)?;
+
+    let (slashed_amount, return_amount) =
+        calc_early_withdraw_amount(config.max_exit_penalty, lock.end - cur_period, lock.amount);
+
+    let slashed_funds_receiver = config
+        .slashed_fund_receiver
+        .clone()
+        .ok_or(ContractError::EarlyWithdrawNotAvailable {})?;
+
+    let mut transfer_msgs = vec![];
+    if !return_amount.is_zero() {
+        let transfer_msg = SubMsg::new(WasmMsg::Execute {
+            contract_addr: config.deposit_token_addr.to_string(),
+            msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                recipient: sender.to_string(),
+                amount: return_amount,
+            })?,
+            funds: vec![],
+        });
+        transfer_msgs.push(transfer_msg);
+    }
+    if !slashed_amount.is_zero() {
+        let send_msg = SubMsg::new(WasmMsg::Execute {
+            contract_addr: config.deposit_token_addr.to_string(),
+            msg: to_binary(&Cw20ExecuteMsg::Send {
+                contract: config.xastro_staking_addr.to_string(),
+                amount: slashed_amount,
+                msg: to_binary(&astroport::staking::Cw20HookMsg::Leave {})?,
+            })?,
+            funds: vec![],
+        });
+        transfer_msgs.push(send_msg);
+
+        let precallback_astro = query_token_balance(
+            &deps.querier,
+            config.astro_addr,
+            env.contract.address.clone(),
+        )?;
+        let callback_msg = SubMsg::new(WasmMsg::Execute {
+            contract_addr: env.contract.address.to_string(),
+            msg: to_binary(&ExecuteMsg::EarlyWithdrawCallback {
+                precallback_astro,
+                slashed_funds_receiver,
+            })?,
+            funds: vec![],
+        });
+        transfer_msgs.push(callback_msg);
+    }
+
+    lock.amount = Uint128::zero();
+    LOCKED.save(deps.storage, sender.clone(), &lock)?;
+
+    let cur_period_key = U64Key::new(cur_period);
+    let last_checkpoint = fetch_last_checkpoint(deps.as_ref(), &sender, &cur_period_key)?;
+
+    // If a user has voting power they must have checkpoint.
+    let (_, point) = last_checkpoint.ok_or_else(|| {
+        StdError::generic_err(format!(
+            "There is no previous checkpoint for user: {}",
+            sender.as_str()
+        ))
+    })?;
+    // We need to checkpoint with zero power and zero slope
+    HISTORY.save(
+        deps.storage,
+        (sender, cur_period_key),
+        &Point {
+            power: Uint128::zero(),
+            slope: Default::default(),
+            start: cur_period,
+            end: cur_period,
+        },
+    )?;
+
+    let cur_power = calc_voting_power(&point, cur_period);
+    if !cur_power.is_zero() {
+        cancel_scheduled_slope(deps.branch(), point.slope, point.end)?;
+        // We need to checkpoint total VP and eliminate the slope influence on a future lock
+        checkpoint_total(
+            deps,
+            env,
+            None,
+            Some(cur_power),
+            point.slope,
+            Default::default(),
+        )?
+    }
+
+    Ok(Response::default()
+        .add_submessages(transfer_msgs)
+        .add_attribute("action", "withdraw_early"))
 }
 
 /// ## Description
@@ -1014,7 +1014,12 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             let config = CONFIG.load(deps.storage)?;
             to_binary(&ConfigResponse {
                 owner: config.owner.to_string(),
+                guardian_addr: config.guardian_addr.to_string(),
                 deposit_token_addr: config.deposit_token_addr.to_string(),
+                max_exit_penalty: config.max_exit_penalty,
+                slashed_fund_receiver: config.slashed_fund_receiver.map(|addr| addr.to_string()),
+                astro_addr: config.astro_addr.to_string(),
+                xastro_staking_addr: config.xastro_staking_addr.to_string(),
             })
         }
         QueryMsg::Balance { address } => to_binary(&get_user_balance(deps, env, address)?),

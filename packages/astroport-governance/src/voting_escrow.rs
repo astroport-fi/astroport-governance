@@ -155,8 +155,20 @@ pub struct LockInfoResponse {
 /// This structure stores the parameters returned when querying for a contract's configuration.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigResponse {
+    /// Address that's allowed to change contract parameters
     pub owner: String,
+    /// Address that can only blacklist vxASTRO stakers and remove their governance power
+    pub guardian_addr: String,
+    /// The xASTRO token contract address
     pub deposit_token_addr: String,
+    /// The maximum % of staked xASTRO that is confiscated upon an early exit
+    pub max_exit_penalty: Decimal,
+    /// The address that receives slashed ASTRO (slashed xASTRO is burned in order to claim ASTRO)
+    pub slashed_fund_receiver: Option<String>,
+    /// The address of $ASTRO
+    pub astro_addr: String,
+    /// The address of $xASTRO staking contract
+    pub xastro_staking_addr: String,
 }
 
 /// This structure describes a Migration message.
