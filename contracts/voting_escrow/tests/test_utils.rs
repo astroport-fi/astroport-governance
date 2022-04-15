@@ -5,8 +5,11 @@ use astroport_governance::voting_escrow::{
     Cw20HookMsg, ExecuteMsg, InstantiateMsg, QueryMsg, VotingPowerResponse,
 };
 use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
-use cosmwasm_std::{attr, to_binary, Addr, QueryRequest, StdResult, Timestamp, Uint128, WasmQuery};
+use cosmwasm_std::{
+    attr, to_binary, Addr, Decimal, QueryRequest, StdResult, Timestamp, Uint128, WasmQuery,
+};
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
+use std::str::FromStr;
 use terra_multi_test::{
     AppBuilder, AppResponse, BankKeeper, ContractWrapper, Executor, TerraApp, TerraMock,
 };
@@ -101,6 +104,8 @@ impl Helper {
             guardian_addr: "guardian".to_string(),
             deposit_token_addr: res.share_token_addr.to_string(),
             marketing: None,
+            max_exit_penalty: Decimal::from_str("0.75").unwrap(),
+            slashed_fund_receiver: None,
         };
         let voting_instance = router
             .instantiate_contract(
@@ -155,6 +160,20 @@ impl Helper {
             .wrap()
             .query_wasm_smart(
                 self.xastro_token.clone(),
+                &Cw20QueryMsg::Balance {
+                    address: user.to_string(),
+                },
+            )
+            .unwrap();
+        assert_eq!(res.balance.u128(), amount as u128);
+    }
+
+    pub fn check_astro_balance(&self, router: &mut TerraApp, user: &str, amount: u64) {
+        let amount = amount * MULTIPLIER;
+        let res: BalanceResponse = router
+            .wrap()
+            .query_wasm_smart(
+                self.astro_token.clone(),
                 &Cw20QueryMsg::Balance {
                     address: user.to_string(),
                 },
@@ -271,6 +290,32 @@ impl Helper {
         )
     }
 
+    pub fn withdraw_early(&self, router: &mut TerraApp, user: &str) -> Result<AppResponse> {
+        router.execute_contract(
+            Addr::unchecked(user),
+            self.voting_instance.clone(),
+            &ExecuteMsg::WithdrawEarly {},
+            &[],
+        )
+    }
+
+    pub fn configure_early_withdrawal(
+        &self,
+        router: &mut TerraApp,
+        max_penalty: &str,
+        slashed_fund_receiver: &str,
+    ) -> Result<AppResponse> {
+        router.execute_contract(
+            self.owner.clone(),
+            self.voting_instance.clone(),
+            &ExecuteMsg::ConfigureEarlyWithdrawal {
+                max_penalty: Some(Decimal::from_str(max_penalty).unwrap()),
+                slashed_fund_receiver: Some(slashed_fund_receiver.to_string()),
+            },
+            &[],
+        )
+    }
+
     pub fn update_blacklist(
         &self,
         router: &mut TerraApp,
@@ -375,6 +420,18 @@ impl Helper {
                 &QueryMsg::TotalVotingPowerAtPeriod { period },
             )
             .map(|vp: VotingPowerResponse| vp.voting_power.u128() as f32 / MULTIPLIER as f32)
+    }
+
+    pub fn query_early_withdraw_amount(&self, router: &mut TerraApp, user: &str) -> StdResult<f32> {
+        router
+            .wrap()
+            .query_wasm_smart(
+                self.voting_instance.clone(),
+                &QueryMsg::EarlyWithdrawAmount {
+                    user: user.to_string(),
+                },
+            )
+            .map(|amount: Uint128| amount.u128() as f32 / MULTIPLIER as f32)
     }
 
     pub fn query_locked_balance_at(

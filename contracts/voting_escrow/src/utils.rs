@@ -3,6 +3,7 @@ use astroport::asset::addr_validate_to_lower;
 use astroport_governance::utils::{get_periods_count, MAX_LOCK_TIME, WEEK};
 use cosmwasm_std::{Addr, Decimal, Deps, DepsMut, Order, Pair, StdError, StdResult, Uint128};
 use cw_storage_plus::{Bound, U64Key};
+use std::cmp::min;
 use std::convert::TryInto;
 
 use crate::state::{Point, BLACKLIST, CONFIG, HISTORY, LAST_SLOPE_CHANGE, SLOPE_CHANGES};
@@ -157,4 +158,19 @@ pub(crate) fn validate_addresses(deps: Deps, addresses: &[String]) -> StdResult<
         .iter()
         .map(|addr| addr_validate_to_lower(deps.api, addr))
         .collect()
+}
+
+/// Calculate slashed and return amount based on a given parameters.
+/// The penalty is calculated as min(max_exit_penalty, time_left_until_unlock / MAX_LOCK_TIME).
+pub(crate) fn calc_early_withdraw_amount(
+    max_exit_penalty: Decimal,
+    periods_upon_unlock: u64,
+    xastro_amount: Uint128,
+) -> (Uint128, Uint128) {
+    let user_penalty = Decimal::from_ratio(periods_upon_unlock, get_periods_count(MAX_LOCK_TIME));
+    let exact_penalty = min(max_exit_penalty, user_penalty);
+    let slashed_amount = xastro_amount * exact_penalty;
+    let return_amount = xastro_amount.saturating_sub(slashed_amount);
+
+    (slashed_amount, return_amount)
 }

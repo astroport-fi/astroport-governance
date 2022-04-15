@@ -221,11 +221,11 @@ impl ControllerHelper {
         router.execute_contract(Addr::unchecked(user), self.controller.clone(), &msg, &[])
     }
 
-    pub fn gauge(&self, router: &mut TerraApp, sender: &str) -> AnyResult<AppResponse> {
+    pub fn tune(&self, router: &mut TerraApp) -> AnyResult<AppResponse> {
         router.execute_contract(
-            Addr::unchecked(sender),
+            Addr::unchecked("anyone"),
             self.controller.clone(),
-            &ExecuteMsg::GaugePools {},
+            &ExecuteMsg::TunePools {},
             &[],
         )
     }
