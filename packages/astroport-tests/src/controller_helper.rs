@@ -1,4 +1,4 @@
-use crate::test_utils::escrow_helper::EscrowHelper;
+use crate::escrow_helper::EscrowHelper;
 use anyhow::Result as AnyResult;
 use astroport::asset::{AssetInfo, PairInfo};
 use astroport::factory::{PairConfig, PairType};
@@ -221,11 +221,11 @@ impl ControllerHelper {
         router.execute_contract(Addr::unchecked(user), self.controller.clone(), &msg, &[])
     }
 
-    pub fn gauge(&self, router: &mut TerraApp, sender: &str) -> AnyResult<AppResponse> {
+    pub fn tune(&self, router: &mut TerraApp) -> AnyResult<AppResponse> {
         router.execute_contract(
-            Addr::unchecked(sender),
+            Addr::unchecked("anyone"),
             self.controller.clone(),
-            &ExecuteMsg::GaugePools {},
+            &ExecuteMsg::TunePools {},
             &[],
         )
     }

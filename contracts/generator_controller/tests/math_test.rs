@@ -13,13 +13,9 @@ use generator_controller::bps::BasicPoints;
 use Event::*;
 use VeEvent::*;
 
-use crate::test_utils::controller_helper::ControllerHelper;
-use crate::test_utils::escrow_helper::MULTIPLIER;
-use crate::test_utils::mock_app;
-use crate::test_utils::TerraAppExtension;
-
-#[cfg(test)]
-mod test_utils;
+use astroport_tests::{
+    controller_helper::ControllerHelper, escrow_helper::MULTIPLIER, mock_app, TerraAppExtension,
+};
 
 #[derive(Clone, Debug)]
 enum Event {
@@ -170,7 +166,7 @@ impl Simulator {
                 }
             }
             GaugePools => {
-                if let Err(err) = self.helper.gauge(&mut self.router, self.owner.as_str()) {
+                if let Err(err) = self.helper.tune(&mut self.router) {
                     println!("{}", err);
                 }
             }
@@ -319,7 +315,7 @@ fn vote_strategy(tokens: Vec<String>) -> impl Strategy<Value = Event> {
 fn controller_events_strategy(tokens: Vec<String>) -> impl Strategy<Value = Event> {
     prop_oneof![
         Just(Event::GaugePools),
-        (1..=MAX_POOLS as u64).prop_map(Event::ChangePoolLimit),
+        (2..=MAX_POOLS as u64).prop_map(Event::ChangePoolLimit),
         vote_strategy(tokens)
     ]
 }

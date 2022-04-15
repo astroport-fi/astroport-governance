@@ -1403,6 +1403,7 @@ fn instantiate_builder_unlock_contract(
     let msg = BuilderUnlockInstantiateMsg {
         owner: owner.to_string(),
         astro_token: astro_token.to_string(),
+        max_allocations_amount: Uint128::new(300_000_000_000_000u128),
     };
 
     router
