@@ -1371,7 +1371,7 @@ fn instantiate_vxastro_token(router: &mut TerraApp, owner: &Addr, xastro: &Addr)
         guardian_addr: owner.to_string(),
         deposit_token_addr: xastro.to_string(),
         marketing: None,
-        max_exit_penalty: None,
+        max_exit_penalty: Decimal::from_str("0.75").unwrap(),
         slashed_fund_receiver: None,
     };
 
