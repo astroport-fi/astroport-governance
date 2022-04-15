@@ -6,7 +6,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::migration::Migration;
-use crate::state::{Config, WithdrawalParams, CONFIG, WITHDRAWAL_PARAMS};
+use crate::state::{Config, CONFIG};
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema)]
 pub struct ConfigV100 {
@@ -27,7 +27,7 @@ pub struct MigrationV110;
 
 impl Migration<ParamsV110> for MigrationV110 {
     fn handle_migration(deps: DepsMut, _env: Env, params: ParamsV110) -> StdResult<()> {
-        let config = CONFIG_V100.load(deps.storage)?;
+        let configv100 = CONFIG_V100.load(deps.storage)?;
         // Accept values within [0,1] limit.
         if params.max_exit_penalty > Decimal::one() {
             return Err(StdError::generic_err("Max exit penalty should be <= 1"));
@@ -36,31 +36,25 @@ impl Migration<ParamsV110> for MigrationV110 {
             .slashed_fund_receiver
             .map(|addr| addr_validate_to_lower(deps.api, &addr))
             .transpose()?;
-
-        CONFIG.save(
-            deps.storage,
-            &Config {
-                owner: config.owner,
-                guardian_addr: config.guardian_addr,
-                deposit_token_addr: config.deposit_token_addr.clone(),
-                max_exit_penalty: params.max_exit_penalty,
-                slashed_fund_receiver,
-            },
-        )?;
-
         // Initialize early withdraw parameters
         let xastro_minter_resp: MinterResponse = deps
             .querier
-            .query_wasm_smart(&config.deposit_token_addr, &Cw20QueryMsg::Minter {})?;
+            .query_wasm_smart(&configv100.deposit_token_addr, &Cw20QueryMsg::Minter {})?;
         let staking_config: astroport::staking::ConfigResponse = deps.querier.query_wasm_smart(
             &xastro_minter_resp.minter,
             &astroport::staking::QueryMsg::Config {},
         )?;
-        WITHDRAWAL_PARAMS.save(
+
+        CONFIG.save(
             deps.storage,
-            &WithdrawalParams {
+            &Config {
+                owner: configv100.owner,
+                guardian_addr: configv100.guardian_addr,
+                deposit_token_addr: configv100.deposit_token_addr,
+                max_exit_penalty: params.max_exit_penalty,
+                slashed_fund_receiver,
                 astro_addr: staking_config.deposit_token_addr,
-                staking_addr: Addr::unchecked(xastro_minter_resp.minter),
+                xastro_staking_addr: addr_validate_to_lower(deps.api, &xastro_minter_resp.minter)?,
             },
         )?;
 

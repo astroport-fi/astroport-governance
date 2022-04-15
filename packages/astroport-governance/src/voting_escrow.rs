@@ -51,7 +51,7 @@ pub enum ExecuteMsg {
     WithdrawEarly {},
     ConfigureEarlyWithdrawal {
         /// The maximum penalty that can be applied to a user
-        max_penalty: Decimal,
+        max_penalty: Option<Decimal>,
         /// The address that will receive the slashed funds
         slashed_fund_receiver: Option<String>,
     },

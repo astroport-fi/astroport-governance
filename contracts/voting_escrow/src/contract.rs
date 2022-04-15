@@ -29,8 +29,7 @@ use crate::error::ContractError;
 use crate::migration::v110::MigrationV110;
 use crate::migration::Migration;
 use crate::state::{
-    Config, Lock, Point, WithdrawalParams, BLACKLIST, CONFIG, HISTORY, LAST_SLOPE_CHANGE, LOCKED,
-    OWNERSHIP_PROPOSAL, WITHDRAWAL_PARAMS,
+    Config, Lock, Point, BLACKLIST, CONFIG, HISTORY, LAST_SLOPE_CHANGE, LOCKED, OWNERSHIP_PROPOSAL,
 };
 use crate::utils::{
     adjust_vp_and_slope, blacklist_check, calc_coefficient, calc_early_withdraw_amount,
@@ -72,31 +71,27 @@ pub fn instantiate(
         .slashed_fund_receiver
         .map(|addr| addr_validate_to_lower(deps.api, &addr))
         .transpose()?;
-
-    let config = Config {
-        owner: addr_validate_to_lower(deps.api, &msg.owner)?,
-        guardian_addr: addr_validate_to_lower(deps.api, &msg.guardian_addr)?,
-        deposit_token_addr: addr_validate_to_lower(deps.api, &msg.deposit_token_addr)?,
-        max_exit_penalty: msg.max_exit_penalty,
-        slashed_fund_receiver,
-    };
-    CONFIG.save(deps.storage, &config)?;
+    let deposit_token_addr = addr_validate_to_lower(deps.api, &msg.deposit_token_addr)?;
 
     // Initialize early withdraw parameters
     let xastro_minter_resp: MinterResponse = deps
         .querier
-        .query_wasm_smart(&config.deposit_token_addr, &Cw20QueryMsg::Minter {})?;
+        .query_wasm_smart(&deposit_token_addr, &Cw20QueryMsg::Minter {})?;
     let staking_config: astroport::staking::ConfigResponse = deps.querier.query_wasm_smart(
         &xastro_minter_resp.minter,
         &astroport::staking::QueryMsg::Config {},
     )?;
-    WITHDRAWAL_PARAMS.save(
-        deps.storage,
-        &WithdrawalParams {
-            astro_addr: staking_config.deposit_token_addr,
-            staking_addr: Addr::unchecked(xastro_minter_resp.minter),
-        },
-    )?;
+
+    let config = Config {
+        owner: addr_validate_to_lower(deps.api, &msg.owner)?,
+        guardian_addr: addr_validate_to_lower(deps.api, &msg.guardian_addr)?,
+        deposit_token_addr,
+        max_exit_penalty: msg.max_exit_penalty,
+        astro_addr: staking_config.deposit_token_addr,
+        xastro_staking_addr: addr_validate_to_lower(deps.api, &xastro_minter_resp.minter)?,
+        slashed_fund_receiver,
+    };
+    CONFIG.save(deps.storage, &config)?;
 
     let cur_period = get_period(env.block.time.seconds())?;
     let point = Point {
@@ -604,7 +599,7 @@ fn withdraw(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, Cont
 fn configure_early_withdrawal(
     deps: DepsMut,
     info: MessageInfo,
-    max_exit_penalty: Decimal,
+    max_exit_penalty: Option<Decimal>,
     slashed_fund_receiver: Option<String>,
 ) -> Result<Response, ContractError> {
     let mut config = CONFIG.load(deps.storage)?;
@@ -614,10 +609,12 @@ fn configure_early_withdrawal(
     }
 
     // Accept values within [0,1] limit
-    if max_exit_penalty > Decimal::one() {
-        return Err(StdError::generic_err("Max exit penalty should be <= 1").into());
-    } else {
-        config.max_exit_penalty = max_exit_penalty;
+    if let Some(max_exit_penalty) = max_exit_penalty {
+        if max_exit_penalty > Decimal::one() {
+            return Err(StdError::generic_err("Max exit penalty should be <= 1").into());
+        } else {
+            config.max_exit_penalty = max_exit_penalty;
+        }
     }
     if let Some(slashed_fund_receiver) = slashed_fund_receiver {
         config.slashed_fund_receiver =
@@ -678,11 +675,10 @@ fn withdraw_early(
             transfer_msgs.push(transfer_msg);
         }
         if !slashed_amount.is_zero() {
-            let withdrawal_params = WITHDRAWAL_PARAMS.load(deps.storage)?;
             let send_msg = SubMsg::new(WasmMsg::Execute {
                 contract_addr: config.deposit_token_addr.to_string(),
                 msg: to_binary(&Cw20ExecuteMsg::Send {
-                    contract: withdrawal_params.staking_addr.to_string(),
+                    contract: config.xastro_staking_addr.to_string(),
                     amount: slashed_amount,
                     msg: to_binary(&astroport::staking::Cw20HookMsg::Leave {})?,
                 })?,
@@ -692,7 +688,7 @@ fn withdraw_early(
 
             let precallback_astro = query_token_balance(
                 &deps.querier,
-                withdrawal_params.astro_addr,
+                config.astro_addr,
                 env.contract.address.clone(),
             )?;
             let callback_msg = SubMsg::new(WasmMsg::Execute {
@@ -775,18 +771,18 @@ fn withdraw_early_callback(
         return Err(ContractError::Unauthorized {});
     }
 
-    let withdrawal_params = WITHDRAWAL_PARAMS.load(deps.storage)?;
+    let config = CONFIG.load(deps.storage)?;
 
     let current_astro_balance = query_token_balance(
         &deps.querier,
-        withdrawal_params.astro_addr.clone(),
+        config.astro_addr.clone(),
         env.contract.address,
     )?;
     let return_astro_amount = current_astro_balance.saturating_sub(precallback_astro);
 
     if !return_astro_amount.is_zero() {
         let transfer_msg = SubMsg::new(WasmMsg::Execute {
-            contract_addr: withdrawal_params.astro_addr.to_string(),
+            contract_addr: config.astro_addr.to_string(),
             msg: to_binary(&Cw20ExecuteMsg::Transfer {
                 recipient: slashed_funds_receiver.to_string(),
                 amount: return_astro_amount,

@@ -18,6 +18,10 @@ pub struct Config {
     pub max_exit_penalty: Decimal,
     /// The address that receives slashed ASTRO (slashed xASTRO is burned in order to claim ASTRO)
     pub slashed_fund_receiver: Option<Addr>,
+    /// The address of $ASTRO
+    pub astro_addr: Addr,
+    /// The address of $xASTRO staking contract
+    pub xastro_staking_addr: Addr,
 }
 
 /// ## Description
@@ -49,14 +53,6 @@ pub struct Lock {
 }
 
 /// ## Description
-/// This structure stores ASTRO token and staking addresses
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct WithdrawalParams {
-    pub astro_addr: Addr,
-    pub staking_addr: Addr,
-}
-
-/// ## Description
 /// Stores the contract config at the given key
 pub const CONFIG: Item<Config> = Item::new("config");
 
@@ -84,6 +80,3 @@ pub const OWNERSHIP_PROPOSAL: Item<OwnershipProposal> = Item::new("ownership_pro
 /// ## Description
 /// Contains blacklisted staker addresses
 pub const BLACKLIST: Item<Vec<Addr>> = Item::new("blacklist");
-
-/// Contains early withdrawal parameters
-pub const WITHDRAWAL_PARAMS: Item<WithdrawalParams> = Item::new("withdrawal_params");

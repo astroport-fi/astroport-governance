@@ -309,7 +309,7 @@ impl Helper {
             self.owner.clone(),
             self.voting_instance.clone(),
             &ExecuteMsg::ConfigureEarlyWithdrawal {
-                max_penalty: Decimal::from_str(max_penalty).unwrap(),
+                max_penalty: Some(Decimal::from_str(max_penalty).unwrap()),
                 slashed_fund_receiver: Some(slashed_fund_receiver.to_string()),
             },
             &[],
