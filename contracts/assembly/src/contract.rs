@@ -791,16 +791,6 @@ pub fn calc_total_voting_power_at(deps: Deps, proposal: &Proposal) -> StdResult<
         if !vxastro.voting_power.is_zero() {
             total = total.checked_add(vxastro.voting_power)?;
         }
-
-        let locked_xastro: BalanceResponse = deps.querier.query_wasm_smart(
-            config.xastro_token_addr,
-            &XAstroTokenQueryMsg::BalanceAt {
-                address: vxastro_token_addr.to_string(),
-                block: proposal.start_block,
-            },
-        )?;
-
-        total = total.checked_add(locked_xastro.balance)?;
     }
 
     Ok(total)

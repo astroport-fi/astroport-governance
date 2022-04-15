@@ -643,7 +643,7 @@ fn test_successful_proposal() {
         ("user10", ProposalVoteOption::Against, 270u128),
     ];
 
-    check_total_vp(&mut app, &assembly_addr, 1, 5460);
+    check_total_vp(&mut app, &assembly_addr, 1, 4650);
 
     for (addr, option, expected_vp) in votes {
         let sender = Addr::unchecked(addr);
