@@ -13,8 +13,8 @@ use serde::{Deserialize, Serialize};
 pub type Config = ConfigResponse;
 /// This structure describes voting parameters for a specific pool.
 pub type VotedPoolInfo = VotedPoolInfoResponse;
-/// This structure describes last gauge parameters.
-pub type GaugeInfo = GaugeInfoResponse;
+/// This structure describes last tuning parameters.
+pub type TuneInfo = GaugeInfoResponse;
 
 /// The struct describes last user's votes parameters.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Default)]
@@ -65,8 +65,8 @@ pub const POOL_SLOPE_CHANGES: Map<(&Addr, U64Key), Uint128> = Map::new("pool_slo
 /// User's voting information.
 pub const USER_INFO: Map<&Addr, UserInfo> = Map::new("user_info");
 
-/// Last gauge information.
-pub const GAUGE_INFO: Item<GaugeInfo> = Item::new("gauge_info");
+/// Last tuning information.
+pub const TUNE_INFO: Item<TuneInfo> = Item::new("tune_info");
 
 /// Contains a proposal to change contract ownership
 pub const OWNERSHIP_PROPOSAL: Item<OwnershipProposal> = Item::new("ownership_proposal");

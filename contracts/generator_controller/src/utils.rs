@@ -1,4 +1,5 @@
 use std::convert::TryInto;
+use std::ops::RangeInclusive;
 
 use astroport::asset::{pair_info_by_pool, AssetInfo};
 use astroport::factory::PairType;
@@ -9,7 +10,11 @@ use cw_storage_plus::{Bound, U64Key};
 use astroport_governance::utils::calc_voting_power;
 
 use crate::bps::BasicPoints;
+use crate::error::ContractError;
 use crate::state::{VotedPoolInfo, POOLS, POOL_PERIODS, POOL_SLOPE_CHANGES, POOL_VOTES};
+
+/// Pools limit should be within the range `[2, 100]`
+const POOL_NUMBER_LIMIT: RangeInclusive<u64> = 2..=100;
 
 /// ## Description
 /// The enum defines math operations with voting power and slope.
@@ -343,4 +348,12 @@ pub(crate) fn fetch_slope_changes(
         )
         .map(deserialize_pair)
         .collect()
+}
+
+pub(crate) fn validate_pools_limit(number: u64) -> Result<u64, ContractError> {
+    if !POOL_NUMBER_LIMIT.contains(&number) {
+        Err(ContractError::InvalidPoolNumber(number))
+    } else {
+        Ok(number)
+    }
 }
