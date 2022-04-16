@@ -62,7 +62,7 @@ pub(crate) fn filter_pools(
 ) -> StdResult<Vec<(String, Uint128)>> {
     let blocked_tokens: Vec<AssetInfo> = deps.querier.query_wasm_smart(
         generator_addr.clone(),
-        &astroport::generator::QueryMsg::BlockedListTokens {},
+        &astroport::generator::QueryMsg::BlockedTokensList {},
     )?;
     let blocklisted_pair_types: Vec<PairType> = deps.querier.query_wasm_smart(
         factory_addr.clone(),
