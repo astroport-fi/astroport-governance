@@ -1,7 +1,7 @@
 use astroport::asset::AssetInfo;
 use astroport::generator::PoolInfoResponse;
 use cosmwasm_std::Addr;
-use terra_multi_test::Executor;
+use terra_multi_test::{ContractWrapper, Executor, TerraApp};
 
 use astroport_governance::generator_controller::{ConfigResponse, ExecuteMsg, QueryMsg};
 use astroport_governance::utils::{get_period, WEEK};
@@ -392,7 +392,7 @@ fn check_bad_pools_filtering() {
         .execute_contract(
             owner_addr.clone(),
             helper.generator.clone(),
-            &astroport::generator::ExecuteMsg::UpdateTokensBlockedlist {
+            &astroport::generator::ExecuteMsg::UpdateBlockedTokenslist {
                 add: Some(vec![foo_asset_info]),
                 remove: None,
             },
@@ -507,4 +507,14 @@ fn check_update_owner() {
         .unwrap();
 
     assert_eq!(res.owner, new_owner)
+}
+
+fn store_whitelist_code(app: &mut TerraApp) -> u64 {
+    let whitelist_contract = Box::new(ContractWrapper::new_with_empty(
+        astroport_whitelist::contract::execute,
+        astroport_whitelist::contract::instantiate,
+        astroport_whitelist::contract::query,
+    ));
+
+    app.store_code(whitelist_contract)
 }
