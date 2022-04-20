@@ -13,7 +13,7 @@ use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_ow
 use astroport_governance::escrow_fee_distributor::{
     ConfigResponse, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg,
 };
-use astroport_governance::utils::{get_period, CLAIM_LIMIT};
+use astroport_governance::utils::{get_period, CLAIM_LIMIT, MIN_CLAIM_LIMIT};
 
 use astroport_governance::voting_escrow::{
     LockInfoResponse, QueryMsg as VotingQueryMsg, VotingPowerResponse,
@@ -158,7 +158,7 @@ fn receive_cw20(
         U64Key::new(curr_period),
         |period| -> StdResult<_> {
             if let Some(tokens_amount) = period {
-                Ok(tokens_amount + cw20_msg.amount)
+                Ok(tokens_amount.checked_add(cw20_msg.amount)?)
             } else {
                 Ok(cw20_msg.amount)
             }
@@ -257,7 +257,7 @@ fn claim_many(
                 receiver_addr,
                 claim_amount,
             )?);
-            claim_total_amount += claim_amount;
+            claim_total_amount = claim_total_amount.checked_add(claim_amount)?;
         };
     }
 
@@ -396,6 +396,13 @@ fn update_config(
     };
 
     if let Some(claim_many_limit) = claim_many_limit {
+        if claim_many_limit < MIN_CLAIM_LIMIT {
+            return Err(ContractError::Std(StdError::generic_err(format!(
+                "Accounts limit for claim operation cannot be less than {} !",
+                MIN_CLAIM_LIMIT
+            ))));
+        }
+
         config.claim_many_limit = claim_many_limit;
         attributes.push(Attribute::new(
             "claim_many_limit",
