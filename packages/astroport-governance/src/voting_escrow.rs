@@ -1,5 +1,6 @@
 use crate::voting_escrow::QueryMsg::{
-    LockInfo, TotalVotingPower, TotalVotingPowerAt, UserVotingPower, UserVotingPowerAt,
+    BlacklistedHolders, LockInfo, TotalVotingPower, TotalVotingPowerAt, UserVotingPower,
+    UserVotingPowerAt,
 };
 use cosmwasm_std::{Addr, Binary, Decimal, QuerierWrapper, StdResult, Uint128};
 use cw20::{Cw20ReceiveMsg, Logo};
@@ -102,6 +103,8 @@ pub enum Cw20HookMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
+    /// Return the blacklisted holders
+    BlacklistedHolders {},
     /// Return the user's vxASTRO balance
     Balance { address: String },
     /// Fetch the vxASTRO token information
@@ -250,4 +253,15 @@ pub fn get_lock_info(
         },
     )?;
     Ok(lock_info)
+}
+
+/// ## Description
+/// Query blacklisted holders from the voting escrow contract.
+pub fn get_blacklisted_holders(
+    querier: QuerierWrapper,
+    escrow_addr: &Addr,
+) -> StdResult<Vec<Addr>> {
+    let blacklisted_holders: Vec<Addr> =
+        querier.query_wasm_smart(escrow_addr.clone(), &BlacklistedHolders {})?;
+    Ok(blacklisted_holders)
 }

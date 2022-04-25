@@ -34,4 +34,7 @@ pub enum ContractError {
 
     #[error("Invalid pool number: {0}. Must be within [2, 100] range")]
     InvalidPoolNumber(u64),
+
+    #[error("Holder is not blacklisted.")]
+    HolderIsNotBlacklisted {},
 }

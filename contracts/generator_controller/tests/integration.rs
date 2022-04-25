@@ -12,6 +12,99 @@ use astroport_tests::{
 };
 
 #[test]
+fn check_kick_holders_works() {
+    let mut router = mock_app();
+    let owner = Addr::unchecked("owner");
+    let helper = ControllerHelper::init(&mut router, &owner);
+    let pools = vec![
+        helper
+            .create_pool_with_tokens(&mut router, "FOO", "BAR")
+            .unwrap(),
+        helper
+            .create_pool_with_tokens(&mut router, "BAR", "ADN")
+            .unwrap(),
+    ];
+
+    let err = helper
+        .vote(&mut router, "user1", vec![(pools[0].as_str(), 1000)])
+        .unwrap_err();
+    assert_eq!(err.to_string(), "You can't vote with zero voting power");
+
+    helper.escrow_helper.mint_xastro(&mut router, "user1", 100);
+    // Create short lock
+    helper
+        .escrow_helper
+        .create_lock(&mut router, "user1", WEEK, 100f32)
+        .unwrap();
+    helper
+        .vote(&mut router, "user1", vec![(pools[0].as_str(), 1000)])
+        .unwrap();
+
+    helper.escrow_helper.mint_xastro(&mut router, "user2", 100);
+    helper
+        .escrow_helper
+        .create_lock(&mut router, "user2", 10 * WEEK, 100f32)
+        .unwrap();
+
+    // Valid votes
+    helper
+        .vote(
+            &mut router,
+            "user2",
+            vec![(pools[0].as_str(), 3000), (pools[1].as_str(), 7000)],
+        )
+        .unwrap();
+
+    let err = helper
+        .vote(
+            &mut router,
+            "user2",
+            vec![(pools[0].as_str(), 7000), (pools[1].as_str(), 3000)],
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.to_string(),
+        "You can only run this action every 10 days"
+    );
+
+    let ve_slope = helper
+        .escrow_helper
+        .query_lock_info(&mut router, "user2")
+        .unwrap()
+        .slope;
+    let ve_power = helper
+        .escrow_helper
+        .query_user_vp(&mut router, "user2")
+        .unwrap();
+    let user_info = helper.query_user_info(&mut router, "user2").unwrap();
+    assert_eq!(ve_slope, user_info.slope);
+    assert_eq!(router.block_info().time.seconds(), user_info.vote_ts);
+    assert_eq!(
+        ve_power,
+        user_info.voting_power.u128() as f32 / MULTIPLIER as f32
+    );
+    let resp_votes = user_info
+        .votes
+        .into_iter()
+        .map(|(addr, bps)| (addr.to_string(), bps.into()))
+        .collect::<Vec<_>>();
+    assert_eq!(
+        vec![(pools[0].to_string(), 3000), (pools[1].to_string(), 7000)],
+        resp_votes
+    );
+
+    router.next_block(86400 * 10);
+    // In 10 days user will be able to vote again
+    helper
+        .vote(
+            &mut router,
+            "user2",
+            vec![(pools[0].as_str(), 500), (pools[1].as_str(), 9500)],
+        )
+        .unwrap();
+}
+
+#[test]
 fn check_vote_works() {
     let mut router = mock_app();
     let owner = Addr::unchecked("owner");
