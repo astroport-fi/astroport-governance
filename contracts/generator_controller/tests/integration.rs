@@ -98,11 +98,15 @@ fn check_kick_holders_works() {
     let current_period = router.block_period().checked_add(1u64).unwrap();
 
     // Get pools info before kick holder
-    let res = helper.query_voted_pool_info_at_period(&mut router, pools[0].as_str(), current_period).unwrap();
+    let res = helper
+        .query_voted_pool_info_at_period(&mut router, pools[0].as_str(), current_period)
+        .unwrap();
     assert_eq!(Uint128::new(13_576_922), res.slope);
     assert_eq!(Uint128::new(44_471_151), res.vxastro_amount);
 
-    let res = helper.query_voted_pool_info_at_period(&mut router, pools[1].as_str(), current_period).unwrap();
+    let res = helper
+        .query_voted_pool_info_at_period(&mut router, pools[1].as_str(), current_period)
+        .unwrap();
     assert_eq!(Uint128::new(8_009_614), res.slope);
     assert_eq!(Uint128::new(80_096_149), res.vxastro_amount);
 
@@ -142,11 +146,15 @@ fn check_kick_holders_works() {
     );
 
     // Get pool info after kick holder
-    let res = helper.query_voted_pool_info_at_period(&mut router, pools[0].as_str(), current_period).unwrap();
+    let res = helper
+        .query_voted_pool_info_at_period(&mut router, pools[0].as_str(), current_period)
+        .unwrap();
     assert_eq!(Uint128::new(10_144_230), res.slope);
     assert_eq!(Uint128::new(10_144_230), res.vxastro_amount);
 
-    let res1 = helper.query_voted_pool_info_at_period(&mut router, pools[1].as_str(), current_period).unwrap();
+    let res1 = helper
+        .query_voted_pool_info_at_period(&mut router, pools[1].as_str(), current_period)
+        .unwrap();
     assert_eq!(Uint128::new(0), res1.slope);
     assert_eq!(Uint128::new(0), res1.vxastro_amount);
 }
