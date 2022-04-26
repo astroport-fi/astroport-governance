@@ -227,3 +227,13 @@ Returns the contract's config.
   }
 }
 ```
+
+### `blacklisted_holders`
+
+Returns blacklisted holders.
+
+```json
+{
+  "blacklisted_holders": {}
+}
+```
