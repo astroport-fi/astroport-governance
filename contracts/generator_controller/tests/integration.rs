@@ -84,6 +84,7 @@ fn check_kick_holders_works() {
         resp_votes
     );
 
+    // Add user2 to the blacklist
     let res = helper
         .escrow_helper
         .update_blacklist(&mut router, Some(vec!["user2".to_string()]), None)
@@ -92,6 +93,18 @@ fn check_kick_holders_works() {
         res.events[1].attributes[1],
         attr("action", "update_blacklist")
     );
+
+    // Let's take the period for which the vote was applied.
+    let current_period = router.block_period().checked_add(1u64).unwrap();
+
+    // Get pools info before kick holder
+    let res = helper.query_voted_pool_info_at_period(&mut router, pools[0].as_str(), current_period).unwrap();
+    assert_eq!(Uint128::new(13_576_922), res.slope);
+    assert_eq!(Uint128::new(44_471_151), res.vxastro_amount);
+
+    let res = helper.query_voted_pool_info_at_period(&mut router, pools[1].as_str(), current_period).unwrap();
+    assert_eq!(Uint128::new(8_009_614), res.slope);
+    assert_eq!(Uint128::new(80_096_149), res.vxastro_amount);
 
     // Removes votes for user2
     helper
@@ -127,6 +140,15 @@ fn check_kick_holders_works() {
         ],
         resp_votes
     );
+
+    // Get pool info after kick holder
+    let res = helper.query_voted_pool_info_at_period(&mut router, pools[0].as_str(), current_period).unwrap();
+    assert_eq!(Uint128::new(10_144_230), res.slope);
+    assert_eq!(Uint128::new(10_144_230), res.vxastro_amount);
+
+    let res1 = helper.query_voted_pool_info_at_period(&mut router, pools[1].as_str(), current_period).unwrap();
+    assert_eq!(Uint128::new(0), res1.slope);
+    assert_eq!(Uint128::new(0), res1.vxastro_amount);
 }
 
 #[test]
