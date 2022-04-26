@@ -20,14 +20,14 @@ and limit of pools which can receive allocation points.
 
 ## ExecuteMsg
 
-### `kick_holders`
+### `kick_blacklisted_voters`
 
-Remove votes of holders that are blacklisted.
+Remove votes of voters that are blacklisted.
 
 ```json
 {
-  "kick_holders": {
-    "blacklisted_holders": ["terra...", "terra..."]
+  "kick_blacklisted_voters": {
+    "blacklisted_voters": ["terra...", "terra..."]
   }
 }
 ```

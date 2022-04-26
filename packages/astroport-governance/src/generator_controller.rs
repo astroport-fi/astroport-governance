@@ -21,8 +21,8 @@ pub struct InstantiateMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
-    KickHolders {
-        blacklisted_holders: Vec<String>,
+    KickBlacklistedVoters {
+        blacklisted_voters: Vec<String>,
     },
     Vote {
         votes: Vec<(String, u16)>,

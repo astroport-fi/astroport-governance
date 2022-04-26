@@ -17,7 +17,7 @@ use astroport_governance::generator_controller::{
 };
 use astroport_governance::utils::{calc_voting_power, get_period, WEEK};
 use astroport_governance::voting_escrow::{
-    get_blacklisted_holders, get_lock_info, get_voting_power,
+    get_blacklisted_voters, get_lock_info, get_voting_power,
 };
 
 use crate::bps::BasicPoints;
@@ -98,9 +98,9 @@ pub fn instantiate(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> ExecuteResult {
     match msg {
-        ExecuteMsg::KickHolders {
-            blacklisted_holders,
-        } => kick_holders(deps, env, blacklisted_holders),
+        ExecuteMsg::KickBlacklistedVoters { blacklisted_voters } => {
+            kick_blacklisted_voters(deps, env, blacklisted_voters)
+        }
         ExecuteMsg::Vote { votes } => handle_vote(deps, env, info, votes),
         ExecuteMsg::TunePools {} => tune_pools(deps, env),
         ExecuteMsg::ChangePoolsLimit { limit } => change_pools_limit(deps, info, limit),
@@ -142,7 +142,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> E
 }
 
 /// ## Description
-/// This function removes the votes of owners that are blacklisted. Returns [`Response`] in case
+/// This function removes all votes applied by blacklisted voters. Returns [`Response`] in case
 /// of success or [`ContractError`] in case of errors.
 ///
 /// ## Params
@@ -152,27 +152,31 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> E
 ///
 /// * **holders** is a vector of type [`String`]. Contains blacklisted holders whose votes will be
 /// removed.
-fn kick_holders(deps: DepsMut, env: Env, holders: Vec<String>) -> ExecuteResult {
+fn kick_blacklisted_voters(deps: DepsMut, env: Env, voters: Vec<String>) -> ExecuteResult {
     let block_period = get_period(env.block.time.seconds())?;
     let escrow_addr = CONFIG.load(deps.storage)?.escrow_addr;
-    let blacklisted_holders = get_blacklisted_holders(deps.querier, &escrow_addr)?;
+    let blacklisted_voters = get_blacklisted_voters(deps.querier, &escrow_addr)?;
 
-    // check if holders are blacklisted
-    let mut holder_addrs: Vec<Addr> = vec![];
-    for holder in holders {
-        let holder_addr = addr_validate_to_lower(deps.api, &holder)?;
-        if !blacklisted_holders.contains(&holder_addr) {
-            return Err(ContractError::HolderIsNotBlacklisted {});
-        }
-        holder_addrs.push(holder_addr);
+    // Check duplicated voters
+    let addrs_set = voters.iter().collect::<HashSet<_>>();
+    if voters.len() != addrs_set.len() {
+        return Err(ContractError::DuplicatedVoters {});
     }
 
-    for holder_addr in holder_addrs {
-        if USER_INFO.has(deps.storage, &holder_addr) {
-            let user_info = USER_INFO.load(deps.storage, &holder_addr)?;
+    // check if voters are blacklisted
+    let mut voter_addrs: Vec<Addr> = vec![];
+    for voter in voters {
+        let voter_addr = addr_validate_to_lower(deps.api, &voter)?;
+        if !blacklisted_voters.contains(&voter_addr) {
+            return Err(ContractError::VoterIsNotBlacklisted(voter_addr.to_string()));
+        }
+        voter_addrs.push(voter_addr);
+    }
 
+    for voter_addr in voter_addrs {
+        if let Some(user_info) = USER_INFO.may_load(deps.storage, &voter_addr)? {
             if user_info.lock_end > block_period {
-                let user_last_vote_period = get_period(user_info.vote_ts).unwrap_or(block_period);
+                let user_last_vote_period = get_period(user_info.vote_ts)?;
                 // Calculate voting power before changes
                 let old_vp_at_period = calc_voting_power(
                     user_info.slope,
@@ -194,22 +198,13 @@ fn kick_holders(deps: DepsMut, env: Env, holders: Vec<String>) -> ExecuteResult 
                     )
                 })?;
 
-                let ve_lock_info = get_lock_info(deps.querier, &escrow_addr, &holder_addr)?;
-                let user_vp = get_voting_power(deps.querier, &escrow_addr, &holder_addr)?;
-
                 let user_info = UserInfo {
                     vote_ts: env.block.time.seconds(),
-                    voting_power: user_vp,
-                    slope: ve_lock_info.slope,
                     lock_end: block_period,
-                    votes: user_info
-                        .votes
-                        .iter()
-                        .map(|(pool_addr, _)| Ok((pool_addr.clone(), BasicPoints::default())))
-                        .collect::<StdResult<Vec<_>>>()?,
+                    ..Default::default()
                 };
 
-                USER_INFO.save(deps.storage, &holder_addr, &user_info)?;
+                USER_INFO.save(deps.storage, &voter_addr, &user_info)?;
             }
         }
     }

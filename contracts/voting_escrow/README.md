@@ -228,12 +228,12 @@ Returns the contract's config.
 }
 ```
 
-### `blacklisted_holders`
+### `blacklisted_voters`
 
-Returns blacklisted holders.
+Returns blacklisted voters.
 
 ```json
 {
-  "blacklisted_holders": {}
+  "blacklisted_voters": {}
 }
 ```

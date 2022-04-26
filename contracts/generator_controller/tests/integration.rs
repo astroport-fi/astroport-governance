@@ -10,6 +10,7 @@ use generator_controller::state::TuneInfo;
 use astroport_tests::{
     controller_helper::ControllerHelper, escrow_helper::MULTIPLIER, mock_app, TerraAppExtension,
 };
+use generator_controller::bps::BasicPoints;
 
 #[test]
 fn check_kick_holders_works() {
@@ -132,18 +133,7 @@ fn check_kick_holders_works() {
         ve_power,
         user_info.voting_power.u128() as f32 / MULTIPLIER as f32
     );
-    let resp_votes = user_info
-        .votes
-        .into_iter()
-        .map(|(addr, bps)| (addr.to_string(), bps.into()))
-        .collect::<Vec<_>>();
-    assert_eq!(
-        vec![
-            (pools[0].to_string(), Uint128::zero()),
-            (pools[1].to_string(), Uint128::zero())
-        ],
-        resp_votes
-    );
+    assert_eq!(user_info.votes, vec![]);
 
     // Get pool info after kick holder
     let res = helper

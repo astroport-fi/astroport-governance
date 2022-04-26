@@ -995,7 +995,7 @@ fn update_blacklist(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::BlacklistedHolders {} => {
+        QueryMsg::BlacklistedVoters {} => {
             let black_list = BLACKLIST.load(deps.storage)?;
             to_binary(&black_list)
         }

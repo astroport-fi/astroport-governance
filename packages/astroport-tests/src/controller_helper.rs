@@ -243,14 +243,12 @@ impl ControllerHelper {
         &self,
         router: &mut TerraApp,
         user: &str,
-        blacklisted_holders: Vec<String>,
+        blacklisted_voters: Vec<String>,
     ) -> AnyResult<AppResponse> {
         router.execute_contract(
             Addr::unchecked(user),
             self.controller.clone(),
-            &ExecuteMsg::KickHolders {
-                blacklisted_holders,
-            },
+            &ExecuteMsg::KickBlacklistedVoters { blacklisted_voters },
             &[],
         )
     }
