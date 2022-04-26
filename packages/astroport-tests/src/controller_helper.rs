@@ -239,6 +239,22 @@ impl ControllerHelper {
         )
     }
 
+    pub fn kick_holders(
+        &self,
+        router: &mut TerraApp,
+        user: &str,
+        blacklisted_holders: Vec<String>,
+    ) -> AnyResult<AppResponse> {
+        router.execute_contract(
+            Addr::unchecked(user),
+            self.controller.clone(),
+            &ExecuteMsg::KickHolders {
+                blacklisted_holders,
+            },
+            &[],
+        )
+    }
+
     pub fn query_user_info(&self, router: &mut TerraApp, user: &str) -> StdResult<UserInfo> {
         router.wrap().query_wasm_smart(
             self.controller.clone(),

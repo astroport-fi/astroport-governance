@@ -1,6 +1,6 @@
 use astroport::asset::AssetInfo;
 use astroport::generator::PoolInfoResponse;
-use cosmwasm_std::Addr;
+use cosmwasm_std::{attr, Addr, Uint128};
 use terra_multi_test::{ContractWrapper, Executor, TerraApp};
 
 use astroport_governance::generator_controller::{ConfigResponse, ExecuteMsg, QueryMsg};
@@ -36,6 +36,8 @@ fn check_kick_holders_works() {
         .escrow_helper
         .create_lock(&mut router, "user1", WEEK, 100f32)
         .unwrap();
+
+    // Votes from user1
     helper
         .vote(&mut router, "user1", vec![(pools[0].as_str(), 1000)])
         .unwrap();
@@ -46,7 +48,7 @@ fn check_kick_holders_works() {
         .create_lock(&mut router, "user2", 10 * WEEK, 100f32)
         .unwrap();
 
-    // Valid votes
+    // Votes from user2
     helper
         .vote(
             &mut router,
@@ -54,18 +56,6 @@ fn check_kick_holders_works() {
             vec![(pools[0].as_str(), 3000), (pools[1].as_str(), 7000)],
         )
         .unwrap();
-
-    let err = helper
-        .vote(
-            &mut router,
-            "user2",
-            vec![(pools[0].as_str(), 7000), (pools[1].as_str(), 3000)],
-        )
-        .unwrap_err();
-    assert_eq!(
-        err.to_string(),
-        "You can only run this action every 10 days"
-    );
 
     let ve_slope = helper
         .escrow_helper
@@ -85,6 +75,7 @@ fn check_kick_holders_works() {
     );
     let resp_votes = user_info
         .votes
+        .clone()
         .into_iter()
         .map(|(addr, bps)| (addr.to_string(), bps.into()))
         .collect::<Vec<_>>();
@@ -93,15 +84,49 @@ fn check_kick_holders_works() {
         resp_votes
     );
 
-    router.next_block(86400 * 10);
-    // In 10 days user will be able to vote again
-    helper
-        .vote(
-            &mut router,
-            "user2",
-            vec![(pools[0].as_str(), 500), (pools[1].as_str(), 9500)],
-        )
+    let res = helper
+        .escrow_helper
+        .update_blacklist(&mut router, Some(vec!["user2".to_string()]), None)
         .unwrap();
+    assert_eq!(
+        res.events[1].attributes[1],
+        attr("action", "update_blacklist")
+    );
+
+    // Removes votes for user2
+    helper
+        .kick_holders(&mut router, "user1", vec!["user2".to_string()])
+        .unwrap();
+
+    let ve_slope = helper
+        .escrow_helper
+        .query_lock_info(&mut router, "user2")
+        .unwrap()
+        .slope;
+    let ve_power = helper
+        .escrow_helper
+        .query_user_vp(&mut router, "user2")
+        .unwrap();
+
+    let user_info = helper.query_user_info(&mut router, "user2").unwrap();
+    assert_eq!(ve_slope, user_info.slope);
+    assert_eq!(router.block_info().time.seconds(), user_info.vote_ts);
+    assert_eq!(
+        ve_power,
+        user_info.voting_power.u128() as f32 / MULTIPLIER as f32
+    );
+    let resp_votes = user_info
+        .votes
+        .into_iter()
+        .map(|(addr, bps)| (addr.to_string(), bps.into()))
+        .collect::<Vec<_>>();
+    assert_eq!(
+        vec![
+            (pools[0].to_string(), Uint128::zero()),
+            (pools[1].to_string(), Uint128::zero())
+        ],
+        resp_votes
+    );
 }
 
 #[test]

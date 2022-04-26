@@ -142,38 +142,26 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> E
 }
 
 /// ## Description
-/// The function checks that:
-/// * the user voting power is > 0,
-/// * user didn't vote for last 10 days,
-/// * all pool addresses are valid LP token addresses,
-/// * 'votes' vector doesn't contain duplicated pool addresses,
-/// * sum of all BPS values <= 10000.
-///
-/// The function cancels changes applied by previous votes and apply new votes for the next period.
-/// New vote parameters are saved in [`USER_INFO`].
-///
-/// The function returns [`Response`] in case of success or [`ContractError`] in case of errors.
+/// This function removes the votes of owners that are blacklisted. Returns [`Response`] in case
+/// of success or [`ContractError`] in case of errors.
 ///
 /// ## Params
 /// * **deps** is an object of type [`DepsMut`].
 ///
 /// * **env** is an object of type [`Env`].
 ///
-/// * **info** is an object of type [`MessageInfo`].
-///
-/// * **votes** is a vector of pairs ([`String`], [`u16`]).
-/// Tuple consists of pool address and percentage of user's voting power for a given pool.
-/// Percentage should be in BPS form.
+/// * **holders** is a vector of type [`String`]. Contains blacklisted holders whose votes will be
+/// removed.
 fn kick_holders(deps: DepsMut, env: Env, holders: Vec<String>) -> ExecuteResult {
     let block_period = get_period(env.block.time.seconds())?;
     let escrow_addr = CONFIG.load(deps.storage)?.escrow_addr;
     let blacklisted_holders = get_blacklisted_holders(deps.querier, &escrow_addr)?;
 
-    // check if all holders are blacklisted
+    // check if holders are blacklisted
     let mut holder_addrs: Vec<Addr> = vec![];
     for holder in holders {
         let holder_addr = addr_validate_to_lower(deps.api, &holder)?;
-        if blacklisted_holders.contains(&holder_addr) {
+        if !blacklisted_holders.contains(&holder_addr) {
             return Err(ContractError::HolderIsNotBlacklisted {});
         }
         holder_addrs.push(holder_addr);
@@ -206,12 +194,19 @@ fn kick_holders(deps: DepsMut, env: Env, holders: Vec<String>) -> ExecuteResult 
                     )
                 })?;
 
+                let ve_lock_info = get_lock_info(deps.querier, &escrow_addr, &holder_addr)?;
+                let user_vp = get_voting_power(deps.querier, &escrow_addr, &holder_addr)?;
+
                 let user_info = UserInfo {
                     vote_ts: env.block.time.seconds(),
-                    voting_power: user_info.voting_power,
-                    slope: user_info.slope,
+                    voting_power: user_vp,
+                    slope: ve_lock_info.slope,
                     lock_end: block_period,
-                    votes: user_info.votes,
+                    votes: user_info
+                        .votes
+                        .iter()
+                        .map(|(pool_addr, _)| Ok((pool_addr.clone(), BasicPoints::default())))
+                        .collect::<StdResult<Vec<_>>>()?,
                 };
 
                 USER_INFO.save(deps.storage, &holder_addr, &user_info)?;
