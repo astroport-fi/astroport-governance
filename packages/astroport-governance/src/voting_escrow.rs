@@ -1,11 +1,17 @@
 use crate::voting_escrow::QueryMsg::{
-    BlacklistedVoters, LockInfo, TotalVotingPower, TotalVotingPowerAt, UserVotingPower,
-    UserVotingPowerAt,
+    LockInfo, TotalVotingPower, TotalVotingPowerAt, UserVotingPower, UserVotingPowerAt,
 };
 use cosmwasm_std::{Addr, Binary, Decimal, QuerierWrapper, StdResult, Uint128};
 use cw20::{Cw20ReceiveMsg, Logo};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+
+/// ## Pagination settings
+/// The maximum amount of items that can be read at once from
+pub const MAX_LIMIT: u32 = 30;
+
+/// The default amount of items to read from
+pub const DEFAULT_LIMIT: u32 = 10;
 
 /// This structure stores marketing information for vxASTRO.
 #[derive(Serialize, Deserialize, JsonSchema, Debug, Clone, PartialEq)]
@@ -103,8 +109,13 @@ pub enum Cw20HookMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
+    /// Return verified list
+    CheckVotersAreBlacklisted { voters: Vec<String> },
     /// Return the blacklisted voters
-    BlacklistedVoters {},
+    BlacklistedVoters {
+        start_after: Option<String>,
+        limit: Option<u32>,
+    },
     /// Return the user's vxASTRO balance
     Balance { address: String },
     /// Fetch the vxASTRO token information
@@ -253,12 +264,4 @@ pub fn get_lock_info(
         },
     )?;
     Ok(lock_info)
-}
-
-/// ## Description
-/// Query blacklisted voters from the voting escrow contract.
-pub fn get_blacklisted_voters(querier: QuerierWrapper, escrow_addr: &Addr) -> StdResult<Vec<Addr>> {
-    let blacklisted_voters: Vec<Addr> =
-        querier.query_wasm_smart(escrow_addr.clone(), &BlacklistedVoters {})?;
-    Ok(blacklisted_voters)
 }

@@ -10,7 +10,6 @@ use generator_controller::state::TuneInfo;
 use astroport_tests::{
     controller_helper::ControllerHelper, escrow_helper::MULTIPLIER, mock_app, TerraAppExtension,
 };
-use generator_controller::bps::BasicPoints;
 
 #[test]
 fn check_kick_holders_works() {
@@ -96,7 +95,7 @@ fn check_kick_holders_works() {
     );
 
     // Let's take the period for which the vote was applied.
-    let current_period = router.block_period().checked_add(1u64).unwrap();
+    let current_period = router.block_period() + 1u64;
 
     // Get pools info before kick holder
     let res = helper

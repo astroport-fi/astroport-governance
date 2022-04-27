@@ -451,6 +451,29 @@ impl Helper {
             )
             .map(|vp: Uint128| vp.u128() as f32 / MULTIPLIER as f32)
     }
+
+    pub fn query_blacklisted_voters(
+        &self,
+        router: &mut TerraApp,
+        start_after: Option<String>,
+        limit: Option<u32>,
+    ) -> StdResult<Vec<Addr>> {
+        router.wrap().query_wasm_smart(
+            self.voting_instance.clone(),
+            &QueryMsg::BlacklistedVoters { start_after, limit },
+        )
+    }
+
+    pub fn check_voters_are_blacklisted(
+        &self,
+        router: &mut TerraApp,
+        voters: Vec<String>,
+    ) -> StdResult<()> {
+        router.wrap().query_wasm_smart(
+            self.voting_instance.clone(),
+            &QueryMsg::CheckVotersAreBlacklisted { voters },
+        )
+    }
 }
 
 pub fn mock_app() -> TerraApp {

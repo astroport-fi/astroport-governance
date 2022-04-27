@@ -35,9 +35,6 @@ pub enum ContractError {
     #[error("Invalid pool number: {0}. Must be within [2, 100] range")]
     InvalidPoolNumber(u64),
 
-    #[error("Voter is not blacklisted: {0}")]
-    VoterIsNotBlacklisted(String),
-
-    #[error("Voters contain duplicated addresses")]
+    #[error("The vector contains duplicated addresses")]
     DuplicatedVoters {},
 }

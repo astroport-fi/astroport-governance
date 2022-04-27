@@ -16,9 +16,8 @@ use astroport_governance::generator_controller::{
     ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg, UserInfoResponse,
 };
 use astroport_governance::utils::{calc_voting_power, get_period, WEEK};
-use astroport_governance::voting_escrow::{
-    get_blacklisted_voters, get_lock_info, get_voting_power,
-};
+use astroport_governance::voting_escrow::QueryMsg::CheckVotersAreBlacklisted;
+use astroport_governance::voting_escrow::{get_lock_info, get_voting_power};
 
 use crate::bps::BasicPoints;
 use crate::error::ContractError;
@@ -155,7 +154,6 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> E
 fn kick_blacklisted_voters(deps: DepsMut, env: Env, voters: Vec<String>) -> ExecuteResult {
     let block_period = get_period(env.block.time.seconds())?;
     let escrow_addr = CONFIG.load(deps.storage)?.escrow_addr;
-    let blacklisted_voters = get_blacklisted_voters(deps.querier, &escrow_addr)?;
 
     // Check duplicated voters
     let addrs_set = voters.iter().collect::<HashSet<_>>();
@@ -164,12 +162,16 @@ fn kick_blacklisted_voters(deps: DepsMut, env: Env, voters: Vec<String>) -> Exec
     }
 
     // check if voters are blacklisted
+    deps.querier.query_wasm_smart(
+        escrow_addr,
+        &CheckVotersAreBlacklisted {
+            voters: voters.clone(),
+        },
+    )?;
+
     let mut voter_addrs: Vec<Addr> = vec![];
     for voter in voters {
         let voter_addr = addr_validate_to_lower(deps.api, &voter)?;
-        if !blacklisted_voters.contains(&voter_addr) {
-            return Err(ContractError::VoterIsNotBlacklisted(voter_addr.to_string()));
-        }
         voter_addrs.push(voter_addr);
     }
 

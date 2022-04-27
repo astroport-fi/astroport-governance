@@ -22,7 +22,7 @@ use astroport_governance::querier::query_token_balance;
 use astroport_governance::utils::{get_period, get_periods_count, EPOCH_START, WEEK};
 use astroport_governance::voting_escrow::{
     ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, LockInfoResponse, MigrateMsg,
-    QueryMsg, VotingPowerResponse,
+    QueryMsg, VotingPowerResponse, DEFAULT_LIMIT, MAX_LIMIT,
 };
 
 use crate::error::ContractError;
@@ -995,9 +995,11 @@ fn update_blacklist(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::BlacklistedVoters {} => {
-            let black_list = BLACKLIST.load(deps.storage)?;
-            to_binary(&black_list)
+        QueryMsg::CheckVotersAreBlacklisted { voters } => {
+            to_binary(&check_voters_are_blacklisted(deps, voters)?)
+        }
+        QueryMsg::BlacklistedVoters { start_after, limit } => {
+            to_binary(&get_blacklisted_voters(deps, start_after, limit)?)
         }
         QueryMsg::TotalVotingPower {} => to_binary(&get_total_voting_power(deps, env, None)?),
         QueryMsg::UserVotingPower { user } => {
@@ -1039,6 +1041,77 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::MarketingInfo {} => to_binary(&query_marketing_info(deps)?),
         QueryMsg::DownloadLogo {} => to_binary(&query_download_logo(deps)?),
     }
+}
+
+/// ## Description
+/// Checks if specified addresses are blacklisted.
+///
+/// ## Params
+/// * **deps** is an object of type [`Deps`].
+///
+/// * **voters** is a list of type [`String`]. Specifies addresses to check if they are blacklisted.
+pub fn check_voters_are_blacklisted(deps: Deps, voters: Vec<String>) -> StdResult<()> {
+    let black_list = BLACKLIST.load(deps.storage)?;
+
+    for voter in voters {
+        let voter_addr = addr_validate_to_lower(deps.api, voter.as_str())?;
+        if !black_list.contains(&voter_addr) {
+            return Err(StdError::generic_err(format!(
+                "Voter is not blacklisted: {}",
+                voter_addr
+            )));
+        }
+    }
+
+    Ok(())
+}
+
+/// ## Description
+/// Returns a list of blacklisted voters.
+///
+/// ## Params
+/// * **deps** is an object of type [`Deps`].
+///
+/// * **start_after** is an object of type [`Option<String>`]. This is an optional field
+/// that specifies whether the function should return a list of voters starting from a
+/// specific address onward.
+///
+/// * **limit** is an object of type [`Option<u32>`]. This is the max amount of staker
+/// addresses to return.
+pub fn get_blacklisted_voters(
+    deps: Deps,
+    start_after: Option<String>,
+    limit: Option<u32>,
+) -> StdResult<Vec<Addr>> {
+    let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
+    let black_list = BLACKLIST.load(deps.storage)?;
+
+    if black_list.is_empty() {
+        return Ok(vec![]);
+    }
+
+    let mut start_index = Default::default();
+    if let Some(start_after) = start_after {
+        let start_addr = addr_validate_to_lower(deps.api, start_after.as_str())?;
+        start_index = black_list
+            .iter()
+            .position(|addr| *addr == start_addr)
+            .ok_or_else(|| {
+                StdError::generic_err(format!(
+                    "The {} address is not blacklisted",
+                    start_addr.as_str()
+                ))
+            })?
+            + 1; // start from the next element of the slice
+    }
+
+    // validate end index of the slice
+    let mut end_index = start_index + limit;
+    if end_index > black_list.len() {
+        end_index = black_list.len();
+    }
+
+    Ok(black_list[start_index..end_index].to_vec())
 }
 
 /// ## Description
