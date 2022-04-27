@@ -6,7 +6,7 @@ use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_ow
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_binary, Addr, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Order, Response, StdError,
+    to_binary, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Order, Response, StdError,
     StdResult, WasmMsg,
 };
 use cw2::set_contract_version;
@@ -169,13 +169,8 @@ fn kick_blacklisted_voters(deps: DepsMut, env: Env, voters: Vec<String>) -> Exec
         },
     )?;
 
-    let mut voter_addrs: Vec<Addr> = vec![];
     for voter in voters {
         let voter_addr = addr_validate_to_lower(deps.api, &voter)?;
-        voter_addrs.push(voter_addr);
-    }
-
-    for voter_addr in voter_addrs {
         if let Some(user_info) = USER_INFO.may_load(deps.storage, &voter_addr)? {
             if user_info.lock_end > block_period {
                 let user_last_vote_period = get_period(user_info.vote_ts)?;
