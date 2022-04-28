@@ -162,7 +162,7 @@ fn kick_blacklisted_voters(deps: DepsMut, env: Env, voters: Vec<String>) -> Exec
     }
 
     // check if voters are blacklisted
-    deps.querier.query_wasm_smart(
+    let _: Response = deps.querier.query_wasm_smart(
         escrow_addr,
         &CheckVotersAreBlacklisted {
             voters: voters.clone(),

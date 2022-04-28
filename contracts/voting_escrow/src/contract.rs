@@ -4,8 +4,8 @@ use astroport::DecimalCheckedOps;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    from_binary, to_binary, Addr, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo,
-    Response, StdError, StdResult, SubMsg, Uint128, WasmMsg,
+    attr, from_binary, to_binary, Addr, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env,
+    MessageInfo, Response, StdError, StdResult, SubMsg, Uint128, WasmMsg,
 };
 use cw2::{get_contract_version, set_contract_version};
 use cw20::{
@@ -1044,13 +1044,14 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 }
 
 /// ## Description
-/// Checks if specified addresses are blacklisted.
+/// Checks if specified addresses are blacklisted. Returns a [`Response`] with the specified
+/// attributes if the operation was successful, otherwise then a [`StdError`] is returned.
 ///
 /// ## Params
 /// * **deps** is an object of type [`Deps`].
 ///
 /// * **voters** is a list of type [`String`]. Specifies addresses to check if they are blacklisted.
-pub fn check_voters_are_blacklisted(deps: Deps, voters: Vec<String>) -> StdResult<()> {
+pub fn check_voters_are_blacklisted(deps: Deps, voters: Vec<String>) -> StdResult<Response> {
     let black_list = BLACKLIST.load(deps.storage)?;
 
     for voter in voters {
@@ -1063,7 +1064,10 @@ pub fn check_voters_are_blacklisted(deps: Deps, voters: Vec<String>) -> StdResul
         }
     }
 
-    Ok(())
+    Ok(Response::new().add_attributes(vec![
+        attr("action", "check_voters_are_blacklisted"),
+        attr("are_voters_blacklisted", "true"),
+    ]))
 }
 
 /// ## Description

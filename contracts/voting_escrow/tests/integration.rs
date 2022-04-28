@@ -629,9 +629,10 @@ fn check_queries() {
         err
     );
 
-    helper
+    let res = helper
         .check_voters_are_blacklisted(router_ref, vec!["voter1".to_string(), "voter8".to_string()])
         .unwrap();
+    assert_eq!(res.events, vec![])
 }
 
 #[test]

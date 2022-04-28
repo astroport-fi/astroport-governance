@@ -6,7 +6,8 @@ use astroport_governance::voting_escrow::{
 };
 use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
 use cosmwasm_std::{
-    attr, to_binary, Addr, Decimal, QueryRequest, StdResult, Timestamp, Uint128, WasmQuery,
+    attr, to_binary, Addr, Decimal, QueryRequest, Response, StdResult, Timestamp, Uint128,
+    WasmQuery,
 };
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
 use std::str::FromStr;
@@ -468,7 +469,7 @@ impl Helper {
         &self,
         router: &mut TerraApp,
         voters: Vec<String>,
-    ) -> StdResult<()> {
+    ) -> StdResult<Response> {
         router.wrap().query_wasm_smart(
             self.voting_instance.clone(),
             &QueryMsg::CheckVotersAreBlacklisted { voters },

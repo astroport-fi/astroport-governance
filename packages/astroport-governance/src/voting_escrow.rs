@@ -109,7 +109,7 @@ pub enum Cw20HookMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
-    /// Return verified list
+    /// Checks if specified addresses are blacklisted
     CheckVotersAreBlacklisted { voters: Vec<String> },
     /// Return the blacklisted voters
     BlacklistedVoters {
