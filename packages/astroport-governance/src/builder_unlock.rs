@@ -20,7 +20,7 @@ pub struct State {
     pub total_astro_deposited: Uint128,
     /// Currently available ASTRO tokens that still need to be unlocked and/or withdrawn
     pub remaining_astro_tokens: Uint128,
-    /// Amount of ASTRO tokens deposited into contract but without allocation
+    /// Amount of ASTRO tokens deposited into the contract but not assigned to an allocation
     pub unallocated_tokens: Uint128,
 }
 
@@ -99,9 +99,9 @@ pub mod msg {
         DropNewReceiver {},
         /// ClaimReceiver allows newly proposed receivers to claim ASTRO allocations ownership
         ClaimReceiver { prev_receiver: String },
-        /// Increase ASTRO allocation for receiver
+        /// Increase the ASTRO allocation of a receiver
         IncreaseAllocation { receiver: String, amount: Uint128 },
-        /// Decrease ASTRO allocation of the receiver
+        /// Decrease the ASTRO allocation of a receiver
         DecreaseAllocation { receiver: String, amount: Uint128 },
         /// Transfer unallocated tokens (only accessible to the owner)
         TransferUnallocated {
@@ -126,7 +126,7 @@ pub mod msg {
         CreateAllocations {
             allocations: Vec<(String, AllocationParams)>,
         },
-        /// Increase ASTRO allocation
+        /// Increase the ASTRO allocation for a receiver
         IncreaseAllocation { user: String, amount: Uint128 },
     }
 
@@ -152,7 +152,7 @@ pub mod msg {
         SimulateWithdraw {
             /// Account for which we simulate a withdrawal
             account: String,
-            /// Timestamp used to simulate how many ASTRO the account can withdraw
+            /// Timestamp used to simulate how much ASTRO the account can withdraw
             timestamp: Option<u64>,
         },
     }

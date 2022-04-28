@@ -1,12 +1,11 @@
 # Generator Controller
 
-The GeneratorController contract allows voting for pools using vxASTRO amount. Note: here and everywhere in the controller
-contract, the word "pool" also means LP token, because in the generator they are synonyms.
+The Generator Controller allows vxASTRO holders to vote on changing `alloc_point`s in the Generator contract every 2 weeks. Note that the Controller contract uses the word "pool" when referring to LP tokens (generators) available in the Generator contract.
 
 ## InstantiateMsg
 
 Initialize the contract with the initial owner, the addresses of the xvASTRO, the Generator and the Factory contracts
-and limit of pools which can receive ASTRO emissions at the same time.
+and the max amount of pools that can receive ASTRO emissions at the same time.
 
 ```json
 {
@@ -22,9 +21,8 @@ and limit of pools which can receive ASTRO emissions at the same time.
 
 ### `vote`
 
-Cast votes for the next period for pools according to specified basic points distribution. For example, user has voting
-power 100. Then, following the example below, pools will receive voting power 10, 50, 40 respectively. Note: The sum of
-all basic points should be within [0, 10000] limit.
+Vote on pools that will start to get an ASTRO distribution in the next period. For example, assume an address has voting
+power `100`. Then, following the example below, pools will receive voting power 10, 50, 40 respectively. Note that all values are scaled so they sum to 10,000.
 
 ```json
 {
