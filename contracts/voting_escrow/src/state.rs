@@ -1,6 +1,6 @@
 use astroport::common::OwnershipProposal;
-use cosmwasm_std::{Addr, Uint128};
-use cw_storage_plus::{Item, Map, U64Key};
+use cosmwasm_std::{Addr, Decimal, Uint128};
+use cw_storage_plus::{Item, Map, SnapshotMap, Strategy, U64Key};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -13,6 +13,14 @@ pub struct Config {
     pub guardian_addr: Addr,
     /// The xASTRO token contract address
     pub deposit_token_addr: Addr,
+    /// The maximum % of staked xASTRO that is confiscated upon an early exit
+    pub max_exit_penalty: Decimal,
+    /// The address that receives slashed ASTRO (slashed xASTRO is burned in order to claim ASTRO)
+    pub slashed_fund_receiver: Option<Addr>,
+    /// The address of $ASTRO
+    pub astro_addr: Addr,
+    /// The address of $xASTRO staking contract
+    pub xastro_staking_addr: Addr,
 }
 
 /// This structure stores points along the checkpoint history for every vxASTRO staker.
@@ -44,8 +52,14 @@ pub struct Lock {
 /// Stores the contract config at the given key
 pub const CONFIG: Item<Config> = Item::new("config");
 
-/// Stores all user locks
-pub const LOCKED: Map<Addr, Lock> = Map::new("locked");
+/// ## Description
+/// Stores all user lock history
+pub const LOCKED: SnapshotMap<Addr, Lock> = SnapshotMap::new(
+    "locked",
+    "locked__checkpoints",
+    "locked__changelog",
+    Strategy::EveryBlock,
+);
 
 /// Stores the checkpoint history for every staker (addr => period)
 /// Total voting power checkpoints are stored using a (contract_addr => period) key

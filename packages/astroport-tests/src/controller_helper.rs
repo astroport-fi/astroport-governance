@@ -41,6 +41,8 @@ impl ControllerHelper {
 
         let factory_code_id = router.store_code(factory_contract);
 
+        let whitelist_code_id = store_whitelist_code(router);
+
         let msg = astroport::factory::InstantiateMsg {
             pair_configs: vec![PairConfig {
                 code_id: pair_code_id,
@@ -54,18 +56,21 @@ impl ControllerHelper {
             fee_address: None,
             generator_address: None,
             owner: owner.to_string(),
-            whitelist_code_id: 0,
+            whitelist_code_id,
         };
 
         let factory = router
             .instantiate_contract(factory_code_id, owner.clone(), &msg, &[], "Factory", None)
             .unwrap();
 
-        let generator_contract = Box::new(ContractWrapper::new_with_empty(
-            astroport_generator::contract::execute,
-            astroport_generator::contract::instantiate,
-            astroport_generator::contract::query,
-        ));
+        let generator_contract = Box::new(
+            ContractWrapper::new_with_empty(
+                astroport_generator::contract::execute,
+                astroport_generator::contract::instantiate,
+                astroport_generator::contract::query,
+            )
+            .with_reply_empty(astroport_generator::contract::reply),
+        );
 
         let generator_code_id = router.store_code(generator_contract);
         let init_msg = astroport::generator::InstantiateMsg {
@@ -78,6 +83,8 @@ impl ControllerHelper {
             start_block: Default::default(),
             allowed_reward_proxies: vec![],
             vesting_contract: "vesting_placeholder".to_string(),
+            whitelist_code_id,
+            voting_escrow: None,
         };
 
         let generator = router
@@ -126,6 +133,8 @@ impl ControllerHelper {
                     vesting_contract: None,
                     generator_controller: Some(controller.to_string()),
                     guardian: None,
+                    checkpoint_generator_limit: None,
+                    voting_escrow: None,
                 },
                 &[],
             )
@@ -221,11 +230,11 @@ impl ControllerHelper {
         router.execute_contract(Addr::unchecked(user), self.controller.clone(), &msg, &[])
     }
 
-    pub fn gauge(&self, router: &mut TerraApp, sender: &str) -> AnyResult<AppResponse> {
+    pub fn tune(&self, router: &mut TerraApp) -> AnyResult<AppResponse> {
         router.execute_contract(
-            Addr::unchecked(sender),
+            Addr::unchecked("anyone"),
             self.controller.clone(),
-            &ExecuteMsg::GaugePools {},
+            &ExecuteMsg::TunePools {},
             &[],
         )
     }
@@ -266,4 +275,14 @@ impl ControllerHelper {
             },
         )
     }
+}
+
+fn store_whitelist_code(app: &mut TerraApp) -> u64 {
+    let whitelist_contract = Box::new(ContractWrapper::new_with_empty(
+        astroport_whitelist::contract::execute,
+        astroport_whitelist::contract::instantiate,
+        astroport_whitelist::contract::query,
+    ));
+
+    app.store_code(whitelist_contract)
 }

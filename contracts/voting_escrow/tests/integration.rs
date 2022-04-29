@@ -487,7 +487,61 @@ fn check_queries() {
     let user_vp = helper
         .query_user_vp_at(router_ref, "user", router_ref.block_info().time.seconds())
         .unwrap();
-    assert_eq!(user_vp_at_period, user_vp)
+    assert_eq!(user_vp_at_period, user_vp);
+
+    // Check users' locked xASTRO balance history
+    helper.mint_xastro(router_ref, "user", 90);
+    // SnapshotMap checkpoints the data at the next block
+    let start_height = router_ref.block_info().height + 1;
+    let balance = helper
+        .query_locked_balance_at(router_ref, "user", start_height)
+        .unwrap();
+    assert_eq!(balance, 90f32);
+    // Make the lockup to live longer
+    helper
+        .extend_lock_time(router_ref, "user", WEEK * 100)
+        .unwrap();
+
+    router_ref.update_block(next_block);
+    helper
+        .extend_lock_amount(router_ref, "user", 100f32)
+        .unwrap();
+    let balance = helper
+        .query_locked_balance_at(router_ref, "user", start_height)
+        .unwrap();
+    assert_eq!(balance, 90f32);
+
+    router_ref.update_block(|bi| bi.height += 100000);
+    let balance = helper
+        .query_locked_balance_at(router_ref, "user", start_height)
+        .unwrap();
+    assert_eq!(balance, 90f32);
+    let balance = helper
+        .query_locked_balance_at(router_ref, "user", start_height + 2)
+        .unwrap();
+    assert_eq!(balance, 190f32);
+    // The user still has 190 xASTRO locked
+    let balance = helper
+        .query_locked_balance_at(router_ref, "user", router_ref.block_info().height)
+        .unwrap();
+    assert_eq!(balance, 190f32);
+
+    router_ref.update_block(|bi| {
+        bi.height += 1;
+        bi.time = bi.time.plus_seconds(WEEK * 102);
+    });
+    helper.withdraw(router_ref, "user").unwrap();
+    // Now the users' balance is zero
+    let cur_height = router_ref.block_info().height + 1;
+    let balance = helper
+        .query_locked_balance_at(router_ref, "user", cur_height)
+        .unwrap();
+    // But one block before it had 190 xASTRO locked
+    assert_eq!(balance, 0f32);
+    let balance = helper
+        .query_locked_balance_at(router_ref, "user", cur_height - 1)
+        .unwrap();
+    assert_eq!(balance, 190f32)
 }
 
 #[test]
@@ -793,4 +847,85 @@ fn check_residual() {
             bi.time = bi.time.plus_seconds(WEEK);
         });
     }
+}
+
+#[test]
+fn early_withdraw() {
+    let mut router = mock_app();
+    let router_ref = &mut router;
+    let owner = Addr::unchecked("owner");
+    let helper = Helper::init(router_ref, owner);
+
+    let err = helper
+        .configure_early_withdrawal(router_ref, "1.1", "holder")
+        .unwrap_err();
+    assert_eq!(
+        err.to_string(),
+        "Generic error: Max exit penalty should be <= 1"
+    );
+
+    helper
+        .configure_early_withdrawal(router_ref, "0.75", "holder")
+        .unwrap();
+
+    helper.mint_xastro(router_ref, "user1", 100);
+    helper.mint_xastro(router_ref, "user2", 100);
+    helper
+        .create_lock(router_ref, "user1", MAX_LOCK_TIME, 100f32)
+        .unwrap();
+    helper
+        .create_lock(router_ref, "user2", MAX_LOCK_TIME, 100f32)
+        .unwrap();
+
+    // user2 withdraws right after he created the lock with 75% penalty
+    helper.check_xastro_balance(router_ref, "user2", 0);
+    helper.check_astro_balance(router_ref, "holder", 0);
+    helper.check_astro_balance(router_ref, helper.voting_instance.as_str(), 0);
+    helper.check_xastro_balance(router_ref, helper.voting_instance.as_str(), 200);
+
+    let early_withdrawal_amount = helper
+        .query_early_withdraw_amount(router_ref, "user2")
+        .unwrap();
+    assert_eq!(early_withdrawal_amount, 25.0);
+    helper.withdraw_early(router_ref, "user2").unwrap();
+
+    // 75% penalty
+    helper.check_xastro_balance(router_ref, "user2", 25);
+    helper.check_astro_balance(router_ref, "holder", 75);
+    helper.check_astro_balance(router_ref, helper.voting_instance.as_str(), 0);
+    helper.check_xastro_balance(router_ref, helper.voting_instance.as_str(), 100);
+
+    // Check user2 has lost his VP
+    let vp = helper.query_user_vp(router_ref, "user2").unwrap();
+    assert_eq!(vp, 0.0);
+    let total_vp = helper.query_total_vp(router_ref).unwrap();
+    assert!(total_vp > 0.0);
+
+    router_ref.update_block(|bi| {
+        bi.height += 1;
+        bi.time = bi.time.plus_seconds(52 * WEEK);
+    });
+
+    helper.check_xastro_balance(router_ref, "user1", 0);
+    helper.check_astro_balance(router_ref, "holder", 75);
+    helper.check_astro_balance(router_ref, helper.voting_instance.as_str(), 0);
+    helper.check_xastro_balance(router_ref, helper.voting_instance.as_str(), 100);
+
+    let early_withdrawal_amount = helper
+        .query_early_withdraw_amount(router_ref, "user1")
+        .unwrap();
+    assert_eq!(early_withdrawal_amount, 50.0);
+    helper.withdraw_early(router_ref, "user1").unwrap();
+
+    // 50% penalty
+    helper.check_xastro_balance(router_ref, "user1", 50);
+    helper.check_astro_balance(router_ref, "holder", 125);
+    helper.check_astro_balance(router_ref, helper.voting_instance.as_str(), 0);
+    helper.check_xastro_balance(router_ref, helper.voting_instance.as_str(), 0);
+
+    // Check user1 has lost his VP
+    let vp = helper.query_user_vp(router_ref, "user1").unwrap();
+    assert_eq!(vp, 0.0);
+    let total_vp = helper.query_total_vp(router_ref).unwrap();
+    assert_eq!(total_vp, 0.0)
 }

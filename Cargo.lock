@@ -13,8 +13,8 @@ name = "astro-assembly"
 version = "1.0.2"
 dependencies = [
  "anyhow",
- "astroport 1.2.0 (git+https://github.com/astroport-fi/astroport.git)",
- "astroport-governance",
+ "astroport 2.0.0 (git+https://github.com/astroport-fi/astroport.git)",
+ "astroport-governance 1.0.0",
  "astroport-staking 1.0.0 (git+https://github.com/astroport-fi/astroport.git)",
  "astroport-token 1.0.0 (git+https://github.com/astroport-fi/astroport.git)",
  "astroport-xastro-token",
@@ -33,8 +33,8 @@ dependencies = [
 
 [[package]]
 name = "astroport"
-version = "0.3.1"
-source = "git+https://github.com/astroport-fi/astroport-core.git?tag=v1.0.0#05bfb278302d462c355e47ed67566a8a97f417dd"
+version = "2.0.0"
+source = "git+https://github.com/astroport-fi/astroport.git?branch=main#4a0a4fc619a7549e1f347727d57e17522719f3fb"
 dependencies = [
  "cosmwasm-std",
  "cw-storage-plus 0.8.1",
@@ -47,8 +47,8 @@ dependencies = [
 
 [[package]]
 name = "astroport"
-version = "1.2.0"
-source = "git+https://github.com/astroport-fi/astroport-core.git?tag=v1.2.0#bd8f8599e1b1867b6e6a005bc4cef209699683e6"
+version = "2.0.0"
+source = "git+https://github.com/astroport-fi/astroport-core.git?branch=main#4a0a4fc619a7549e1f347727d57e17522719f3fb"
 dependencies = [
  "cosmwasm-std",
  "cw-storage-plus 0.8.1",
@@ -61,36 +61,8 @@ dependencies = [
 
 [[package]]
 name = "astroport"
-version = "1.2.0"
-source = "git+https://github.com/astroport-fi/astroport.git?branch=main#973aab9419229cb221023066f96b18f2edf75ba8"
-dependencies = [
- "cosmwasm-std",
- "cw-storage-plus 0.8.1",
- "cw20",
- "schemars",
- "serde",
- "terra-cosmwasm",
- "uint",
-]
-
-[[package]]
-name = "astroport"
-version = "1.2.0"
-source = "git+https://github.com/astroport-fi/astroport-core.git?branch=main#dd1e682f196dd0e3d382fda7bea6737f104f39c7"
-dependencies = [
- "cosmwasm-std",
- "cw-storage-plus 0.8.1",
- "cw20",
- "schemars",
- "serde",
- "terra-cosmwasm",
- "uint",
-]
-
-[[package]]
-name = "astroport"
-version = "1.2.0"
-source = "git+https://github.com/astroport-fi/astroport.git#dd1e682f196dd0e3d382fda7bea6737f104f39c7"
+version = "2.0.0"
+source = "git+https://github.com/astroport-fi/astroport.git#4a0a4fc619a7549e1f347727d57e17522719f3fb"
 dependencies = [
  "cosmwasm-std",
  "cw-storage-plus 0.8.1",
@@ -105,8 +77,8 @@ dependencies = [
 name = "astroport-escrow-fee-distributor"
 version = "1.0.0"
 dependencies = [
- "astroport 0.3.1",
- "astroport-governance",
+ "astroport 2.0.0 (git+https://github.com/astroport-fi/astroport-core.git?branch=main)",
+ "astroport-governance 1.0.0",
  "astroport-tests",
  "astroport-token 1.0.0 (git+https://github.com/astroport-fi/astroport-core.git?branch=main)",
  "cosmwasm-schema",
@@ -123,9 +95,9 @@ dependencies = [
 [[package]]
 name = "astroport-factory"
 version = "1.2.0"
-source = "git+https://github.com/astroport-fi/astroport-core.git?branch=main#dd1e682f196dd0e3d382fda7bea6737f104f39c7"
+source = "git+https://github.com/astroport-fi/astroport-core.git?branch=main#4a0a4fc619a7549e1f347727d57e17522719f3fb"
 dependencies = [
- "astroport 1.2.0 (git+https://github.com/astroport-fi/astroport-core.git?branch=main)",
+ "astroport 2.0.0 (git+https://github.com/astroport-fi/astroport-core.git?branch=main)",
  "cosmwasm-std",
  "cw-storage-plus 0.8.1",
  "cw2",
@@ -137,14 +109,16 @@ dependencies = [
 
 [[package]]
 name = "astroport-generator"
-version = "1.2.0"
-source = "git+https://github.com/astroport-fi/astroport-core.git?branch=main#dd1e682f196dd0e3d382fda7bea6737f104f39c7"
+version = "2.0.0"
+source = "git+https://github.com/astroport-fi/astroport-core.git?branch=main#4a0a4fc619a7549e1f347727d57e17522719f3fb"
 dependencies = [
- "astroport 1.2.0 (git+https://github.com/astroport-fi/astroport-core.git?branch=main)",
+ "astroport 2.0.0 (git+https://github.com/astroport-fi/astroport-core.git?branch=main)",
+ "astroport-governance 1.0.0 (git+https://github.com/astroport-fi/astroport-governance.git?branch=main)",
  "cosmwasm-std",
  "cw-storage-plus 0.8.1",
  "cw2",
  "cw20",
+ "protobuf",
  "schemars",
  "serde",
  "thiserror",
@@ -164,11 +138,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "astroport-governance"
+version = "1.0.0"
+source = "git+https://github.com/astroport-fi/astroport-governance.git?branch=main#a9b4032edcda7d94efb1126f87908a10e8b4aab6"
+dependencies = [
+ "cosmwasm-std",
+ "cw20",
+ "schemars",
+ "serde",
+ "terra-cosmwasm",
+ "uint",
+]
+
+[[package]]
 name = "astroport-pair"
 version = "1.0.0"
-source = "git+https://github.com/astroport-fi/astroport-core.git?branch=main#dd1e682f196dd0e3d382fda7bea6737f104f39c7"
+source = "git+https://github.com/astroport-fi/astroport-core.git?branch=main#4a0a4fc619a7549e1f347727d57e17522719f3fb"
 dependencies = [
- "astroport 1.2.0 (git+https://github.com/astroport-fi/astroport-core.git?branch=main)",
+ "astroport 2.0.0 (git+https://github.com/astroport-fi/astroport-core.git?branch=main)",
  "cosmwasm-bignumber",
  "cosmwasm-std",
  "cw-storage-plus 0.8.1",
@@ -184,9 +171,9 @@ dependencies = [
 [[package]]
 name = "astroport-staking"
 version = "1.0.0"
-source = "git+https://github.com/astroport-fi/astroport-core.git?tag=v1.2.0#bd8f8599e1b1867b6e6a005bc4cef209699683e6"
+source = "git+https://github.com/astroport-fi/astroport-core.git?branch=main#4a0a4fc619a7549e1f347727d57e17522719f3fb"
 dependencies = [
- "astroport 1.2.0 (git+https://github.com/astroport-fi/astroport-core.git?tag=v1.2.0)",
+ "astroport 2.0.0 (git+https://github.com/astroport-fi/astroport-core.git?branch=main)",
  "cosmwasm-std",
  "cw-storage-plus 0.8.1",
  "cw2",
@@ -200,9 +187,9 @@ dependencies = [
 [[package]]
 name = "astroport-staking"
 version = "1.0.0"
-source = "git+https://github.com/astroport-fi/astroport.git#dd1e682f196dd0e3d382fda7bea6737f104f39c7"
+source = "git+https://github.com/astroport-fi/astroport.git#4a0a4fc619a7549e1f347727d57e17522719f3fb"
 dependencies = [
- "astroport 1.2.0 (git+https://github.com/astroport-fi/astroport.git)",
+ "astroport 2.0.0 (git+https://github.com/astroport-fi/astroport.git)",
  "cosmwasm-std",
  "cw-storage-plus 0.8.1",
  "cw2",
@@ -218,14 +205,15 @@ name = "astroport-tests"
 version = "1.0.0"
 dependencies = [
  "anyhow",
- "astroport 1.2.0 (git+https://github.com/astroport-fi/astroport-core.git?branch=main)",
+ "astroport 2.0.0 (git+https://github.com/astroport-fi/astroport-core.git?branch=main)",
  "astroport-escrow-fee-distributor",
  "astroport-factory",
  "astroport-generator",
- "astroport-governance",
+ "astroport-governance 1.0.0",
  "astroport-pair",
- "astroport-staking 1.0.0 (git+https://github.com/astroport-fi/astroport-core.git?tag=v1.2.0)",
- "astroport-token 1.0.0 (git+https://github.com/astroport-fi/astroport-core.git?tag=v1.2.0)",
+ "astroport-staking 1.0.0 (git+https://github.com/astroport-fi/astroport-core.git?branch=main)",
+ "astroport-token 1.0.0 (git+https://github.com/astroport-fi/astroport-core.git?branch=main)",
+ "astroport-whitelist",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw20",
@@ -240,9 +228,9 @@ dependencies = [
 [[package]]
 name = "astroport-token"
 version = "1.0.0"
-source = "git+https://github.com/astroport-fi/astroport-core.git?tag=v1.2.0#bd8f8599e1b1867b6e6a005bc4cef209699683e6"
+source = "git+https://github.com/astroport-fi/astroport.git?branch=main#4a0a4fc619a7549e1f347727d57e17522719f3fb"
 dependencies = [
- "astroport 1.2.0 (git+https://github.com/astroport-fi/astroport-core.git?tag=v1.2.0)",
+ "astroport 2.0.0 (git+https://github.com/astroport-fi/astroport.git?branch=main)",
  "cosmwasm-std",
  "cw2",
  "cw20",
@@ -255,9 +243,9 @@ dependencies = [
 [[package]]
 name = "astroport-token"
 version = "1.0.0"
-source = "git+https://github.com/astroport-fi/astroport.git?branch=main#973aab9419229cb221023066f96b18f2edf75ba8"
+source = "git+https://github.com/astroport-fi/astroport-core.git?branch=main#4a0a4fc619a7549e1f347727d57e17522719f3fb"
 dependencies = [
- "astroport 1.2.0 (git+https://github.com/astroport-fi/astroport.git?branch=main)",
+ "astroport 2.0.0 (git+https://github.com/astroport-fi/astroport-core.git?branch=main)",
  "cosmwasm-std",
  "cw2",
  "cw20",
@@ -270,9 +258,9 @@ dependencies = [
 [[package]]
 name = "astroport-token"
 version = "1.0.0"
-source = "git+https://github.com/astroport-fi/astroport-core.git?branch=main#0c4c450526912c585f3be3a561ee5b424dcbaeef"
+source = "git+https://github.com/astroport-fi/astroport.git#4a0a4fc619a7549e1f347727d57e17522719f3fb"
 dependencies = [
- "astroport 1.2.0 (git+https://github.com/astroport-fi/astroport-core.git?branch=main)",
+ "astroport 2.0.0 (git+https://github.com/astroport-fi/astroport.git)",
  "cosmwasm-std",
  "cw2",
  "cw20",
@@ -283,26 +271,27 @@ dependencies = [
 ]
 
 [[package]]
-name = "astroport-token"
+name = "astroport-whitelist"
 version = "1.0.0"
-source = "git+https://github.com/astroport-fi/astroport.git#dd1e682f196dd0e3d382fda7bea6737f104f39c7"
+source = "git+https://github.com/astroport-fi/astroport-core.git?branch=main#4a0a4fc619a7549e1f347727d57e17522719f3fb"
 dependencies = [
- "astroport 1.2.0 (git+https://github.com/astroport-fi/astroport.git)",
+ "astroport 2.0.0 (git+https://github.com/astroport-fi/astroport-core.git?branch=main)",
  "cosmwasm-std",
+ "cw-storage-plus 0.8.1",
+ "cw0 0.8.1",
+ "cw1",
  "cw2",
- "cw20",
- "cw20-base",
  "schemars",
  "serde",
- "snafu",
+ "thiserror",
 ]
 
 [[package]]
 name = "astroport-xastro-token"
 version = "1.0.0"
-source = "git+https://github.com/astroport-fi/astroport.git#0c4c450526912c585f3be3a561ee5b424dcbaeef"
+source = "git+https://github.com/astroport-fi/astroport.git#4a0a4fc619a7549e1f347727d57e17522719f3fb"
 dependencies = [
- "astroport 1.2.0 (git+https://github.com/astroport-fi/astroport.git)",
+ "astroport 2.0.0 (git+https://github.com/astroport-fi/astroport.git)",
  "cosmwasm-std",
  "cw-storage-plus 0.8.1",
  "cw2",
@@ -369,8 +358,8 @@ dependencies = [
 name = "builder-unlock"
 version = "1.1.0"
 dependencies = [
- "astroport 1.2.0 (git+https://github.com/astroport-fi/astroport.git?branch=main)",
- "astroport-governance",
+ "astroport 2.0.0 (git+https://github.com/astroport-fi/astroport.git?branch=main)",
+ "astroport-governance 1.0.0",
  "astroport-token 1.0.0 (git+https://github.com/astroport-fi/astroport.git?branch=main)",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -620,6 +609,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "cw1"
+version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b54b16025da3f2b31f033c1c4b917094126c385f6ffe7243560263509aed9c84"
+dependencies = [
+ "cosmwasm-std",
+ "schemars",
+ "serde",
+]
+
+[[package]]
 name = "cw2"
 version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -778,14 +778,15 @@ name = "generator-controller"
 version = "1.0.0"
 dependencies = [
  "anyhow",
- "astroport 1.2.0 (git+https://github.com/astroport-fi/astroport-core.git?branch=main)",
+ "astroport 2.0.0 (git+https://github.com/astroport-fi/astroport-core.git?branch=main)",
  "astroport-factory",
  "astroport-generator",
- "astroport-governance",
+ "astroport-governance 1.0.0",
  "astroport-pair",
- "astroport-staking 1.0.0 (git+https://github.com/astroport-fi/astroport-core.git?tag=v1.2.0)",
+ "astroport-staking 1.0.0 (git+https://github.com/astroport-fi/astroport-core.git?branch=main)",
  "astroport-tests",
- "astroport-token 1.0.0 (git+https://github.com/astroport-fi/astroport-core.git?tag=v1.2.0)",
+ "astroport-token 1.0.0 (git+https://github.com/astroport-fi/astroport-core.git?branch=main)",
+ "astroport-whitelist",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 0.8.1",
@@ -1417,11 +1418,11 @@ checksum = "49874b5167b65d7193b8aba1567f5c7d93d001cafc34600cee003eda787e483f"
 
 [[package]]
 name = "voting-escrow"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "anyhow",
- "astroport 1.2.0 (git+https://github.com/astroport-fi/astroport.git)",
- "astroport-governance",
+ "astroport 2.0.0 (git+https://github.com/astroport-fi/astroport.git)",
+ "astroport-governance 1.0.0",
  "astroport-staking 1.0.0 (git+https://github.com/astroport-fi/astroport.git)",
  "astroport-token 1.0.0 (git+https://github.com/astroport-fi/astroport.git)",
  "cosmwasm-schema",

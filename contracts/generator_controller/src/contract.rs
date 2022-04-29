@@ -21,11 +21,12 @@ use astroport_governance::voting_escrow::{get_lock_info, get_voting_power};
 use crate::bps::BasicPoints;
 use crate::error::ContractError;
 use crate::state::{
-    Config, GaugeInfo, UserInfo, VotedPoolInfo, CONFIG, GAUGE_INFO, OWNERSHIP_PROPOSAL, POOLS,
+    Config, TuneInfo, UserInfo, VotedPoolInfo, CONFIG, OWNERSHIP_PROPOSAL, POOLS, TUNE_INFO,
     USER_INFO,
 };
 use crate::utils::{
-    cancel_user_changes, filter_pools, get_pool_info, update_pool_info, vote_for_pool,
+    cancel_user_changes, filter_pools, get_pool_info, update_pool_info, validate_pools_limit,
+    vote_for_pool,
 };
 
 /// Contract name that is used for migration.
@@ -36,8 +37,8 @@ const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 const DAY: u64 = 86400;
 /// The user can only vote once every 10 days
 const VOTE_COOLDOWN: u64 = DAY * 10;
-/// The owner can only gauge generators once every 14 days
-const GAUGE_COOLDOWN: u64 = WEEK * 2;
+/// It is possible to tune pools once every 14 days
+const TUNE_COOLDOWN: u64 = WEEK * 2;
 
 type ExecuteResult = Result<Response, ContractError>;
 
@@ -61,15 +62,15 @@ pub fn instantiate(
             escrow_addr: addr_validate_to_lower(deps.api, &msg.escrow_addr)?,
             generator_addr: addr_validate_to_lower(deps.api, &msg.generator_addr)?,
             factory_addr: addr_validate_to_lower(deps.api, &msg.factory_addr)?,
-            pools_limit: msg.pools_limit,
+            pools_limit: validate_pools_limit(msg.pools_limit)?,
         },
     )?;
 
-    // Set gauge_ts just for safety so the first gauge could happen in 2 weeks
-    GAUGE_INFO.save(
+    // Set tune_ts just for safety so the first tuning could happen in 2 weeks
+    TUNE_INFO.save(
         deps.storage,
-        &GaugeInfo {
-            gauge_ts: env.block.time.seconds(),
+        &TuneInfo {
+            tune_ts: env.block.time.seconds(),
             pool_alloc_points: vec![],
         },
     )?;
@@ -83,7 +84,7 @@ pub fn instantiate(
 /// ## Execute messages
 /// * **ExecuteMsg::Vote { votes }** Casts votes for pools
 ///
-/// * **ExecuteMsg::GaugePools** Launches pool gauging
+/// * **ExecuteMsg::TunePools** Launches pool tuning
 ///
 /// * **ExecuteMsg::ChangePoolLimit { limit }** Changes the number of pools which are eligible to receive allocation points
 ///
@@ -96,7 +97,7 @@ pub fn instantiate(
 pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> ExecuteResult {
     match msg {
         ExecuteMsg::Vote { votes } => handle_vote(deps, env, info, votes),
-        ExecuteMsg::GaugePools {} => gauge_generators(deps, env, info),
+        ExecuteMsg::TunePools {} => tune_pools(deps, env),
         ExecuteMsg::ChangePoolsLimit { limit } => change_pools_limit(deps, info, limit),
         ExecuteMsg::ProposeNewOwner {
             new_owner,
@@ -263,7 +264,7 @@ fn handle_vote(
 
 /// ## Description
 /// Only contract owner can call this function.
-/// The function checks that the last generator gauging happened >= 14 days ago.
+/// The function checks that the last pools tuning happened >= 14 days ago.
 /// Then it calculates voting power for each pool at the current period, filters all pools which
 /// are not eligible to receive allocation points,
 /// takes top X pools by voting power, where X is 'config.pools_limit', calculates allocation points
@@ -274,19 +275,13 @@ fn handle_vote(
 /// * **deps** is an object of type [`DepsMut`].
 ///
 /// * **env** is an object of type [`Env`].
-///
-/// * **info** is an object of type [`MessageInfo`].
-fn gauge_generators(deps: DepsMut, env: Env, info: MessageInfo) -> ExecuteResult {
-    let mut gauge_info = GAUGE_INFO.load(deps.storage)?;
+fn tune_pools(deps: DepsMut, env: Env) -> ExecuteResult {
+    let mut tune_info = TUNE_INFO.load(deps.storage)?;
     let config = CONFIG.load(deps.storage)?;
     let block_period = get_period(env.block.time.seconds())?;
 
-    if info.sender != config.owner {
-        return Err(ContractError::Unauthorized {});
-    }
-
-    if env.block.time.seconds() - gauge_info.gauge_ts < GAUGE_COOLDOWN {
-        return Err(ContractError::CooldownError(GAUGE_COOLDOWN / DAY));
+    if env.block.time.seconds() - tune_info.tune_ts < TUNE_COOLDOWN {
+        return Err(ContractError::CooldownError(TUNE_COOLDOWN / DAY));
     }
 
     let pool_votes: Vec<_> = POOLS
@@ -310,7 +305,7 @@ fn gauge_generators(deps: DepsMut, env: Env, info: MessageInfo) -> ExecuteResult
         .sorted_by(|(_, a), (_, b)| b.cmp(a)) // Sort in descending order
         .collect();
 
-    gauge_info.pool_alloc_points = filter_pools(
+    tune_info.pool_alloc_points = filter_pools(
         deps.as_ref(),
         &config.generator_addr,
         &config.factory_addr,
@@ -318,25 +313,25 @@ fn gauge_generators(deps: DepsMut, env: Env, info: MessageInfo) -> ExecuteResult
         config.pools_limit,
     )?;
 
-    if gauge_info.pool_alloc_points.is_empty() {
-        return Err(ContractError::GaugeNoPools {});
+    if tune_info.pool_alloc_points.is_empty() {
+        return Err(ContractError::TuneNoPools {});
     }
 
     // Set new alloc points
     let setup_pools_msg = CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: config.generator_addr.to_string(),
         msg: to_binary(&astroport::generator::ExecuteMsg::SetupPools {
-            pools: gauge_info.pool_alloc_points.clone(),
+            pools: tune_info.pool_alloc_points.clone(),
         })?,
         funds: vec![],
     });
 
-    gauge_info.gauge_ts = env.block.time.seconds();
-    GAUGE_INFO.save(deps.storage, &gauge_info)?;
+    tune_info.tune_ts = env.block.time.seconds();
+    TUNE_INFO.save(deps.storage, &tune_info)?;
 
     Ok(Response::new()
         .add_message(setup_pools_msg)
-        .add_attribute("action", "gauge_generators"))
+        .add_attribute("action", "tune_pools"))
 }
 
 /// ## Description
@@ -356,7 +351,7 @@ fn change_pools_limit(deps: DepsMut, info: MessageInfo, limit: u64) -> ExecuteRe
         return Err(ContractError::Unauthorized {});
     }
 
-    config.pools_limit = limit;
+    config.pools_limit = validate_pools_limit(limit)?;
     CONFIG.save(deps.storage, &config)?;
 
     Ok(Response::default().add_attribute("action", "change_pools_limit"))
@@ -373,7 +368,7 @@ fn change_pools_limit(deps: DepsMut, info: MessageInfo, limit: u64) -> ExecuteRe
 /// ## Queries
 /// * **QueryMsg::UserInfo { user }** Fetch user information
 ///
-/// * **QueryMsg::GaugeInfo** Fetch last gauge information
+/// * **QueryMsg::TuneInfo** Fetch last tuning information
 ///
 /// * **QueryMsg::Config** Fetch contract config
 ///
@@ -384,7 +379,7 @@ fn change_pools_limit(deps: DepsMut, info: MessageInfo, limit: u64) -> ExecuteRe
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::UserInfo { user } => to_binary(&user_info(deps, user)?),
-        QueryMsg::GaugeInfo {} => to_binary(&GAUGE_INFO.load(deps.storage)?),
+        QueryMsg::TuneInfo {} => to_binary(&TUNE_INFO.load(deps.storage)?),
         QueryMsg::Config {} => to_binary(&CONFIG.load(deps.storage)?),
         QueryMsg::PoolInfo { pool_addr } => to_binary(&pool_info(deps, env, pool_addr, None)?),
         QueryMsg::PoolInfoAtPeriod { pool_addr, period } => {

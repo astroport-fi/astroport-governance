@@ -29,6 +29,9 @@ pub enum ContractError {
     #[error("Votes contain duplicated pool addresses")]
     DuplicatedPools {},
 
-    #[error("There are no pools to gauge")]
-    GaugeNoPools {},
+    #[error("There are no pools to tune")]
+    TuneNoPools {},
+
+    #[error("Invalid pool number: {0}. Must be within [2, 100] range")]
+    InvalidPoolNumber(u64),
 }

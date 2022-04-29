@@ -1,7 +1,7 @@
 use crate::voting_escrow::QueryMsg::{
     LockInfo, TotalVotingPower, TotalVotingPowerAt, UserVotingPower, UserVotingPowerAt,
 };
-use cosmwasm_std::{Addr, Decimal, QuerierWrapper, StdResult, Uint128};
+use cosmwasm_std::{Addr, Binary, Decimal, QuerierWrapper, StdResult, Uint128};
 use cw20::{Cw20ReceiveMsg, Logo};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -30,6 +30,10 @@ pub struct InstantiateMsg {
     pub deposit_token_addr: String,
     /// Marketing info for vxASTRO
     pub marketing: Option<InstantiateMarketingInfo>,
+    /// The maximum % of staked xASTRO that is confiscated upon an early exit
+    pub max_exit_penalty: Decimal,
+    /// The address that receives slashed ASTRO (slashed xASTRO is burned in order to claim ASTRO)
+    pub slashed_fund_receiver: Option<String>,
 }
 
 /// This structure describes the execute functions in the contract.
@@ -43,6 +47,21 @@ pub enum ExecuteMsg {
     Receive(Cw20ReceiveMsg),
     /// Withdraw xASTRO from the vxASTRO contract
     Withdraw {},
+    /// Early withdrawal with slashing penalty
+    WithdrawEarly {},
+    ConfigureEarlyWithdrawal {
+        /// The maximum penalty that can be applied to a user
+        max_penalty: Option<Decimal>,
+        /// The address that will receive the slashed funds
+        slashed_fund_receiver: Option<String>,
+    },
+    /// A callback after early withdrawal to send slashed ASTRO to the slashed funds receiver
+    EarlyWithdrawCallback {
+        /// Contracts' ASTRO balance before callback
+        precallback_astro: Uint128,
+        /// Slashed funds receiver
+        slashed_funds_receiver: Addr,
+    },
     /// Propose a new owner for the contract
     ProposeNewOwner { new_owner: String, expires_in: u64 },
     /// Remove the ownership transfer proposal
@@ -105,6 +124,11 @@ pub enum QueryMsg {
     UserVotingPowerAtPeriod { user: String, period: u64 },
     /// Return information about a user's lock position
     LockInfo { user: String },
+    /// Return the amount of xASTRO that the staker can withdraw right now after the penalty is applied
+    /// for early withdrawal
+    EarlyWithdrawAmount { user: String },
+    /// Return user's locked xASTRO balance at the given block height
+    UserDepositAtHeight { user: String, height: u64 },
     /// Return the  vxASTRO contract configuration
     Config {},
 }
@@ -134,14 +158,27 @@ pub struct LockInfoResponse {
 /// This structure stores the parameters returned when querying for a contract's configuration.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigResponse {
+    /// Address that's allowed to change contract parameters
     pub owner: String,
+    /// Address that can only blacklist vxASTRO stakers and remove their governance power
+    pub guardian_addr: String,
+    /// The xASTRO token contract address
     pub deposit_token_addr: String,
+    /// The maximum % of staked xASTRO that is confiscated upon an early exit
+    pub max_exit_penalty: Decimal,
+    /// The address that receives slashed ASTRO (slashed xASTRO is burned in order to claim ASTRO)
+    pub slashed_fund_receiver: Option<String>,
+    /// The address of $ASTRO
+    pub astro_addr: String,
+    /// The address of $xASTRO staking contract
+    pub xastro_staking_addr: String,
 }
 
-/// This structure describes a migration message.
-/// We currently take no arguments for migrations.
+/// This structure describes a Migration message.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct MigrateMsg {}
+pub struct MigrateMsg {
+    pub params: Binary,
+}
 
 /// Queries current user's voting power from the voting escrow contract.
 /// ## Params

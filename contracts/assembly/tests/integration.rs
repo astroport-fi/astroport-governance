@@ -1,6 +1,5 @@
 use astroport::{
-    token::InstantiateMsg as TokenInstantiateMsg,
-    xastro_token::InstantiateMsg as XAstroInstantiateMsg, xastro_token::QueryMsg as XAstroQueryMsg,
+    token::InstantiateMsg as TokenInstantiateMsg, xastro_token::QueryMsg as XAstroQueryMsg,
 };
 use std::str::FromStr;
 
@@ -21,7 +20,8 @@ use astroport_governance::builder_unlock::{AllocationParams, Schedule};
 use astroport_governance::utils::{EPOCH_START, WEEK};
 use cosmwasm_std::{
     testing::{mock_env, MockApi, MockStorage},
-    to_binary, Addr, CosmosMsg, Decimal, StdResult, Timestamp, Uint128, Uint64, WasmMsg,
+    to_binary, Addr, CosmosMsg, Decimal, QueryRequest, StdResult, Timestamp, Uint128, Uint64,
+    WasmMsg, WasmQuery,
 };
 use cw20::{BalanceResponse, Cw20ExecuteMsg, MinterResponse};
 use terra_multi_test::{
@@ -43,7 +43,7 @@ fn test_contract_instantiation() {
 
     // Instantiate needed contracts
     let token_addr = instantiate_astro_token(&mut app, &owner);
-    let xastro_token_addr = instantiate_xastro_token(&mut app, &owner);
+    let (_, xastro_token_addr) = instantiate_xastro_token(&mut app, &owner, &token_addr);
     let vxastro_token_addr = instantiate_vxastro_token(&mut app, &owner, &xastro_token_addr);
     let builder_unlock_addr = instantiate_builder_unlock_contract(&mut app, &owner, &token_addr);
 
@@ -210,7 +210,8 @@ fn test_proposal_submitting() {
     let owner = Addr::unchecked("owner");
     let user = Addr::unchecked("user1");
 
-    let (_, xastro_addr, _, _, assembly_addr) = instantiate_contracts(&mut app, owner);
+    let (_, staking_instance, xastro_addr, _, _, assembly_addr) =
+        instantiate_contracts(&mut app, owner);
 
     let proposals: ProposalListResponse = app
         .wrap()
@@ -226,7 +227,7 @@ fn test_proposal_submitting() {
     assert_eq!(proposals.proposal_count, Uint64::from(0u32));
     assert_eq!(proposals.proposal_list, vec![]);
 
-    mint_tokens(&mut app, &xastro_addr, &user, 2000);
+    mint_tokens(&mut app, &staking_instance, &xastro_addr, &user, 2000);
 
     check_token_balance(&mut app, &xastro_addr, &user, 2000);
 
@@ -517,8 +518,14 @@ fn test_successful_proposal() {
 
     let owner = Addr::unchecked("owner");
 
-    let (token_addr, xastro_addr, vxastro_addr, builder_unlock_addr, assembly_addr) =
-        instantiate_contracts(&mut app, owner);
+    let (
+        token_addr,
+        staking_instance,
+        xastro_addr,
+        vxastro_addr,
+        builder_unlock_addr,
+        assembly_addr,
+    ) = instantiate_contracts(&mut app, owner);
 
     // Init voting power for users
     let balances: Vec<(&str, u128, u128)> = vec![
@@ -579,12 +586,19 @@ fn test_successful_proposal() {
 
     for (addr, xastro, vxastro) in balances {
         if xastro > 0 {
-            mint_tokens(&mut app, &xastro_addr, &Addr::unchecked(addr), xastro);
+            mint_tokens(
+                &mut app,
+                &staking_instance,
+                &xastro_addr,
+                &Addr::unchecked(addr),
+                xastro,
+            );
         }
 
         if vxastro > 0 {
             mint_vxastro(
                 &mut app,
+                &staking_instance,
                 xastro_addr.clone(),
                 &vxastro_addr,
                 Addr::unchecked(addr),
@@ -631,16 +645,16 @@ fn test_successful_proposal() {
     );
 
     let votes: Vec<(&str, ProposalVoteOption, u128)> = vec![
-        ("user1", ProposalVoteOption::For, 200u128),
-        ("user2", ProposalVoteOption::For, 250u128),
-        ("user3", ProposalVoteOption::For, 450u128),
-        ("user4", ProposalVoteOption::For, 300u128),
-        ("user5", ProposalVoteOption::For, 150u128),
-        ("user6", ProposalVoteOption::For, 400u128),
+        ("user1", ProposalVoteOption::For, 280u128),
+        ("user2", ProposalVoteOption::For, 350u128),
+        ("user3", ProposalVoteOption::For, 550u128),
+        ("user4", ProposalVoteOption::For, 350u128),
+        ("user5", ProposalVoteOption::For, 240u128),
+        ("user6", ProposalVoteOption::For, 600u128),
         ("user7", ProposalVoteOption::For, 130u128),
-        ("user8", ProposalVoteOption::Against, 230u128),
+        ("user8", ProposalVoteOption::Against, 330u128),
         ("user9", ProposalVoteOption::Against, 50u128),
-        ("user10", ProposalVoteOption::Against, 180u128),
+        ("user10", ProposalVoteOption::Against, 270u128),
     ];
 
     check_total_vp(&mut app, &assembly_addr, 1, 4650);
@@ -670,11 +684,11 @@ fn test_successful_proposal() {
         .unwrap();
 
     // Check proposal votes
-    assert_eq!(proposal.for_power, Uint128::from(1880u32));
-    assert_eq!(proposal.against_power, Uint128::from(460u32));
+    assert_eq!(proposal.for_power, Uint128::from(2500u32));
+    assert_eq!(proposal.against_power, Uint128::from(650u32));
 
-    assert_eq!(proposal_votes.for_power, Uint128::from(1880u32));
-    assert_eq!(proposal_votes.against_power, Uint128::from(460u32));
+    assert_eq!(proposal_votes.for_power, Uint128::from(2500u32));
+    assert_eq!(proposal_votes.against_power, Uint128::from(650u32));
 
     assert_eq!(
         proposal.for_voters,
@@ -861,18 +875,26 @@ fn test_voting_power_changes() {
 
     let owner = Addr::unchecked("owner");
 
-    let (_, xastro_addr, _, _, assembly_addr) = instantiate_contracts(&mut app, owner);
+    let (_, staking_instance, xastro_addr, _, _, assembly_addr) =
+        instantiate_contracts(&mut app, owner);
 
     // Mint tokens for submitting proposal
     mint_tokens(
         &mut app,
+        &staking_instance,
         &xastro_addr,
         &Addr::unchecked("user0"),
         PROPOSAL_REQUIRED_DEPOSIT,
     );
 
     // Mint tokens for casting votes at start block
-    mint_tokens(&mut app, &xastro_addr, &Addr::unchecked("user1"), 4000);
+    mint_tokens(
+        &mut app,
+        &staking_instance,
+        &xastro_addr,
+        &Addr::unchecked("user1"),
+        4000,
+    );
 
     app.update_block(next_block);
 
@@ -905,7 +927,13 @@ fn test_voting_power_changes() {
         }]),
     );
     // Mint user2's tokens at the same block to increase total supply and add voting power to try to cast vote.
-    mint_tokens(&mut app, &xastro_addr, &Addr::unchecked("user2"), 50000);
+    mint_tokens(
+        &mut app,
+        &staking_instance,
+        &xastro_addr,
+        &Addr::unchecked("user2"),
+        50000,
+    );
 
     app.update_block(next_block);
 
@@ -977,18 +1005,20 @@ fn test_block_height_selection() {
     let user2 = Addr::unchecked("user2");
     let user3 = Addr::unchecked("user3");
 
-    let (_, xastro_addr, _, _, assembly_addr) = instantiate_contracts(&mut app, owner);
+    let (_, staking_instance, xastro_addr, _, _, assembly_addr) =
+        instantiate_contracts(&mut app, owner);
 
     // Mint tokens for submitting proposal
     mint_tokens(
         &mut app,
+        &staking_instance,
         &xastro_addr,
         &Addr::unchecked("user0"),
         PROPOSAL_REQUIRED_DEPOSIT,
     );
 
-    mint_tokens(&mut app, &xastro_addr, &user1, 6001);
-    mint_tokens(&mut app, &xastro_addr, &user2, 4000);
+    mint_tokens(&mut app, &staking_instance, &xastro_addr, &user1, 6001);
+    mint_tokens(&mut app, &staking_instance, &xastro_addr, &user2, 4000);
 
     // Move to the next block(12346)
     app.update_block(next_block);
@@ -1013,9 +1043,9 @@ fn test_block_height_selection() {
 
     // Mint huge amount of xASTRO. These tokens cannot affect on total supply in proposal 1 because
     // they were minted after proposal.start_block - 1
-    mint_tokens(&mut app, &xastro_addr, &user3, 100000);
+    mint_tokens(&mut app, &staking_instance, &xastro_addr, &user3, 100000);
     // Mint more xASTRO to user2, who will vote against the proposal, what is enough to make proposal unsuccessful.
-    mint_tokens(&mut app, &xastro_addr, &user2, 3000);
+    mint_tokens(&mut app, &staking_instance, &xastro_addr, &user2, 3000);
     // Total voting power should be 11001
     check_total_vp(&mut app, &assembly_addr, 1, 11001);
 
@@ -1067,7 +1097,8 @@ fn test_unsuccessful_proposal() {
 
     let owner = Addr::unchecked("owner");
 
-    let (_, xastro_addr, _, _, assembly_addr) = instantiate_contracts(&mut app, owner);
+    let (_, staking_instance, xastro_addr, _, _, assembly_addr) =
+        instantiate_contracts(&mut app, owner);
 
     // Init voting power for users
     let xastro_balances: Vec<(&str, u128)> = vec![
@@ -1086,7 +1117,13 @@ fn test_unsuccessful_proposal() {
     ];
 
     for (addr, xastro) in xastro_balances {
-        mint_tokens(&mut app, &xastro_addr, &Addr::unchecked(addr), xastro);
+        mint_tokens(
+            &mut app,
+            &staking_instance,
+            &xastro_addr,
+            &Addr::unchecked(addr),
+            xastro,
+        );
     }
 
     // Skip block
@@ -1204,9 +1241,13 @@ fn mock_app() -> TerraApp {
         .build()
 }
 
-fn instantiate_contracts(router: &mut TerraApp, owner: Addr) -> (Addr, Addr, Addr, Addr, Addr) {
+fn instantiate_contracts(
+    router: &mut TerraApp,
+    owner: Addr,
+) -> (Addr, Addr, Addr, Addr, Addr, Addr) {
     let token_addr = instantiate_astro_token(router, &owner);
-    let xastro_token_addr = instantiate_xastro_token(router, &owner);
+    let (staking_instance, xastro_token_addr) =
+        instantiate_xastro_token(router, &owner, &token_addr);
     let vxastro_token_addr = instantiate_vxastro_token(router, &owner, &xastro_token_addr);
     let builder_unlock_addr = instantiate_builder_unlock_contract(router, &owner, &token_addr);
     let assembly_addr = instantiate_assembly_contract(
@@ -1218,13 +1259,14 @@ fn instantiate_contracts(router: &mut TerraApp, owner: Addr) -> (Addr, Addr, Add
     );
 
     assert_eq!("contract #0", token_addr);
-    assert_eq!("contract #1", xastro_token_addr);
-    assert_eq!("contract #2", vxastro_token_addr);
-    assert_eq!("contract #3", builder_unlock_addr);
-    assert_eq!("contract #4", assembly_addr);
+    assert_eq!("contract #2", xastro_token_addr);
+    assert_eq!("contract #3", vxastro_token_addr);
+    assert_eq!("contract #4", builder_unlock_addr);
+    assert_eq!("contract #5", assembly_addr);
 
     (
         token_addr,
+        staking_instance,
         xastro_token_addr,
         vxastro_token_addr,
         builder_unlock_addr,
@@ -1264,36 +1306,55 @@ fn instantiate_astro_token(router: &mut TerraApp, owner: &Addr) -> Addr {
         .unwrap()
 }
 
-fn instantiate_xastro_token(router: &mut TerraApp, owner: &Addr) -> Addr {
-    let xastro_token_contract = Box::new(ContractWrapper::new_with_empty(
+fn instantiate_xastro_token(
+    router: &mut TerraApp,
+    owner: &Addr,
+    astro_token: &Addr,
+) -> (Addr, Addr) {
+    let xastro_contract = Box::new(ContractWrapper::new_with_empty(
         astroport_xastro_token::contract::execute,
         astroport_xastro_token::contract::instantiate,
         astroport_xastro_token::contract::query,
     ));
 
-    let xastro_token_code_id = router.store_code(xastro_token_contract);
+    let xastro_code_id = router.store_code(xastro_contract);
 
-    let msg = XAstroInstantiateMsg {
-        name: String::from("xAstro token"),
-        symbol: String::from("xASTRO"),
-        decimals: 6,
-        initial_balances: vec![],
-        mint: Some(MinterResponse {
-            minter: owner.to_string(),
-            cap: None,
-        }),
+    let staking_contract = Box::new(
+        ContractWrapper::new_with_empty(
+            astroport_staking::contract::execute,
+            astroport_staking::contract::instantiate,
+            astroport_staking::contract::query,
+        )
+        .with_reply_empty(astroport_staking::contract::reply),
+    );
+
+    let staking_code_id = router.store_code(staking_contract);
+
+    let msg = astroport::staking::InstantiateMsg {
+        owner: owner.to_string(),
+        token_code_id: xastro_code_id,
+        deposit_token_addr: astro_token.to_string(),
     };
-
-    router
+    let staking_instance = router
         .instantiate_contract(
-            xastro_token_code_id,
+            staking_code_id,
             owner.clone(),
             &msg,
             &[],
             String::from("xASTRO"),
             None,
         )
-        .unwrap()
+        .unwrap();
+
+    let res = router
+        .wrap()
+        .query::<astroport::staking::ConfigResponse>(&QueryRequest::Wasm(WasmQuery::Smart {
+            contract_addr: staking_instance.to_string(),
+            msg: to_binary(&astroport::staking::QueryMsg::Config {}).unwrap(),
+        }))
+        .unwrap();
+
+    (staking_instance, res.share_token_addr)
 }
 
 fn instantiate_vxastro_token(router: &mut TerraApp, owner: &Addr, xastro: &Addr) -> Addr {
@@ -1310,6 +1371,8 @@ fn instantiate_vxastro_token(router: &mut TerraApp, owner: &Addr, xastro: &Addr)
         guardian_addr: owner.to_string(),
         deposit_token_addr: xastro.to_string(),
         marketing: None,
+        max_exit_penalty: Decimal::from_str("0.75").unwrap(),
+        slashed_fund_receiver: None,
     };
 
     router
@@ -1395,18 +1458,31 @@ fn instantiate_assembly_contract(
         .unwrap()
 }
 
-fn mint_tokens(app: &mut TerraApp, token: &Addr, recipient: &Addr, amount: u128) {
+fn mint_tokens(app: &mut TerraApp, minter: &Addr, token: &Addr, recipient: &Addr, amount: u128) {
     let msg = Cw20ExecuteMsg::Mint {
         recipient: recipient.to_string(),
         amount: Uint128::from(amount),
     };
 
-    app.execute_contract(Addr::unchecked("owner"), token.to_owned(), &msg, &[])
+    app.execute_contract(minter.clone(), token.to_owned(), &msg, &[])
         .unwrap();
 }
 
-fn mint_vxastro(app: &mut TerraApp, xastro: Addr, vxastro: &Addr, recipient: Addr, amount: u128) {
-    mint_tokens(app, &xastro.clone(), &recipient.clone(), amount);
+fn mint_vxastro(
+    app: &mut TerraApp,
+    staking_instance: &Addr,
+    xastro: Addr,
+    vxastro: &Addr,
+    recipient: Addr,
+    amount: u128,
+) {
+    mint_tokens(
+        app,
+        staking_instance,
+        &xastro.clone(),
+        &recipient.clone(),
+        amount,
+    );
 
     let msg = Cw20ExecuteMsg::Send {
         contract: vxastro.to_string(),
@@ -1428,7 +1504,13 @@ fn create_allocations(
         .map(|params| params.1.amount.u128())
         .sum();
 
-    mint_tokens(app, &token, &Addr::unchecked("owner"), amount);
+    mint_tokens(
+        app,
+        &Addr::unchecked("owner"),
+        &token,
+        &Addr::unchecked("owner"),
+        amount,
+    );
 
     app.execute_contract(
         Addr::unchecked("owner"),

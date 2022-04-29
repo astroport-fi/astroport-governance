@@ -1,11 +1,11 @@
 use astroport::asset::AssetInfo;
 use astroport::generator::PoolInfoResponse;
 use cosmwasm_std::Addr;
-use terra_multi_test::Executor;
+use terra_multi_test::{ContractWrapper, Executor, TerraApp};
 
 use astroport_governance::generator_controller::{ConfigResponse, ExecuteMsg, QueryMsg};
 use astroport_governance::utils::{get_period, WEEK};
-use generator_controller::state::GaugeInfo;
+use generator_controller::state::TuneInfo;
 
 use astroport_tests::{
     controller_helper::ControllerHelper, escrow_helper::MULTIPLIER, mock_app, TerraAppExtension,
@@ -134,7 +134,7 @@ fn check_vote_works() {
 }
 
 #[test]
-fn check_gauging() {
+fn check_tuning() {
     let mut router = mock_app();
     let owner = "owner";
     let owner_addr = Addr::unchecked(owner);
@@ -195,30 +195,28 @@ fn check_gauging() {
         .unwrap();
 
     // The contract was just created so we need to wait for 2 weeks
-    let err = helper.gauge(&mut router, owner).unwrap_err();
+    let err = helper.tune(&mut router).unwrap_err();
     assert_eq!(
         err.to_string(),
         "You can only run this action every 14 days"
     );
 
     router.next_block(WEEK);
-    let err = helper.gauge(&mut router, owner).unwrap_err();
+    let err = helper.tune(&mut router).unwrap_err();
     assert_eq!(
         err.to_string(),
         "You can only run this action every 14 days"
     );
 
     router.next_block(WEEK);
-    let err = helper.gauge(&mut router, "somebody").unwrap_err();
-    assert_eq!(err.to_string(), "Unauthorized");
 
-    helper.gauge(&mut router, owner).unwrap();
+    helper.tune(&mut router).unwrap();
 
-    let resp: GaugeInfo = router
+    let resp: TuneInfo = router
         .wrap()
-        .query_wasm_smart(helper.controller.clone(), &QueryMsg::GaugeInfo {})
+        .query_wasm_smart(helper.controller.clone(), &QueryMsg::TuneInfo {})
         .unwrap();
-    assert_eq!(get_period(resp.gauge_ts).unwrap(), router.block_period());
+    assert_eq!(get_period(resp.tune_ts).unwrap(), router.block_period());
     assert_eq!(resp.pool_alloc_points.len(), pools.len());
     let total_apoints: u128 = resp
         .pool_alloc_points
@@ -250,13 +248,26 @@ fn check_gauging() {
         )
         .unwrap();
 
-    helper.gauge(&mut router, owner).unwrap();
+    let err = router
+        .execute_contract(
+            owner_addr.clone(),
+            helper.controller.clone(),
+            &ExecuteMsg::ChangePoolsLimit { limit: 101 },
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.to_string(),
+        "Invalid pool number: 101. Must be within [2, 100] range"
+    );
 
-    let resp: GaugeInfo = router
+    helper.tune(&mut router).unwrap();
+
+    let resp: TuneInfo = router
         .wrap()
-        .query_wasm_smart(helper.controller.clone(), &QueryMsg::GaugeInfo {})
+        .query_wasm_smart(helper.controller.clone(), &QueryMsg::TuneInfo {})
         .unwrap();
-    assert_eq!(get_period(resp.gauge_ts).unwrap(), router.block_period());
+    assert_eq!(get_period(resp.tune_ts).unwrap(), router.block_period());
     assert_eq!(resp.pool_alloc_points.len(), limit as usize);
     let total_apoints: u128 = resp
         .pool_alloc_points
@@ -336,10 +347,10 @@ fn check_bad_pools_filtering() {
 
     router.next_block(2 * WEEK);
 
-    helper.gauge(&mut router, owner).unwrap();
-    let resp: GaugeInfo = router
+    helper.tune(&mut router).unwrap();
+    let resp: TuneInfo = router
         .wrap()
-        .query_wasm_smart(helper.controller.clone(), &QueryMsg::GaugeInfo {})
+        .query_wasm_smart(helper.controller.clone(), &QueryMsg::TuneInfo {})
         .unwrap();
     // There was only one valid pool
     assert_eq!(resp.pool_alloc_points.len(), 1);
@@ -368,8 +379,8 @@ fn check_bad_pools_filtering() {
     helper
         .vote(&mut router, user, vec![(pools[0].as_str(), 10000)])
         .unwrap();
-    let err = helper.gauge(&mut router, owner).unwrap_err();
-    assert_eq!(err.to_string(), "There are no pools to gauge");
+    let err = helper.tune(&mut router).unwrap_err();
+    assert_eq!(err.to_string(), "There are no pools to tune");
 
     router.next_block(2 * WEEK);
 
@@ -381,7 +392,7 @@ fn check_bad_pools_filtering() {
         .execute_contract(
             owner_addr.clone(),
             helper.generator.clone(),
-            &astroport::generator::ExecuteMsg::UpdateTokensBlockedlist {
+            &astroport::generator::ExecuteMsg::UpdateBlockedTokenslist {
                 add: Some(vec![foo_asset_info]),
                 remove: None,
             },
@@ -403,11 +414,11 @@ fn check_bad_pools_filtering() {
         .unwrap();
 
     router.next_block(WEEK);
-    helper.gauge(&mut router, owner).unwrap();
+    helper.tune(&mut router).unwrap();
 
-    let resp: GaugeInfo = router
+    let resp: TuneInfo = router
         .wrap()
-        .query_wasm_smart(helper.controller.clone(), &QueryMsg::GaugeInfo {})
+        .query_wasm_smart(helper.controller.clone(), &QueryMsg::TuneInfo {})
         .unwrap();
     // Only one pool is eligible to receive alloc points
     assert_eq!(resp.pool_alloc_points.len(), 1);
@@ -496,4 +507,14 @@ fn check_update_owner() {
         .unwrap();
 
     assert_eq!(res.owner, new_owner)
+}
+
+fn store_whitelist_code(app: &mut TerraApp) -> u64 {
+    let whitelist_contract = Box::new(ContractWrapper::new_with_empty(
+        astroport_whitelist::contract::execute,
+        astroport_whitelist::contract::instantiate,
+        astroport_whitelist::contract::query,
+    ));
+
+    app.store_code(whitelist_contract)
 }

@@ -26,7 +26,7 @@ pub enum ExecuteMsg {
         votes: Vec<(String, u16)>,
     },
     /// TunePools transforms the latest vote distribution into alloc_points which are then applied to ASTRO generators
-    GaugePools {},
+    TunePools {},
     /// ChangePoolsLimit changes the max amount of pools that can be voted at once to receive ASTRO emissions
     ChangePoolsLimit {
         limit: u64,
@@ -51,7 +51,7 @@ pub enum QueryMsg {
     /// UserInfo returns information about a voter and the generators they voted for
     UserInfo { user: String },
     /// TuneInfo returns information about the latest generators that were voted to receive ASTRO emissions
-    GaugeInfo {},
+    TuneInfo {},
     /// Config returns the contract configuration
     Config {},
     /// PoolInfo returns the latest voting power allocated to a specific pool (generator)
@@ -93,7 +93,7 @@ pub struct VotedPoolInfoResponse {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Default)]
 pub struct GaugeInfoResponse {
     /// Last timestamp when a tuning vote happened
-    pub gauge_ts: u64,
+    pub tune_ts: u64,
     /// Distribution of alloc_points to apply in the Generator contract
     pub pool_alloc_points: Vec<(String, Uint128)>,
 }
