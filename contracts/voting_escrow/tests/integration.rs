@@ -619,24 +619,15 @@ fn check_queries() {
     assert_eq!(blacklisted_voters, empty_blacklist);
 
     // check if voters are blacklisted
-    let err = helper
+    let res = helper
         .check_voters_are_blacklisted(router_ref, vec!["voter1".to_string(), "voter9".to_string()])
-        .unwrap_err();
-    assert_eq!(
-        StdError::generic_err(
-            "Querier contract error: Generic error: Voter is not blacklisted: voter9"
-        ),
-        err
-    );
+        .unwrap();
+    assert_eq!("Voter is not blacklisted: voter9", res.to_string());
 
     let res = helper
         .check_voters_are_blacklisted(router_ref, vec!["voter1".to_string(), "voter8".to_string()])
         .unwrap();
-    assert_eq!(
-        attr("action", "check_voters_are_blacklisted"),
-        res.attributes[0]
-    );
-    assert_eq!(attr("are_voters_blacklisted", "true"), res.attributes[1])
+    assert_eq!("Voters are blacklisted!", res.to_string());
 }
 
 #[test]

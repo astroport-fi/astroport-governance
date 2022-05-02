@@ -2,12 +2,12 @@ use anyhow::Result;
 use astroport::{staking as xastro, token as astro};
 use astroport_governance::utils::EPOCH_START;
 use astroport_governance::voting_escrow::{
-    Cw20HookMsg, ExecuteMsg, InstantiateMsg, QueryMsg, VotingPowerResponse,
+    BlacklistedVotersResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, QueryMsg,
+    VotingPowerResponse,
 };
 use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
 use cosmwasm_std::{
-    attr, to_binary, Addr, Decimal, QueryRequest, Response, StdResult, Timestamp, Uint128,
-    WasmQuery,
+    attr, to_binary, Addr, Decimal, QueryRequest, StdResult, Timestamp, Uint128, WasmQuery,
 };
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
 use std::str::FromStr;
@@ -469,7 +469,7 @@ impl Helper {
         &self,
         router: &mut TerraApp,
         voters: Vec<String>,
-    ) -> StdResult<Response> {
+    ) -> StdResult<BlacklistedVotersResponse> {
         router.wrap().query_wasm_smart(
             self.voting_instance.clone(),
             &QueryMsg::CheckVotersAreBlacklisted { voters },

@@ -5,6 +5,7 @@ use cosmwasm_std::{Addr, Binary, Decimal, QuerierWrapper, StdResult, Uint128};
 use cw20::{Cw20ReceiveMsg, Logo};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use std::fmt;
 
 /// ## Pagination settings
 /// The maximum amount of items that can be read at once from
@@ -103,6 +104,27 @@ pub enum Cw20HookMsg {
     DepositFor { user: String },
     /// Add more xASTRO to your vxASTRO position
     ExtendLockAmount {},
+}
+
+/// This enum describes voters status.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum BlacklistedVotersResponse {
+    /// Voters are blacklisted
+    VotersBlacklisted {},
+    /// Returns a voter that is not blacklisted.
+    VotersNotBlacklisted { voter: String },
+}
+
+impl fmt::Display for BlacklistedVotersResponse {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            BlacklistedVotersResponse::VotersBlacklisted {} => write!(f, "Voters are blacklisted!"),
+            BlacklistedVotersResponse::VotersNotBlacklisted { voter } => {
+                write!(f, "Voter is not blacklisted: {}", voter)
+            }
+        }
+    }
 }
 
 /// This structure describes the query messages available in the contract.

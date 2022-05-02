@@ -17,7 +17,9 @@ use astroport_governance::generator_controller::{
 };
 use astroport_governance::utils::{calc_voting_power, get_period, WEEK};
 use astroport_governance::voting_escrow::QueryMsg::CheckVotersAreBlacklisted;
-use astroport_governance::voting_escrow::{get_lock_info, get_voting_power};
+use astroport_governance::voting_escrow::{
+    get_lock_info, get_voting_power, BlacklistedVotersResponse,
+};
 
 use crate::bps::BasicPoints;
 use crate::error::ContractError;
@@ -162,12 +164,16 @@ fn kick_blacklisted_voters(deps: DepsMut, env: Env, voters: Vec<String>) -> Exec
     }
 
     // check if voters are blacklisted
-    let _: Response = deps.querier.query_wasm_smart(
+    let res: BlacklistedVotersResponse = deps.querier.query_wasm_smart(
         escrow_addr,
         &CheckVotersAreBlacklisted {
             voters: voters.clone(),
         },
     )?;
+
+    if !res.eq(&BlacklistedVotersResponse::VotersBlacklisted {}) {
+        return Err(ContractError::Std(StdError::generic_err(res.to_string())));
+    }
 
     for voter in voters {
         let voter_addr = addr_validate_to_lower(deps.api, &voter)?;

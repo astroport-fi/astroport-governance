@@ -4,8 +4,8 @@ use astroport::DecimalCheckedOps;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, from_binary, to_binary, Addr, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env,
-    MessageInfo, Response, StdError, StdResult, SubMsg, Uint128, WasmMsg,
+    from_binary, to_binary, Addr, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo,
+    Response, StdError, StdResult, SubMsg, Uint128, WasmMsg,
 };
 use cw2::{get_contract_version, set_contract_version};
 use cw20::{
@@ -21,8 +21,8 @@ use cw_storage_plus::U64Key;
 use astroport_governance::querier::query_token_balance;
 use astroport_governance::utils::{get_period, get_periods_count, EPOCH_START, WEEK};
 use astroport_governance::voting_escrow::{
-    ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, LockInfoResponse, MigrateMsg,
-    QueryMsg, VotingPowerResponse, DEFAULT_LIMIT, MAX_LIMIT,
+    BlacklistedVotersResponse, ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg,
+    LockInfoResponse, MigrateMsg, QueryMsg, VotingPowerResponse, DEFAULT_LIMIT, MAX_LIMIT,
 };
 
 use crate::error::ContractError;
@@ -1051,23 +1051,20 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 /// * **deps** is an object of type [`Deps`].
 ///
 /// * **voters** is a list of type [`String`]. Specifies addresses to check if they are blacklisted.
-pub fn check_voters_are_blacklisted(deps: Deps, voters: Vec<String>) -> StdResult<Response> {
+pub fn check_voters_are_blacklisted(
+    deps: Deps,
+    voters: Vec<String>,
+) -> StdResult<BlacklistedVotersResponse> {
     let black_list = BLACKLIST.load(deps.storage)?;
 
     for voter in voters {
         let voter_addr = addr_validate_to_lower(deps.api, voter.as_str())?;
         if !black_list.contains(&voter_addr) {
-            return Err(StdError::generic_err(format!(
-                "Voter is not blacklisted: {}",
-                voter_addr
-            )));
+            return Ok(BlacklistedVotersResponse::VotersNotBlacklisted { voter });
         }
     }
 
-    Ok(Response::new().add_attributes(vec![
-        attr("action", "check_voters_are_blacklisted"),
-        attr("are_voters_blacklisted", "true"),
-    ]))
+    Ok(BlacklistedVotersResponse::VotersBlacklisted {})
 }
 
 /// ## Description
