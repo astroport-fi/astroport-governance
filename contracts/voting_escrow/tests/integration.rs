@@ -599,6 +599,24 @@ fn check_queries() {
         vec![Addr::unchecked("voter3"), Addr::unchecked("voter4")]
     );
 
+    // add users to the blacklist
+    helper
+        .update_blacklist(
+            router_ref,
+            Some(vec!["voter0".to_string(), "voter33".to_string()]),
+            None,
+        )
+        .unwrap();
+
+    // query voters by specified parameters
+    let blacklisted_voters = helper
+        .query_blacklisted_voters(router_ref, Some("voter2".to_string()), Some(2u32))
+        .unwrap();
+    assert_eq!(
+        blacklisted_voters,
+        vec![Addr::unchecked("voter3"), Addr::unchecked("voter33")]
+    );
+
     let blacklisted_voters = helper
         .query_blacklisted_voters(router_ref, Some("voter4".to_string()), Some(10u32))
         .unwrap();
