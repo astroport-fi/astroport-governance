@@ -9,7 +9,7 @@ use cosmwasm_std::{
     to_binary, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Order, Response, StdError,
     StdResult, WasmMsg,
 };
-use cw2::set_contract_version;
+use cw2::{get_contract_version, set_contract_version};
 use itertools::Itertools;
 
 use astroport_governance::generator_controller::{
@@ -23,6 +23,7 @@ use astroport_governance::voting_escrow::{
 
 use crate::bps::BasicPoints;
 use crate::error::ContractError;
+use crate::migration;
 use crate::state::{
     Config, TuneInfo, UserInfo, VotedPoolInfo, CONFIG, OWNERSHIP_PROPOSAL, POOLS, TUNE_INFO,
     USER_INFO,
@@ -33,7 +34,7 @@ use crate::utils::{
 };
 
 /// Contract name that is used for migration.
-const CONTRACT_NAME: &str = "astro-generator-controller";
+const CONTRACT_NAME: &str = "generator-controller";
 /// Contract version that is used for migration.
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -536,6 +537,22 @@ fn pool_info(
 /// ## Description
 /// Used for migration of contract. Returns the default object of type [`Response`].
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
-    Ok(Response::default())
+pub fn migrate(mut deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
+    let contract_version = get_contract_version(deps.storage)?;
+
+    match contract_version.contract.as_ref() {
+        "generator-controller" => match contract_version.version.as_ref() {
+            "1.0.0" => migration::migrate_configs_to_v110(&mut deps, &msg)?,
+            _ => return Err(ContractError::MigrationError {}),
+        },
+        _ => return Err(ContractError::MigrationError {}),
+    };
+
+    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    Ok(Response::new()
+        .add_attribute("previous_contract_name", &contract_version.contract)
+        .add_attribute("previous_contract_version", &contract_version.version)
+        .add_attribute("new_contract_name", CONTRACT_NAME)
+        .add_attribute("new_contract_version", CONTRACT_VERSION))
 }

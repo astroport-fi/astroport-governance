@@ -62,7 +62,10 @@ pub enum QueryMsg {
 /// This structure describes a migration message.
 /// We currently take no arguments for migrations.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct MigrateMsg {}
+pub struct MigrateMsg {
+    /// Max number of blacklisted voters can be removed
+    pub blacklisted_voters_limit: Option<u32>,
+}
 
 /// This structure describes response with the main control config of generator controller contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

@@ -1359,6 +1359,7 @@ pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response,
                 // 1.0.0 -> 1.1.0
                 MigrationV110::migrate(deps.branch(), env, msg)?;
             }
+            "1.1.0" => {}
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),
