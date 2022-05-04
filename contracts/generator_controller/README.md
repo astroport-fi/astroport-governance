@@ -32,6 +32,17 @@ Remove votes of voters that are blacklisted.
 }
 ```
 
+### `update_config`
+
+Sets a new limit of blacklisted voters that can be kicked at once.
+
+```json
+{
+  "update_config": {
+    "blacklisted_voters_limit": 22
+  }
+}
+```
 
 ### `vote`
 

@@ -37,4 +37,7 @@ pub enum ContractError {
 
     #[error("The vector contains duplicated addresses")]
     DuplicatedVoters {},
+
+    #[error("Exceeded voters limit for kick blacklisted voters operation!")]
+    KickVotersLimitExceeded {},
 }

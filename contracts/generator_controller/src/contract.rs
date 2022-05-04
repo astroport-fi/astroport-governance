@@ -13,7 +13,7 @@ use cw2::set_contract_version;
 use itertools::Itertools;
 
 use astroport_governance::generator_controller::{
-    ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg, UserInfoResponse,
+    ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg, UserInfoResponse, VOTERS_MAX_LIMIT,
 };
 use astroport_governance::utils::{calc_voting_power, get_period, WEEK};
 use astroport_governance::voting_escrow::QueryMsg::CheckVotersAreBlacklisted;
@@ -66,6 +66,7 @@ pub fn instantiate(
             generator_addr: addr_validate_to_lower(deps.api, &msg.generator_addr)?,
             factory_addr: addr_validate_to_lower(deps.api, &msg.factory_addr)?,
             pools_limit: validate_pools_limit(msg.pools_limit)?,
+            blacklisted_voters_limit: None,
         },
     )?;
 
@@ -89,9 +90,14 @@ pub fn instantiate(
 ///
 /// * **ExecuteMsg::TunePools** Launches pool tuning
 ///
-/// * **ExecuteMsg::ChangePoolLimit { limit }** Changes the number of pools which are eligible to receive allocation points
+/// * **ExecuteMsg::ChangePoolsLimit { limit }** Changes the number of pools which are eligible
+/// to receive allocation points
 ///
-/// * **ExecuteMsg::ProposeNewOwner { owner, expires_in }** Creates a new request to change contract ownership.
+/// * **ExecuteMsg::UpdateConfig { blacklisted_voters_limit }** Changes the number of blacklisted
+/// voters that can be kicked at once
+///
+/// * **ExecuteMsg::ProposeNewOwner { owner, expires_in }** Creates a new request to change
+/// contract ownership.
 ///
 /// * **ExecuteMsg::DropOwnershipProposal {}** Removes a request to change contract ownership.
 ///
@@ -105,6 +111,9 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> E
         ExecuteMsg::Vote { votes } => handle_vote(deps, env, info, votes),
         ExecuteMsg::TunePools {} => tune_pools(deps, env),
         ExecuteMsg::ChangePoolsLimit { limit } => change_pools_limit(deps, info, limit),
+        ExecuteMsg::UpdateConfig {
+            blacklisted_voters_limit,
+        } => update_config(deps, info, blacklisted_voters_limit),
         ExecuteMsg::ProposeNewOwner {
             new_owner,
             expires_in,
@@ -155,7 +164,11 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> E
 /// removed.
 fn kick_blacklisted_voters(deps: DepsMut, env: Env, voters: Vec<String>) -> ExecuteResult {
     let block_period = get_period(env.block.time.seconds())?;
-    let escrow_addr = CONFIG.load(deps.storage)?.escrow_addr;
+    let config = CONFIG.load(deps.storage)?;
+
+    if voters.len() > config.blacklisted_voters_limit.unwrap_or(VOTERS_MAX_LIMIT) as usize {
+        return Err(ContractError::KickVotersLimitExceeded {});
+    }
 
     // Check duplicated voters
     let addrs_set = voters.iter().collect::<HashSet<_>>();
@@ -165,7 +178,7 @@ fn kick_blacklisted_voters(deps: DepsMut, env: Env, voters: Vec<String>) -> Exec
 
     // check if voters are blacklisted
     let res: BlacklistedVotersResponse = deps.querier.query_wasm_smart(
-        escrow_addr,
+        config.escrow_addr,
         &CheckVotersAreBlacklisted {
             voters: voters.clone(),
         },
@@ -414,6 +427,36 @@ fn tune_pools(deps: DepsMut, env: Env) -> ExecuteResult {
 
 /// ## Description
 /// Only contract owner can call this function.  
+/// The function sets a new limit of blacklisted voters that can be kicked at once.
+///
+/// ## Params
+/// * **deps** is an object of type [`DepsMut`].
+///
+/// * **info** is an object of type [`MessageInfo`].
+///
+/// * **blacklisted_voters_limit** is a new limit of blacklisted voters that can be kicked at once
+fn update_config(
+    deps: DepsMut,
+    info: MessageInfo,
+    blacklisted_voters_limit: Option<u32>,
+) -> ExecuteResult {
+    let mut config = CONFIG.load(deps.storage)?;
+
+    if info.sender != config.owner {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    if let Some(blacklisted_voters_limit) = blacklisted_voters_limit {
+        config.blacklisted_voters_limit = Some(blacklisted_voters_limit);
+    }
+
+    CONFIG.save(deps.storage, &config)?;
+
+    Ok(Response::default().add_attribute("action", "update_config"))
+}
+
+/// ## Description
+/// Only contract owner can call this function.
 /// The function sets new limit of pools which are eligible to receive allocation points.
 ///
 /// ## Params

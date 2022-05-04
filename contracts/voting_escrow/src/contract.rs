@@ -1077,7 +1077,7 @@ pub fn check_voters_are_blacklisted(
 /// that specifies whether the function should return a list of voters starting from a
 /// specific address onward.
 ///
-/// * **limit** is an object of type [`Option<u32>`]. This is the max amount of staker
+/// * **limit** is an object of type [`Option<u32>`]. This is the max amount of voters
 /// addresses to return.
 pub fn get_blacklisted_voters(
     deps: Deps,
@@ -1085,11 +1085,13 @@ pub fn get_blacklisted_voters(
     limit: Option<u32>,
 ) -> StdResult<Vec<Addr>> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-    let black_list = BLACKLIST.load(deps.storage)?;
+    let mut black_list = BLACKLIST.load(deps.storage)?;
 
     if black_list.is_empty() {
         return Ok(vec![]);
     }
+
+    black_list.sort();
 
     let mut start_index = Default::default();
     if let Some(start_after) = start_after {
@@ -1107,10 +1109,7 @@ pub fn get_blacklisted_voters(
     }
 
     // validate end index of the slice
-    let mut end_index = start_index + limit;
-    if end_index > black_list.len() {
-        end_index = black_list.len();
-    }
+    let end_index = (start_index + limit).min(black_list.len());
 
     Ok(black_list[start_index..end_index].to_vec())
 }

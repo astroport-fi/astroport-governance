@@ -3,13 +3,39 @@ use astroport::generator::PoolInfoResponse;
 use cosmwasm_std::{attr, Addr, Uint128};
 use terra_multi_test::{ContractWrapper, Executor, TerraApp};
 
-use astroport_governance::generator_controller::{ConfigResponse, ExecuteMsg, QueryMsg};
+use astroport_governance::generator_controller::{
+    ConfigResponse, ExecuteMsg, QueryMsg, VOTERS_MAX_LIMIT,
+};
 use astroport_governance::utils::{get_period, WEEK};
 use generator_controller::state::TuneInfo;
 
 use astroport_tests::{
     controller_helper::ControllerHelper, escrow_helper::MULTIPLIER, mock_app, TerraAppExtension,
 };
+
+#[test]
+fn update_configs() {
+    let mut router = mock_app();
+    let owner = Addr::unchecked("owner");
+    let helper = ControllerHelper::init(&mut router, &owner);
+
+    let config = helper.query_config(&mut router).unwrap();
+    assert_eq!(config.blacklisted_voters_limit, None);
+
+    // check if user2 cannot update config
+    let err = helper
+        .update_config(&mut router, "user2", Some(4u32))
+        .unwrap_err();
+    assert_eq!("Unauthorized", err.to_string());
+
+    // successful update config by owner
+    helper
+        .update_config(&mut router, "owner", Some(4u32))
+        .unwrap();
+
+    let config = helper.query_config(&mut router).unwrap();
+    assert_eq!(config.blacklisted_voters_limit, Some(4u32));
+}
 
 #[test]
 fn check_kick_holders_works() {
@@ -109,6 +135,19 @@ fn check_kick_holders_works() {
         .unwrap();
     assert_eq!(Uint128::new(8_009_614), res.slope);
     assert_eq!(Uint128::new(80_096_149), res.vxastro_amount);
+
+    // check if blacklisted voters limit exceeded for kick operation
+    let err = helper
+        .kick_holders(
+            &mut router,
+            "user1",
+            vec!["user2".to_string(); (VOTERS_MAX_LIMIT + 1) as usize],
+        )
+        .unwrap_err();
+    assert_eq!(
+        "Exceeded voters limit for kick blacklisted voters operation!",
+        err.to_string()
+    );
 
     // Removes votes for user2
     helper
