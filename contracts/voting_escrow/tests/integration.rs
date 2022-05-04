@@ -1,5 +1,5 @@
 use astroport::token as astro;
-use cosmwasm_std::{attr, to_binary, Addr, Fraction, Uint128};
+use cosmwasm_std::{attr, to_binary, Addr, Fraction, StdError, Uint128};
 use cw20::{Cw20ExecuteMsg, MinterResponse};
 use terra_multi_test::{next_block, ContractWrapper, Executor};
 
@@ -541,7 +541,111 @@ fn check_queries() {
     let balance = helper
         .query_locked_balance_at(router_ref, "user", cur_height - 1)
         .unwrap();
-    assert_eq!(balance, 190f32)
+    assert_eq!(balance, 190f32);
+
+    // add users to the blacklist
+    helper
+        .update_blacklist(
+            router_ref,
+            Some(vec![
+                "voter1".to_string(),
+                "voter2".to_string(),
+                "voter3".to_string(),
+                "voter4".to_string(),
+                "voter5".to_string(),
+                "voter6".to_string(),
+                "voter7".to_string(),
+                "voter8".to_string(),
+            ]),
+            None,
+        )
+        .unwrap();
+
+    // query all blacklisted voters
+    let blacklisted_voters = helper
+        .query_blacklisted_voters(router_ref, None, None)
+        .unwrap();
+    assert_eq!(
+        blacklisted_voters,
+        vec![
+            Addr::unchecked("voter1"),
+            Addr::unchecked("voter2"),
+            Addr::unchecked("voter3"),
+            Addr::unchecked("voter4"),
+            Addr::unchecked("voter5"),
+            Addr::unchecked("voter6"),
+            Addr::unchecked("voter7"),
+            Addr::unchecked("voter8"),
+        ]
+    );
+
+    // query not blacklisted voter
+    let err = helper
+        .query_blacklisted_voters(router_ref, Some("voter9".to_string()), Some(10u32))
+        .unwrap_err();
+    assert_eq!(
+        StdError::generic_err(
+            "Querier contract error: Generic error: The voter9 address is not blacklisted"
+        ),
+        err
+    );
+
+    // query voters by specified parameters
+    let blacklisted_voters = helper
+        .query_blacklisted_voters(router_ref, Some("voter2".to_string()), Some(2u32))
+        .unwrap();
+    assert_eq!(
+        blacklisted_voters,
+        vec![Addr::unchecked("voter3"), Addr::unchecked("voter4")]
+    );
+
+    // add users to the blacklist
+    helper
+        .update_blacklist(
+            router_ref,
+            Some(vec!["voter0".to_string(), "voter33".to_string()]),
+            None,
+        )
+        .unwrap();
+
+    // query voters by specified parameters
+    let blacklisted_voters = helper
+        .query_blacklisted_voters(router_ref, Some("voter2".to_string()), Some(2u32))
+        .unwrap();
+    assert_eq!(
+        blacklisted_voters,
+        vec![Addr::unchecked("voter3"), Addr::unchecked("voter33")]
+    );
+
+    let blacklisted_voters = helper
+        .query_blacklisted_voters(router_ref, Some("voter4".to_string()), Some(10u32))
+        .unwrap();
+    assert_eq!(
+        blacklisted_voters,
+        vec![
+            Addr::unchecked("voter5"),
+            Addr::unchecked("voter6"),
+            Addr::unchecked("voter7"),
+            Addr::unchecked("voter8"),
+        ]
+    );
+
+    let empty_blacklist: Vec<Addr> = vec![];
+    let blacklisted_voters = helper
+        .query_blacklisted_voters(router_ref, Some("voter8".to_string()), Some(10u32))
+        .unwrap();
+    assert_eq!(blacklisted_voters, empty_blacklist);
+
+    // check if voters are blacklisted
+    let res = helper
+        .check_voters_are_blacklisted(router_ref, vec!["voter1".to_string(), "voter9".to_string()])
+        .unwrap();
+    assert_eq!("Voter is not blacklisted: voter9", res.to_string());
+
+    let res = helper
+        .check_voters_are_blacklisted(router_ref, vec!["voter1".to_string(), "voter8".to_string()])
+        .unwrap();
+    assert_eq!("Voters are blacklisted!", res.to_string());
 }
 
 #[test]

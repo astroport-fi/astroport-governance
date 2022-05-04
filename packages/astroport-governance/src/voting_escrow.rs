@@ -5,6 +5,14 @@ use cosmwasm_std::{Addr, Binary, Decimal, QuerierWrapper, StdResult, Uint128};
 use cw20::{Cw20ReceiveMsg, Logo};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use std::fmt;
+
+/// ## Pagination settings
+/// The maximum amount of items that can be read at once from
+pub const MAX_LIMIT: u32 = 30;
+
+/// The default amount of items to read from
+pub const DEFAULT_LIMIT: u32 = 10;
 
 /// This structure stores marketing information for vxASTRO.
 #[derive(Serialize, Deserialize, JsonSchema, Debug, Clone, PartialEq)]
@@ -98,10 +106,38 @@ pub enum Cw20HookMsg {
     ExtendLockAmount {},
 }
 
+/// This enum describes voters status.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum BlacklistedVotersResponse {
+    /// Voters are blacklisted
+    VotersBlacklisted {},
+    /// Returns a voter that is not blacklisted.
+    VotersNotBlacklisted { voter: String },
+}
+
+impl fmt::Display for BlacklistedVotersResponse {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            BlacklistedVotersResponse::VotersBlacklisted {} => write!(f, "Voters are blacklisted!"),
+            BlacklistedVotersResponse::VotersNotBlacklisted { voter } => {
+                write!(f, "Voter is not blacklisted: {}", voter)
+            }
+        }
+    }
+}
+
 /// This structure describes the query messages available in the contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
+    /// Checks if specified addresses are blacklisted
+    CheckVotersAreBlacklisted { voters: Vec<String> },
+    /// Return the blacklisted voters
+    BlacklistedVoters {
+        start_after: Option<String>,
+        limit: Option<u32>,
+    },
     /// Return the user's vxASTRO balance
     Balance { address: String },
     /// Fetch the vxASTRO token information

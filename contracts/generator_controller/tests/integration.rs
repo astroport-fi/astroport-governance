@@ -1,15 +1,191 @@
 use astroport::asset::AssetInfo;
 use astroport::generator::PoolInfoResponse;
-use cosmwasm_std::Addr;
+use cosmwasm_std::{attr, Addr, Uint128};
 use terra_multi_test::{ContractWrapper, Executor, TerraApp};
 
-use astroport_governance::generator_controller::{ConfigResponse, ExecuteMsg, QueryMsg};
+use astroport_governance::generator_controller::{
+    ConfigResponse, ExecuteMsg, QueryMsg, VOTERS_MAX_LIMIT,
+};
 use astroport_governance::utils::{get_period, WEEK};
 use generator_controller::state::TuneInfo;
 
 use astroport_tests::{
     controller_helper::ControllerHelper, escrow_helper::MULTIPLIER, mock_app, TerraAppExtension,
 };
+
+#[test]
+fn update_configs() {
+    let mut router = mock_app();
+    let owner = Addr::unchecked("owner");
+    let helper = ControllerHelper::init(&mut router, &owner);
+
+    let config = helper.query_config(&mut router).unwrap();
+    assert_eq!(config.blacklisted_voters_limit, None);
+
+    // check if user2 cannot update config
+    let err = helper
+        .update_config(&mut router, "user2", Some(4u32))
+        .unwrap_err();
+    assert_eq!("Unauthorized", err.to_string());
+
+    // successful update config by owner
+    helper
+        .update_config(&mut router, "owner", Some(4u32))
+        .unwrap();
+
+    let config = helper.query_config(&mut router).unwrap();
+    assert_eq!(config.blacklisted_voters_limit, Some(4u32));
+}
+
+#[test]
+fn check_kick_holders_works() {
+    let mut router = mock_app();
+    let owner = Addr::unchecked("owner");
+    let helper = ControllerHelper::init(&mut router, &owner);
+    let pools = vec![
+        helper
+            .create_pool_with_tokens(&mut router, "FOO", "BAR")
+            .unwrap(),
+        helper
+            .create_pool_with_tokens(&mut router, "BAR", "ADN")
+            .unwrap(),
+    ];
+
+    let err = helper
+        .vote(&mut router, "user1", vec![(pools[0].as_str(), 1000)])
+        .unwrap_err();
+    assert_eq!(err.to_string(), "You can't vote with zero voting power");
+
+    helper.escrow_helper.mint_xastro(&mut router, "user1", 100);
+    // Create short lock
+    helper
+        .escrow_helper
+        .create_lock(&mut router, "user1", WEEK, 100f32)
+        .unwrap();
+
+    // Votes from user1
+    helper
+        .vote(&mut router, "user1", vec![(pools[0].as_str(), 1000)])
+        .unwrap();
+
+    helper.escrow_helper.mint_xastro(&mut router, "user2", 100);
+    helper
+        .escrow_helper
+        .create_lock(&mut router, "user2", 10 * WEEK, 100f32)
+        .unwrap();
+
+    // Votes from user2
+    helper
+        .vote(
+            &mut router,
+            "user2",
+            vec![(pools[0].as_str(), 3000), (pools[1].as_str(), 7000)],
+        )
+        .unwrap();
+
+    let ve_slope = helper
+        .escrow_helper
+        .query_lock_info(&mut router, "user2")
+        .unwrap()
+        .slope;
+    let ve_power = helper
+        .escrow_helper
+        .query_user_vp(&mut router, "user2")
+        .unwrap();
+    let user_info = helper.query_user_info(&mut router, "user2").unwrap();
+    assert_eq!(ve_slope, user_info.slope);
+    assert_eq!(router.block_info().time.seconds(), user_info.vote_ts);
+    assert_eq!(
+        ve_power,
+        user_info.voting_power.u128() as f32 / MULTIPLIER as f32
+    );
+    let resp_votes = user_info
+        .votes
+        .clone()
+        .into_iter()
+        .map(|(addr, bps)| (addr.to_string(), bps.into()))
+        .collect::<Vec<_>>();
+    assert_eq!(
+        vec![(pools[0].to_string(), 3000), (pools[1].to_string(), 7000)],
+        resp_votes
+    );
+
+    // Add user2 to the blacklist
+    let res = helper
+        .escrow_helper
+        .update_blacklist(&mut router, Some(vec!["user2".to_string()]), None)
+        .unwrap();
+    assert_eq!(
+        res.events[1].attributes[1],
+        attr("action", "update_blacklist")
+    );
+
+    // Let's take the period for which the vote was applied.
+    let current_period = router.block_period() + 1u64;
+
+    // Get pools info before kick holder
+    let res = helper
+        .query_voted_pool_info_at_period(&mut router, pools[0].as_str(), current_period)
+        .unwrap();
+    assert_eq!(Uint128::new(13_576_922), res.slope);
+    assert_eq!(Uint128::new(44_471_151), res.vxastro_amount);
+
+    let res = helper
+        .query_voted_pool_info_at_period(&mut router, pools[1].as_str(), current_period)
+        .unwrap();
+    assert_eq!(Uint128::new(8_009_614), res.slope);
+    assert_eq!(Uint128::new(80_096_149), res.vxastro_amount);
+
+    // check if blacklisted voters limit exceeded for kick operation
+    let err = helper
+        .kick_holders(
+            &mut router,
+            "user1",
+            vec!["user2".to_string(); (VOTERS_MAX_LIMIT + 1) as usize],
+        )
+        .unwrap_err();
+    assert_eq!(
+        "Exceeded voters limit for kick blacklisted voters operation!",
+        err.to_string()
+    );
+
+    // Removes votes for user2
+    helper
+        .kick_holders(&mut router, "user1", vec!["user2".to_string()])
+        .unwrap();
+
+    let ve_slope = helper
+        .escrow_helper
+        .query_lock_info(&mut router, "user2")
+        .unwrap()
+        .slope;
+    let ve_power = helper
+        .escrow_helper
+        .query_user_vp(&mut router, "user2")
+        .unwrap();
+
+    let user_info = helper.query_user_info(&mut router, "user2").unwrap();
+    assert_eq!(ve_slope, user_info.slope);
+    assert_eq!(router.block_info().time.seconds(), user_info.vote_ts);
+    assert_eq!(
+        ve_power,
+        user_info.voting_power.u128() as f32 / MULTIPLIER as f32
+    );
+    assert_eq!(user_info.votes, vec![]);
+
+    // Get pool info after kick holder
+    let res = helper
+        .query_voted_pool_info_at_period(&mut router, pools[0].as_str(), current_period)
+        .unwrap();
+    assert_eq!(Uint128::new(10_144_230), res.slope);
+    assert_eq!(Uint128::new(10_144_230), res.vxastro_amount);
+
+    let res1 = helper
+        .query_voted_pool_info_at_period(&mut router, pools[1].as_str(), current_period)
+        .unwrap();
+    assert_eq!(Uint128::new(0), res1.slope);
+    assert_eq!(Uint128::new(0), res1.vxastro_amount);
+}
 
 #[test]
 fn check_vote_works() {
