@@ -25,7 +25,7 @@ pub struct InstantiateMsg {
     /// The vxASTRO contract owner
     pub owner: String,
     /// Address that's allowed to black or whitelist contracts
-    pub guardian_addr: String,
+    pub guardian_addr: Option<String>,
     /// xASTRO token address
     pub deposit_token_addr: String,
     /// Marketing info for vxASTRO
@@ -160,7 +160,7 @@ pub struct ConfigResponse {
     /// Address that's allowed to change contract parameters
     pub owner: String,
     /// Address that can only blacklist vxASTRO stakers and remove their governance power
-    pub guardian_addr: String,
+    pub guardian_addr: Option<Addr>,
     /// The xASTRO token contract address
     pub deposit_token_addr: String,
     /// The maximum % of staked xASTRO that is confiscated upon an early exit

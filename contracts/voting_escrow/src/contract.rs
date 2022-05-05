@@ -82,15 +82,18 @@ pub fn instantiate(
         &astroport::staking::QueryMsg::Config {},
     )?;
 
-    let config = Config {
+    let mut config = Config {
         owner: addr_validate_to_lower(deps.api, &msg.owner)?,
-        guardian_addr: addr_validate_to_lower(deps.api, &msg.guardian_addr)?,
+        guardian_addr: None,
         deposit_token_addr,
         max_exit_penalty: msg.max_exit_penalty,
         astro_addr: staking_config.deposit_token_addr,
         xastro_staking_addr: addr_validate_to_lower(deps.api, &xastro_minter_resp.minter)?,
         slashed_fund_receiver,
     };
+    if let Some(guardian_addr) = msg.guardian_addr {
+        config.guardian_addr = Some(addr_validate_to_lower(deps.api, &guardian_addr)?);
+    }
     CONFIG.save(deps.storage, &config)?;
 
     let cur_period = get_period(env.block.time.seconds())?;
@@ -133,7 +136,7 @@ pub fn instantiate(
 
     // Store token info
     let data = TokenInfo {
-        name: "vxASTRO".to_string(),
+        name: "Vote Escrowed xASTRO".to_string(),
         symbol: "vxASTRO".to_string(),
         decimals: 6,
         total_supply: Uint128::zero(),
@@ -788,9 +791,10 @@ fn withdraw_early_callback(
     if !return_astro_amount.is_zero() {
         let transfer_msg = SubMsg::new(WasmMsg::Execute {
             contract_addr: config.astro_addr.to_string(),
-            msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                recipient: slashed_funds_receiver.to_string(),
+            msg: to_binary(&Cw20ExecuteMsg::Send {
+                contract: slashed_funds_receiver.to_string(),
                 amount: return_astro_amount,
+                msg: to_binary(&{})?,
             })?,
             funds: vec![],
         });
@@ -875,7 +879,7 @@ fn update_blacklist(
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
     // Permission check
-    if info.sender != config.owner && info.sender != config.guardian_addr {
+    if info.sender != config.owner && Some(info.sender) != config.guardian_addr {
         return Err(ContractError::Unauthorized {});
     }
     let append_addrs = append_addrs.unwrap_or_default();
@@ -1022,7 +1026,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             let config = CONFIG.load(deps.storage)?;
             to_binary(&ConfigResponse {
                 owner: config.owner.to_string(),
-                guardian_addr: config.guardian_addr.to_string(),
+                guardian_addr: config.guardian_addr,
                 deposit_token_addr: config.deposit_token_addr.to_string(),
                 max_exit_penalty: config.max_exit_penalty,
                 slashed_fund_receiver: config.slashed_fund_receiver.map(|addr| addr.to_string()),

@@ -49,7 +49,7 @@ impl Migration<ParamsV110> for MigrationV110 {
             deps.storage,
             &Config {
                 owner: configv100.owner,
-                guardian_addr: configv100.guardian_addr,
+                guardian_addr: Some(configv100.guardian_addr),
                 deposit_token_addr: configv100.deposit_token_addr,
                 max_exit_penalty: params.max_exit_penalty,
                 slashed_fund_receiver,

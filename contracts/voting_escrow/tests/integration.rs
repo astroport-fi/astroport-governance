@@ -865,7 +865,7 @@ fn early_withdraw() {
     );
 
     helper
-        .configure_early_withdrawal(router_ref, "0.75", "holder")
+        .configure_early_withdrawal(router_ref, "0.75", helper.fee_distributor_instance.as_str())
         .unwrap();
 
     helper.mint_xastro(router_ref, "user1", 100);
@@ -879,7 +879,7 @@ fn early_withdraw() {
 
     // user2 withdraws right after he created the lock with 75% penalty
     helper.check_xastro_balance(router_ref, "user2", 0);
-    helper.check_astro_balance(router_ref, "holder", 0);
+    helper.check_astro_balance(router_ref, helper.fee_distributor_instance.as_str(), 0);
     helper.check_astro_balance(router_ref, helper.voting_instance.as_str(), 0);
     helper.check_xastro_balance(router_ref, helper.voting_instance.as_str(), 200);
 
@@ -891,7 +891,7 @@ fn early_withdraw() {
 
     // 75% penalty
     helper.check_xastro_balance(router_ref, "user2", 25);
-    helper.check_astro_balance(router_ref, "holder", 75);
+    helper.check_astro_balance(router_ref, helper.fee_distributor_instance.as_str(), 75);
     helper.check_astro_balance(router_ref, helper.voting_instance.as_str(), 0);
     helper.check_xastro_balance(router_ref, helper.voting_instance.as_str(), 100);
 
@@ -907,7 +907,7 @@ fn early_withdraw() {
     });
 
     helper.check_xastro_balance(router_ref, "user1", 0);
-    helper.check_astro_balance(router_ref, "holder", 75);
+    helper.check_astro_balance(router_ref, helper.fee_distributor_instance.as_str(), 75);
     helper.check_astro_balance(router_ref, helper.voting_instance.as_str(), 0);
     helper.check_xastro_balance(router_ref, helper.voting_instance.as_str(), 100);
 
@@ -919,7 +919,7 @@ fn early_withdraw() {
 
     // 50% penalty
     helper.check_xastro_balance(router_ref, "user1", 50);
-    helper.check_astro_balance(router_ref, "holder", 125);
+    helper.check_astro_balance(router_ref, helper.fee_distributor_instance.as_str(), 125);
     helper.check_astro_balance(router_ref, helper.voting_instance.as_str(), 0);
     helper.check_xastro_balance(router_ref, helper.voting_instance.as_str(), 0);
 
