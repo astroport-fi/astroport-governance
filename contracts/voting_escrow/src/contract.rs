@@ -801,7 +801,7 @@ fn withdraw_early_callback(
             }));
         let transfer_msg = match version {
             Ok(ContractVersion { contract, .. })
-                if contract.eq("astroport-escrow_fee_distributor") =>
+                if contract.eq("astroport-escrow-fee-distributor") =>
             {
                 SubMsg::new(WasmMsg::Execute {
                     contract_addr: config.astro_addr.to_string(),
