@@ -792,7 +792,7 @@ fn withdraw_early_callback(
     let return_astro_amount = current_astro_balance.saturating_sub(precallback_astro);
 
     if !return_astro_amount.is_zero() {
-        // Check that slashed_funds_receiver is a escrow_fee_distributor contract
+        // Check that slashed_funds_receiver is an escrow_fee_distributor contract
         // otherwise transfer return_astro_amount to slashed_funds_receiver address
         let version: StdResult<ContractVersion> =
             deps.querier.query(&QueryRequest::Wasm(WasmQuery::Raw {
