@@ -5,9 +5,9 @@ use astroport::DecimalCheckedOps;
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     from_binary, to_binary, Addr, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo,
-    Response, StdError, StdResult, SubMsg, Uint128, WasmMsg,
+    QueryRequest, Response, StdError, StdResult, SubMsg, Uint128, WasmMsg, WasmQuery,
 };
-use cw2::{get_contract_version, set_contract_version};
+use cw2::{get_contract_version, set_contract_version, ContractVersion, CONTRACT};
 use cw20::{
     BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, Cw20ReceiveMsg, Logo, LogoInfo,
     MarketingInfoResponse, MinterResponse, TokenInfoResponse,
@@ -238,6 +238,9 @@ pub fn execute(
             .map_err(|e| e.into()),
         ExecuteMsg::UploadLogo(logo) => {
             execute_upload_logo(deps, env, info, logo).map_err(|e| e.into())
+        }
+        ExecuteMsg::UpdateConfig { new_guardian } => {
+            execute_update_config(deps, info, new_guardian)
         }
     }
 }
@@ -789,15 +792,36 @@ fn withdraw_early_callback(
     let return_astro_amount = current_astro_balance.saturating_sub(precallback_astro);
 
     if !return_astro_amount.is_zero() {
-        let transfer_msg = SubMsg::new(WasmMsg::Execute {
-            contract_addr: config.astro_addr.to_string(),
-            msg: to_binary(&Cw20ExecuteMsg::Send {
-                contract: slashed_funds_receiver.to_string(),
-                amount: return_astro_amount,
-                msg: to_binary(&{})?,
-            })?,
-            funds: vec![],
-        });
+        // Check that slashed_funds_receiver is a escrow_fee_distributor contract
+        // otherwise transfer return_astro_amount to slashed_funds_receiver address
+        let version: StdResult<ContractVersion> =
+            deps.querier.query(&QueryRequest::Wasm(WasmQuery::Raw {
+                contract_addr: slashed_funds_receiver.to_string(),
+                key: CONTRACT.as_slice().into(),
+            }));
+        let transfer_msg = match version {
+            Ok(ContractVersion { contract, .. })
+                if contract.eq("astroport-escrow_fee_distributor") =>
+            {
+                SubMsg::new(WasmMsg::Execute {
+                    contract_addr: config.astro_addr.to_string(),
+                    msg: to_binary(&Cw20ExecuteMsg::Send {
+                        contract: slashed_funds_receiver.to_string(),
+                        amount: return_astro_amount,
+                        msg: to_binary(&{})?,
+                    })?,
+                    funds: vec![],
+                })
+            }
+            _ => SubMsg::new(WasmMsg::Execute {
+                contract_addr: config.astro_addr.to_string(),
+                msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                    recipient: slashed_funds_receiver.to_string(),
+                    amount: return_astro_amount,
+                })?,
+                funds: vec![],
+            }),
+        };
 
         Ok(Response::new().add_submessage(transfer_msg))
     } else {
@@ -975,6 +999,34 @@ fn update_blacklist(
     }
 
     Ok(Response::default().add_attributes(attrs))
+}
+
+/// ## Description
+/// Updates contract parameters.
+/// ## Params
+/// * **deps** is an object of type [`DepsMut`].
+///
+/// * **info** is an object of type [`MessageInfo`].
+///
+/// * **new_guardian** is an optional object of type [`String`].
+fn execute_update_config(
+    deps: DepsMut,
+    info: MessageInfo,
+    new_guardian: Option<String>,
+) -> Result<Response, ContractError> {
+    let mut cfg = CONFIG.load(deps.storage)?;
+
+    if cfg.owner != info.sender {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    if let Some(new_guardian) = new_guardian {
+        cfg.guardian_addr = Some(addr_validate_to_lower(deps.api, &new_guardian)?);
+    }
+
+    CONFIG.save(deps.storage, &cfg)?;
+
+    Ok(Response::default().add_attribute("action", "execute_update_config"))
 }
 
 /// ## Description

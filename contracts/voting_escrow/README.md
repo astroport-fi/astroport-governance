@@ -99,6 +99,16 @@ Updates the list of addresses that are prohibited from staking in vxASTRO or if 
 }
 ```
 
+### `update_config`
+
+Updates contract parameters.
+
+```json
+{
+  "new_guardian": "terra..."
+}
+```
+
 ## QueryMsg
 
 All query messages are described below. A custom struct is defined for each query response.

@@ -92,6 +92,8 @@ pub enum ExecuteMsg {
     },
     /// Upload a logo for vxASTRO
     UploadLogo(Logo),
+    /// Update config
+    UpdateConfig { new_guardian: Option<String> },
 }
 
 /// This structure describes a CW20 hook message.
