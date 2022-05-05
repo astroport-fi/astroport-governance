@@ -21,8 +21,8 @@ use cw_storage_plus::U64Key;
 use astroport_governance::querier::query_token_balance;
 use astroport_governance::utils::{get_period, get_periods_count, EPOCH_START, WEEK};
 use astroport_governance::voting_escrow::{
-    ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, LockInfoResponse, MigrateMsg,
-    QueryMsg, VotingPowerResponse,
+    BlacklistedVotersResponse, ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg,
+    LockInfoResponse, MigrateMsg, QueryMsg, VotingPowerResponse, DEFAULT_LIMIT, MAX_LIMIT,
 };
 
 use crate::error::ContractError;
@@ -999,6 +999,12 @@ fn update_blacklist(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
+        QueryMsg::CheckVotersAreBlacklisted { voters } => {
+            to_binary(&check_voters_are_blacklisted(deps, voters)?)
+        }
+        QueryMsg::BlacklistedVoters { start_after, limit } => {
+            to_binary(&get_blacklisted_voters(deps, start_after, limit)?)
+        }
         QueryMsg::TotalVotingPower {} => to_binary(&get_total_voting_power(deps, env, None)?),
         QueryMsg::UserVotingPower { user } => {
             to_binary(&get_user_voting_power(deps, env, user, None)?)
@@ -1039,6 +1045,77 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::MarketingInfo {} => to_binary(&query_marketing_info(deps)?),
         QueryMsg::DownloadLogo {} => to_binary(&query_download_logo(deps)?),
     }
+}
+
+/// ## Description
+/// Checks if specified addresses are blacklisted. Returns a [`Response`] with the specified
+/// attributes if the operation was successful, otherwise then a [`StdError`] is returned.
+///
+/// ## Params
+/// * **deps** is an object of type [`Deps`].
+///
+/// * **voters** is a list of type [`String`]. Specifies addresses to check if they are blacklisted.
+pub fn check_voters_are_blacklisted(
+    deps: Deps,
+    voters: Vec<String>,
+) -> StdResult<BlacklistedVotersResponse> {
+    let black_list = BLACKLIST.load(deps.storage)?;
+
+    for voter in voters {
+        let voter_addr = addr_validate_to_lower(deps.api, voter.as_str())?;
+        if !black_list.contains(&voter_addr) {
+            return Ok(BlacklistedVotersResponse::VotersNotBlacklisted { voter });
+        }
+    }
+
+    Ok(BlacklistedVotersResponse::VotersBlacklisted {})
+}
+
+/// ## Description
+/// Returns a list of blacklisted voters.
+///
+/// ## Params
+/// * **deps** is an object of type [`Deps`].
+///
+/// * **start_after** is an object of type [`Option<String>`]. This is an optional field
+/// that specifies whether the function should return a list of voters starting from a
+/// specific address onward.
+///
+/// * **limit** is an object of type [`Option<u32>`]. This is the max amount of voters
+/// addresses to return.
+pub fn get_blacklisted_voters(
+    deps: Deps,
+    start_after: Option<String>,
+    limit: Option<u32>,
+) -> StdResult<Vec<Addr>> {
+    let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
+    let mut black_list = BLACKLIST.load(deps.storage)?;
+
+    if black_list.is_empty() {
+        return Ok(vec![]);
+    }
+
+    black_list.sort();
+
+    let mut start_index = Default::default();
+    if let Some(start_after) = start_after {
+        let start_addr = addr_validate_to_lower(deps.api, start_after.as_str())?;
+        start_index = black_list
+            .iter()
+            .position(|addr| *addr == start_addr)
+            .ok_or_else(|| {
+                StdError::generic_err(format!(
+                    "The {} address is not blacklisted",
+                    start_addr.as_str()
+                ))
+            })?
+            + 1; // start from the next element of the slice
+    }
+
+    // validate end index of the slice
+    let end_index = (start_index + limit).min(black_list.len());
+
+    Ok(black_list[start_index..end_index].to_vec())
 }
 
 /// ## Description
@@ -1286,6 +1363,7 @@ pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response,
                 // 1.0.0 -> 1.1.0
                 MigrationV110::migrate(deps.branch(), env, msg)?;
             }
+            "1.1.0" => {}
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),

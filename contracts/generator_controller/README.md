@@ -20,6 +20,30 @@ and limit of pools which can receive allocation points.
 
 ## ExecuteMsg
 
+### `kick_blacklisted_voters`
+
+Remove votes of voters that are blacklisted.
+
+```json
+{
+  "kick_blacklisted_voters": {
+    "blacklisted_voters": ["terra...", "terra..."]
+  }
+}
+```
+
+### `update_config`
+
+Sets a new limit of blacklisted voters that can be kicked at once.
+
+```json
+{
+  "update_config": {
+    "blacklisted_voters_limit": 22
+  }
+}
+```
+
 ### `vote`
 
 Cast votes for the next period for pools according to specified basic points distribution. For example, user has voting

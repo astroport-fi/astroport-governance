@@ -9,17 +9,21 @@ use cosmwasm_std::{
     to_binary, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Order, Response, StdError,
     StdResult, WasmMsg,
 };
-use cw2::set_contract_version;
+use cw2::{get_contract_version, set_contract_version};
 use itertools::Itertools;
 
 use astroport_governance::generator_controller::{
-    ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg, UserInfoResponse,
+    ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg, UserInfoResponse, VOTERS_MAX_LIMIT,
 };
 use astroport_governance::utils::{calc_voting_power, get_period, WEEK};
-use astroport_governance::voting_escrow::{get_lock_info, get_voting_power};
+use astroport_governance::voting_escrow::QueryMsg::CheckVotersAreBlacklisted;
+use astroport_governance::voting_escrow::{
+    get_lock_info, get_voting_power, BlacklistedVotersResponse,
+};
 
 use crate::bps::BasicPoints;
 use crate::error::ContractError;
+use crate::migration;
 use crate::state::{
     Config, TuneInfo, UserInfo, VotedPoolInfo, CONFIG, OWNERSHIP_PROPOSAL, POOLS, TUNE_INFO,
     USER_INFO,
@@ -30,7 +34,7 @@ use crate::utils::{
 };
 
 /// Contract name that is used for migration.
-const CONTRACT_NAME: &str = "astro-generator-controller";
+const CONTRACT_NAME: &str = "generator-controller";
 /// Contract version that is used for migration.
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -63,6 +67,7 @@ pub fn instantiate(
             generator_addr: addr_validate_to_lower(deps.api, &msg.generator_addr)?,
             factory_addr: addr_validate_to_lower(deps.api, &msg.factory_addr)?,
             pools_limit: validate_pools_limit(msg.pools_limit)?,
+            blacklisted_voters_limit: None,
         },
     )?;
 
@@ -86,9 +91,14 @@ pub fn instantiate(
 ///
 /// * **ExecuteMsg::TunePools** Launches pool tuning
 ///
-/// * **ExecuteMsg::ChangePoolLimit { limit }** Changes the number of pools which are eligible to receive allocation points
+/// * **ExecuteMsg::ChangePoolsLimit { limit }** Changes the number of pools which are eligible
+/// to receive allocation points
 ///
-/// * **ExecuteMsg::ProposeNewOwner { owner, expires_in }** Creates a new request to change contract ownership.
+/// * **ExecuteMsg::UpdateConfig { blacklisted_voters_limit }** Changes the number of blacklisted
+/// voters that can be kicked at once
+///
+/// * **ExecuteMsg::ProposeNewOwner { owner, expires_in }** Creates a new request to change
+/// contract ownership.
 ///
 /// * **ExecuteMsg::DropOwnershipProposal {}** Removes a request to change contract ownership.
 ///
@@ -96,9 +106,15 @@ pub fn instantiate(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> ExecuteResult {
     match msg {
+        ExecuteMsg::KickBlacklistedVoters { blacklisted_voters } => {
+            kick_blacklisted_voters(deps, env, blacklisted_voters)
+        }
         ExecuteMsg::Vote { votes } => handle_vote(deps, env, info, votes),
         ExecuteMsg::TunePools {} => tune_pools(deps, env),
         ExecuteMsg::ChangePoolsLimit { limit } => change_pools_limit(deps, info, limit),
+        ExecuteMsg::UpdateConfig {
+            blacklisted_voters_limit,
+        } => update_config(deps, info, blacklisted_voters_limit),
         ExecuteMsg::ProposeNewOwner {
             new_owner,
             expires_in,
@@ -134,6 +150,83 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> E
             .map_err(|e| e.into())
         }
     }
+}
+
+/// ## Description
+/// This function removes all votes applied by blacklisted voters. Returns [`Response`] in case
+/// of success or [`ContractError`] in case of errors.
+///
+/// ## Params
+/// * **deps** is an object of type [`DepsMut`].
+///
+/// * **env** is an object of type [`Env`].
+///
+/// * **holders** is a vector of type [`String`]. Contains blacklisted holders whose votes will be
+/// removed.
+fn kick_blacklisted_voters(deps: DepsMut, env: Env, voters: Vec<String>) -> ExecuteResult {
+    let block_period = get_period(env.block.time.seconds())?;
+    let config = CONFIG.load(deps.storage)?;
+
+    if voters.len() > config.blacklisted_voters_limit.unwrap_or(VOTERS_MAX_LIMIT) as usize {
+        return Err(ContractError::KickVotersLimitExceeded {});
+    }
+
+    // Check duplicated voters
+    let addrs_set = voters.iter().collect::<HashSet<_>>();
+    if voters.len() != addrs_set.len() {
+        return Err(ContractError::DuplicatedVoters {});
+    }
+
+    // check if voters are blacklisted
+    let res: BlacklistedVotersResponse = deps.querier.query_wasm_smart(
+        config.escrow_addr,
+        &CheckVotersAreBlacklisted {
+            voters: voters.clone(),
+        },
+    )?;
+
+    if !res.eq(&BlacklistedVotersResponse::VotersBlacklisted {}) {
+        return Err(ContractError::Std(StdError::generic_err(res.to_string())));
+    }
+
+    for voter in voters {
+        let voter_addr = addr_validate_to_lower(deps.api, &voter)?;
+        if let Some(user_info) = USER_INFO.may_load(deps.storage, &voter_addr)? {
+            if user_info.lock_end > block_period {
+                let user_last_vote_period = get_period(user_info.vote_ts)?;
+                // Calculate voting power before changes
+                let old_vp_at_period = calc_voting_power(
+                    user_info.slope,
+                    user_info.voting_power,
+                    user_last_vote_period,
+                    block_period,
+                );
+
+                // Cancel changes applied by previous votes
+                user_info.votes.iter().try_for_each(|(pool_addr, bps)| {
+                    cancel_user_changes(
+                        deps.storage,
+                        block_period + 1,
+                        pool_addr,
+                        *bps,
+                        old_vp_at_period,
+                        user_info.slope,
+                        user_info.lock_end,
+                    )
+                })?;
+
+                let user_info = UserInfo {
+                    vote_ts: env.block.time.seconds(),
+                    lock_end: block_period,
+                    ..Default::default()
+                };
+
+                USER_INFO.save(deps.storage, &voter_addr, &user_info)?;
+            }
+        }
+    }
+
+    Ok(Response::new().add_attribute("action", "kick_holders"))
 }
 
 /// ## Description
@@ -335,6 +428,36 @@ fn tune_pools(deps: DepsMut, env: Env) -> ExecuteResult {
 
 /// ## Description
 /// Only contract owner can call this function.  
+/// The function sets a new limit of blacklisted voters that can be kicked at once.
+///
+/// ## Params
+/// * **deps** is an object of type [`DepsMut`].
+///
+/// * **info** is an object of type [`MessageInfo`].
+///
+/// * **blacklisted_voters_limit** is a new limit of blacklisted voters that can be kicked at once
+fn update_config(
+    deps: DepsMut,
+    info: MessageInfo,
+    blacklisted_voters_limit: Option<u32>,
+) -> ExecuteResult {
+    let mut config = CONFIG.load(deps.storage)?;
+
+    if info.sender != config.owner {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    if let Some(blacklisted_voters_limit) = blacklisted_voters_limit {
+        config.blacklisted_voters_limit = Some(blacklisted_voters_limit);
+    }
+
+    CONFIG.save(deps.storage, &config)?;
+
+    Ok(Response::default().add_attribute("action", "update_config"))
+}
+
+/// ## Description
+/// Only contract owner can call this function.
 /// The function sets new limit of pools which are eligible to receive allocation points.
 ///
 /// ## Params
@@ -414,6 +537,22 @@ fn pool_info(
 /// ## Description
 /// Used for migration of contract. Returns the default object of type [`Response`].
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
-    Ok(Response::default())
+pub fn migrate(mut deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
+    let contract_version = get_contract_version(deps.storage)?;
+
+    match contract_version.contract.as_ref() {
+        "astro-generator-controller" => match contract_version.version.as_ref() {
+            "1.0.0" => migration::migrate_configs_to_v110(&mut deps, &msg)?,
+            _ => return Err(ContractError::MigrationError {}),
+        },
+        _ => return Err(ContractError::MigrationError {}),
+    };
+
+    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    Ok(Response::new()
+        .add_attribute("previous_contract_name", &contract_version.contract)
+        .add_attribute("previous_contract_version", &contract_version.version)
+        .add_attribute("new_contract_name", CONTRACT_NAME)
+        .add_attribute("new_contract_version", CONTRACT_VERSION))
 }

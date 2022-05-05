@@ -227,3 +227,28 @@ Returns the contract's config.
   }
 }
 ```
+
+### `blacklisted_voters`
+
+Returns blacklisted voters.
+
+```json
+{
+  "blacklisted_voters": {
+    "start_after": "terra...",
+    "limit": 5
+  }
+}
+```
+
+### `check_voters_are_blacklisted`
+
+Checks if specified addresses are blacklisted
+
+```json
+{
+  "check_voters_are_blacklisted": {
+    "voters": ["terra...", "terra..."]
+  }
+}
+```
