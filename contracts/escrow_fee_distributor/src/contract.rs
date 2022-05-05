@@ -24,7 +24,7 @@ use cw2::set_contract_version;
 use cw_storage_plus::{Bound, PrimaryKey, U64Key};
 
 /// Contract name that is used for migration.
-const CONTRACT_NAME: &str = "astroport-escrow_fee_distributor";
+const CONTRACT_NAME: &str = "astroport-escrow-fee-distributor";
 /// Contract version that is used for migration.
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
