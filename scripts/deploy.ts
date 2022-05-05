@@ -105,7 +105,7 @@ async function deployVotingEscrow(terra: LCDClient, wallet: any) {
         join(ARTIFACTS_PATH, 'voting_escrow.wasm'),
         {
             "owner": network.multisigAddress,
-            "guardian_addr": network.assemblyAddress,
+            "guardian_addr": "terra1vp629527wwvm9kxqsgn4fx2plgs4j5un0ea5yu",
             "deposit_token_addr": network.xastroAddress,
             "marketing": {
                 "project": "Astroport",
