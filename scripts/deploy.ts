@@ -140,7 +140,7 @@ async function deployTeamUnlock(terra: LCDClient, wallet: any) {
         {
             "owner": wallet.key.accAddress,
             "astro_token": network.tokenAddress,
-            "max_allocations_amount": String(1_000_000_000_000000) // need to fetch with Stephan
+            "max_allocations_amount": String(1_000_000_000_000000)
         }
     )
 
@@ -220,7 +220,6 @@ async function deployAssembly(terra: LCDClient, wallet: any) {
         join(ARTIFACTS_PATH, 'astro_assembly.wasm'),
         {
             "xastro_token_addr": network.xastroAddress,
-            //"vxastro_token_addr": network.votingEscrow,
             "builder_unlock_addr": network.builderUnlockAddress,
             "proposal_voting_period": 57600,
             "proposal_effective_delay": 28800,
