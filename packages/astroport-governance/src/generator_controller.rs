@@ -56,7 +56,7 @@ pub enum QueryMsg {
     Config {},
     /// PoolInfo returns the latest voting power allocated to a specific pool (generator)
     PoolInfo { pool_addr: String },
-    /// PoolInfo returns the voting power allocated to a specific pool (generator) at a specific timestamp
+    /// PoolInfo returns the voting power allocated to a specific pool (generator) at a specific period
     PoolInfoAtPeriod { pool_addr: String, period: u64 },
 }
 
