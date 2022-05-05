@@ -140,7 +140,7 @@ async function deployTeamUnlock(terra: LCDClient, wallet: any) {
         {
             "owner": wallet.key.accAddress,
             "astro_token": network.tokenAddress,
-            "max_allocations_amount": String(1_000_000_000_000000)
+            "max_allocations_amount": String(300_000_000_000000)
         }
     )
 
