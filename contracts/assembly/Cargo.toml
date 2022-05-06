@@ -1,6 +1,6 @@
 [package]
 name = "astro-assembly"
-version = "1.0.2"
+version = "1.0.3"
 authors = ["Astroport"]
 edition = "2018"
 
