@@ -123,6 +123,8 @@ pub fn execute(
         ExecuteMsg::ExecuteProposal { proposal_id } => {
             execute_proposal(deps, env, info, proposal_id)
         }
+        ExecuteMsg::CheckMessages { messages } => check_messages(env, messages),
+        ExecuteMsg::CheckMessagesPassed {} => Err(ContractError::MessagesCheckPassed {}),
         ExecuteMsg::RemoveCompletedProposal { proposal_id } => {
             remove_completed_proposal(deps, env, info, proposal_id)
         }
@@ -442,6 +444,31 @@ pub fn execute_proposal(
     Ok(Response::new()
         .add_attribute("action", "execute_proposal")
         .add_attribute("proposal_id", proposal_id.to_string())
+        .add_messages(messages))
+}
+
+/// ## Description
+/// Checks that proposal messages are correct.
+/// Returns [`ContractError`] on failure, otherwise returns a [`Response`] with the specified
+/// attributes if the operation was successful.
+/// ## Params
+/// * **env** is an object of type [`Env`].
+///
+/// * **messages** is a vector of [`ProposalMessage`].
+pub fn check_messages(
+    env: Env,
+    mut messages: Vec<ProposalMessage>,
+) -> Result<Response, ContractError> {
+    messages.sort_by(|a, b| a.order.cmp(&b.order));
+    let mut messages: Vec<_> = messages.into_iter().map(|message| message.msg).collect();
+    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: env.contract.address.to_string(),
+        msg: to_binary(&ExecuteMsg::CheckMessagesPassed {})?,
+        funds: vec![],
+    }));
+
+    Ok(Response::new()
+        .add_attribute("action", "check_messages")
         .add_messages(messages))
 }
 

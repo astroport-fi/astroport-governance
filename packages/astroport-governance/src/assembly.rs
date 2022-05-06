@@ -63,6 +63,13 @@ pub enum ExecuteMsg {
         /// Proposal identifier
         proposal_id: u64,
     },
+    /// Check messages execution
+    CheckMessages {
+        /// messages
+        messages: Vec<ProposalMessage>,
+    },
+    /// The last endpoint which is executed only if all proposal messages have been passed
+    CheckMessagesPassed {},
     /// Execute a successful proposal
     ExecuteProposal {
         /// Proposal identifier
