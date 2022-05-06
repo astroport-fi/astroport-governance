@@ -33,20 +33,21 @@ async function deployGeneratorController(terra: LCDClient, wallet: any) {
         "votingEscrowAddress",
         "generatorAddress",
         "factoryAddress",
+        "assemblyAddress"
     ])
 
-    if (network.generatorControllerddress) {
-        console.log("Generator controller already deployed: ", network.generatorControllerddress)
+    if (network.generatorControllerAddress) {
+        console.log("Generator controller already deployed: ", network.generatorControllerAddress)
         return
     }
 
     console.log('Deploying generator controller...')
-    network.generatorControllerddress = await deployContract(
+    network.generatorControllerAddress = await deployContract(
         terra,
         wallet,
         join(ARTIFACTS_PATH, 'generator_controller.wasm'),
         {
-            "owner": network.multisigAddress,
+            "owner": network.assemblyAddress,
             "escrow_addr": network.votingEscrowAddress,
             "generator_addr": network.generatorAddress,
             "factory_addr": network.factoryAddress,
@@ -54,7 +55,7 @@ async function deployGeneratorController(terra: LCDClient, wallet: any) {
         }
     )
 
-    console.log("Generator controller: ", network.generatorControllerddress)
+    console.log("Generator controller: ", network.generatorControllerAddress)
 
     writeArtifact(network, terra.config.chainID)
 }
@@ -62,7 +63,7 @@ async function deployGeneratorController(terra: LCDClient, wallet: any) {
 async function deployFeeDistributor(terra: LCDClient, wallet: any) {
     let network = readArtifact(terra.config.chainID)
 
-    checkParams(network, ["votingEscrowAddress"])
+    checkParams(network, ["votingEscrowAddress", "assemblyAddress"])
 
     if (network.feeDistributorAddress) {
         console.log("Fee distributor already deployed: ", network.feeDistributorAddress)
@@ -75,7 +76,7 @@ async function deployFeeDistributor(terra: LCDClient, wallet: any) {
         wallet,
         join(ARTIFACTS_PATH, 'astroport_escrow_fee_distributor.wasm'),
         {
-            "owner": network.multisigAddress,
+            "owner": network.assemblyAddress,
             "astro_token": network.tokenAddress,
             "voting_escrow_addr": network.votingEscrowAddress,
             "is_claim_disabled": false,
@@ -96,7 +97,7 @@ async function deployVotingEscrow(terra: LCDClient, wallet: any) {
         return
     }
 
-    checkParams(network, ["multisigAddress", "xastroAddress"])
+    checkParams(network, ["multisigAddress", "xastroAddress", "assemblyAddress"])
 
     console.log('Deploying votingEscrow...')
     network.votingEscrowAddress = await deployContract(
@@ -104,7 +105,7 @@ async function deployVotingEscrow(terra: LCDClient, wallet: any) {
         wallet,
         join(ARTIFACTS_PATH, 'voting_escrow.wasm'),
         {
-            "owner": network.multisigAddress,
+            "owner": network.assemblyAddress,
             "guardian_addr": "terra1vp629527wwvm9kxqsgn4fx2plgs4j5un0ea5yu",
             "deposit_token_addr": network.xastroAddress,
             "marketing": {
