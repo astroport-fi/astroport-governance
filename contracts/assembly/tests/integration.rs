@@ -1368,7 +1368,7 @@ fn instantiate_vxastro_token(router: &mut TerraApp, owner: &Addr, xastro: &Addr)
 
     let msg = VXAstroInstantiateMsg {
         owner: owner.to_string(),
-        guardian_addr: owner.to_string(),
+        guardian_addr: Some(owner.to_string()),
         deposit_token_addr: xastro.to_string(),
         marketing: None,
         max_exit_penalty: Decimal::from_str("0.75").unwrap(),

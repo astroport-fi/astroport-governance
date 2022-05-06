@@ -5,9 +5,9 @@ use astroport::DecimalCheckedOps;
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     from_binary, to_binary, Addr, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo,
-    Response, StdError, StdResult, SubMsg, Uint128, WasmMsg,
+    QueryRequest, Response, StdError, StdResult, SubMsg, Uint128, WasmMsg, WasmQuery,
 };
-use cw2::{get_contract_version, set_contract_version};
+use cw2::{get_contract_version, set_contract_version, ContractVersion, CONTRACT};
 use cw20::{
     BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, Cw20ReceiveMsg, Logo, LogoInfo,
     MarketingInfoResponse, MinterResponse, TokenInfoResponse,
@@ -82,15 +82,18 @@ pub fn instantiate(
         &astroport::staking::QueryMsg::Config {},
     )?;
 
-    let config = Config {
+    let mut config = Config {
         owner: addr_validate_to_lower(deps.api, &msg.owner)?,
-        guardian_addr: addr_validate_to_lower(deps.api, &msg.guardian_addr)?,
+        guardian_addr: None,
         deposit_token_addr,
         max_exit_penalty: msg.max_exit_penalty,
         astro_addr: staking_config.deposit_token_addr,
         xastro_staking_addr: addr_validate_to_lower(deps.api, &xastro_minter_resp.minter)?,
         slashed_fund_receiver,
     };
+    if let Some(guardian_addr) = msg.guardian_addr {
+        config.guardian_addr = Some(addr_validate_to_lower(deps.api, &guardian_addr)?);
+    }
     CONFIG.save(deps.storage, &config)?;
 
     let cur_period = get_period(env.block.time.seconds())?;
@@ -133,7 +136,7 @@ pub fn instantiate(
 
     // Store token info
     let data = TokenInfo {
-        name: "vxASTRO".to_string(),
+        name: "Vote Escrowed xASTRO".to_string(),
         symbol: "vxASTRO".to_string(),
         decimals: 6,
         total_supply: Uint128::zero(),
@@ -235,6 +238,9 @@ pub fn execute(
             .map_err(|e| e.into()),
         ExecuteMsg::UploadLogo(logo) => {
             execute_upload_logo(deps, env, info, logo).map_err(|e| e.into())
+        }
+        ExecuteMsg::UpdateConfig { new_guardian } => {
+            execute_update_config(deps, info, new_guardian)
         }
     }
 }
@@ -786,14 +792,36 @@ fn withdraw_early_callback(
     let return_astro_amount = current_astro_balance.saturating_sub(precallback_astro);
 
     if !return_astro_amount.is_zero() {
-        let transfer_msg = SubMsg::new(WasmMsg::Execute {
-            contract_addr: config.astro_addr.to_string(),
-            msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                recipient: slashed_funds_receiver.to_string(),
-                amount: return_astro_amount,
-            })?,
-            funds: vec![],
-        });
+        // Check that slashed_funds_receiver is an escrow_fee_distributor contract
+        // otherwise transfer return_astro_amount to slashed_funds_receiver address
+        let version: StdResult<ContractVersion> =
+            deps.querier.query(&QueryRequest::Wasm(WasmQuery::Raw {
+                contract_addr: slashed_funds_receiver.to_string(),
+                key: CONTRACT.as_slice().into(),
+            }));
+        let transfer_msg = match version {
+            Ok(ContractVersion { contract, .. })
+                if contract.eq("astroport-escrow-fee-distributor") =>
+            {
+                SubMsg::new(WasmMsg::Execute {
+                    contract_addr: config.astro_addr.to_string(),
+                    msg: to_binary(&Cw20ExecuteMsg::Send {
+                        contract: slashed_funds_receiver.to_string(),
+                        amount: return_astro_amount,
+                        msg: to_binary(&{})?,
+                    })?,
+                    funds: vec![],
+                })
+            }
+            _ => SubMsg::new(WasmMsg::Execute {
+                contract_addr: config.astro_addr.to_string(),
+                msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                    recipient: slashed_funds_receiver.to_string(),
+                    amount: return_astro_amount,
+                })?,
+                funds: vec![],
+            }),
+        };
 
         Ok(Response::new().add_submessage(transfer_msg))
     } else {
@@ -875,7 +903,7 @@ fn update_blacklist(
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
     // Permission check
-    if info.sender != config.owner && info.sender != config.guardian_addr {
+    if info.sender != config.owner && Some(info.sender) != config.guardian_addr {
         return Err(ContractError::Unauthorized {});
     }
     let append_addrs = append_addrs.unwrap_or_default();
@@ -974,6 +1002,34 @@ fn update_blacklist(
 }
 
 /// ## Description
+/// Updates contract parameters.
+/// ## Params
+/// * **deps** is an object of type [`DepsMut`].
+///
+/// * **info** is an object of type [`MessageInfo`].
+///
+/// * **new_guardian** is an optional object of type [`String`].
+fn execute_update_config(
+    deps: DepsMut,
+    info: MessageInfo,
+    new_guardian: Option<String>,
+) -> Result<Response, ContractError> {
+    let mut cfg = CONFIG.load(deps.storage)?;
+
+    if cfg.owner != info.sender {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    if let Some(new_guardian) = new_guardian {
+        cfg.guardian_addr = Some(addr_validate_to_lower(deps.api, &new_guardian)?);
+    }
+
+    CONFIG.save(deps.storage, &cfg)?;
+
+    Ok(Response::default().add_attribute("action", "execute_update_config"))
+}
+
+/// ## Description
 /// Expose available contract queries.
 /// ## Params
 /// * **deps** is an object of type [`Deps`].
@@ -1028,7 +1084,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             let config = CONFIG.load(deps.storage)?;
             to_binary(&ConfigResponse {
                 owner: config.owner.to_string(),
-                guardian_addr: config.guardian_addr.to_string(),
+                guardian_addr: config.guardian_addr,
                 deposit_token_addr: config.deposit_token_addr.to_string(),
                 max_exit_penalty: config.max_exit_penalty,
                 slashed_fund_receiver: config.slashed_fund_receiver.map(|addr| addr.to_string()),
