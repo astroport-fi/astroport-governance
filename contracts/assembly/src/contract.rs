@@ -840,22 +840,30 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, Co
             "1.0.0" => {
                 let config_v100 = CONFIGV100.load(deps.storage)?;
 
-                if msg.whitelisted_links.is_empty() {
+                if msg.whitelisted_links.is_none() {
                     return Err(ContractError::WhitelistEmpty {});
                 }
-                validate_links(&msg.whitelisted_links)?;
+                if let Some(links) = &msg.whitelisted_links {
+                    validate_links(links)?;
+                }
 
                 let config = Config {
                     xastro_token_addr: config_v100.xastro_token_addr,
                     vxastro_token_addr: Some(config_v100.vxastro_token_addr),
                     builder_unlock_addr: config_v100.builder_unlock_addr,
-                    proposal_voting_period: msg.proposal_voting_period,
-                    proposal_effective_delay: msg.proposal_effective_delay,
+                    proposal_voting_period: msg
+                        .proposal_voting_period
+                        .ok_or(ContractError::MigrationError {})?,
+                    proposal_effective_delay: msg
+                        .proposal_effective_delay
+                        .ok_or(ContractError::MigrationError {})?,
                     proposal_expiration_period: config_v100.proposal_expiration_period,
                     proposal_required_deposit: config_v100.proposal_required_deposit,
                     proposal_required_quorum: config_v100.proposal_required_quorum,
                     proposal_required_threshold: config_v100.proposal_required_threshold,
-                    whitelisted_links: msg.whitelisted_links,
+                    whitelisted_links: msg
+                        .whitelisted_links
+                        .ok_or(ContractError::MigrationError {})?,
                 };
 
                 config.validate()?;
