@@ -1042,7 +1042,9 @@ fn total_vp_multiple_slope_subtraction() {
     let helper = Helper::init(router_ref, owner);
 
     helper.mint_xastro(router_ref, "user1", 1000);
-    helper.create_lock(router_ref, "user1", 2 * WEEK, 100f32).unwrap();
+    helper
+        .create_lock(router_ref, "user1", 2 * WEEK, 100f32)
+        .unwrap();
     let total = helper.query_total_vp(router_ref).unwrap();
     assert_eq!(total, 102.88461);
 
@@ -1053,12 +1055,24 @@ fn total_vp_multiple_slope_subtraction() {
 
     // Try to manipulate over expired lock 2 weeks later
     router_ref.update_block(|bi| bi.time = bi.time.plus_seconds(2 * WEEK));
-    let err = helper.extend_lock_amount(router_ref, "user1", 100f32).unwrap_err();
-    assert_eq!(err.to_string(), "The lock expired. Withdraw and create new lock");
-    let err = helper.create_lock(router_ref, "user1", 2 * WEEK, 100f32).unwrap_err();
+    let err = helper
+        .extend_lock_amount(router_ref, "user1", 100f32)
+        .unwrap_err();
+    assert_eq!(
+        err.to_string(),
+        "The lock expired. Withdraw and create new lock"
+    );
+    let err = helper
+        .create_lock(router_ref, "user1", 2 * WEEK, 100f32)
+        .unwrap_err();
     assert_eq!(err.to_string(), "Lock already exists");
-    let err = helper.extend_lock_time(router_ref, "user1", 2 * WEEK).unwrap_err();
-    assert_eq!(err.to_string(), "The lock expired. Withdraw and create new lock");
+    let err = helper
+        .extend_lock_time(router_ref, "user1", 2 * WEEK)
+        .unwrap_err();
+    assert_eq!(
+        err.to_string(),
+        "The lock expired. Withdraw and create new lock"
+    );
     let total = helper.query_total_vp(router_ref).unwrap();
     assert_eq!(total, 0f32);
 }
