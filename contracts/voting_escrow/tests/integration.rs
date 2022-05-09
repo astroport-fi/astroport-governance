@@ -1033,3 +1033,46 @@ fn early_withdraw() {
     let total_vp = helper.query_total_vp(router_ref).unwrap();
     assert_eq!(total_vp, 0.0)
 }
+
+#[test]
+fn total_vp_multiple_slope_subtraction() {
+    let mut router = mock_app();
+    let router_ref = &mut router;
+    let owner = Addr::unchecked("owner");
+    let helper = Helper::init(router_ref, owner);
+
+    helper.mint_xastro(router_ref, "user1", 1000);
+    helper
+        .create_lock(router_ref, "user1", 2 * WEEK, 100f32)
+        .unwrap();
+    let total = helper.query_total_vp(router_ref).unwrap();
+    assert_eq!(total, 102.88461);
+
+    router_ref.update_block(|bi| bi.time = bi.time.plus_seconds(2 * WEEK));
+    // Slope changes have been applied
+    let total = helper.query_total_vp(router_ref).unwrap();
+    assert_eq!(total, 0.0);
+
+    // Try to manipulate over expired lock 2 weeks later
+    router_ref.update_block(|bi| bi.time = bi.time.plus_seconds(2 * WEEK));
+    let err = helper
+        .extend_lock_amount(router_ref, "user1", 100f32)
+        .unwrap_err();
+    assert_eq!(
+        err.to_string(),
+        "The lock expired. Withdraw and create new lock"
+    );
+    let err = helper
+        .create_lock(router_ref, "user1", 2 * WEEK, 100f32)
+        .unwrap_err();
+    assert_eq!(err.to_string(), "Lock already exists");
+    let err = helper
+        .extend_lock_time(router_ref, "user1", 2 * WEEK)
+        .unwrap_err();
+    assert_eq!(
+        err.to_string(),
+        "The lock expired. Withdraw and create new lock"
+    );
+    let total = helper.query_total_vp(router_ref).unwrap();
+    assert_eq!(total, 0f32);
+}
