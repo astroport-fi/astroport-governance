@@ -1,4 +1,4 @@
-use cosmwasm_std::{Addr, Uint128};
+use cosmwasm_std::{Addr, Decimal, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -32,7 +32,14 @@ pub enum ExecuteMsg {
     },
     TunePools {},
     UpdateConfig {
+        /// The number of voters that can be kicked at once from the pool..
         blacklisted_voters_limit: Option<u32>,
+        /// Main pool that will receive a minimum amount of ASTRO emissions
+        main_pool: Option<String>,
+        /// The minimum percentage of ASTRO emissions that main pool should get every block
+        main_pool_min_alloc: Option<Decimal>,
+        /// Should the main pool be removed or not? If the variable is omitted then the pool will be kept.
+        remove_main_pool: Option<bool>,
     },
     ChangePoolsLimit {
         limit: u64,
@@ -80,8 +87,12 @@ pub struct ConfigResponse {
     pub factory_addr: Addr,
     /// Max number of pools that can receive an ASTRO allocation
     pub pools_limit: u64,
-    /// Max number of blacklisted voters can be removed
+    /// Max number of blacklisted voters which can be removed
     pub blacklisted_voters_limit: Option<u32>,
+    /// Main pool that will receive a minimum amount of ASTRO emissions
+    pub main_pool: Option<Addr>,
+    /// The minimum percentage of ASTRO emissions that main pool should get every block
+    pub main_pool_min_alloc: Decimal,
 }
 
 /// This structure describes response with voting parameters for a specific pool.

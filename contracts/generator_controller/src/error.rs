@@ -20,6 +20,12 @@ pub enum ContractError {
     #[error("You can't vote with zero voting power")]
     ZeroVotingPower {},
 
+    #[error("{0} is the main pool. Voting for the main pool is prohibited")]
+    MainPoolVoteProhibited(String),
+
+    #[error("main_pool_min_alloc should be more than 0 and less than 1")]
+    MainPoolMinAllocFailed {},
+
     #[error("You can only run this action every {0} days")]
     CooldownError(u64),
 

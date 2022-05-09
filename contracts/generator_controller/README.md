@@ -34,12 +34,14 @@ Remove votes of voters that are blacklisted.
 
 ### `update_config`
 
-Sets a new limit of blacklisted voters that can be kicked at once.
+Sets various configuration parameters. Any of them can be omitted.
 
 ```json
 {
   "update_config": {
-    "blacklisted_voters_limit": 22
+    "blacklisted_voters_limit": 22,
+    "main_pool": "terra...",
+    "main_pool_min_alloc": "0.3"
   }
 }
 ```
