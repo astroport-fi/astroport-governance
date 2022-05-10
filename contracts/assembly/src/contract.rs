@@ -21,7 +21,7 @@ use astroport_governance::builder_unlock::msg::{
 use astroport_governance::voting_escrow::{QueryMsg as VotingEscrowQueryMsg, VotingPowerResponse};
 
 use crate::error::ContractError;
-use crate::migration::{migrate_proposals_to_v103, MigrateMsg, CONFIGV100, CONFIGV101};
+use crate::migration::{migrate_proposals_to_v111, MigrateMsg, CONFIGV100, CONFIGV101};
 use crate::state::{CONFIG, PROPOSALS, PROPOSAL_COUNT};
 
 // Contract name and version used for migration.
@@ -871,7 +871,7 @@ pub fn migrate(mut deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response
 
                 config.validate()?;
 
-                migrate_proposals_to_v103(&mut deps, &config)?;
+                migrate_proposals_to_v111(&mut deps, &config)?;
                 CONFIG.save(deps.storage, &config)?;
             }
             "1.0.1" => {
@@ -890,12 +890,12 @@ pub fn migrate(mut deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response
                     whitelisted_links: config_v101.whitelisted_links,
                 };
 
-                migrate_proposals_to_v103(&mut deps, &config)?;
+                migrate_proposals_to_v111(&mut deps, &config)?;
                 CONFIG.save(deps.storage, &config)?;
             }
-            "1.0.2" => {
+            "1.0.2" | "1.1.0" => {
                 let config = CONFIG.load(deps.storage)?;
-                migrate_proposals_to_v103(&mut deps, &config)?;
+                migrate_proposals_to_v111(&mut deps, &config)?;
             }
             _ => return Err(ContractError::MigrationError {}),
         },

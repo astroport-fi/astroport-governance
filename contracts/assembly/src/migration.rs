@@ -66,7 +66,7 @@ pub struct ConfigV101 {
 pub const CONFIGV101: Item<ConfigV101> = Item::new("config");
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct ProposalV102 {
+pub struct ProposalV100 {
     /// Unique proposal ID
     pub proposal_id: Uint64,
     /// The address of the proposal submitter
@@ -99,19 +99,19 @@ pub struct ProposalV102 {
     pub deposit_amount: Uint128,
 }
 
-pub const PROPOSALS_V102: Map<U64Key, ProposalV102> = Map::new("proposals");
+pub const PROPOSALS_V100: Map<U64Key, ProposalV100> = Map::new("proposals");
 
-/// Migrate proposals to V1.0.3
-pub(crate) fn migrate_proposals_to_v103(deps: &mut DepsMut, cfg: &Config) -> StdResult<()> {
-    let proposals_v102 = PROPOSALS_V102
+/// Migrate proposals to V1.1.1
+pub(crate) fn migrate_proposals_to_v111(deps: &mut DepsMut, cfg: &Config) -> StdResult<()> {
+    let proposals_v100 = PROPOSALS_V100
         .range(deps.storage, None, None, cosmwasm_std::Order::Ascending {})
         .map(|pair| {
             let (_, proposal) = pair?;
             Ok(proposal)
         })
-        .collect::<Result<Vec<ProposalV102>, StdError>>()?;
+        .collect::<Result<Vec<ProposalV100>, StdError>>()?;
 
-    for proposal in proposals_v102 {
+    for proposal in proposals_v100 {
         PROPOSALS.save(
             deps.storage,
             U64Key::new(proposal.proposal_id.u64()),
