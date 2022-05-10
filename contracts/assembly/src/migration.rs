@@ -1,5 +1,6 @@
-use astroport_governance::assembly::{ProposalMessage, ProposalStatus};
-use cosmwasm_std::{Addr, Decimal, Uint128, Uint64};
+use crate::state::PROPOSALS;
+use astroport_governance::assembly::{Config, Proposal, ProposalMessage, ProposalStatus};
+use cosmwasm_std::{Addr, Decimal, DepsMut, StdError, StdResult, Uint128, Uint64};
 use cw_storage_plus::{Item, Map, U64Key};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -99,3 +100,44 @@ pub struct ProposalV102 {
 }
 
 pub const PROPOSALS_V102: Map<U64Key, ProposalV102> = Map::new("proposals");
+
+/// Migrate proposals to V1.0.3
+pub(crate) fn migrate_proposals_to_v103(deps: &mut DepsMut, cfg: &Config) -> StdResult<()> {
+    let proposals_v102 = PROPOSALS_V102
+        .range(deps.storage, None, None, cosmwasm_std::Order::Ascending {})
+        .map(|pair| {
+            let (_, proposal) = pair?;
+            Ok(proposal)
+        })
+        .collect::<Result<Vec<ProposalV102>, StdError>>()?;
+
+    for proposal in proposals_v102 {
+        PROPOSALS.save(
+            deps.storage,
+            U64Key::new(proposal.proposal_id.u64()),
+            &Proposal {
+                proposal_id: proposal.proposal_id,
+                submitter: proposal.submitter,
+                status: proposal.status,
+                for_power: proposal.for_power,
+                against_power: proposal.against_power,
+                for_voters: proposal.for_voters,
+                against_voters: proposal.against_voters,
+                start_block: proposal.start_block,
+                start_time: proposal.start_time,
+                end_block: proposal.end_block,
+                delayed_end_block: proposal.end_block + cfg.proposal_effective_delay,
+                expiration_block: proposal.end_block
+                    + cfg.proposal_effective_delay
+                    + cfg.proposal_expiration_period,
+                title: proposal.title,
+                description: proposal.description,
+                link: proposal.link,
+                messages: proposal.messages,
+                deposit_amount: proposal.deposit_amount,
+            },
+        )?;
+    }
+
+    Ok(())
+}
