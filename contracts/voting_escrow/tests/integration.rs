@@ -969,7 +969,7 @@ fn early_withdraw() {
     );
 
     helper
-        .configure_early_withdrawal(router_ref, "0.75", "holder")
+        .configure_early_withdrawal(router_ref, "0.75", helper.fee_distributor_instance.as_str())
         .unwrap();
 
     helper.mint_xastro(router_ref, "user1", 100);
@@ -983,7 +983,7 @@ fn early_withdraw() {
 
     // user2 withdraws right after he created the lock with 75% penalty
     helper.check_xastro_balance(router_ref, "user2", 0);
-    helper.check_astro_balance(router_ref, "holder", 0);
+    helper.check_astro_balance(router_ref, helper.fee_distributor_instance.as_str(), 0);
     helper.check_astro_balance(router_ref, helper.voting_instance.as_str(), 0);
     helper.check_xastro_balance(router_ref, helper.voting_instance.as_str(), 200);
 
@@ -995,7 +995,7 @@ fn early_withdraw() {
 
     // 75% penalty
     helper.check_xastro_balance(router_ref, "user2", 25);
-    helper.check_astro_balance(router_ref, "holder", 75);
+    helper.check_astro_balance(router_ref, helper.fee_distributor_instance.as_str(), 75);
     helper.check_astro_balance(router_ref, helper.voting_instance.as_str(), 0);
     helper.check_xastro_balance(router_ref, helper.voting_instance.as_str(), 100);
 
@@ -1011,7 +1011,7 @@ fn early_withdraw() {
     });
 
     helper.check_xastro_balance(router_ref, "user1", 0);
-    helper.check_astro_balance(router_ref, "holder", 75);
+    helper.check_astro_balance(router_ref, helper.fee_distributor_instance.as_str(), 75);
     helper.check_astro_balance(router_ref, helper.voting_instance.as_str(), 0);
     helper.check_xastro_balance(router_ref, helper.voting_instance.as_str(), 100);
 
@@ -1023,7 +1023,7 @@ fn early_withdraw() {
 
     // 50% penalty
     helper.check_xastro_balance(router_ref, "user1", 50);
-    helper.check_astro_balance(router_ref, "holder", 125);
+    helper.check_astro_balance(router_ref, helper.fee_distributor_instance.as_str(), 125);
     helper.check_astro_balance(router_ref, helper.voting_instance.as_str(), 0);
     helper.check_xastro_balance(router_ref, helper.voting_instance.as_str(), 0);
 
@@ -1032,4 +1032,47 @@ fn early_withdraw() {
     assert_eq!(vp, 0.0);
     let total_vp = helper.query_total_vp(router_ref).unwrap();
     assert_eq!(total_vp, 0.0)
+}
+
+#[test]
+fn total_vp_multiple_slope_subtraction() {
+    let mut router = mock_app();
+    let router_ref = &mut router;
+    let owner = Addr::unchecked("owner");
+    let helper = Helper::init(router_ref, owner);
+
+    helper.mint_xastro(router_ref, "user1", 1000);
+    helper
+        .create_lock(router_ref, "user1", 2 * WEEK, 100f32)
+        .unwrap();
+    let total = helper.query_total_vp(router_ref).unwrap();
+    assert_eq!(total, 102.88461);
+
+    router_ref.update_block(|bi| bi.time = bi.time.plus_seconds(2 * WEEK));
+    // Slope changes have been applied
+    let total = helper.query_total_vp(router_ref).unwrap();
+    assert_eq!(total, 0.0);
+
+    // Try to manipulate over expired lock 2 weeks later
+    router_ref.update_block(|bi| bi.time = bi.time.plus_seconds(2 * WEEK));
+    let err = helper
+        .extend_lock_amount(router_ref, "user1", 100f32)
+        .unwrap_err();
+    assert_eq!(
+        err.to_string(),
+        "The lock expired. Withdraw and create new lock"
+    );
+    let err = helper
+        .create_lock(router_ref, "user1", 2 * WEEK, 100f32)
+        .unwrap_err();
+    assert_eq!(err.to_string(), "Lock already exists");
+    let err = helper
+        .extend_lock_time(router_ref, "user1", 2 * WEEK)
+        .unwrap_err();
+    assert_eq!(
+        err.to_string(),
+        "The lock expired. Withdraw and create new lock"
+    );
+    let total = helper.query_total_vp(router_ref).unwrap();
+    assert_eq!(total, 0f32);
 }

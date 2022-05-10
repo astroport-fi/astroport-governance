@@ -20,8 +20,8 @@ use astroport_governance::builder_unlock::{AllocationParams, Schedule};
 use astroport_governance::utils::{EPOCH_START, WEEK};
 use cosmwasm_std::{
     testing::{mock_env, MockApi, MockStorage},
-    to_binary, Addr, CosmosMsg, Decimal, QueryRequest, StdResult, Timestamp, Uint128, Uint64,
-    WasmMsg, WasmQuery,
+    to_binary, Addr, Binary, CosmosMsg, Decimal, QueryRequest, StdResult, Timestamp, Uint128,
+    Uint64, WasmMsg, WasmQuery,
 };
 use cw20::{BalanceResponse, Cw20ExecuteMsg, MinterResponse};
 use terra_multi_test::{
@@ -1224,6 +1224,94 @@ fn test_unsuccessful_proposal() {
     assert_eq!(res.proposal_count, Uint64::from(1u32));
 }
 
+#[test]
+fn test_check_messages() {
+    let mut app = mock_app();
+    let owner = Addr::unchecked("owner");
+    let (_, _, _, vxastro_addr, _, assembly_addr) = instantiate_contracts(&mut app, owner);
+
+    change_owner(&mut app, &vxastro_addr, &assembly_addr);
+    let user = Addr::unchecked("user");
+    let into_check_msg = |msgs: Vec<(String, Binary)>| {
+        let messages = msgs
+            .into_iter()
+            .enumerate()
+            .map(|(i, (contract_addr, msg))| ProposalMessage {
+                order: Uint64::from(i as u64),
+                msg: CosmosMsg::Wasm(WasmMsg::Execute {
+                    contract_addr,
+                    msg,
+                    funds: vec![],
+                }),
+            })
+            .collect();
+        ExecuteMsg::CheckMessages { messages }
+    };
+
+    let vxastro_blacklist_msg = vec![(
+        vxastro_addr.to_string(),
+        to_binary(
+            &astroport_governance::voting_escrow::ExecuteMsg::ConfigureEarlyWithdrawal {
+                max_penalty: Decimal::from_str("1.2").ok(),
+                slashed_fund_receiver: Some("holder".to_string()),
+            },
+        )
+        .unwrap(),
+    )];
+    let err = app
+        .execute_contract(
+            user.clone(),
+            assembly_addr.clone(),
+            &into_check_msg(vxastro_blacklist_msg),
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(
+        &err.to_string(),
+        "Generic error: Max exit penalty should be <= 1"
+    );
+
+    let config_before: astroport_governance::voting_escrow::ConfigResponse = app
+        .wrap()
+        .query_wasm_smart(
+            &vxastro_addr,
+            &astroport_governance::voting_escrow::QueryMsg::Config {},
+        )
+        .unwrap();
+
+    let vxastro_blacklist_msg = vec![(
+        vxastro_addr.to_string(),
+        to_binary(
+            &astroport_governance::voting_escrow::ExecuteMsg::ConfigureEarlyWithdrawal {
+                max_penalty: Decimal::from_str("0.5").ok(),
+                slashed_fund_receiver: Some("holder".to_string()),
+            },
+        )
+        .unwrap(),
+    )];
+    let err = app
+        .execute_contract(
+            user.clone(),
+            assembly_addr.clone(),
+            &into_check_msg(vxastro_blacklist_msg),
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(
+        &err.to_string(),
+        "Messages check passed. Nothing was committed to the blockchain"
+    );
+
+    let config_after: astroport_governance::voting_escrow::ConfigResponse = app
+        .wrap()
+        .query_wasm_smart(
+            &vxastro_addr,
+            &astroport_governance::voting_escrow::QueryMsg::Config {},
+        )
+        .unwrap();
+    assert_eq!(config_before, config_after);
+}
+
 fn mock_app() -> TerraApp {
     let mut env = mock_env();
     env.block.time = Timestamp::from_seconds(EPOCH_START);
@@ -1368,7 +1456,7 @@ fn instantiate_vxastro_token(router: &mut TerraApp, owner: &Addr, xastro: &Addr)
 
     let msg = VXAstroInstantiateMsg {
         owner: owner.to_string(),
-        guardian_addr: owner.to_string(),
+        guardian_addr: Some(owner.to_string()),
         deposit_token_addr: xastro.to_string(),
         marketing: None,
         max_exit_penalty: Decimal::from_str("0.75").unwrap(),
@@ -1609,4 +1697,21 @@ fn cast_vote(
         },
         &[],
     )
+}
+
+fn change_owner(app: &mut TerraApp, contract: &Addr, assembly: &Addr) {
+    let msg = astroport_governance::voting_escrow::ExecuteMsg::ProposeNewOwner {
+        new_owner: assembly.to_string(),
+        expires_in: 100,
+    };
+    app.execute_contract(Addr::unchecked("owner"), contract.clone(), &msg, &[])
+        .unwrap();
+
+    app.execute_contract(
+        assembly.clone(),
+        contract.clone(),
+        &astroport_governance::voting_escrow::ExecuteMsg::ClaimOwnership {},
+        &[],
+    )
+    .unwrap();
 }

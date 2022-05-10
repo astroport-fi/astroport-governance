@@ -8,9 +8,9 @@ use serde::{Deserialize, Serialize};
 /// This structure describes a migration message.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct MigrateMsg {
-    pub proposal_voting_period: u64,
-    pub proposal_effective_delay: u64,
-    pub whitelisted_links: Vec<String>,
+    pub proposal_voting_period: Option<u64>,
+    pub proposal_effective_delay: Option<u64>,
+    pub whitelisted_links: Option<Vec<String>>,
 }
 
 /// This structure stores general parameters for the Assembly contract.
