@@ -43,6 +43,15 @@ pub fn instantiate(
 ) -> StdResult<Response> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
+    if let Some(claim_many_limit) = msg.claim_many_limit {
+        if claim_many_limit < MIN_CLAIM_LIMIT {
+            return Err(StdError::generic_err(format!(
+                "Accounts limit for claim operation cannot be less than {} !",
+                MIN_CLAIM_LIMIT
+            )));
+        }
+    }
+
     CONFIG.save(
         deps.storage,
         &Config {
