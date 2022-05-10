@@ -420,30 +420,48 @@ fn tune_pools(deps: DepsMut, env: Env) -> ExecuteResult {
         &config.generator_addr,
         &config.factory_addr,
         pool_votes,
-        config.pools_limit,
+        config.pools_limit + 1, // +1 additional pool if we will need to remove the main pool
     )?;
 
     // Set allocation points for the main pool
-    if let Some(main_pool) = config.main_pool {
-        // Main pool may appear in the pool list thus we need to eliminate its contribution in the total VP
-        tune_info
-            .pool_alloc_points
-            .retain(|(pool, _)| pool != &main_pool.to_string());
+    match config.main_pool {
+        Some(main_pool) if !config.main_pool_min_alloc.is_zero() => {
+            // Main pool may appear in the pool list thus we need to eliminate its contribution in the total VP.
+            tune_info
+                .pool_alloc_points
+                .retain(|(pool, _)| pool != &main_pool.to_string());
+            // If there is no main pool in the filtered list then we need to remove additional pool
+            tune_info.pool_alloc_points = tune_info
+                .pool_alloc_points
+                .iter()
+                .take(config.pools_limit as usize)
+                .cloned()
+                .collect();
 
-        let total_vp: Uint128 = tune_info
-            .pool_alloc_points
-            .iter()
-            .fold(Uint128::zero(), |acc, (_, vp)| acc + vp);
-        // Calculate main pool contribution.
-        // Example (30% for the main pool): VP + x = y, x = 0.3y => y = VP/0.7  => x = 0.3 * VP / 0.7,
-        // where VP - total VP, x - main pool's contribution, y - new total VP.
-        // x = 0.3 * VP * (1-0.3)^(-1)
-        let main_pool_contribution = config.main_pool_min_alloc
-            * total_vp
-            * (Decimal::one() - config.main_pool_min_alloc).inv().unwrap();
-        tune_info
-            .pool_alloc_points
-            .push((main_pool.to_string(), main_pool_contribution))
+            let total_vp: Uint128 = tune_info
+                .pool_alloc_points
+                .iter()
+                .fold(Uint128::zero(), |acc, (_, vp)| acc + vp);
+            // Calculate main pool contribution.
+            // Example (30% for the main pool): VP + x = y, x = 0.3y => y = VP/0.7  => x = 0.3 * VP / 0.7,
+            // where VP - total VP, x - main pool's contribution, y - new total VP.
+            // x = 0.3 * VP * (1-0.3)^(-1)
+            let main_pool_contribution = config.main_pool_min_alloc
+                * total_vp
+                * (Decimal::one() - config.main_pool_min_alloc).inv().unwrap();
+            tune_info
+                .pool_alloc_points
+                .push((main_pool.to_string(), main_pool_contribution))
+        }
+        _ => {
+            // there is no main pool or min alloc is 0%
+            tune_info.pool_alloc_points = tune_info
+                .pool_alloc_points
+                .iter()
+                .take(config.pools_limit as usize)
+                .cloned()
+                .collect();
+        }
     }
 
     if tune_info.pool_alloc_points.is_empty() {
@@ -501,15 +519,18 @@ fn update_config(
         config.blacklisted_voters_limit = Some(blacklisted_voters_limit);
     }
 
-    if let Some(main_pool) = main_pool {
-        config.main_pool = Some(addr_validate_to_lower(deps.api, &main_pool)?);
-    }
-
     if let Some(main_pool_min_alloc) = main_pool_min_alloc {
         if main_pool_min_alloc == Decimal::zero() || main_pool_min_alloc >= Decimal::one() {
             return Err(ContractError::MainPoolMinAllocFailed {});
         }
         config.main_pool_min_alloc = main_pool_min_alloc;
+    }
+
+    if let Some(main_pool) = main_pool {
+        if config.main_pool_min_alloc.is_zero() {
+            return Err(StdError::generic_err("Main pool min alloc can not be zero").into());
+        }
+        config.main_pool = Some(addr_validate_to_lower(deps.api, &main_pool)?);
     }
 
     if let Some(remove_main_pool) = remove_main_pool {
