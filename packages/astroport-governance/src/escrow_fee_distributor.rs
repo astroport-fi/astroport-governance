@@ -34,7 +34,10 @@ pub enum ExecuteMsg {
     /// Approves ownership.
     ClaimOwnership {},
     /// Claim single address in single call
-    Claim { recipient: Option<String> },
+    Claim {
+        recipient: Option<String>,
+        max_periods: Option<u64>,
+    },
     /// Claim multiple addresses in single call
     ClaimMany { receivers: Vec<String> },
     UpdateConfig {

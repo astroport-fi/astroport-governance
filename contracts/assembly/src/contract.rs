@@ -1,6 +1,6 @@
 use cosmwasm_std::{
     attr, entry_point, from_binary, to_binary, Addr, Binary, CosmosMsg, Decimal, Deps, DepsMut,
-    Env, MessageInfo, Order, Response, StdResult, Uint128, Uint64, WasmMsg,
+    Env, MessageInfo, Order, Response, StdError, StdResult, Uint128, Uint64, WasmMsg,
 };
 use cw2::{get_contract_version, set_contract_version};
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20ReceiveMsg};
@@ -21,7 +21,7 @@ use astroport_governance::builder_unlock::msg::{
 use astroport_governance::voting_escrow::{QueryMsg as VotingEscrowQueryMsg, VotingPowerResponse};
 
 use crate::error::ContractError;
-use crate::migration::{MigrateMsg, CONFIGV100, CONFIGV101};
+use crate::migration::{MigrateMsg, ProposalV102, CONFIGV100, CONFIGV101, PROPOSALS_V102};
 use crate::state::{CONFIG, PROPOSALS, PROPOSAL_COUNT};
 
 // Contract name and version used for migration.
@@ -227,6 +227,13 @@ pub fn submit_proposal(
         start_block: env.block.height,
         start_time: env.block.time.seconds(),
         end_block: env.block.height + config.proposal_voting_period,
+        delayed_end_block: env.block.height
+            + config.proposal_voting_period
+            + config.proposal_effective_delay,
+        expiration_block: env.block.height
+            + config.proposal_voting_period
+            + config.proposal_effective_delay
+            + config.proposal_expiration_period,
         title,
         description,
         link,
@@ -415,15 +422,11 @@ pub fn execute_proposal(
         return Err(ContractError::ProposalNotPassed {});
     }
 
-    let config = CONFIG.load(deps.storage)?;
-
-    if env.block.height < (proposal.end_block + config.proposal_effective_delay) {
+    if env.block.height < proposal.delayed_end_block {
         return Err(ContractError::ProposalDelayNotEnded {});
     }
 
-    if env.block.height
-        > (proposal.end_block + config.proposal_effective_delay + config.proposal_expiration_period)
-    {
+    if env.block.height > proposal.expiration_block {
         return Err(ContractError::ExecuteProposalExpired {});
     }
 
@@ -852,6 +855,44 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, Co
                 };
 
                 CONFIG.save(deps.storage, &config)?;
+            }
+            "1.0.2" => {
+                let cfg = CONFIG.load(deps.storage)?;
+                let proposals_v102 = PROPOSALS_V102
+                    .range(deps.storage, None, None, cosmwasm_std::Order::Ascending {})
+                    .map(|pair| {
+                        let (_, proposal) = pair?;
+                        Ok(proposal)
+                    })
+                    .collect::<Result<Vec<ProposalV102>, StdError>>()?;
+
+                for proposal in proposals_v102 {
+                    PROPOSALS.save(
+                        deps.storage,
+                        U64Key::new(proposal.proposal_id.u64()),
+                        &Proposal {
+                            proposal_id: proposal.proposal_id,
+                            submitter: proposal.submitter,
+                            status: proposal.status,
+                            for_power: proposal.for_power,
+                            against_power: proposal.against_power,
+                            for_voters: proposal.for_voters,
+                            against_voters: proposal.against_voters,
+                            start_block: proposal.start_block,
+                            start_time: proposal.start_time,
+                            end_block: proposal.end_block,
+                            delayed_end_block: proposal.end_block + cfg.proposal_effective_delay,
+                            expiration_block: proposal.end_block
+                                + cfg.proposal_effective_delay
+                                + cfg.proposal_expiration_period,
+                            title: proposal.title,
+                            description: proposal.description,
+                            link: proposal.link,
+                            messages: proposal.messages,
+                            deposit_amount: proposal.deposit_amount,
+                        },
+                    )?;
+                }
             }
             _ => return Err(ContractError::MigrationError {}),
         },

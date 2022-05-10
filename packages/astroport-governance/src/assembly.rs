@@ -7,6 +7,8 @@ use std::fmt::{Display, Formatter, Result};
 
 pub const MINIMUM_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE: u64 = 33;
 pub const MAX_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE: u64 = 100;
+pub const MINIMUM_PROPOSAL_REQUIRED_QUORUM_PERCENTAGE: u64 = 1;
+pub const MAX_PROPOSAL_REQUIRED_QUORUM_PERCENTAGE: u64 = 100;
 pub const MINIMUM_DELAY: u64 = 12_342; // 1 day in blocks (7 seconds as 1 block)
 pub const MINIMUM_EXPIRATION_PERIOD: u64 = 86_399; // 1 week in blocks (7 seconds as 1 block)
 
@@ -157,10 +159,13 @@ impl Config {
 
         if self.proposal_required_quorum
             > Decimal::percent(MAX_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE)
+            || self.proposal_required_quorum
+                < Decimal::percent(MINIMUM_PROPOSAL_REQUIRED_QUORUM_PERCENTAGE)
         {
             return Err(StdError::generic_err(format!(
-                "The required quorum for a proposal cannot be higher than {}%",
-                MAX_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE
+                "The required quorum for a proposal cannot be lower than {}% or higher than {}%",
+                MINIMUM_PROPOSAL_REQUIRED_QUORUM_PERCENTAGE,
+                MAX_PROPOSAL_REQUIRED_QUORUM_PERCENTAGE
             )));
         }
 
@@ -232,6 +237,10 @@ pub struct Proposal {
     pub start_time: u64,
     /// End block of proposal
     pub end_block: u64,
+    /// Delayed end block of proposal
+    pub delayed_end_block: u64,
+    /// Expiration block of proposal
+    pub expiration_block: u64,
     /// Proposal title
     pub title: String,
     /// Proposal description
@@ -386,7 +395,7 @@ pub mod helpers {
     /// Validating the list of links. Returns an error if a list has an invalid link.
     pub fn validate_links(links: &[String]) -> StdResult<()> {
         for link in links {
-            if !(is_safe_link(link) && link.ends_with('/')) {
+            if !(is_safe_link(link) && link.contains('.') && link.ends_with('/')) {
                 return Err(StdError::generic_err(format!(
                     "Link is not properly formatted or contains unsafe characters: {}.",
                     link

@@ -118,7 +118,10 @@ pub fn execute(
             })
             .map_err(|e| e.into())
         }
-        ExecuteMsg::Claim { recipient } => claim(deps, env, info, recipient),
+        ExecuteMsg::Claim {
+            recipient,
+            max_periods,
+        } => claim(deps, env, info, recipient, max_periods),
         ExecuteMsg::ClaimMany { receivers } => claim_many(deps, env, receivers),
         ExecuteMsg::UpdateConfig {
             claim_many_limit,
@@ -184,6 +187,7 @@ pub fn claim(
     env: Env,
     info: MessageInfo,
     recipient: Option<String>,
+    max_periods: Option<u64>,
 ) -> Result<Response, ContractError> {
     let recipient_addr = addr_validate_to_lower(
         deps.api,
@@ -196,13 +200,11 @@ pub fn claim(
         return Err(ContractError::ClaimDisabled {});
     }
 
-    let claim_amount = calc_claim_amount(deps.branch(), env, info.sender, config.clone())?;
+    let claim_amount =
+        calc_claim_amount(deps.branch(), env, info.sender, config.clone(), max_periods)?;
 
-    let mut transfer_msg = vec![];
-    if !claim_amount.is_zero() {
-        transfer_msg =
-            transfer_token_amount(config.astro_token, recipient_addr.clone(), claim_amount)?;
-    };
+    let transfer_msg =
+        transfer_token_amount(config.astro_token, recipient_addr.clone(), claim_amount)?;
 
     let response = Response::new()
         .add_attributes(vec![
@@ -249,6 +251,7 @@ fn claim_many(
             env.clone(),
             receiver_addr.clone(),
             config.clone(),
+            None,
         )?;
 
         if !claim_amount.is_zero() {
@@ -281,7 +284,13 @@ fn claim_many(
 /// * **account** is an object of type [`Addr`]. This is the account for which we calculate the amount of ASTRO fees available to claim.
 ///
 /// * **config** is an object of type [`Config`]. This is the fee distributor contract configuration.
-fn calc_claim_amount(deps: DepsMut, env: Env, account: Addr, config: Config) -> StdResult<Uint128> {
+fn calc_claim_amount(
+    deps: DepsMut,
+    env: Env,
+    account: Addr,
+    config: Config,
+    max_periods: Option<u64>,
+) -> StdResult<Uint128> {
     let user_lock_info: LockInfoResponse = deps.querier.query_wasm_smart(
         &config.voting_escrow_addr,
         &VotingQueryMsg::LockInfo {
@@ -296,6 +305,7 @@ fn calc_claim_amount(deps: DepsMut, env: Env, account: Addr, config: Config) -> 
     let current_period = get_period(env.block.time.seconds())?;
     let lock_end_period = user_lock_info.end;
     let mut claim_amount: Uint128 = Default::default();
+    let mut max_period_counter = 0_u64;
 
     loop {
         // User cannot claim for the current period
@@ -305,6 +315,10 @@ fn calc_claim_amount(deps: DepsMut, env: Env, account: Addr, config: Config) -> 
 
         // User cannot claim past their max lock period
         if claim_period > lock_end_period {
+            break;
+        }
+
+        if max_periods.is_some() && Some(max_period_counter) >= max_periods {
             break;
         }
 
@@ -332,6 +346,7 @@ fn calc_claim_amount(deps: DepsMut, env: Env, account: Addr, config: Config) -> 
             )?)?;
         }
 
+        max_period_counter += 1;
         claim_period += 1;
     }
 
@@ -388,6 +403,12 @@ fn update_config(
     }
 
     if let Some(is_claim_disabled) = is_claim_disabled {
+        if config.is_claim_disabled == is_claim_disabled {
+            return Err(ContractError::Std(StdError::generic_err(format!(
+                "Parameter is_claim_disabled is already {}!",
+                config.is_claim_disabled
+            ))));
+        }
         config.is_claim_disabled = is_claim_disabled;
         attributes.push(Attribute::new(
             "is_claim_disabled",

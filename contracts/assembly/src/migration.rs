@@ -1,5 +1,6 @@
-use cosmwasm_std::{Addr, Decimal, Uint128};
-use cw_storage_plus::Item;
+use astroport_governance::assembly::{ProposalMessage, ProposalStatus};
+use cosmwasm_std::{Addr, Decimal, Uint128, Uint64};
+use cw_storage_plus::{Item, Map, U64Key};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -62,3 +63,39 @@ pub struct ConfigV101 {
 }
 
 pub const CONFIGV101: Item<ConfigV101> = Item::new("config");
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct ProposalV102 {
+    /// Unique proposal ID
+    pub proposal_id: Uint64,
+    /// The address of the proposal submitter
+    pub submitter: Addr,
+    /// Status of the proposal
+    pub status: ProposalStatus,
+    /// `For` power of proposal
+    pub for_power: Uint128,
+    /// `Against` power of proposal
+    pub against_power: Uint128,
+    /// `For` votes for the proposal
+    pub for_voters: Vec<Addr>,
+    /// `Against` votes for the proposal
+    pub against_voters: Vec<Addr>,
+    /// Start block of proposal
+    pub start_block: u64,
+    /// Start time of proposal
+    pub start_time: u64,
+    /// End block of proposal
+    pub end_block: u64,
+    /// Proposal title
+    pub title: String,
+    /// Proposal description
+    pub description: String,
+    /// Proposal link
+    pub link: Option<String>,
+    /// Proposal messages
+    pub messages: Option<Vec<ProposalMessage>>,
+    /// Amount of xASTRO deposited in order to post the proposal
+    pub deposit_amount: Uint128,
+}
+
+pub const PROPOSALS_V102: Map<U64Key, ProposalV102> = Map::new("proposals");
