@@ -374,7 +374,6 @@ fn handle_vote(
 }
 
 /// ## Description
-/// Only contract owner can call this function.
 /// The function checks that the last pools tuning happened >= 14 days ago.
 /// Then it calculates voting power for each pool at the current period, filters all pools which
 /// are not eligible to receive allocation points,
