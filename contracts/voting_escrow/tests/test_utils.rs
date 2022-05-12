@@ -1,8 +1,10 @@
 use anyhow::Result;
 use astroport::{staking as xastro, token as astro};
+use astroport_governance::escrow_fee_distributor::InstantiateMsg as FeeDistributorInstantiateMsg;
 use astroport_governance::utils::EPOCH_START;
 use astroport_governance::voting_escrow::{
-    Cw20HookMsg, ExecuteMsg, InstantiateMsg, QueryMsg, VotingPowerResponse,
+    BlacklistedVotersResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, QueryMsg,
+    VotingPowerResponse,
 };
 use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
 use cosmwasm_std::{
@@ -22,6 +24,7 @@ pub struct Helper {
     pub staking_instance: Addr,
     pub xastro_token: Addr,
     pub voting_instance: Addr,
+    pub fee_distributor_instance: Addr,
 }
 
 impl Helper {
@@ -101,7 +104,7 @@ impl Helper {
 
         let msg = InstantiateMsg {
             owner: owner.to_string(),
-            guardian_addr: "guardian".to_string(),
+            guardian_addr: Some("guardian".to_string()),
             deposit_token_addr: res.share_token_addr.to_string(),
             marketing: None,
             max_exit_penalty: Decimal::from_str("0.75").unwrap(),
@@ -118,12 +121,40 @@ impl Helper {
             )
             .unwrap();
 
+        let fee_distributor_contract = Box::new(ContractWrapper::new_with_empty(
+            astroport_escrow_fee_distributor::contract::execute,
+            astroport_escrow_fee_distributor::contract::instantiate,
+            astroport_escrow_fee_distributor::contract::query,
+        ));
+
+        let fee_distributor_code_id = router.store_code(fee_distributor_contract);
+
+        let msg = FeeDistributorInstantiateMsg {
+            owner: owner.to_string(),
+            astro_token: astro_token.to_string(),
+            voting_escrow_addr: voting_instance.to_string(),
+            claim_many_limit: None,
+            is_claim_disabled: None,
+        };
+
+        let fee_distributor_instance = router
+            .instantiate_contract(
+                fee_distributor_code_id,
+                owner.clone(),
+                &msg,
+                &[],
+                String::from("Fee distributor"),
+                None,
+            )
+            .unwrap();
+
         Self {
             owner,
             xastro_token: res.share_token_addr,
             astro_token,
             staking_instance,
             voting_instance,
+            fee_distributor_instance,
         }
     }
 
@@ -450,6 +481,29 @@ impl Helper {
                 },
             )
             .map(|vp: Uint128| vp.u128() as f32 / MULTIPLIER as f32)
+    }
+
+    pub fn query_blacklisted_voters(
+        &self,
+        router: &mut TerraApp,
+        start_after: Option<String>,
+        limit: Option<u32>,
+    ) -> StdResult<Vec<Addr>> {
+        router.wrap().query_wasm_smart(
+            self.voting_instance.clone(),
+            &QueryMsg::BlacklistedVoters { start_after, limit },
+        )
+    }
+
+    pub fn check_voters_are_blacklisted(
+        &self,
+        router: &mut TerraApp,
+        voters: Vec<String>,
+    ) -> StdResult<BlacklistedVotersResponse> {
+        router.wrap().query_wasm_smart(
+            self.voting_instance.clone(),
+            &QueryMsg::CheckVotersAreBlacklisted { voters },
+        )
     }
 }
 

@@ -5,9 +5,9 @@ use astroport::DecimalCheckedOps;
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     from_binary, to_binary, Addr, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo,
-    Response, StdError, StdResult, SubMsg, Uint128, WasmMsg,
+    QueryRequest, Response, StdError, StdResult, SubMsg, Uint128, WasmMsg, WasmQuery,
 };
-use cw2::{get_contract_version, set_contract_version};
+use cw2::{get_contract_version, set_contract_version, ContractVersion, CONTRACT};
 use cw20::{
     BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, Cw20ReceiveMsg, Logo, LogoInfo,
     MarketingInfoResponse, MinterResponse, TokenInfoResponse,
@@ -21,8 +21,8 @@ use cw_storage_plus::U64Key;
 use astroport_governance::querier::query_token_balance;
 use astroport_governance::utils::{get_period, get_periods_count, EPOCH_START, WEEK};
 use astroport_governance::voting_escrow::{
-    ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, LockInfoResponse, MigrateMsg,
-    QueryMsg, VotingPowerResponse,
+    BlacklistedVotersResponse, ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg,
+    LockInfoResponse, MigrateMsg, QueryMsg, VotingPowerResponse, DEFAULT_LIMIT, MAX_LIMIT,
 };
 
 use crate::error::ContractError;
@@ -82,15 +82,18 @@ pub fn instantiate(
         &astroport::staking::QueryMsg::Config {},
     )?;
 
-    let config = Config {
+    let mut config = Config {
         owner: addr_validate_to_lower(deps.api, &msg.owner)?,
-        guardian_addr: addr_validate_to_lower(deps.api, &msg.guardian_addr)?,
+        guardian_addr: None,
         deposit_token_addr,
         max_exit_penalty: msg.max_exit_penalty,
         astro_addr: staking_config.deposit_token_addr,
         xastro_staking_addr: addr_validate_to_lower(deps.api, &xastro_minter_resp.minter)?,
         slashed_fund_receiver,
     };
+    if let Some(guardian_addr) = msg.guardian_addr {
+        config.guardian_addr = Some(addr_validate_to_lower(deps.api, &guardian_addr)?);
+    }
     CONFIG.save(deps.storage, &config)?;
 
     let cur_period = get_period(env.block.time.seconds())?;
@@ -133,7 +136,7 @@ pub fn instantiate(
 
     // Store token info
     let data = TokenInfo {
-        name: "vxASTRO".to_string(),
+        name: "Vote Escrowed xASTRO".to_string(),
         symbol: "vxASTRO".to_string(),
         decimals: 6,
         total_supply: Uint128::zero(),
@@ -235,6 +238,9 @@ pub fn execute(
             .map_err(|e| e.into()),
         ExecuteMsg::UploadLogo(logo) => {
             execute_upload_logo(deps, env, info, logo).map_err(|e| e.into())
+        }
+        ExecuteMsg::UpdateConfig { new_guardian } => {
+            execute_update_config(deps, info, new_guardian)
         }
     }
 }
@@ -530,10 +536,9 @@ fn deposit_for(
                     Ok(lock)
                 }
             }
-
-        }
-        _ => Err(ContractError::LockDoesNotExist {}),
-    })?;
+            _ => Err(ContractError::LockDoesNotExist {}),
+        },
+    )?;
     checkpoint(deps, env, user, Some(amount), None)?;
 
     Ok(Response::default().add_attribute("action", "deposit_for"))
@@ -643,7 +648,7 @@ fn withdraw_early(
     let mut lock = LOCKED
         .may_load(deps.storage, sender.clone())?
         .filter(|lock| !lock.amount.is_zero())
-        .ok_or(ContractError::LockDoesntExist {})?;
+        .ok_or(ContractError::LockDoesNotExist {})?;
 
     let cur_period = get_period(env.block.time.seconds())?;
     if lock.end <= cur_period {
@@ -778,14 +783,36 @@ fn withdraw_early_callback(
     let return_astro_amount = current_astro_balance.saturating_sub(precallback_astro);
 
     if !return_astro_amount.is_zero() {
-        let transfer_msg = SubMsg::new(WasmMsg::Execute {
-            contract_addr: config.astro_addr.to_string(),
-            msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                recipient: slashed_funds_receiver.to_string(),
-                amount: return_astro_amount,
-            })?,
-            funds: vec![],
-        });
+        // Check that slashed_funds_receiver is an escrow_fee_distributor contract
+        // otherwise transfer return_astro_amount to slashed_funds_receiver address
+        let version: StdResult<ContractVersion> =
+            deps.querier.query(&QueryRequest::Wasm(WasmQuery::Raw {
+                contract_addr: slashed_funds_receiver.to_string(),
+                key: CONTRACT.as_slice().into(),
+            }));
+        let transfer_msg = match version {
+            Ok(ContractVersion { contract, .. })
+                if contract.eq("astroport-escrow-fee-distributor") =>
+            {
+                SubMsg::new(WasmMsg::Execute {
+                    contract_addr: config.astro_addr.to_string(),
+                    msg: to_binary(&Cw20ExecuteMsg::Send {
+                        contract: slashed_funds_receiver.to_string(),
+                        amount: return_astro_amount,
+                        msg: to_binary(&{})?,
+                    })?,
+                    funds: vec![],
+                })
+            }
+            _ => SubMsg::new(WasmMsg::Execute {
+                contract_addr: config.astro_addr.to_string(),
+                msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                    recipient: slashed_funds_receiver.to_string(),
+                    amount: return_astro_amount,
+                })?,
+                funds: vec![],
+            }),
+        };
 
         Ok(Response::new().add_submessage(transfer_msg))
     } else {
@@ -867,7 +894,7 @@ fn update_blacklist(
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
     // Permission check
-    if info.sender != config.owner && info.sender != config.guardian_addr {
+    if info.sender != config.owner && Some(info.sender) != config.guardian_addr {
         return Err(ContractError::Unauthorized {});
     }
     let append_addrs = append_addrs.unwrap_or_default();
@@ -888,8 +915,8 @@ fn update_blacklist(
 
     let cur_period = get_period(env.block.time.seconds())?;
     let cur_period_key = U64Key::new(cur_period);
-    let mut reduce_total_vp = Uint128::zero();              // accumulator for decreasing total voting power
-    let mut old_slopes = Uint128::zero();                   // accumulator for old slopes
+    let mut reduce_total_vp = Uint128::zero(); // accumulator for decreasing total voting power
+    let mut old_slopes = Uint128::zero(); // accumulator for old slopes
 
     for addr in append.iter() {
         let last_checkpoint = fetch_last_checkpoint(deps.as_ref(), addr, &cur_period_key)?;
@@ -967,6 +994,34 @@ fn update_blacklist(
 }
 
 /// ## Description
+/// Updates contract parameters.
+/// ## Params
+/// * **deps** is an object of type [`DepsMut`].
+///
+/// * **info** is an object of type [`MessageInfo`].
+///
+/// * **new_guardian** is an optional object of type [`String`].
+fn execute_update_config(
+    deps: DepsMut,
+    info: MessageInfo,
+    new_guardian: Option<String>,
+) -> Result<Response, ContractError> {
+    let mut cfg = CONFIG.load(deps.storage)?;
+
+    if cfg.owner != info.sender {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    if let Some(new_guardian) = new_guardian {
+        cfg.guardian_addr = Some(addr_validate_to_lower(deps.api, &new_guardian)?);
+    }
+
+    CONFIG.save(deps.storage, &cfg)?;
+
+    Ok(Response::default().add_attribute("action", "execute_update_config"))
+}
+
+/// ## Description
 /// Expose available contract queries.
 /// ## Params
 /// * **deps** is an object of type [`Deps`].
@@ -988,6 +1043,12 @@ fn update_blacklist(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
+        QueryMsg::CheckVotersAreBlacklisted { voters } => {
+            to_binary(&check_voters_are_blacklisted(deps, voters)?)
+        }
+        QueryMsg::BlacklistedVoters { start_after, limit } => {
+            to_binary(&get_blacklisted_voters(deps, start_after, limit)?)
+        }
         QueryMsg::TotalVotingPower {} => to_binary(&get_total_voting_power(deps, env, None)?),
         QueryMsg::UserVotingPower { user } => {
             to_binary(&get_user_voting_power(deps, env, user, None)?)
@@ -1015,7 +1076,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             let config = CONFIG.load(deps.storage)?;
             to_binary(&ConfigResponse {
                 owner: config.owner.to_string(),
-                guardian_addr: config.guardian_addr.to_string(),
+                guardian_addr: config.guardian_addr,
                 deposit_token_addr: config.deposit_token_addr.to_string(),
                 max_exit_penalty: config.max_exit_penalty,
                 slashed_fund_receiver: config.slashed_fund_receiver.map(|addr| addr.to_string()),
@@ -1028,6 +1089,77 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::MarketingInfo {} => to_binary(&query_marketing_info(deps)?),
         QueryMsg::DownloadLogo {} => to_binary(&query_download_logo(deps)?),
     }
+}
+
+/// ## Description
+/// Checks if specified addresses are blacklisted. Returns a [`Response`] with the specified
+/// attributes if the operation was successful, otherwise then a [`StdError`] is returned.
+///
+/// ## Params
+/// * **deps** is an object of type [`Deps`].
+///
+/// * **voters** is a list of type [`String`]. Specifies addresses to check if they are blacklisted.
+pub fn check_voters_are_blacklisted(
+    deps: Deps,
+    voters: Vec<String>,
+) -> StdResult<BlacklistedVotersResponse> {
+    let black_list = BLACKLIST.load(deps.storage)?;
+
+    for voter in voters {
+        let voter_addr = addr_validate_to_lower(deps.api, voter.as_str())?;
+        if !black_list.contains(&voter_addr) {
+            return Ok(BlacklistedVotersResponse::VotersNotBlacklisted { voter });
+        }
+    }
+
+    Ok(BlacklistedVotersResponse::VotersBlacklisted {})
+}
+
+/// ## Description
+/// Returns a list of blacklisted voters.
+///
+/// ## Params
+/// * **deps** is an object of type [`Deps`].
+///
+/// * **start_after** is an object of type [`Option<String>`]. This is an optional field
+/// that specifies whether the function should return a list of voters starting from a
+/// specific address onward.
+///
+/// * **limit** is an object of type [`Option<u32>`]. This is the max amount of voters
+/// addresses to return.
+pub fn get_blacklisted_voters(
+    deps: Deps,
+    start_after: Option<String>,
+    limit: Option<u32>,
+) -> StdResult<Vec<Addr>> {
+    let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
+    let mut black_list = BLACKLIST.load(deps.storage)?;
+
+    if black_list.is_empty() {
+        return Ok(vec![]);
+    }
+
+    black_list.sort();
+
+    let mut start_index = Default::default();
+    if let Some(start_after) = start_after {
+        let start_addr = addr_validate_to_lower(deps.api, start_after.as_str())?;
+        start_index = black_list
+            .iter()
+            .position(|addr| *addr == start_addr)
+            .ok_or_else(|| {
+                StdError::generic_err(format!(
+                    "The {} address is not blacklisted",
+                    start_addr.as_str()
+                ))
+            })?
+            + 1; // start from the next element of the slice
+    }
+
+    // validate end index of the slice
+    let end_index = (start_index + limit).min(black_list.len());
+
+    Ok(black_list[start_index..end_index].to_vec())
 }
 
 /// ## Description
@@ -1275,6 +1407,7 @@ pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response,
                 // 1.0.0 -> 1.1.0
                 MigrationV110::migrate(deps.branch(), env, msg)?;
             }
+            "1.1.0" => {}
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),

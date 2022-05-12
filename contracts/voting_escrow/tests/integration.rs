@@ -1,5 +1,5 @@
 use astroport::token as astro;
-use cosmwasm_std::{attr, to_binary, Addr, Fraction, Uint128};
+use cosmwasm_std::{attr, to_binary, Addr, Fraction, StdError, Uint128};
 use cw20::{Cw20ExecuteMsg, MinterResponse};
 use terra_multi_test::{next_block, ContractWrapper, Executor};
 
@@ -541,7 +541,111 @@ fn check_queries() {
     let balance = helper
         .query_locked_balance_at(router_ref, "user", cur_height - 1)
         .unwrap();
-    assert_eq!(balance, 190f32)
+    assert_eq!(balance, 190f32);
+
+    // add users to the blacklist
+    helper
+        .update_blacklist(
+            router_ref,
+            Some(vec![
+                "voter1".to_string(),
+                "voter2".to_string(),
+                "voter3".to_string(),
+                "voter4".to_string(),
+                "voter5".to_string(),
+                "voter6".to_string(),
+                "voter7".to_string(),
+                "voter8".to_string(),
+            ]),
+            None,
+        )
+        .unwrap();
+
+    // query all blacklisted voters
+    let blacklisted_voters = helper
+        .query_blacklisted_voters(router_ref, None, None)
+        .unwrap();
+    assert_eq!(
+        blacklisted_voters,
+        vec![
+            Addr::unchecked("voter1"),
+            Addr::unchecked("voter2"),
+            Addr::unchecked("voter3"),
+            Addr::unchecked("voter4"),
+            Addr::unchecked("voter5"),
+            Addr::unchecked("voter6"),
+            Addr::unchecked("voter7"),
+            Addr::unchecked("voter8"),
+        ]
+    );
+
+    // query not blacklisted voter
+    let err = helper
+        .query_blacklisted_voters(router_ref, Some("voter9".to_string()), Some(10u32))
+        .unwrap_err();
+    assert_eq!(
+        StdError::generic_err(
+            "Querier contract error: Generic error: The voter9 address is not blacklisted"
+        ),
+        err
+    );
+
+    // query voters by specified parameters
+    let blacklisted_voters = helper
+        .query_blacklisted_voters(router_ref, Some("voter2".to_string()), Some(2u32))
+        .unwrap();
+    assert_eq!(
+        blacklisted_voters,
+        vec![Addr::unchecked("voter3"), Addr::unchecked("voter4")]
+    );
+
+    // add users to the blacklist
+    helper
+        .update_blacklist(
+            router_ref,
+            Some(vec!["voter0".to_string(), "voter33".to_string()]),
+            None,
+        )
+        .unwrap();
+
+    // query voters by specified parameters
+    let blacklisted_voters = helper
+        .query_blacklisted_voters(router_ref, Some("voter2".to_string()), Some(2u32))
+        .unwrap();
+    assert_eq!(
+        blacklisted_voters,
+        vec![Addr::unchecked("voter3"), Addr::unchecked("voter33")]
+    );
+
+    let blacklisted_voters = helper
+        .query_blacklisted_voters(router_ref, Some("voter4".to_string()), Some(10u32))
+        .unwrap();
+    assert_eq!(
+        blacklisted_voters,
+        vec![
+            Addr::unchecked("voter5"),
+            Addr::unchecked("voter6"),
+            Addr::unchecked("voter7"),
+            Addr::unchecked("voter8"),
+        ]
+    );
+
+    let empty_blacklist: Vec<Addr> = vec![];
+    let blacklisted_voters = helper
+        .query_blacklisted_voters(router_ref, Some("voter8".to_string()), Some(10u32))
+        .unwrap();
+    assert_eq!(blacklisted_voters, empty_blacklist);
+
+    // check if voters are blacklisted
+    let res = helper
+        .check_voters_are_blacklisted(router_ref, vec!["voter1".to_string(), "voter9".to_string()])
+        .unwrap();
+    assert_eq!("Voter is not blacklisted: voter9", res.to_string());
+
+    let res = helper
+        .check_voters_are_blacklisted(router_ref, vec!["voter1".to_string(), "voter8".to_string()])
+        .unwrap();
+    assert_eq!("Voters are blacklisted!", res.to_string());
 }
 
 #[test]
@@ -865,7 +969,7 @@ fn early_withdraw() {
     );
 
     helper
-        .configure_early_withdrawal(router_ref, "0.75", "holder")
+        .configure_early_withdrawal(router_ref, "0.75", helper.fee_distributor_instance.as_str())
         .unwrap();
 
     helper.mint_xastro(router_ref, "user1", 100);
@@ -879,7 +983,7 @@ fn early_withdraw() {
 
     // user2 withdraws right after he created the lock with 75% penalty
     helper.check_xastro_balance(router_ref, "user2", 0);
-    helper.check_astro_balance(router_ref, "holder", 0);
+    helper.check_astro_balance(router_ref, helper.fee_distributor_instance.as_str(), 0);
     helper.check_astro_balance(router_ref, helper.voting_instance.as_str(), 0);
     helper.check_xastro_balance(router_ref, helper.voting_instance.as_str(), 200);
 
@@ -891,7 +995,7 @@ fn early_withdraw() {
 
     // 75% penalty
     helper.check_xastro_balance(router_ref, "user2", 25);
-    helper.check_astro_balance(router_ref, "holder", 75);
+    helper.check_astro_balance(router_ref, helper.fee_distributor_instance.as_str(), 75);
     helper.check_astro_balance(router_ref, helper.voting_instance.as_str(), 0);
     helper.check_xastro_balance(router_ref, helper.voting_instance.as_str(), 100);
 
@@ -907,7 +1011,7 @@ fn early_withdraw() {
     });
 
     helper.check_xastro_balance(router_ref, "user1", 0);
-    helper.check_astro_balance(router_ref, "holder", 75);
+    helper.check_astro_balance(router_ref, helper.fee_distributor_instance.as_str(), 75);
     helper.check_astro_balance(router_ref, helper.voting_instance.as_str(), 0);
     helper.check_xastro_balance(router_ref, helper.voting_instance.as_str(), 100);
 
@@ -919,7 +1023,7 @@ fn early_withdraw() {
 
     // 50% penalty
     helper.check_xastro_balance(router_ref, "user1", 50);
-    helper.check_astro_balance(router_ref, "holder", 125);
+    helper.check_astro_balance(router_ref, helper.fee_distributor_instance.as_str(), 125);
     helper.check_astro_balance(router_ref, helper.voting_instance.as_str(), 0);
     helper.check_xastro_balance(router_ref, helper.voting_instance.as_str(), 0);
 
@@ -928,4 +1032,47 @@ fn early_withdraw() {
     assert_eq!(vp, 0.0);
     let total_vp = helper.query_total_vp(router_ref).unwrap();
     assert_eq!(total_vp, 0.0)
+}
+
+#[test]
+fn total_vp_multiple_slope_subtraction() {
+    let mut router = mock_app();
+    let router_ref = &mut router;
+    let owner = Addr::unchecked("owner");
+    let helper = Helper::init(router_ref, owner);
+
+    helper.mint_xastro(router_ref, "user1", 1000);
+    helper
+        .create_lock(router_ref, "user1", 2 * WEEK, 100f32)
+        .unwrap();
+    let total = helper.query_total_vp(router_ref).unwrap();
+    assert_eq!(total, 102.88461);
+
+    router_ref.update_block(|bi| bi.time = bi.time.plus_seconds(2 * WEEK));
+    // Slope changes have been applied
+    let total = helper.query_total_vp(router_ref).unwrap();
+    assert_eq!(total, 0.0);
+
+    // Try to manipulate over expired lock 2 weeks later
+    router_ref.update_block(|bi| bi.time = bi.time.plus_seconds(2 * WEEK));
+    let err = helper
+        .extend_lock_amount(router_ref, "user1", 100f32)
+        .unwrap_err();
+    assert_eq!(
+        err.to_string(),
+        "The lock expired. Withdraw and create new lock"
+    );
+    let err = helper
+        .create_lock(router_ref, "user1", 2 * WEEK, 100f32)
+        .unwrap_err();
+    assert_eq!(err.to_string(), "Lock already exists");
+    let err = helper
+        .extend_lock_time(router_ref, "user1", 2 * WEEK)
+        .unwrap_err();
+    assert_eq!(
+        err.to_string(),
+        "The lock expired. Withdraw and create new lock"
+    );
+    let total = helper.query_total_vp(router_ref).unwrap();
+    assert_eq!(total, 0f32);
 }

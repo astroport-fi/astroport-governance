@@ -19,6 +19,32 @@ and the max amount of pools that can receive ASTRO emissions at the same time.
 
 ## ExecuteMsg
 
+### `kick_blacklisted_voters`
+
+Remove votes of voters that are blacklisted.
+
+```json
+{
+  "kick_blacklisted_voters": {
+    "blacklisted_voters": ["terra...", "terra..."]
+  }
+}
+```
+
+### `update_config`
+
+Sets various configuration parameters. Any of them can be omitted.
+
+```json
+{
+  "update_config": {
+    "blacklisted_voters_limit": 22,
+    "main_pool": "terra...",
+    "main_pool_min_alloc": "0.3"
+  }
+}
+```
+
 ### `vote`
 
 Vote on pools that will start to get an ASTRO distribution in the next period. For example, assume an address has voting

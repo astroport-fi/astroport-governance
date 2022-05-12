@@ -10,7 +10,7 @@ pub struct Config {
     /// Address that's allowed to change contract parameters
     pub owner: Addr,
     /// Address that can only blacklist vxASTRO stakers and remove their governance power
-    pub guardian_addr: Addr,
+    pub guardian_addr: Option<Addr>,
     /// The xASTRO token contract address
     pub deposit_token_addr: Addr,
     /// The maximum % of staked xASTRO that is confiscated upon an early exit

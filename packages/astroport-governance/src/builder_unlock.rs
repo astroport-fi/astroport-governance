@@ -91,8 +91,6 @@ pub mod msg {
         Receive(Cw20ReceiveMsg),
         /// Withdraw claims withdrawable ASTRO
         Withdraw {},
-        /// TransferOwnership transfers contract ownership
-        TransferOwnership { new_owner: Option<String> },
         /// ProposeNewReceiver allows a user to change the receiver address for their ASTRO allocation
         ProposeNewReceiver { new_receiver: String },
         /// DropNewReceiver allows a user to remove the previously proposed new receiver for their ASTRO allocation

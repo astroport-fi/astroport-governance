@@ -99,6 +99,16 @@ Updates the list of addresses that are prohibited from staking in vxASTRO or if 
 }
 ```
 
+### `update_config`
+
+Updates contract parameters.
+
+```json
+{
+  "new_guardian": "terra..."
+}
+```
+
 ## QueryMsg
 
 All query messages are described below. A custom struct is defined for each query response.
@@ -224,6 +234,31 @@ Returns the contract's config.
   "config_response": {
     "owner": "terra...",
     "deposit_token_addr" : "terra..."
+  }
+}
+```
+
+### `blacklisted_voters`
+
+Returns blacklisted voters.
+
+```json
+{
+  "blacklisted_voters": {
+    "start_after": "terra...",
+    "limit": 5
+  }
+}
+```
+
+### `check_voters_are_blacklisted`
+
+Checks if specified addresses are blacklisted
+
+```json
+{
+  "check_voters_are_blacklisted": {
+    "voters": ["terra...", "terra..."]
   }
 }
 ```

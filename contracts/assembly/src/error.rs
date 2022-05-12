@@ -52,6 +52,9 @@ pub enum ContractError {
 
     #[error("Whitelist cannot be empty!")]
     WhitelistEmpty {},
+
+    #[error("Messages check passed. Nothing was committed to the blockchain")]
+    MessagesCheckPassed {},
 }
 
 impl From<OverflowError> for ContractError {

@@ -11,6 +11,9 @@ pub const MAX_LOCK_TIME: u64 = 2 * 365 * 86400; // 2 years (104 weeks)
 /// The constant describes the maximum number of accounts for which to claim accrued staking rewards in a single transaction.
 pub const CLAIM_LIMIT: u64 = 10;
 
+/// The constant describes the minimum number of accounts for claim.
+pub const MIN_CLAIM_LIMIT: u64 = 2;
+
 /// Feb 28 2022 00:00 UTC, Monday
 pub const EPOCH_START: u64 = 1646006400;
 

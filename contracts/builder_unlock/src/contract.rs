@@ -349,39 +349,6 @@ fn execute_withdraw(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Res
 }
 
 /// ## Description
-/// Transfer contract ownership.
-/// ## Params
-/// * **deps** is an object of type [`DepsMut`].
-///
-/// * **env** is an object of type [`Env`].
-///
-/// * **info** is an object of type [`MessageInfo`].
-///
-/// * **new_owner** is an [`Option`] of type [`String`]. This is the newly proposed owner.
-fn execute_transfer_ownership(
-    deps: DepsMut,
-    _env: Env,
-    info: MessageInfo,
-    new_owner: Option<String>,
-) -> StdResult<Response> {
-    let mut config = CONFIG.load(deps.storage)?;
-
-    if info.sender != config.owner {
-        return Err(StdError::generic_err(
-            "Only the current owner can transfer ownership",
-        ));
-    }
-
-    if new_owner.is_some() {
-        config.owner = deps.api.addr_validate(&new_owner.unwrap())?;
-    }
-
-    CONFIG.save(deps.storage, &config)?;
-
-    Ok(Response::new())
-}
-
-/// ## Description
 /// Allows the current allocation receiver to propose a new receiver.
 /// ## Params
 /// * **deps** is an object of type [`DepsMut`].
