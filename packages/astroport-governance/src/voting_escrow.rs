@@ -14,6 +14,8 @@ pub const MAX_LIMIT: u32 = 30;
 /// The default amount of items to read from
 pub const DEFAULT_LIMIT: u32 = 10;
 
+pub const DEFAULT_PERIODS_LIMIT: u64 = 20;
+
 /// This structure stores marketing information for vxASTRO.
 #[derive(Serialize, Deserialize, JsonSchema, Debug, Clone, PartialEq)]
 pub struct InstantiateMarketingInfo {

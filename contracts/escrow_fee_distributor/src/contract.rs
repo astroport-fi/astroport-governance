@@ -2,6 +2,7 @@ use cosmwasm_std::{
     attr, entry_point, to_binary, Addr, Attribute, Binary, Deps, DepsMut, Env, MessageInfo, Order,
     Response, StdError, StdResult, Uint128,
 };
+use std::cmp::min;
 
 use crate::error::ContractError;
 use crate::state::{Config, CONFIG, LAST_CLAIM_PERIOD, OWNERSHIP_PROPOSAL, REWARDS_PER_WEEK};
@@ -16,7 +17,7 @@ use astroport_governance::escrow_fee_distributor::{
 use astroport_governance::utils::{get_period, CLAIM_LIMIT, MIN_CLAIM_LIMIT};
 
 use astroport_governance::voting_escrow::{
-    LockInfoResponse, QueryMsg as VotingQueryMsg, VotingPowerResponse,
+    LockInfoResponse, QueryMsg as VotingQueryMsg, VotingPowerResponse, DEFAULT_PERIODS_LIMIT,
 };
 use cw20::Cw20ReceiveMsg;
 
@@ -305,20 +306,19 @@ fn calc_claim_amount(
     let current_period = get_period(env.block.time.seconds())?;
     let lock_end_period = user_lock_info.end;
     let mut claim_amount: Uint128 = Default::default();
-    let mut max_period_counter = 0_u64;
+    let max_period = min(
+        max_periods.unwrap_or(DEFAULT_PERIODS_LIMIT) + claim_period,
+        current_period,
+    );
 
     loop {
-        // User cannot claim for the current period
-        if claim_period >= current_period {
+        // User cannot claim for the current period/
+        if claim_period >= max_period {
             break;
         }
 
         // User cannot claim past their max lock period
         if claim_period > lock_end_period {
-            break;
-        }
-
-        if max_periods.is_some() && Some(max_period_counter) >= max_periods {
             break;
         }
 
@@ -346,7 +346,6 @@ fn calc_claim_amount(
             )?)?;
         }
 
-        max_period_counter += 1;
         claim_period += 1;
     }
 

@@ -164,8 +164,7 @@ impl Config {
             )));
         }
 
-        if self.proposal_required_quorum
-            > Decimal::percent(MAX_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE)
+        if self.proposal_required_quorum > Decimal::percent(MAX_PROPOSAL_REQUIRED_QUORUM_PERCENTAGE)
             || self.proposal_required_quorum
                 < Decimal::percent(MINIMUM_PROPOSAL_REQUIRED_QUORUM_PERCENTAGE)
         {
