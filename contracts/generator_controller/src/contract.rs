@@ -6,8 +6,8 @@ use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_ow
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_binary, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Order, Response, StdError,
-    StdResult, WasmMsg,
+    to_binary, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env, Fraction, MessageInfo, Order,
+    Response, StdError, StdResult, Uint128, WasmMsg,
 };
 use cw2::{get_contract_version, set_contract_version};
 use itertools::Itertools;
@@ -68,6 +68,8 @@ pub fn instantiate(
             factory_addr: addr_validate_to_lower(deps.api, &msg.factory_addr)?,
             pools_limit: validate_pools_limit(msg.pools_limit)?,
             blacklisted_voters_limit: None,
+            main_pool: None,
+            main_pool_min_alloc: Decimal::zero(),
         },
     )?;
 
@@ -114,7 +116,17 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> E
         ExecuteMsg::ChangePoolsLimit { limit } => change_pools_limit(deps, info, limit),
         ExecuteMsg::UpdateConfig {
             blacklisted_voters_limit,
-        } => update_config(deps, info, blacklisted_voters_limit),
+            main_pool,
+            main_pool_min_alloc,
+            remove_main_pool,
+        } => update_config(
+            deps,
+            info,
+            blacklisted_voters_limit,
+            main_pool,
+            main_pool_min_alloc,
+            remove_main_pool,
+        ),
         ExecuteMsg::ProposeNewOwner {
             new_owner,
             expires_in,
@@ -238,7 +250,7 @@ fn kick_blacklisted_voters(deps: DepsMut, env: Env, voters: Vec<String>) -> Exec
 /// * sum of all BPS values <= 10000.
 ///
 /// The function cancels changes applied by previous votes and apply new votes for the next period.
-/// New vote parameters are saved in [`USER_INFO`].  
+/// New vote parameters are saved in [`USER_INFO`].
 ///
 /// The function returns [`Response`] in case of success or [`ContractError`] in case of errors.
 ///
@@ -260,8 +272,8 @@ fn handle_vote(
 ) -> ExecuteResult {
     let user = info.sender;
     let block_period = get_period(env.block.time.seconds())?;
-    let escrow_addr = CONFIG.load(deps.storage)?.escrow_addr;
-    let user_vp = get_voting_power(deps.querier, &escrow_addr, &user)?;
+    let config = CONFIG.load(deps.storage)?;
+    let user_vp = get_voting_power(deps.querier, &config.escrow_addr, &user)?;
 
     if user_vp.is_zero() {
         return Err(ContractError::ZeroVotingPower {});
@@ -288,6 +300,12 @@ fn handle_vote(
         .into_iter()
         .map(|(addr, bps)| {
             let addr = addr_validate_to_lower(deps.api, &addr)?;
+            // Voting for the main pool is prohibited
+            if let Some(main_pool) = &config.main_pool {
+                if &addr == main_pool {
+                    return Err(ContractError::MainPoolVoteProhibited(main_pool.to_string()));
+                }
+            }
             // Check an address is a lp token
             pair_info_by_pool(deps.as_ref(), addr.clone())
                 .map_err(|_| ContractError::InvalidLPTokenAddress(addr.to_string()))?;
@@ -327,7 +345,7 @@ fn handle_vote(
         })?;
     }
 
-    let ve_lock_info = get_lock_info(deps.querier, &escrow_addr, &user)?;
+    let ve_lock_info = get_lock_info(deps.querier, &config.escrow_addr, &user)?;
 
     // Votes are applied to the next period
     votes.iter().try_for_each(|(pool_addr, bps)| {
@@ -360,7 +378,7 @@ fn handle_vote(
 /// Then it calculates voting power for each pool at the current period, filters all pools which
 /// are not eligible to receive allocation points,
 /// takes top X pools by voting power, where X is 'config.pools_limit', calculates allocation points
-/// for these pools and applies allocation points in generator contract.   
+/// for these pools and applies allocation points in generator contract.
 /// The function returns [`Response`] in case of success or [`ContractError`] in case of errors.
 ///
 /// ## Params
@@ -402,8 +420,49 @@ fn tune_pools(deps: DepsMut, env: Env) -> ExecuteResult {
         &config.generator_addr,
         &config.factory_addr,
         pool_votes,
-        config.pools_limit,
+        config.pools_limit + 1, // +1 additional pool if we will need to remove the main pool
     )?;
+
+    // Set allocation points for the main pool
+    match config.main_pool {
+        Some(main_pool) if !config.main_pool_min_alloc.is_zero() => {
+            // Main pool may appear in the pool list thus we need to eliminate its contribution in the total VP.
+            tune_info
+                .pool_alloc_points
+                .retain(|(pool, _)| pool != &main_pool.to_string());
+            // If there is no main pool in the filtered list then we need to remove additional pool
+            tune_info.pool_alloc_points = tune_info
+                .pool_alloc_points
+                .iter()
+                .take(config.pools_limit as usize)
+                .cloned()
+                .collect();
+
+            let total_vp: Uint128 = tune_info
+                .pool_alloc_points
+                .iter()
+                .fold(Uint128::zero(), |acc, (_, vp)| acc + vp);
+            // Calculate main pool contribution.
+            // Example (30% for the main pool): VP + x = y, x = 0.3y => y = VP/0.7  => x = 0.3 * VP / 0.7,
+            // where VP - total VP, x - main pool's contribution, y - new total VP.
+            // x = 0.3 * VP * (1-0.3)^(-1)
+            let main_pool_contribution = config.main_pool_min_alloc
+                * total_vp
+                * (Decimal::one() - config.main_pool_min_alloc).inv().unwrap();
+            tune_info
+                .pool_alloc_points
+                .push((main_pool.to_string(), main_pool_contribution))
+        }
+        _ => {
+            // there is no main pool or min alloc is 0%
+            tune_info.pool_alloc_points = tune_info
+                .pool_alloc_points
+                .iter()
+                .take(config.pools_limit as usize)
+                .cloned()
+                .collect();
+        }
+    }
 
     if tune_info.pool_alloc_points.is_empty() {
         return Err(ContractError::TuneNoPools {});
@@ -435,11 +494,20 @@ fn tune_pools(deps: DepsMut, env: Env) -> ExecuteResult {
 ///
 /// * **info** is an object of type [`MessageInfo`].
 ///
-/// * **blacklisted_voters_limit** is a new limit of blacklisted voters that can be kicked at once
+/// * **blacklisted_voters_limit** is a new limit of blacklisted voters which can be kicked at once
+///
+/// * **main_pool** is a main pool address
+///
+/// * **main_pool_min_alloc** is a minimum percentage of ASTRO emissions that this pool should get every block
+///
+/// * **remove_main_pool** should the main pool be removed or not
 fn update_config(
     deps: DepsMut,
     info: MessageInfo,
     blacklisted_voters_limit: Option<u32>,
+    main_pool: Option<String>,
+    main_pool_min_alloc: Option<Decimal>,
+    remove_main_pool: Option<bool>,
 ) -> ExecuteResult {
     let mut config = CONFIG.load(deps.storage)?;
 
@@ -449,6 +517,26 @@ fn update_config(
 
     if let Some(blacklisted_voters_limit) = blacklisted_voters_limit {
         config.blacklisted_voters_limit = Some(blacklisted_voters_limit);
+    }
+
+    if let Some(main_pool_min_alloc) = main_pool_min_alloc {
+        if main_pool_min_alloc == Decimal::zero() || main_pool_min_alloc >= Decimal::one() {
+            return Err(ContractError::MainPoolMinAllocFailed {});
+        }
+        config.main_pool_min_alloc = main_pool_min_alloc;
+    }
+
+    if let Some(main_pool) = main_pool {
+        if config.main_pool_min_alloc.is_zero() {
+            return Err(StdError::generic_err("Main pool min alloc can not be zero").into());
+        }
+        config.main_pool = Some(addr_validate_to_lower(deps.api, &main_pool)?);
+    }
+
+    if let Some(remove_main_pool) = remove_main_pool {
+        if remove_main_pool {
+            config.main_pool = None;
+        }
     }
 
     CONFIG.save(deps.storage, &config)?;

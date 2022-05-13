@@ -11,10 +11,10 @@ pub enum ContractError {
     #[error("Unauthorized")]
     Unauthorized {},
 
-    #[error("Exceeded account limit for claim operation!")]
+    #[error("Exceeded account limit for the claim operation!")]
     ClaimLimitExceeded {},
 
-    #[error("Claim is disabled!")]
+    #[error("Claiming is disabled!")]
     ClaimDisabled {},
 }
 
