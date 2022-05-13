@@ -8,28 +8,30 @@ pub const VOTERS_MAX_LIMIT: u32 = 30;
 /// This structure describes the basic settings for creating a contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
-    /// contract owner
+    /// Contract owner
     pub owner: String,
-    /// the vxASTRO token contract address
+    /// The vxASTRO token contract address
     pub escrow_addr: String,
-    /// generator contract address
+    /// Generator contract address
     pub generator_addr: String,
-    /// factory contract address
+    /// Factory contract address
     pub factory_addr: String,
-    /// max number of pools that can receive an ASTRO allocation
+    /// Max number of pools that can receive ASTRO emissions at the same time
     pub pools_limit: u64,
 }
 
-/// This structure describes the execute messages of the contract.
+/// This structure describes the execute messages available in the contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
     KickBlacklistedVoters {
         blacklisted_voters: Vec<String>,
     },
+    /// Vote allows a vxASTRO holder to cast votes on which generators should get ASTRO emissions in the next epoch
     Vote {
         votes: Vec<(String, u16)>,
     },
+    /// TunePools transforms the latest vote distribution into alloc_points which are then applied to ASTRO generators
     TunePools {},
     UpdateConfig {
         /// The number of voters that can be kicked at once from the pool..
@@ -41,28 +43,36 @@ pub enum ExecuteMsg {
         /// Should the main pool be removed or not? If the variable is omitted then the pool will be kept.
         remove_main_pool: Option<bool>,
     },
+    /// ChangePoolsLimit changes the max amount of pools that can be voted at once to receive ASTRO emissions
     ChangePoolsLimit {
         limit: u64,
     },
-    /// Propose a new owner for the contract
+    /// ProposeNewOwner proposes a new owner for the contract
     ProposeNewOwner {
+        /// Newly proposed contract owner
         new_owner: String,
+        /// The timestamp when the contract ownership change expires
         expires_in: u64,
     },
-    /// Remove the ownership transfer proposal
+    /// DropOwnershipProposal removes the latest contract ownership transfer proposal
     DropOwnershipProposal {},
-    /// Claim contract ownership
+    /// ClaimOwnership allows the newly proposed owner to claim contract ownership
     ClaimOwnership {},
 }
 
-/// This structure describes the query messages of the contract.
+/// This structure describes the query messages available in the contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
+    /// UserInfo returns information about a voter and the generators they voted for
     UserInfo { user: String },
+    /// TuneInfo returns information about the latest generators that were voted to receive ASTRO emissions
     TuneInfo {},
+    /// Config returns the contract configuration
     Config {},
+    /// PoolInfo returns the latest voting power allocated to a specific pool (generator)
     PoolInfo { pool_addr: String },
+    /// PoolInfo returns the voting power allocated to a specific pool (generator) at a specific period
     PoolInfoAtPeriod { pool_addr: String, period: u64 },
 }
 
@@ -74,10 +84,10 @@ pub struct MigrateMsg {
     pub blacklisted_voters_limit: Option<u32>,
 }
 
-/// This structure describes response with the main control config of generator controller contract.
+/// This structure describes the parameters returned when querying for the contract configuration.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ConfigResponse {
-    /// contract address that used for settings control
+    /// Address that's allowed to change contract parameters
     pub owner: Addr,
     /// The vxASTRO token contract address
     pub escrow_addr: Addr,
@@ -85,7 +95,7 @@ pub struct ConfigResponse {
     pub generator_addr: Addr,
     /// Factory contract address
     pub factory_addr: Addr,
-    /// Max number of pools that can receive an ASTRO allocation
+    /// Max number of pools that can receive ASTRO emissions at the same time
     pub pools_limit: u64,
     /// Max number of blacklisted voters which can be removed
     pub blacklisted_voters_limit: Option<u32>,
@@ -95,26 +105,35 @@ pub struct ConfigResponse {
     pub main_pool_min_alloc: Decimal,
 }
 
-/// This structure describes response with voting parameters for a specific pool.
+/// This structure describes the response used to return voting information for a specific pool (generator).
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Default)]
 pub struct VotedPoolInfoResponse {
+    /// vxASTRO amount that voted for this pool/generator
     pub vxastro_amount: Uint128,
+    /// The slope at which the amount of vxASTRO that voted for this pool/generator will decay
     pub slope: Uint128,
 }
 
-/// This structure describes response with last tuning parameters.
+/// This structure describes the response used to return tuning parameters for all pools/generators.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Default)]
 pub struct GaugeInfoResponse {
+    /// Last timestamp when a tuning vote happened
     pub tune_ts: u64,
+    /// Distribution of alloc_points to apply in the Generator contract
     pub pool_alloc_points: Vec<(String, Uint128)>,
 }
 
-/// The struct describes response with last user's votes parameters.
+/// The struct describes a response used to return a staker's vxASTRO lock position.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Default)]
 pub struct UserInfoResponse {
+    /// Last timestamp when the user voted
     pub vote_ts: u64,
+    /// The user's vxASTRO voting power
     pub voting_power: Uint128,
+    /// The slope at which the user's voting power decays
     pub slope: Uint128,
+    /// Timestamp when the user's lock expires
     pub lock_end: u64,
+    /// The vote distribution for all the generators/pools the staker picked
     pub votes: Vec<(Addr, u16)>,
 }

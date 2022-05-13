@@ -702,7 +702,7 @@ fn claim_multiple_users() {
         .unwrap_err();
 
     assert_eq!(
-        "Exceeded account limit for claim operation!",
+        "Exceeded account limit for the claim operation!",
         err.to_string()
     );
 
@@ -1022,7 +1022,7 @@ fn is_claim_enabled() {
         )
         .unwrap_err();
 
-    assert_eq!("Claim is disabled!", err.to_string());
+    assert_eq!("Claiming is disabled!", err.to_string());
 
     // Send 100_000_000 ASTRO from the Maker to the distributor for the first period
     let msg = Cw20ExecuteMsg::Send {
@@ -1061,7 +1061,7 @@ fn is_claim_enabled() {
         )
         .unwrap_err();
 
-    assert_eq!("Claim is disabled!", err.to_string());
+    assert_eq!("Claiming is disabled!", err.to_string());
 
     // Going to the next week
     router_ref.update_block(next_block);

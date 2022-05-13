@@ -33,7 +33,7 @@ const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 /// Returns the default [`Response`] object if the operation was successful, otherwise returns
 /// a [`StdResult`] if the contract was not created.
 /// ## Params
-/// * **msg** is a message of type [`InstantiateMsg`] which contains the parameters used to create a contract
+/// * **msg** is a message of type [`InstantiateMsg`] which contains the parameters used to create a contract.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
@@ -77,7 +77,7 @@ pub fn instantiate(
 ///
 /// * **msg** is an object of type [`ExecuteMsg`].
 ///
-/// ## Queries
+/// ## Execute messages
 /// * **ExecuteMsg::ProposeNewOwner { owner, expires_in }** Creates a request to change contract ownership.
 ///
 /// * **ExecuteMsg::DropOwnershipProposal {}** Removes a request to change contract ownership.
@@ -178,7 +178,7 @@ fn receive_cw20(
 }
 
 /// ## Description
-/// Claims ASTRO fees from this contract and sends them to the `recipient`. Returns a [`Response`] with
+/// Claims ASTRO staking rewards from this contract and sends them to the `recipient`. Returns a [`Response`] with
 /// specified attributes if the operation was successful, otherwise returns a [`ContractError`].
 /// ## Params
 /// * **deps** is an object of type [`DepsMut`].
@@ -187,7 +187,7 @@ fn receive_cw20(
 ///
 /// * **info** is an object of type [`MessageInfo`].
 ///
-/// * **recipient** This is the address that will receive the ASTRO fees.
+/// * **recipient** is an [`Option`] of type [`String`]. This is the address that will receive the ASTRO staking rewards.
 pub fn claim(
     mut deps: DepsMut,
     env: Env,
@@ -287,7 +287,7 @@ fn claim_many(
 ///
 /// * **env** is an object of type [`Env`].
 ///
-/// * **account** is an object of type [`Addr`]. This is the account for which we calculate the amount of ASTRO fees available to claim.
+/// * **account** is an object of type [`Addr`]. This is the account for which we calculate the amount of ASTRO rewards available to claim.
 ///
 /// * **config** is an object of type [`Config`]. This is the fee distributor contract configuration.
 fn calc_claim_amount(deps: DepsMut, env: Env, account: Addr, config: Config) -> StdResult<Uint128> {

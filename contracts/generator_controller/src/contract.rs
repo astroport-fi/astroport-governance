@@ -250,7 +250,7 @@ fn kick_blacklisted_voters(deps: DepsMut, env: Env, voters: Vec<String>) -> Exec
 /// * sum of all BPS values <= 10000.
 ///
 /// The function cancels changes applied by previous votes and apply new votes for the next period.
-/// New vote parameters are saved in [`USER_INFO`].  
+/// New vote parameters are saved in [`USER_INFO`].
 ///
 /// The function returns [`Response`] in case of success or [`ContractError`] in case of errors.
 ///
@@ -378,7 +378,7 @@ fn handle_vote(
 /// Then it calculates voting power for each pool at the current period, filters all pools which
 /// are not eligible to receive allocation points,
 /// takes top X pools by voting power, where X is 'config.pools_limit', calculates allocation points
-/// for these pools and applies allocation points in generator contract.   
+/// for these pools and applies allocation points in generator contract.
 /// The function returns [`Response`] in case of success or [`ContractError`] in case of errors.
 ///
 /// ## Params

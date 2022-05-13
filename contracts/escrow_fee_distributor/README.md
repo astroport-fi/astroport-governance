@@ -1,10 +1,10 @@
 # vxASTRO Escrow Fee Distributor
 
-Distribute ASTRO fees every period to vxASTRO stakers.
+Distribute ASTRO staking rewards every period to vxASTRO stakers.
 
 ## InstantiateMsg
 
-Instantiate the fee distributor contract with the ASTRO and vxASTRO token contracts as well as claim related parameters.
+Instantiate the fee distributor contract with the ASTRO and vxASTRO token contract addresses as well as claim related parameters.
 
 ```json
 {
