@@ -1509,6 +1509,7 @@ fn instantiate_vxastro_token(router: &mut TerraApp, owner: &Addr, xastro: &Addr)
         marketing: None,
         max_exit_penalty: Decimal::from_str("0.75").unwrap(),
         slashed_fund_receiver: None,
+        logo_urls_whitelist: vec![],
     };
 
     router

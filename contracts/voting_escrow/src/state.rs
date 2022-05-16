@@ -22,6 +22,8 @@ pub struct Config {
     pub astro_addr: Addr,
     /// The address of $xASTRO staking contract
     pub xastro_staking_addr: Addr,
+    /// The list of whitelisted logo urls prefixes
+    pub logo_urls_whitelist: Vec<String>,
 }
 
 /// ## Description

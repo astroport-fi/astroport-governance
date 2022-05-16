@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use astroport_governance::voting_escrow::MigrateMsg;
 
 pub(crate) mod v110;
+pub(crate) mod v130;
 
 pub(crate) trait Migration<T>
 where

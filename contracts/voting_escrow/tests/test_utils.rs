@@ -4,13 +4,13 @@ use astroport_governance::escrow_fee_distributor::InstantiateMsg as FeeDistribut
 use astroport_governance::utils::EPOCH_START;
 use astroport_governance::voting_escrow::{
     BlacklistedVotersResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, QueryMsg,
-    VotingPowerResponse,
+    UpdateMarketingInfo, VotingPowerResponse,
 };
 use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
 use cosmwasm_std::{
     attr, to_binary, Addr, Decimal, QueryRequest, StdResult, Timestamp, Uint128, WasmQuery,
 };
-use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
+use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, Logo, MinterResponse};
 use std::str::FromStr;
 use terra_multi_test::{
     AppBuilder, AppResponse, BankKeeper, ContractWrapper, Executor, TerraApp, TerraMock,
@@ -102,13 +102,21 @@ impl Helper {
 
         let voting_code_id = router.store_code(voting_contract);
 
+        let marketing_info = UpdateMarketingInfo {
+            project: Some("Astroport".to_string()),
+            description: Some("Astroport is a decentralized application for managing the supply of space resources.".to_string()),
+            marketing: Some(owner.to_string()),
+            logo: Some(Logo::Url("https://astroport.com/logo.png".to_string())),
+        };
+
         let msg = InstantiateMsg {
             owner: owner.to_string(),
             guardian_addr: Some("guardian".to_string()),
             deposit_token_addr: res.share_token_addr.to_string(),
-            marketing: None,
+            marketing: Some(marketing_info),
             max_exit_penalty: Decimal::from_str("0.75").unwrap(),
             slashed_fund_receiver: None,
+            logo_urls_whitelist: vec!["https://astroport.com/".to_string()],
         };
         let voting_instance = router
             .instantiate_contract(

@@ -1,3 +1,4 @@
+use crate::marketing_validation::validate_whitelist_links;
 use astroport::asset::addr_validate_to_lower;
 use cosmwasm_std::{Addr, Decimal, DepsMut, Env, StdError, StdResult};
 use cw20::{Cw20QueryMsg, MinterResponse};
@@ -21,6 +22,7 @@ pub const CONFIG_V100: Item<ConfigV100> = Item::new("config");
 pub struct ParamsV110 {
     pub max_exit_penalty: Decimal,
     pub slashed_fund_receiver: Option<String>,
+    pub logo_urls_whitelist: Vec<String>,
 }
 
 pub struct MigrationV110;
@@ -44,6 +46,9 @@ impl Migration<ParamsV110> for MigrationV110 {
             &xastro_minter_resp.minter,
             &astroport::staking::QueryMsg::Config {},
         )?;
+        // Validate logo urls whitelist
+        validate_whitelist_links(&params.logo_urls_whitelist)
+            .map_err(|_| StdError::generic_err("Some links are invalid"))?;
 
         CONFIG.save(
             deps.storage,
@@ -55,6 +60,7 @@ impl Migration<ParamsV110> for MigrationV110 {
                 slashed_fund_receiver,
                 astro_addr: staking_config.deposit_token_addr,
                 xastro_staking_addr: addr_validate_to_lower(deps.api, &xastro_minter_resp.minter)?,
+                logo_urls_whitelist: params.logo_urls_whitelist,
             },
         )?;
 

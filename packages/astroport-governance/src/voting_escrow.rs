@@ -16,7 +16,7 @@ pub const DEFAULT_LIMIT: u32 = 10;
 
 /// This structure stores marketing information for vxASTRO.
 #[derive(Serialize, Deserialize, JsonSchema, Debug, Clone, PartialEq)]
-pub struct InstantiateMarketingInfo {
+pub struct UpdateMarketingInfo {
     /// Project URL
     pub project: Option<String>,
     /// Token description
@@ -37,11 +37,13 @@ pub struct InstantiateMsg {
     /// xASTRO token address
     pub deposit_token_addr: String,
     /// Marketing info for vxASTRO
-    pub marketing: Option<InstantiateMarketingInfo>,
+    pub marketing: Option<UpdateMarketingInfo>,
     /// The maximum % of staked xASTRO that is confiscated upon an early exit
     pub max_exit_penalty: Decimal,
     /// The address that receives slashed ASTRO (slashed xASTRO is burned in order to claim ASTRO)
     pub slashed_fund_receiver: Option<String>,
+    /// The list of whitelisted logo urls prefixes
+    pub logo_urls_whitelist: Vec<String>,
 }
 
 /// This structure describes the execute functions in the contract.
@@ -94,6 +96,8 @@ pub enum ExecuteMsg {
     UploadLogo(Logo),
     /// Update config
     UpdateConfig { new_guardian: Option<String> },
+    /// Set whitelisted logo urls
+    SetLogoUrlsWhitelist { whitelist: Vec<String> },
 }
 
 /// This structure describes a CW20 hook message.
@@ -209,6 +213,8 @@ pub struct ConfigResponse {
     pub astro_addr: String,
     /// The address of $xASTRO staking contract
     pub xastro_staking_addr: String,
+    /// The list of whitelisted logo urls prefixes
+    pub logo_urls_whitelist: Vec<String>,
 }
 
 /// This structure describes a Migration message.
