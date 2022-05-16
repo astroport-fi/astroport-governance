@@ -4,7 +4,6 @@ use cw_storage_plus::{Item, Map, SnapshotMap, Strategy, U64Key};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-/// ## Description
 /// This structure stores the main parameters for the voting escrow contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
@@ -26,7 +25,6 @@ pub struct Config {
     pub logo_urls_whitelist: Vec<String>,
 }
 
-/// ## Description
 /// This structure stores points along the checkpoint history for every vxASTRO staker.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Point {
@@ -40,7 +38,6 @@ pub struct Point {
     pub slope: Uint128,
 }
 
-/// ## Description
 /// This structure stores data about the lockup position for a specific vxASTRO staker.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Lock {
@@ -54,12 +51,11 @@ pub struct Lock {
     pub last_extend_lock_period: u64,
 }
 
-/// ## Description
 /// Stores the contract config at the given key
 pub const CONFIG: Item<Config> = Item::new("config");
 
 /// ## Description
-/// Stores all user locks history
+/// Stores all user lock history
 pub const LOCKED: SnapshotMap<Addr, Lock> = SnapshotMap::new(
     "locked",
     "locked__checkpoints",
@@ -67,23 +63,18 @@ pub const LOCKED: SnapshotMap<Addr, Lock> = SnapshotMap::new(
     Strategy::EveryBlock,
 );
 
-/// ## Description
 /// Stores the checkpoint history for every staker (addr => period)
 /// Total voting power checkpoints are stored using a (contract_addr => period) key
 pub const HISTORY: Map<(Addr, U64Key), Point> = Map::new("history");
 
-/// ## Description
 /// Scheduled slope changes per period (week)
 pub const SLOPE_CHANGES: Map<U64Key, Uint128> = Map::new("slope_changes");
 
-/// ## Description
 /// Last period when a scheduled slope change was applied
 pub const LAST_SLOPE_CHANGE: Item<u64> = Item::new("last_slope_change");
 
-/// ## Description
 /// Contains a proposal to change contract ownership
 pub const OWNERSHIP_PROPOSAL: Item<OwnershipProposal> = Item::new("ownership_proposal");
 
-/// ## Description
 /// Contains blacklisted staker addresses
 pub const BLACKLIST: Item<Vec<Addr>> = Item::new("blacklist");

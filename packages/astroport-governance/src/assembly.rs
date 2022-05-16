@@ -13,7 +13,7 @@ pub const DELAY_INTERVAL: RangeInclusive<u64> = 6171..=12342; // from 0.5 to 1 d
 pub const EXPIRATION_PERIOD_INTERVAL: RangeInclusive<u64> = 12342..=86_399;
 pub const DEPOSIT_INTERVAL: RangeInclusive<u128> = 10000000000..=60000000000; // from 10k to 60k $xASTRO
 
-// Proposal validation attributes
+/// Proposal validation attributes
 const MIN_TITLE_LENGTH: usize = 4;
 const MAX_TITLE_LENGTH: usize = 64;
 const MIN_DESC_LENGTH: usize = 4;
@@ -21,6 +21,7 @@ const MAX_DESC_LENGTH: usize = 1024;
 const MIN_LINK_LENGTH: usize = 12;
 const MAX_LINK_LENGTH: usize = 128;
 
+/// Special characters that are allowed in proposal text
 const SAFE_TEXT_CHARS: &str = "!&?#()*+'-./\"";
 
 /// This structure holds the parameters used for creating an Assembly contract.
@@ -112,7 +113,6 @@ pub enum QueryMsg {
     TotalVotingPower { proposal_id: u64 },
 }
 
-/// ## Description
 /// This structure stores data for a CW20 hook message.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -396,10 +396,12 @@ pub struct ProposalVotesResponse {
     pub against_power: Uint128,
 }
 
-/// This structure describes proposal list response.
+/// This structure describes a proposal list response.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ProposalListResponse {
+    /// The amount of proposals returned
     pub proposal_count: Uint64,
+    /// The list of proposals that are returned
     pub proposal_list: Vec<Proposal>,
 }
 

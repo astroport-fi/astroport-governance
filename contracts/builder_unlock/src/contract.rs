@@ -204,7 +204,7 @@ fn execute_receive_cw20(
 ///
 /// * **QueryMsg::Allocation {}** Return the allocation details for a specific account.
 ///
-/// * **QueryMsg::UnlockedTokens {}** Return the amoint of unlocked ASTRO for a specific account.
+/// * **QueryMsg::UnlockedTokens {}** Return the amount of unlocked ASTRO for a specific account.
 ///
 /// * **QueryMsg::SimulateWithdraw {}** Return the result of a withdrawal simulation.
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -223,7 +223,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 }
 
 /// ## Description
-/// Admin function facilitating creation of new allocations.
+/// Admin function facilitating the creation of new allocations.
 /// ## Params
 /// * **deps** is an object of type [`DepsMut`].
 ///
@@ -349,7 +349,7 @@ fn execute_withdraw(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Res
 }
 
 /// ## Description
-/// Allows the current allocation receiver to propose a new receiver/.
+/// Allows the current allocation receiver to propose a new receiver.
 /// ## Params
 /// * **deps** is an object of type [`DepsMut`].
 ///
@@ -418,7 +418,7 @@ fn execute_drop_new_receiver(deps: DepsMut, info: MessageInfo) -> StdResult<Resp
 }
 
 /// ## Description
-/// Decrease allocation.
+/// Decrease an address' ASTRO allocation.
 /// ## Params
 /// * **deps** is an object of type [`DepsMut`].
 ///
@@ -426,9 +426,9 @@ fn execute_drop_new_receiver(deps: DepsMut, info: MessageInfo) -> StdResult<Resp
 ///
 /// * **info** is an object of type [`MessageInfo`].
 ///
-/// * **receiver** is an object of type [`String`]. Decreasing receiver.
+/// * **receiver** is an object of type [`String`]. The address that will have its allocation decreased.
 ///
-/// * **amount** is an object of type [`Uint128`]. ASTRO amount to decrease.
+/// * **amount** is an object of type [`Uint128`]. ASTRO amount to decrease the allocation by.
 fn execute_decrease_allocation(
     deps: DepsMut,
     env: Env,
@@ -459,7 +459,7 @@ fn execute_decrease_allocation(
 
     if locked_amount < amount {
         return Err(StdError::generic_err(format!(
-            "Insufficient amount of lock to decrease allocation, User has locked {} ASTRO.",
+            "Insufficient amount of lock to decrease allocation, user has locked {} ASTRO.",
             locked_amount
         )));
     }
@@ -480,17 +480,17 @@ fn execute_decrease_allocation(
 }
 
 /// ## Description
-/// Increase allocation.
+/// Increase an address' ASTRO allocation.
 /// ## Params
 /// * **deps** is an object of type [`DepsMut`].
 ///
 /// * **config** is an object of type [`Config`].
 ///
-/// * **receiver** is an object of type [`String`]. Increasing receiver.
+/// * **receiver** is an object of type [`String`]. The address that will have its allocation incrased.
 ///
-/// * **amount** is an object of type [`Uint128`]. ASTRO amount to increase.
+/// * **amount** is an object of type [`Uint128`]. ASTRO amount to increase the allocation by.
 ///
-/// * **deposit_amount** is an [`Option`] of type [`Uint128`]. Amount of ASTRO to increase using CW20 Receive.
+/// * **deposit_amount** is an [`Option`] of type [`Uint128`]. Amount of ASTRO to increase the allocation by using CW20 Receive.
 fn execute_increase_allocation(
     deps: DepsMut,
     config: &Config,
@@ -543,7 +543,7 @@ fn execute_increase_allocation(
 }
 
 /// ## Description
-/// Transfer unallocated ASTRO tokens to recipient.
+/// Transfer unallocated ASTRO tokens to a recipient.
 /// ## Params
 /// * **deps** is an object of type [`DepsMut`].
 ///
@@ -624,14 +624,14 @@ fn execute_claim_receiver(
                     )));
                 }
 
-                // Transfers Allocation Parameters ::
+                // Transfers allocation parameters
                 // 1. Save the allocation for the new receiver
                 alloc_params.proposed_receiver = None;
 
                 PARAMS.save(deps.storage, &info.sender, &alloc_params)?;
                 // 2. Remove the allocation info from the previous owner
                 PARAMS.remove(deps.storage, &deps.api.addr_validate(&prev_receiver)?);
-                // Transfers Allocation Status ::
+                // Transfers Allocation Status
                 let mut status =
                     STATUS.load(deps.storage, &deps.api.addr_validate(&prev_receiver)?)?;
 

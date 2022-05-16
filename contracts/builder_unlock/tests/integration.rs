@@ -1424,7 +1424,7 @@ fn test_increase_and_decrease_allocation() {
         .unwrap_err();
     assert_eq!(
         err.to_string(),
-        "Generic error: Insufficient amount of lock to decrease allocation, User has locked 4919528246563 ASTRO."
+        "Generic error: Insufficient amount of lock to decrease allocation, user has locked 4919528246563 ASTRO."
     );
 
     app.execute_contract(

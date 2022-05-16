@@ -3,7 +3,7 @@ use anyhow::Result as AnyResult;
 use astroport::asset::{AssetInfo, PairInfo};
 use astroport::factory::{PairConfig, PairType};
 use astroport_governance::generator_controller::{ConfigResponse, ExecuteMsg, QueryMsg};
-use cosmwasm_std::{Addr, StdResult};
+use cosmwasm_std::{Addr, Decimal, StdResult};
 use generator_controller::state::{UserInfo, VotedPoolInfo};
 use terra_multi_test::{AppResponse, ContractWrapper, Executor, TerraApp};
 
@@ -253,7 +253,7 @@ impl ControllerHelper {
         )
     }
 
-    pub fn update_config(
+    pub fn update_blacklisted_limit(
         &self,
         router: &mut TerraApp,
         user: &str,
@@ -264,6 +264,31 @@ impl ControllerHelper {
             self.controller.clone(),
             &ExecuteMsg::UpdateConfig {
                 blacklisted_voters_limit,
+                main_pool: None,
+                main_pool_min_alloc: None,
+                remove_main_pool: None,
+            },
+            &[],
+        )
+    }
+
+    pub fn update_main_pool(
+        &self,
+        router: &mut TerraApp,
+        user: &str,
+        main_pool: Option<&Addr>,
+        main_pool_min_alloc: Option<Decimal>,
+        remove_main_pool: bool,
+    ) -> AnyResult<AppResponse> {
+        let remove_main_pool = if remove_main_pool { Some(true) } else { None };
+        router.execute_contract(
+            Addr::unchecked(user),
+            self.controller.clone(),
+            &ExecuteMsg::UpdateConfig {
+                blacklisted_voters_limit: None,
+                main_pool: main_pool.map(|p| p.to_string()),
+                main_pool_min_alloc,
+                remove_main_pool,
             },
             &[],
         )
