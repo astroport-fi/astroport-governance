@@ -12,7 +12,7 @@ pub struct InstantiateMsg {
     pub astro_token: String,
     /// VotingEscrow contract address
     pub voting_escrow_addr: String,
-    /// Max limit of addresses to claim rewards in single call
+    /// Max limit of addresses to claim rewards in a single call
     pub claim_many_limit: Option<u64>,
     /// Is reward claiming disabled: for emergency
     pub is_claim_disabled: Option<bool>,

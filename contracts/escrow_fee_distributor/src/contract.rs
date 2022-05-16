@@ -43,6 +43,17 @@ pub fn instantiate(
 ) -> StdResult<Response> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
+    let mut claim_many_limit = CLAIM_LIMIT;
+    if let Some(limit) = msg.claim_many_limit {
+        if limit < MIN_CLAIM_LIMIT {
+            return Err(StdError::generic_err(format!(
+                "Accounts limit for claim operation cannot be less than {} !",
+                MIN_CLAIM_LIMIT
+            )));
+        }
+        claim_many_limit = limit;
+    }
+
     CONFIG.save(
         deps.storage,
         &Config {
@@ -50,7 +61,7 @@ pub fn instantiate(
             astro_token: addr_validate_to_lower(deps.api, &msg.astro_token)?,
             voting_escrow_addr: addr_validate_to_lower(deps.api, &msg.voting_escrow_addr)?,
             is_claim_disabled: msg.is_claim_disabled.unwrap_or(false),
-            claim_many_limit: msg.claim_many_limit.unwrap_or(CLAIM_LIMIT),
+            claim_many_limit,
         },
     )?;
 
