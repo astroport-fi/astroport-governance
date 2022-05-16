@@ -4,11 +4,14 @@ use cw20::Cw20ReceiveMsg;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::fmt::{Display, Formatter, Result};
+use std::ops::RangeInclusive;
 
 pub const MINIMUM_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE: u64 = 33;
 pub const MAX_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE: u64 = 100;
-pub const MINIMUM_DELAY: u64 = 12_342; // 1 day in blocks (7 seconds as 1 block)
-pub const MINIMUM_EXPIRATION_PERIOD: u64 = 86_399; // 1 week in blocks (7 seconds as 1 block)
+pub const VOTING_PERIOD_INTERVAL: RangeInclusive<u64> = 12342..=7 * 12342;
+pub const DELAY_INTERVAL: RangeInclusive<u64> = 6171..=12342; // from 0.5 to 1 day in blocks (7 seconds per block)
+pub const EXPIRATION_PERIOD_INTERVAL: RangeInclusive<u64> = 12342..=86_399;
+pub const DEPOSIT_INTERVAL: RangeInclusive<u128> = 10000000000..=60000000000; // from 10k to 60k $xASTRO
 
 // Proposal validation attributes
 const MIN_TITLE_LENGTH: usize = 4;
@@ -164,24 +167,45 @@ impl Config {
 
         if self.proposal_required_quorum
             > Decimal::percent(MAX_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE)
+            || self.proposal_required_quorum
+                < Decimal::percent(MINIMUM_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE)
         {
             return Err(StdError::generic_err(format!(
-                "The required quorum for a proposal cannot be higher than {}%",
+                "The required quorum for a proposal cannot be lower than {}% or higher than {}%",
+                MINIMUM_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE,
                 MAX_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE
             )));
         }
 
-        if self.proposal_effective_delay < MINIMUM_DELAY {
+        if !DELAY_INTERVAL.contains(&self.proposal_effective_delay) {
             return Err(StdError::generic_err(format!(
-                "The effective delay for a proposal cannot be less than {} blocks.",
-                MINIMUM_DELAY
+                "The effective delay for a proposal cannot be lower than {} or higher than {}",
+                DELAY_INTERVAL.start(),
+                DELAY_INTERVAL.end()
             )));
         }
 
-        if self.proposal_expiration_period < MINIMUM_EXPIRATION_PERIOD {
+        if !EXPIRATION_PERIOD_INTERVAL.contains(&self.proposal_expiration_period) {
             return Err(StdError::generic_err(format!(
-                "The expiration period for a proposal cannot be less than {} blocks.",
-                MINIMUM_EXPIRATION_PERIOD
+                "The expiration period for a proposal cannot be lower than {} or higher than {}",
+                EXPIRATION_PERIOD_INTERVAL.start(),
+                EXPIRATION_PERIOD_INTERVAL.end()
+            )));
+        }
+
+        if !VOTING_PERIOD_INTERVAL.contains(&self.proposal_voting_period) {
+            return Err(StdError::generic_err(format!(
+                "The voting period for a proposal should be more than {} or less than {} blocks.",
+                VOTING_PERIOD_INTERVAL.start(),
+                VOTING_PERIOD_INTERVAL.end()
+            )));
+        }
+
+        if !DEPOSIT_INTERVAL.contains(&self.proposal_required_deposit.u128()) {
+            return Err(StdError::generic_err(format!(
+                "The required deposit for a proposal cannot be lower than {} or higher than {}",
+                DEPOSIT_INTERVAL.start(),
+                DEPOSIT_INTERVAL.end()
             )));
         }
 
