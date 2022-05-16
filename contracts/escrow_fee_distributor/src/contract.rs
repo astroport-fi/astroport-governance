@@ -1,27 +1,25 @@
+use astroport::asset::addr_validate_to_lower;
+use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use cosmwasm_std::{
     attr, entry_point, to_binary, Addr, Attribute, Binary, Deps, DepsMut, Env, MessageInfo, Order,
     Response, StdError, StdResult, Uint128,
 };
-
-use crate::error::ContractError;
-use crate::state::{Config, CONFIG, LAST_CLAIM_PERIOD, OWNERSHIP_PROPOSAL, REWARDS_PER_WEEK};
-
-use crate::utils::transfer_token_amount;
-use astroport::asset::addr_validate_to_lower;
-use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
+use cw2::set_contract_version;
+use cw20::Cw20ReceiveMsg;
+use cw_storage_plus::{Bound, PrimaryKey, U64Key};
 
 use astroport_governance::escrow_fee_distributor::{
     ConfigResponse, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg,
 };
+use astroport_governance::utils::CheckedMultiplyRatio;
 use astroport_governance::utils::{get_period, CLAIM_LIMIT, MIN_CLAIM_LIMIT};
-
 use astroport_governance::voting_escrow::{
     LockInfoResponse, QueryMsg as VotingQueryMsg, VotingPowerResponse,
 };
-use cw20::Cw20ReceiveMsg;
 
-use cw2::set_contract_version;
-use cw_storage_plus::{Bound, PrimaryKey, U64Key};
+use crate::error::ContractError;
+use crate::state::{Config, CONFIG, LAST_CLAIM_PERIOD, OWNERSHIP_PROPOSAL, REWARDS_PER_WEEK};
+use crate::utils::transfer_token_amount;
 
 /// Contract name that is used for migration.
 const CONTRACT_NAME: &str = "astroport-escrow-fee-distributor";
@@ -371,7 +369,7 @@ fn calculate_reward(
         .may_load(deps.storage, U64Key::from(period))?
         .unwrap_or_default();
 
-    Ok(user_vp.multiply_ratio(rewards_per_week, total_vp))
+    user_vp.checked_multiply_ratio(rewards_per_week, total_vp)
 }
 
 /// ## Description

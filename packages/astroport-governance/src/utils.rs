@@ -68,6 +68,32 @@ impl DecimalRoundedCheckedMul for Decimal {
     }
 }
 
+pub trait CheckedMultiplyRatio {
+    fn checked_multiply_ratio<A: Into<u128>, B: Into<u128>>(
+        &self,
+        numerator: A,
+        denominator: B,
+    ) -> StdResult<Uint128>;
+}
+
+impl CheckedMultiplyRatio for Uint128 {
+    fn checked_multiply_ratio<A: Into<u128>, B: Into<u128>>(
+        &self,
+        numerator: A,
+        denominator: B,
+    ) -> StdResult<Uint128> {
+        let numerator: u128 = numerator.into();
+        let denominator: u128 = denominator.into();
+        if denominator == 0 {
+            Err(StdError::generic_err("Division by zero"))
+        } else {
+            (self.full_mul(numerator) / Uint256::from(denominator))
+                .try_into()
+                .map_err(Into::into)
+        }
+    }
+}
+
 /// # Description
 /// Main function used to calculate a user's voting power at a specific period as: previous_power - slope*(x - previous_x).
 pub fn calc_voting_power(
