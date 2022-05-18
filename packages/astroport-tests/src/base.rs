@@ -157,6 +157,7 @@ impl BaseAstroportTestPackage {
             deposit_token_addr: self.get_staking_xastro(router).to_string(),
             max_exit_penalty: Decimal::from_str("0.75").unwrap(),
             slashed_fund_receiver: None,
+            logo_urls_whitelist: vec![],
         };
 
         let voting_instance = router

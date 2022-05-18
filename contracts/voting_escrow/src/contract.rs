@@ -26,7 +26,9 @@ use astroport_governance::voting_escrow::{
 };
 
 use crate::error::ContractError;
+use crate::marketing_validation::{validate_marketing_info, validate_whitelist_links};
 use crate::migration::v110::MigrationV110;
+use crate::migration::v130::MigrationV130;
 use crate::migration::Migration;
 use crate::state::{
     Config, Lock, Point, BLACKLIST, CONFIG, HISTORY, LAST_SLOPE_CHANGE, LOCKED, OWNERSHIP_PROPOSAL,
@@ -81,6 +83,7 @@ pub fn instantiate(
         &xastro_minter_resp.minter,
         &astroport::staking::QueryMsg::Config {},
     )?;
+    validate_whitelist_links(&msg.logo_urls_whitelist)?;
 
     let mut config = Config {
         owner: addr_validate_to_lower(deps.api, &msg.owner)?,
@@ -90,6 +93,7 @@ pub fn instantiate(
         astro_addr: staking_config.deposit_token_addr,
         xastro_staking_addr: addr_validate_to_lower(deps.api, &xastro_minter_resp.minter)?,
         slashed_fund_receiver,
+        logo_urls_whitelist: msg.logo_urls_whitelist.clone(),
     };
     if let Some(guardian_addr) = msg.guardian_addr {
         config.guardian_addr = Some(addr_validate_to_lower(deps.api, &guardian_addr)?);
@@ -111,6 +115,17 @@ pub fn instantiate(
     BLACKLIST.save(deps.storage, &vec![])?;
 
     if let Some(marketing) = msg.marketing {
+        if msg.logo_urls_whitelist.is_empty() {
+            return Err(StdError::generic_err("Logo URLs whitelist can not be empty").into());
+        }
+
+        validate_marketing_info(
+            marketing.project.as_ref(),
+            marketing.description.as_ref(),
+            marketing.logo.as_ref(),
+            &config.logo_urls_whitelist,
+        )?;
+
         let logo = if let Some(logo) = marketing.logo {
             LOGO.save(deps.storage, &logo)?;
 
@@ -207,13 +222,13 @@ pub fn execute(
                 config.owner,
                 OWNERSHIP_PROPOSAL,
             )
-            .map_err(|e| e.into())
+            .map_err(Into::into)
         }
         ExecuteMsg::DropOwnershipProposal {} => {
             let config: Config = CONFIG.load(deps.storage)?;
 
             drop_ownership_proposal(deps, info, config.owner, OWNERSHIP_PROPOSAL)
-                .map_err(|e| e.into())
+                .map_err(Into::into)
         }
         ExecuteMsg::ClaimOwnership {} => {
             claim_ownership(deps, info, env, OWNERSHIP_PROPOSAL, |deps, new_owner| {
@@ -224,7 +239,7 @@ pub fn execute(
 
                 Ok(())
             })
-            .map_err(|e| e.into())
+            .map_err(Into::into)
         }
         ExecuteMsg::UpdateBlacklist {
             append_addrs,
@@ -234,10 +249,27 @@ pub fn execute(
             project,
             description,
             marketing,
-        } => execute_update_marketing(deps, env, info, project, description, marketing)
-            .map_err(|e| e.into()),
+        } => {
+            validate_marketing_info(project.as_ref(), description.as_ref(), None, &[])?;
+            execute_update_marketing(deps, env, info, project, description, marketing)
+                .map_err(Into::into)
+        }
         ExecuteMsg::UploadLogo(logo) => {
-            execute_upload_logo(deps, env, info, logo).map_err(|e| e.into())
+            let config = CONFIG.load(deps.storage)?;
+            validate_marketing_info(None, None, Some(&logo), &config.logo_urls_whitelist)?;
+            execute_upload_logo(deps, env, info, logo).map_err(Into::into)
+        }
+        ExecuteMsg::SetLogoUrlsWhitelist { whitelist } => {
+            let mut config = CONFIG.load(deps.storage)?;
+            let marketing_info = MARKETING_INFO.load(deps.storage)?;
+            if info.sender != config.owner && Some(info.sender) != marketing_info.marketing {
+                Err(ContractError::Unauthorized {})
+            } else {
+                validate_whitelist_links(&whitelist)?;
+                config.logo_urls_whitelist = whitelist;
+                CONFIG.save(deps.storage, &config)?;
+                Ok(Response::default().add_attribute("action", "set_logo_urls_whitelist"))
+            }
         }
         ExecuteMsg::UpdateConfig { new_guardian } => {
             execute_update_config(deps, info, new_guardian)
@@ -1082,6 +1114,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
                 slashed_fund_receiver: config.slashed_fund_receiver.map(|addr| addr.to_string()),
                 astro_addr: config.astro_addr.to_string(),
                 xastro_staking_addr: config.xastro_staking_addr.to_string(),
+                logo_urls_whitelist: config.logo_urls_whitelist,
             })
         }
         QueryMsg::Balance { address } => to_binary(&get_user_balance(deps, env, address)?),
@@ -1407,7 +1440,10 @@ pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response,
                 // 1.0.0 -> 1.1.0
                 MigrationV110::migrate(deps.branch(), env, msg)?;
             }
-            "1.1.0" => {}
+            "1.1.0" | "1.2.0" => {
+                // 1.1.0 | 1.2.0 -> 1.3.0
+                MigrationV130::migrate(deps.branch(), env, msg)?;
+            }
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),

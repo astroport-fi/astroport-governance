@@ -6,7 +6,7 @@ use std::str::FromStr;
 use astroport_governance::assembly::{
     Config, Cw20HookMsg, ExecuteMsg, InstantiateMsg, Proposal, ProposalListResponse,
     ProposalMessage, ProposalStatus, ProposalVoteOption, ProposalVotesResponse, QueryMsg,
-    UpdateConfig,
+    UpdateConfig, DEPOSIT_INTERVAL, VOTING_PERIOD_INTERVAL,
 };
 
 use astroport_governance::voting_escrow::{
@@ -28,10 +28,10 @@ use terra_multi_test::{
     next_block, AppBuilder, AppResponse, BankKeeper, ContractWrapper, Executor, TerraApp, TerraMock,
 };
 
-const PROPOSAL_VOTING_PERIOD: u64 = 500;
+const PROPOSAL_VOTING_PERIOD: u64 = *VOTING_PERIOD_INTERVAL.start();
 const PROPOSAL_EFFECTIVE_DELAY: u64 = 12_342;
 const PROPOSAL_EXPIRATION_PERIOD: u64 = 86_399;
-const PROPOSAL_REQUIRED_DEPOSIT: u128 = 1000u128;
+const PROPOSAL_REQUIRED_DEPOSIT: u128 = *DEPOSIT_INTERVAL.start();
 const PROPOSAL_REQUIRED_QUORUM: &str = "0.50";
 const PROPOSAL_REQUIRED_THRESHOLD: &str = "0.60";
 
@@ -142,7 +142,7 @@ fn test_contract_instantiation() {
 
     assert_eq!(
         res.to_string(),
-        "Generic error: The expiration period for a proposal cannot be less than 86399 blocks."
+        "Generic error: The expiration period for a proposal cannot be lower than 12342 or higher than 86399"
     );
 
     let res = app
@@ -161,7 +161,7 @@ fn test_contract_instantiation() {
 
     assert_eq!(
         res.to_string(),
-        "Generic error: The effective delay for a proposal cannot be less than 12342 blocks."
+        "Generic error: The effective delay for a proposal cannot be lower than 6171 or higher than 12342"
     );
 
     let assembly_instance = app
@@ -227,9 +227,15 @@ fn test_proposal_submitting() {
     assert_eq!(proposals.proposal_count, Uint64::from(0u32));
     assert_eq!(proposals.proposal_list, vec![]);
 
-    mint_tokens(&mut app, &staking_instance, &xastro_addr, &user, 2000);
+    mint_tokens(
+        &mut app,
+        &staking_instance,
+        &xastro_addr,
+        &user,
+        PROPOSAL_REQUIRED_DEPOSIT,
+    );
 
-    check_token_balance(&mut app, &xastro_addr, &user, 2000);
+    check_token_balance(&mut app, &xastro_addr, &user, PROPOSAL_REQUIRED_DEPOSIT);
 
     // Try to create proposal with insufficient token deposit
     let submit_proposal_msg = Cw20ExecuteMsg::Send {
@@ -264,7 +270,7 @@ fn test_proposal_submitting() {
                     messages: None,
                 })
                 .unwrap(),
-                amount: Uint128::from(1000u128),
+                amount: Uint128::from(PROPOSAL_REQUIRED_DEPOSIT),
             },
             &[],
         )
@@ -285,7 +291,7 @@ fn test_proposal_submitting() {
                     messages: None,
                 })
                 .unwrap(),
-                amount: Uint128::from(1000u128),
+                amount: Uint128::from(PROPOSAL_REQUIRED_DEPOSIT),
             },
             &[],
         )
@@ -307,7 +313,7 @@ fn test_proposal_submitting() {
                     messages: None,
                 })
                 .unwrap(),
-                amount: Uint128::from(1000u128),
+                amount: Uint128::from(PROPOSAL_REQUIRED_DEPOSIT),
             },
             &[],
         )
@@ -328,7 +334,7 @@ fn test_proposal_submitting() {
                     messages: None,
                 })
                 .unwrap(),
-                amount: Uint128::from(1000u128),
+                amount: Uint128::from(PROPOSAL_REQUIRED_DEPOSIT),
             },
             &[],
         )
@@ -350,7 +356,7 @@ fn test_proposal_submitting() {
                     messages: None,
                 })
                 .unwrap(),
-                amount: Uint128::from(1000u128),
+                amount: Uint128::from(PROPOSAL_REQUIRED_DEPOSIT),
             },
             &[],
         )
@@ -371,7 +377,7 @@ fn test_proposal_submitting() {
                     messages: None,
                 })
                 .unwrap(),
-                amount: Uint128::from(1000u128),
+                amount: Uint128::from(PROPOSAL_REQUIRED_DEPOSIT),
             },
             &[],
         )
@@ -392,7 +398,7 @@ fn test_proposal_submitting() {
                     messages: None,
                 })
                 .unwrap(),
-                amount: Uint128::from(1000u128),
+                amount: Uint128::from(PROPOSAL_REQUIRED_DEPOSIT),
             },
             &[],
         )
@@ -415,7 +421,7 @@ fn test_proposal_submitting() {
                     messages: None,
                 })
                 .unwrap(),
-                amount: Uint128::from(1000u128),
+                amount: Uint128::from(PROPOSAL_REQUIRED_DEPOSIT),
             },
             &[],
         )
@@ -459,7 +465,7 @@ fn test_proposal_submitting() {
                 }]),
             })
             .unwrap(),
-            amount: Uint128::from(1000u128),
+            amount: Uint128::from(PROPOSAL_REQUIRED_DEPOSIT),
         },
         &[],
     )
@@ -481,7 +487,7 @@ fn test_proposal_submitting() {
     assert_eq!(proposal.for_voters, Vec::<Addr>::new());
     assert_eq!(proposal.against_voters, Vec::<Addr>::new());
     assert_eq!(proposal.start_block, 12_345);
-    assert_eq!(proposal.end_block, 12_345 + 500);
+    assert_eq!(proposal.end_block, 12_345 + PROPOSAL_VOTING_PERIOD);
     assert_eq!(proposal.title, String::from("Title"));
     assert_eq!(proposal.description, String::from("Description"));
     assert_eq!(proposal.link, Some(String::from("https://some.link/q/")));
@@ -509,7 +515,10 @@ fn test_proposal_submitting() {
             }),
         }])
     );
-    assert_eq!(proposal.deposit_amount, Uint128::from(1000u64))
+    assert_eq!(
+        proposal.deposit_amount,
+        Uint128::from(PROPOSAL_REQUIRED_DEPOSIT)
+    )
 }
 
 #[test]
@@ -541,6 +550,7 @@ fn test_successful_proposal() {
         ("user9", 50, 0),
         ("user10", 0, 90),
         ("user11", 500, 0),
+        ("user12", 10000_000000, 0),
     ];
 
     let default_allocation_params = AllocationParams {
@@ -626,7 +636,7 @@ fn test_successful_proposal() {
                     xastro_token_addr: None,
                     vxastro_token_addr: None,
                     builder_unlock_addr: None,
-                    proposal_voting_period: Some(750),
+                    proposal_voting_period: Some(PROPOSAL_VOTING_PERIOD + 1000),
                     proposal_effective_delay: None,
                     proposal_expiration_period: None,
                     proposal_required_deposit: None,
@@ -655,9 +665,11 @@ fn test_successful_proposal() {
         ("user8", ProposalVoteOption::Against, 330u128),
         ("user9", ProposalVoteOption::Against, 50u128),
         ("user10", ProposalVoteOption::Against, 270u128),
+        ("user11", ProposalVoteOption::Against, 500u128),
+        ("user12", ProposalVoteOption::For, 10000_000000u128),
     ];
 
-    check_total_vp(&mut app, &assembly_addr, 1, 4650);
+    check_total_vp(&mut app, &assembly_addr, 1, 20000003650);
 
     for (addr, option, expected_vp) in votes {
         let sender = Addr::unchecked(addr);
@@ -684,11 +696,11 @@ fn test_successful_proposal() {
         .unwrap();
 
     // Check proposal votes
-    assert_eq!(proposal.for_power, Uint128::from(2500u32));
-    assert_eq!(proposal.against_power, Uint128::from(650u32));
+    assert_eq!(proposal.for_power, Uint128::from(10000002500u128));
+    assert_eq!(proposal.against_power, Uint128::from(1150u32));
 
-    assert_eq!(proposal_votes.for_power, Uint128::from(2500u32));
-    assert_eq!(proposal_votes.against_power, Uint128::from(650u32));
+    assert_eq!(proposal_votes.for_power, Uint128::from(10000002500u128));
+    assert_eq!(proposal_votes.against_power, Uint128::from(1150u32));
 
     assert_eq!(
         proposal.for_voters,
@@ -699,7 +711,8 @@ fn test_successful_proposal() {
             Addr::unchecked("user4"),
             Addr::unchecked("user5"),
             Addr::unchecked("user6"),
-            Addr::unchecked("user7")
+            Addr::unchecked("user7"),
+            Addr::unchecked("user12"),
         ]
     );
     assert_eq!(
@@ -707,7 +720,8 @@ fn test_successful_proposal() {
         vec![
             Addr::unchecked("user8"),
             Addr::unchecked("user9"),
-            Addr::unchecked("user10")
+            Addr::unchecked("user10"),
+            Addr::unchecked("user11")
         ]
     );
 
@@ -752,7 +766,12 @@ fn test_successful_proposal() {
     )
     .unwrap();
 
-    check_token_balance(&mut app, &xastro_addr, &Addr::unchecked("user0"), 1000);
+    check_token_balance(
+        &mut app,
+        &xastro_addr,
+        &Addr::unchecked("user0"),
+        PROPOSAL_REQUIRED_DEPOSIT,
+    );
 
     let proposal: Proposal = app
         .wrap()
@@ -817,7 +836,7 @@ fn test_successful_proposal() {
         .unwrap();
 
     // Check execution result
-    assert_eq!(config.proposal_voting_period, 750);
+    assert_eq!(config.proposal_voting_period, PROPOSAL_VOTING_PERIOD + 1000);
     assert_eq!(
         config.whitelisted_links,
         vec![
@@ -893,7 +912,7 @@ fn test_voting_power_changes() {
         &staking_instance,
         &xastro_addr,
         &Addr::unchecked("user1"),
-        4000,
+        40000_000000,
     );
 
     app.update_block(next_block);
@@ -932,7 +951,7 @@ fn test_voting_power_changes() {
         &staking_instance,
         &xastro_addr,
         &Addr::unchecked("user2"),
-        50000,
+        5000_000000,
     );
 
     app.update_block(next_block);
@@ -988,9 +1007,9 @@ fn test_voting_power_changes() {
         .unwrap();
 
     // Check proposal votes
-    assert_eq!(proposal.for_power, Uint128::from(4000u32));
+    assert_eq!(proposal.for_power, Uint128::from(40000_000000u128));
     assert_eq!(proposal.against_power, Uint128::zero());
-    // Should be passed, as total_voting_power=5000, for_votes=4000.
+    // Should be passed, as total_voting_power=5000, for_votes=40000.
     // So user2 didn't affect the result. Because he had to have xASTRO before the vote was submitted.
     assert_eq!(proposal.status, ProposalStatus::Passed);
 }
@@ -1017,8 +1036,20 @@ fn test_block_height_selection() {
         PROPOSAL_REQUIRED_DEPOSIT,
     );
 
-    mint_tokens(&mut app, &staking_instance, &xastro_addr, &user1, 6001);
-    mint_tokens(&mut app, &staking_instance, &xastro_addr, &user2, 4000);
+    mint_tokens(
+        &mut app,
+        &staking_instance,
+        &xastro_addr,
+        &user1,
+        6000_000001,
+    );
+    mint_tokens(
+        &mut app,
+        &staking_instance,
+        &xastro_addr,
+        &user2,
+        4000_000000,
+    );
 
     // Move to the next block(12346)
     app.update_block(next_block);
@@ -1043,11 +1074,23 @@ fn test_block_height_selection() {
 
     // Mint huge amount of xASTRO. These tokens cannot affect on total supply in proposal 1 because
     // they were minted after proposal.start_block - 1
-    mint_tokens(&mut app, &staking_instance, &xastro_addr, &user3, 100000);
+    mint_tokens(
+        &mut app,
+        &staking_instance,
+        &xastro_addr,
+        &user3,
+        100000_000000,
+    );
     // Mint more xASTRO to user2, who will vote against the proposal, what is enough to make proposal unsuccessful.
-    mint_tokens(&mut app, &staking_instance, &xastro_addr, &user2, 3000);
-    // Total voting power should be 11001
-    check_total_vp(&mut app, &assembly_addr, 1, 11001);
+    mint_tokens(
+        &mut app,
+        &staking_instance,
+        &xastro_addr,
+        &user2,
+        3000_000000,
+    );
+    // Total voting power should be 20k xASTRO (proposal minimum deposit 10k + 4k + 6k users VP)
+    check_total_vp(&mut app, &assembly_addr, 1, 20000_000001);
 
     cast_vote(
         &mut app,
@@ -1083,10 +1126,10 @@ fn test_block_height_selection() {
         )
         .unwrap();
 
-    assert_eq!(proposal.for_power, Uint128::new(6001));
+    assert_eq!(proposal.for_power, Uint128::new(6000_000001));
     // Against power is 4000, as user2's balance was increased after proposal.start_block - 1
     // at which everyone's voting power are considered.
-    assert_eq!(proposal.against_power, Uint128::new(4000));
+    assert_eq!(proposal.against_power, Uint128::new(4000_000000));
     // Proposal is passed, as the total supply was increased after proposal.start_block - 1.
     assert_eq!(proposal.status, ProposalStatus::Passed);
 }
@@ -1179,7 +1222,12 @@ fn test_unsuccessful_proposal() {
     )
     .unwrap();
 
-    check_token_balance(&mut app, &xastro_addr, &Addr::unchecked("user0"), 1000);
+    check_token_balance(
+        &mut app,
+        &xastro_addr,
+        &Addr::unchecked("user0"),
+        10000_000000,
+    );
 
     // Check proposal status
     let proposal: Proposal = app
@@ -1461,6 +1509,7 @@ fn instantiate_vxastro_token(router: &mut TerraApp, owner: &Addr, xastro: &Addr)
         marketing: None,
         max_exit_penalty: Decimal::from_str("0.75").unwrap(),
         slashed_fund_receiver: None,
+        logo_urls_whitelist: vec![],
     };
 
     router

@@ -1,6 +1,6 @@
 use astroport::token as astro;
 use cosmwasm_std::{attr, to_binary, Addr, Fraction, StdError, Uint128};
-use cw20::{Cw20ExecuteMsg, MinterResponse};
+use cw20::{Cw20ExecuteMsg, Logo, LogoInfo, MarketingInfoResponse, MinterResponse};
 use terra_multi_test::{next_block, ContractWrapper, Executor};
 
 use astroport_governance::utils::{get_period, MAX_LOCK_TIME, WEEK};
@@ -1075,4 +1075,150 @@ fn total_vp_multiple_slope_subtraction() {
     );
     let total = helper.query_total_vp(router_ref).unwrap();
     assert_eq!(total, 0f32);
+}
+
+#[test]
+fn marketing_info() {
+    let mut router = mock_app();
+    let router_ref = &mut router;
+    let owner = Addr::unchecked("owner");
+    let helper = Helper::init(router_ref, owner);
+
+    let err = router_ref
+        .execute_contract(
+            helper.owner.clone(),
+            helper.voting_instance.clone(),
+            &ExecuteMsg::SetLogoUrlsWhitelist {
+                whitelist: vec![
+                    "@hello-test-url .com/".to_string(),
+                    "example.com/".to_string(),
+                ],
+            },
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(
+        &err.to_string(),
+        "Generic error: Link contains invalid characters: @hello-test-url .com/"
+    );
+
+    let err = router_ref
+        .execute_contract(
+            helper.owner.clone(),
+            helper.voting_instance.clone(),
+            &ExecuteMsg::SetLogoUrlsWhitelist {
+                whitelist: vec!["example.com".to_string()],
+            },
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(
+        &err.to_string(),
+        "Marketing info validation error: Whitelist link should end with '/': example.com"
+    );
+
+    router_ref
+        .execute_contract(
+            helper.owner.clone(),
+            helper.voting_instance.clone(),
+            &ExecuteMsg::SetLogoUrlsWhitelist {
+                whitelist: vec!["example.com/".to_string()],
+            },
+            &[],
+        )
+        .unwrap();
+
+    let err = router_ref
+        .execute_contract(
+            helper.owner.clone(),
+            helper.voting_instance.clone(),
+            &ExecuteMsg::UpdateMarketing {
+                project: Some("<script>alert('test')</script>".to_string()),
+                description: None,
+                marketing: None,
+            },
+            &[],
+        )
+        .unwrap_err();
+
+    assert_eq!(
+        &err.to_string(),
+        "Marketing info validation error: project contains invalid characters: <script>alert('test')</script>"
+    );
+
+    let err = router_ref
+        .execute_contract(
+            helper.owner.clone(),
+            helper.voting_instance.clone(),
+            &ExecuteMsg::UpdateMarketing {
+                project: None,
+                description: Some("<script>alert('test')</script>".to_string()),
+                marketing: None,
+            },
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(
+        &err.to_string(),
+        "Marketing info validation error: description contains invalid characters: <script>alert('test')</script>"
+    );
+
+    router_ref
+        .execute_contract(
+            helper.owner.clone(),
+            helper.voting_instance.clone(),
+            &ExecuteMsg::UpdateMarketing {
+                project: Some("Some project".to_string()),
+                description: Some("Some description".to_string()),
+                marketing: None,
+            },
+            &[],
+        )
+        .unwrap();
+
+    let config: ConfigResponse = router_ref
+        .wrap()
+        .query_wasm_smart(&helper.voting_instance, &QueryMsg::Config {})
+        .unwrap();
+    assert_eq!(config.logo_urls_whitelist, vec!["example.com/".to_string()]);
+    let marketing_info: MarketingInfoResponse = router_ref
+        .wrap()
+        .query_wasm_smart(&helper.voting_instance, &QueryMsg::MarketingInfo {})
+        .unwrap();
+    assert_eq!(marketing_info.project, Some("Some project".to_string()));
+    assert_eq!(
+        marketing_info.description,
+        Some("Some description".to_string())
+    );
+
+    let err = router_ref
+        .execute_contract(
+            helper.owner.clone(),
+            helper.voting_instance.clone(),
+            &ExecuteMsg::UploadLogo(Logo::Url("https://some-website.com/logo.svg".to_string())),
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(
+        &err.to_string(),
+        "Marketing info validation error: Logo link is not whitelisted: https://some-website.com/logo.svg",
+    );
+
+    router_ref
+        .execute_contract(
+            helper.owner.clone(),
+            helper.voting_instance.clone(),
+            &ExecuteMsg::UploadLogo(Logo::Url("example.com/logo.svg".to_string())),
+            &[],
+        )
+        .unwrap();
+
+    let marketing_info: MarketingInfoResponse = router_ref
+        .wrap()
+        .query_wasm_smart(&helper.voting_instance, &QueryMsg::MarketingInfo {})
+        .unwrap();
+    assert_eq!(
+        marketing_info.logo.unwrap(),
+        LogoInfo::Url("example.com/logo.svg".to_string())
+    );
 }

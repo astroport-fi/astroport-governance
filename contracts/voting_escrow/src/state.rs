@@ -21,6 +21,8 @@ pub struct Config {
     pub astro_addr: Addr,
     /// The address of $xASTRO staking contract
     pub xastro_staking_addr: Addr,
+    /// The list of whitelisted logo urls prefixes
+    pub logo_urls_whitelist: Vec<String>,
 }
 
 /// This structure stores points along the checkpoint history for every vxASTRO staker.
