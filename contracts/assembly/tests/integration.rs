@@ -123,7 +123,7 @@ fn test_contract_instantiation() {
 
     assert_eq!(
         res.to_string(),
-        "Generic error: The required quorum for a proposal cannot be lower than 33% or higher than 100%"
+        "Generic error: The required quorum for a proposal cannot be lower than 1% or higher than 100%"
     );
 
     let res = app

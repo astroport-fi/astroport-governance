@@ -8,6 +8,8 @@ use std::ops::RangeInclusive;
 
 pub const MINIMUM_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE: u64 = 33;
 pub const MAX_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE: u64 = 100;
+pub const MAX_PROPOSAL_REQUIRED_QUORUM_PERCENTAGE: u64 = 100;
+pub const MINIMUM_PROPOSAL_REQUIRED_QUORUM_PERCENTAGE: u64 = 1;
 pub const VOTING_PERIOD_INTERVAL: RangeInclusive<u64> = 12342..=7 * 12342;
 pub const DELAY_INTERVAL: RangeInclusive<u64> = 6171..=12342; // from 0.5 to 1 day in blocks (7 seconds per block)
 pub const EXPIRATION_PERIOD_INTERVAL: RangeInclusive<u64> = 12342..=86_399;
@@ -165,15 +167,14 @@ impl Config {
             )));
         }
 
-        if self.proposal_required_quorum
-            > Decimal::percent(MAX_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE)
+        if self.proposal_required_quorum > Decimal::percent(MAX_PROPOSAL_REQUIRED_QUORUM_PERCENTAGE)
             || self.proposal_required_quorum
-                < Decimal::percent(MINIMUM_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE)
+                < Decimal::percent(MINIMUM_PROPOSAL_REQUIRED_QUORUM_PERCENTAGE)
         {
             return Err(StdError::generic_err(format!(
                 "The required quorum for a proposal cannot be lower than {}% or higher than {}%",
-                MINIMUM_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE,
-                MAX_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE
+                MINIMUM_PROPOSAL_REQUIRED_QUORUM_PERCENTAGE,
+                MAX_PROPOSAL_REQUIRED_QUORUM_PERCENTAGE
             )));
         }
 
