@@ -21,7 +21,7 @@ use astroport_governance::builder_unlock::msg::{
 use astroport_governance::voting_escrow::{QueryMsg as VotingEscrowQueryMsg, VotingPowerResponse};
 
 use crate::error::ContractError;
-use crate::migration::{MigrateMsg, CONFIGV100, CONFIGV101};
+use crate::migration::{migrate_proposals_to_v111, MigrateMsg, CONFIGV100, CONFIGV101};
 use crate::state::{CONFIG, PROPOSALS, PROPOSAL_COUNT};
 
 // Contract name and version used for migration.
@@ -229,6 +229,13 @@ pub fn submit_proposal(
         start_block: env.block.height,
         start_time: env.block.time.seconds(),
         end_block: env.block.height + config.proposal_voting_period,
+        delayed_end_block: env.block.height
+            + config.proposal_voting_period
+            + config.proposal_effective_delay,
+        expiration_block: env.block.height
+            + config.proposal_voting_period
+            + config.proposal_effective_delay
+            + config.proposal_expiration_period,
         title,
         description,
         link,
@@ -417,15 +424,11 @@ pub fn execute_proposal(
         return Err(ContractError::ProposalNotPassed {});
     }
 
-    let config = CONFIG.load(deps.storage)?;
-
-    if env.block.height < (proposal.end_block + config.proposal_effective_delay) {
+    if env.block.height < proposal.delayed_end_block {
         return Err(ContractError::ProposalDelayNotEnded {});
     }
 
-    if env.block.height
-        > (proposal.end_block + config.proposal_effective_delay + config.proposal_expiration_period)
-    {
+    if env.block.height > proposal.expiration_block {
         return Err(ContractError::ExecuteProposalExpired {});
     }
 
@@ -832,7 +835,7 @@ pub fn calc_total_voting_power_at(deps: Deps, proposal: &Proposal) -> StdResult<
 ///
 /// * **msg** is an object of type [`MigrateMsg`].
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
+pub fn migrate(mut deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
     let contract_version = get_contract_version(deps.storage)?;
 
     match contract_version.contract.as_ref() {
@@ -868,6 +871,7 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, Co
 
                 config.validate()?;
 
+                migrate_proposals_to_v111(&mut deps, &config)?;
                 CONFIG.save(deps.storage, &config)?;
             }
             "1.0.1" => {
@@ -886,9 +890,13 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, Co
                     whitelisted_links: config_v101.whitelisted_links,
                 };
 
+                migrate_proposals_to_v111(&mut deps, &config)?;
                 CONFIG.save(deps.storage, &config)?;
             }
-            "1.0.2" => {}
+            "1.0.2" | "1.1.0" => {
+                let config = CONFIG.load(deps.storage)?;
+                migrate_proposals_to_v111(&mut deps, &config)?;
+            }
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),

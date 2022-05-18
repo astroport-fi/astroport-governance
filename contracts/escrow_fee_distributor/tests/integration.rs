@@ -369,7 +369,10 @@ fn claim_without_fee_on_distributor() {
         .execute_contract(
             user1.clone(),
             base_pack.escrow_fee_distributor.clone().unwrap().address,
-            &ExecuteMsg::Claim { recipient: None },
+            &ExecuteMsg::Claim {
+                recipient: None,
+                max_periods: None,
+            },
             &[],
         )
         .unwrap();
@@ -379,7 +382,10 @@ fn claim_without_fee_on_distributor() {
         .execute_contract(
             user2.clone(),
             base_pack.escrow_fee_distributor.clone().unwrap().address,
-            &ExecuteMsg::Claim { recipient: None },
+            &ExecuteMsg::Claim {
+                recipient: None,
+                max_periods: None,
+            },
             &[],
         )
         .unwrap();
@@ -526,12 +532,34 @@ fn claim_max_period() {
         resp
     );
 
-    // Claim fees for max period for user1
+    // Claim fees for max period for user1(firstly 1 period)
     router_ref
         .execute_contract(
             user1.clone(),
             base_pack.escrow_fee_distributor.clone().unwrap().address,
-            &ExecuteMsg::Claim { recipient: None },
+            &ExecuteMsg::Claim {
+                recipient: None,
+                max_periods: Some(1),
+            },
+            &[],
+        )
+        .unwrap();
+
+    check_balance(
+        router_ref,
+        &base_pack.astro_token.clone().unwrap().address,
+        &user1,
+        50_000_000,
+    );
+
+    router_ref
+        .execute_contract(
+            user1.clone(),
+            base_pack.escrow_fee_distributor.clone().unwrap().address,
+            &ExecuteMsg::Claim {
+                recipient: None,
+                max_periods: None,
+            },
             &[],
         )
         .unwrap();
@@ -541,7 +569,10 @@ fn claim_max_period() {
         .execute_contract(
             user2.clone(),
             base_pack.escrow_fee_distributor.clone().unwrap().address,
-            &ExecuteMsg::Claim { recipient: None },
+            &ExecuteMsg::Claim {
+                recipient: None,
+                max_periods: None,
+            },
             &[],
         )
         .unwrap();
