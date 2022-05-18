@@ -263,6 +263,10 @@ pub struct Proposal {
     pub start_time: u64,
     /// End block of proposal
     pub end_block: u64,
+    /// Delayed end block of proposal
+    pub delayed_end_block: u64,
+    /// Expiration block of proposal
+    pub expiration_block: u64,
     /// Proposal title
     pub title: String,
     /// Proposal description
@@ -419,7 +423,7 @@ pub mod helpers {
     /// Validating the list of links. Returns an error if a list has an invalid link.
     pub fn validate_links(links: &[String]) -> StdResult<()> {
         for link in links {
-            if !(is_safe_link(link) && link.ends_with('/')) {
+            if !(is_safe_link(link) && link.contains('.') && link.ends_with('/')) {
                 return Err(StdError::generic_err(format!(
                     "Link is not properly formatted or contains unsafe characters: {}.",
                     link

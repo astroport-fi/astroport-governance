@@ -7,6 +7,7 @@ use cosmwasm_std::{
 use cw2::set_contract_version;
 use cw20::Cw20ReceiveMsg;
 use cw_storage_plus::{Bound, PrimaryKey, U64Key};
+use std::cmp::min;
 
 use astroport_governance::escrow_fee_distributor::{
     ConfigResponse, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg,
@@ -14,7 +15,7 @@ use astroport_governance::escrow_fee_distributor::{
 use astroport_governance::utils::CheckedMultiplyRatio;
 use astroport_governance::utils::{get_period, CLAIM_LIMIT, MIN_CLAIM_LIMIT};
 use astroport_governance::voting_escrow::{
-    LockInfoResponse, QueryMsg as VotingQueryMsg, VotingPowerResponse,
+    LockInfoResponse, QueryMsg as VotingQueryMsg, VotingPowerResponse, DEFAULT_PERIODS_LIMIT,
 };
 
 use crate::error::ContractError;
@@ -41,15 +42,13 @@ pub fn instantiate(
 ) -> StdResult<Response> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    let mut claim_many_limit = CLAIM_LIMIT;
-    if let Some(limit) = msg.claim_many_limit {
-        if limit < MIN_CLAIM_LIMIT {
+    if let Some(claim_many_limit) = msg.claim_many_limit {
+        if claim_many_limit < MIN_CLAIM_LIMIT {
             return Err(StdError::generic_err(format!(
                 "Accounts limit for claim operation cannot be less than {} !",
                 MIN_CLAIM_LIMIT
             )));
         }
-        claim_many_limit = limit;
     }
 
     CONFIG.save(
@@ -59,7 +58,7 @@ pub fn instantiate(
             astro_token: addr_validate_to_lower(deps.api, &msg.astro_token)?,
             voting_escrow_addr: addr_validate_to_lower(deps.api, &msg.voting_escrow_addr)?,
             is_claim_disabled: msg.is_claim_disabled.unwrap_or(false),
-            claim_many_limit,
+            claim_many_limit: msg.claim_many_limit.unwrap_or(CLAIM_LIMIT),
         },
     )?;
 
@@ -127,7 +126,10 @@ pub fn execute(
             })
             .map_err(|e| e.into())
         }
-        ExecuteMsg::Claim { recipient } => claim(deps, env, info, recipient),
+        ExecuteMsg::Claim {
+            recipient,
+            max_periods,
+        } => claim(deps, env, info, recipient, max_periods),
         ExecuteMsg::ClaimMany { receivers } => claim_many(deps, env, receivers),
         ExecuteMsg::UpdateConfig {
             claim_many_limit,
@@ -193,6 +195,7 @@ pub fn claim(
     env: Env,
     info: MessageInfo,
     recipient: Option<String>,
+    max_periods: Option<u64>,
 ) -> Result<Response, ContractError> {
     let recipient_addr = addr_validate_to_lower(
         deps.api,
@@ -205,13 +208,11 @@ pub fn claim(
         return Err(ContractError::ClaimDisabled {});
     }
 
-    let claim_amount = calc_claim_amount(deps.branch(), env, info.sender, config.clone())?;
+    let claim_amount =
+        calc_claim_amount(deps.branch(), env, info.sender, config.clone(), max_periods)?;
 
-    let mut transfer_msg = vec![];
-    if !claim_amount.is_zero() {
-        transfer_msg =
-            transfer_token_amount(config.astro_token, recipient_addr.clone(), claim_amount)?;
-    };
+    let transfer_msg =
+        transfer_token_amount(config.astro_token, recipient_addr.clone(), claim_amount)?;
 
     let response = Response::new()
         .add_attributes(vec![
@@ -258,6 +259,7 @@ fn claim_many(
             env.clone(),
             receiver_addr.clone(),
             config.clone(),
+            None,
         )?;
 
         if !claim_amount.is_zero() {
@@ -290,7 +292,13 @@ fn claim_many(
 /// * **account** is an object of type [`Addr`]. This is the account for which we calculate the amount of ASTRO rewards available to claim.
 ///
 /// * **config** is an object of type [`Config`]. This is the fee distributor contract configuration.
-fn calc_claim_amount(deps: DepsMut, env: Env, account: Addr, config: Config) -> StdResult<Uint128> {
+fn calc_claim_amount(
+    deps: DepsMut,
+    env: Env,
+    account: Addr,
+    config: Config,
+    max_periods: Option<u64>,
+) -> StdResult<Uint128> {
     let user_lock_info: LockInfoResponse = deps.querier.query_wasm_smart(
         &config.voting_escrow_addr,
         &VotingQueryMsg::LockInfo {
@@ -305,10 +313,14 @@ fn calc_claim_amount(deps: DepsMut, env: Env, account: Addr, config: Config) -> 
     let current_period = get_period(env.block.time.seconds())?;
     let lock_end_period = user_lock_info.end;
     let mut claim_amount: Uint128 = Default::default();
+    let max_period = min(
+        max_periods.unwrap_or(DEFAULT_PERIODS_LIMIT) + claim_period,
+        current_period,
+    );
 
     loop {
-        // User cannot claim for the current period
-        if claim_period >= current_period {
+        // User cannot claim for the current period/
+        if claim_period >= max_period {
             break;
         }
 
@@ -397,6 +409,12 @@ fn update_config(
     }
 
     if let Some(is_claim_disabled) = is_claim_disabled {
+        if config.is_claim_disabled == is_claim_disabled {
+            return Err(ContractError::Std(StdError::generic_err(format!(
+                "Parameter is_claim_disabled is already {}!",
+                config.is_claim_disabled
+            ))));
+        }
         config.is_claim_disabled = is_claim_disabled;
         attributes.push(Attribute::new(
             "is_claim_disabled",

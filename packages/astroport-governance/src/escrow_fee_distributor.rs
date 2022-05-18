@@ -34,7 +34,10 @@ pub enum ExecuteMsg {
     /// ClaimOwnership claims contract ownership
     ClaimOwnership {},
     /// Claim claims staking rewards for a single staker and sends them to the specified recipient
-    Claim { recipient: Option<String> },
+    Claim {
+        recipient: Option<String>,
+        max_periods: Option<u64>,
+    },
     /// ClaimMany claims staking rewards for multiple addresses in a single call
     ClaimMany { receivers: Vec<String> },
     /// UpdateConfig updates the contract configuration
