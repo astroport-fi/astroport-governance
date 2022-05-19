@@ -10,6 +10,7 @@ use cosmwasm_std::{
 use cw2::{get_contract_version, set_contract_version};
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 
+use crate::astroport;
 use crate::contract::helpers::compute_unlocked_amount;
 use crate::migration::{MigrateMsg, CONFIGV100, STATEV100, STATUSV100};
 use astroport_governance::builder_unlock::msg::{

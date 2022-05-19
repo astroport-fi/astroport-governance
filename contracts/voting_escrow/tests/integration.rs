@@ -2,6 +2,7 @@ use astroport::token as astro;
 use cosmwasm_std::{attr, to_binary, Addr, Fraction, StdError, Uint128};
 use cw20::{Cw20ExecuteMsg, Logo, LogoInfo, MarketingInfoResponse, MinterResponse};
 use terra_multi_test::{next_block, ContractWrapper, Executor};
+use voting_escrow::astroport;
 
 use astroport_governance::utils::{get_period, MAX_LOCK_TIME, WEEK};
 use astroport_governance::voting_escrow::{

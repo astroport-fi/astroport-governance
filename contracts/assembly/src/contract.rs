@@ -7,6 +7,7 @@ use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20ReceiveMsg};
 use cw_storage_plus::{Bound, U64Key};
 use std::str::FromStr;
 
+use crate::astroport;
 use astroport::asset::addr_validate_to_lower;
 use astroport_governance::assembly::{
     helpers::validate_links, Config, Cw20HookMsg, ExecuteMsg, InstantiateMsg, Proposal,

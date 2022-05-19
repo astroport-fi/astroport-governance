@@ -1,6 +1,7 @@
 use astroport::asset::AssetInfo;
 use astroport::generator::PoolInfoResponse;
 use cosmwasm_std::{attr, Addr, Decimal, Uint128};
+use generator_controller::astroport;
 use std::str::FromStr;
 use terra_multi_test::Executor;
 

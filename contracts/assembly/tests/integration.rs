@@ -1,3 +1,4 @@
+use astro_assembly::astroport;
 use astroport::{
     token::InstantiateMsg as TokenInstantiateMsg, xastro_token::QueryMsg as XAstroQueryMsg,
 };

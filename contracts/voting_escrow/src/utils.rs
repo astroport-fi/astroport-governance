@@ -1,5 +1,5 @@
+use crate::astroport::asset::addr_validate_to_lower;
 use crate::error::ContractError;
-use astroport::asset::addr_validate_to_lower;
 use astroport_governance::utils::{get_periods_count, MAX_LOCK_TIME, WEEK};
 use cosmwasm_std::{Addr, Decimal, Deps, DepsMut, Order, Pair, StdError, StdResult, Uint128};
 use cw_storage_plus::{Bound, U64Key};

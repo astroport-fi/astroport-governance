@@ -1,5 +1,5 @@
+use crate::astroport::common::OwnershipProposal;
 use crate::bps::BasicPoints;
-use astroport::common::OwnershipProposal;
 
 use astroport_governance::generator_controller::{
     ConfigResponse, GaugeInfoResponse, UserInfoResponse, VotedPoolInfoResponse,

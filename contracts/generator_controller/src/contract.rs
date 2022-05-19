@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 use std::convert::TryInto;
 
+use crate::astroport;
 use astroport::asset::{addr_validate_to_lower, pair_info_by_pool};
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 #[cfg(not(feature = "library"))]

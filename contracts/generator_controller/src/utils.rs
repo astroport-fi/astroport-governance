@@ -1,6 +1,7 @@
 use std::convert::TryInto;
 use std::ops::RangeInclusive;
 
+use crate::astroport;
 use astroport::asset::{pair_info_by_pool, AssetInfo};
 use astroport::factory::PairType;
 use astroport::querier::query_pair_info;

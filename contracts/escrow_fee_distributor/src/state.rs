@@ -1,7 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use astroport::common::OwnershipProposal;
+use crate::astroport::common::OwnershipProposal;
 
 use cosmwasm_std::{Addr, Uint128};
 use cw_storage_plus::{Item, Map, U64Key};

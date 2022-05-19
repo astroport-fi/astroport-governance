@@ -31,7 +31,6 @@ cw-storage-plus = { version = "0.8.0", features = ["iterator"] }
 schemars = "0.8.1"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 thiserror = { version = "1.0.20" }
-astroport = { git = "https://github.com/astroport-fi/astroport-core.git", branch = "main" }
 astroport-governance = { path = "../../packages/astroport-governance", default-features = false, version = "1.0.0" }
 
 [dev-dependencies]

@@ -1,5 +1,6 @@
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 use astroport_governance::builder_unlock::{AllocationParams, Schedule};
+use builder_unlock::astroport;
 
 use astroport_governance::builder_unlock::msg::{
     AllocationResponse, ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg, ReceiveMsg,
