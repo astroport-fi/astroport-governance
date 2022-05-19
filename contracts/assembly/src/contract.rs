@@ -15,6 +15,7 @@ use astroport_governance::assembly::{
     ProposalVotesResponse, QueryMsg, UpdateConfig,
 };
 
+use crate::astroport::asset::addr_opt_validate;
 use astroport::xastro_token::QueryMsg as XAstroTokenQueryMsg;
 use astroport_governance::builder_unlock::msg::{
     AllocationResponse, QueryMsg as BuilderUnlockQueryMsg, StateResponse,
@@ -73,9 +74,7 @@ pub fn instantiate(
         whitelisted_links: msg.whitelisted_links,
     };
 
-    if let Some(vxastro_token_addr) = msg.vxastro_token_addr {
-        config.vxastro_token_addr = Some(addr_validate_to_lower(deps.api, &vxastro_token_addr)?);
-    }
+    config.vxastro_token_addr = addr_opt_validate(deps.api, &msg.vxastro_token_addr)?;
 
     config.validate()?;
 
@@ -120,14 +119,12 @@ pub fn execute(
     match msg {
         ExecuteMsg::Receive(cw20_msg) => receive_cw20(deps, env, info, cw20_msg),
         ExecuteMsg::CastVote { proposal_id, vote } => cast_vote(deps, env, info, proposal_id, vote),
-        ExecuteMsg::EndProposal { proposal_id } => end_proposal(deps, env, info, proposal_id),
-        ExecuteMsg::ExecuteProposal { proposal_id } => {
-            execute_proposal(deps, env, info, proposal_id)
-        }
+        ExecuteMsg::EndProposal { proposal_id } => end_proposal(deps, env, proposal_id),
+        ExecuteMsg::ExecuteProposal { proposal_id } => execute_proposal(deps, env, proposal_id),
         ExecuteMsg::CheckMessages { messages } => check_messages(env, messages),
         ExecuteMsg::CheckMessagesPassed {} => Err(ContractError::MessagesCheckPassed {}),
         ExecuteMsg::RemoveCompletedProposal { proposal_id } => {
-            remove_completed_proposal(deps, env, info, proposal_id)
+            remove_completed_proposal(deps, env, proposal_id)
         }
         ExecuteMsg::UpdateConfig(config) => update_config(deps, env, info, config),
     }
@@ -157,17 +154,20 @@ pub fn receive_cw20(
             description,
             link,
             messages,
-        } => submit_proposal(
-            deps,
-            env,
-            info,
-            Addr::unchecked(cw20_msg.sender),
-            cw20_msg.amount,
-            title,
-            description,
-            link,
-            messages,
-        ),
+        } => {
+            let sender = addr_validate_to_lower(deps.api, cw20_msg.sender)?;
+            submit_proposal(
+                deps,
+                env,
+                info,
+                sender,
+                cw20_msg.amount,
+                title,
+                description,
+                link,
+                messages,
+            )
+        }
     }
 }
 
@@ -248,14 +248,15 @@ pub fn submit_proposal(
 
     PROPOSALS.save(deps.storage, U64Key::new(count.u64()), &proposal)?;
 
-    Ok(Response::new()
-        .add_attribute("action", "submit_proposal")
-        .add_attribute("submitter", sender.to_string())
-        .add_attribute("proposal_id", count.to_string())
-        .add_attribute(
+    Ok(Response::new().add_attributes(vec![
+        attr("action", "submit_proposal"),
+        attr("submitter", sender),
+        attr("proposal_id", count),
+        attr(
             "proposal_end_height",
             (env.block.height + config.proposal_voting_period).to_string(),
-        ))
+        ),
+    ]))
 }
 
 /// ## Description
@@ -317,12 +318,13 @@ pub fn cast_vote(
 
     PROPOSALS.save(deps.storage, U64Key::new(proposal_id), &proposal)?;
 
-    Ok(Response::new()
-        .add_attribute("action", "cast_vote")
-        .add_attribute("proposal_id", proposal_id.to_string())
-        .add_attribute("voter", &info.sender)
-        .add_attribute("vote", vote_option.to_string())
-        .add_attribute("voting_power", voting_power))
+    Ok(Response::new().add_attributes(vec![
+        attr("action", "cast_vote"),
+        attr("proposal_id", proposal_id.to_string()),
+        attr("voter", &info.sender),
+        attr("vote", vote_option.to_string()),
+        attr("voting_power", voting_power),
+    ]))
 }
 
 /// ## Description
@@ -334,15 +336,8 @@ pub fn cast_vote(
 ///
 /// * **env** is an object of type [`Env`].
 ///
-/// * **_info** is an object of type [`MessageInfo`].
-///
 /// * **proposal_id** is a parameter of type `u64`. This is the proposal identifier.
-pub fn end_proposal(
-    deps: DepsMut,
-    env: Env,
-    _info: MessageInfo,
-    proposal_id: u64,
-) -> Result<Response, ContractError> {
+pub fn end_proposal(deps: DepsMut, env: Env, proposal_id: u64) -> Result<Response, ContractError> {
     let mut proposal = PROPOSALS.load(deps.storage, U64Key::new(proposal_id))?;
 
     if proposal.status != ProposalStatus::Active {
@@ -410,13 +405,10 @@ pub fn end_proposal(
 ///
 /// * **env** is an object of type [`Env`].
 ///
-/// * **_info** is an object of type [`MessageInfo`].
-///
 /// * **proposal_id** is a parameter of type `u64`. This is the proposal identifier.
 pub fn execute_proposal(
     deps: DepsMut,
     env: Env,
-    _info: MessageInfo,
     proposal_id: u64,
 ) -> Result<Response, ContractError> {
     let mut proposal = PROPOSALS.load(deps.storage, U64Key::new(proposal_id))?;
@@ -454,7 +446,7 @@ pub fn execute_proposal(
 /// ## Description
 /// Checks that proposal messages are correct.
 /// Returns [`ContractError`] on failure, otherwise returns a [`Response`] with the specified
-/// attributes if the operation was successful.
+/// attributes. The last message will always fail to prevent committing into blockchain.
 /// ## Params
 /// * **env** is an object of type [`Env`].
 ///
@@ -485,13 +477,10 @@ pub fn check_messages(
 ///
 /// * **env** is an object of type [`Env`].
 ///
-/// * **_info** is an object of type [`MessageInfo`].
-///
 /// * **proposal_id** is a parameter of type `u64`. This is the proposal identifier.
 pub fn remove_completed_proposal(
     deps: DepsMut,
     env: Env,
-    _info: MessageInfo,
     proposal_id: u64,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
@@ -630,9 +619,11 @@ pub fn update_config(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::Config {} => to_binary(&query_config(deps)?),
+        QueryMsg::Config {} => to_binary(&CONFIG.load(deps.storage)?),
         QueryMsg::Proposals { start, limit } => to_binary(&query_proposals(deps, start, limit)?),
-        QueryMsg::Proposal { proposal_id } => to_binary(&query_proposal(deps, proposal_id)?),
+        QueryMsg::Proposal { proposal_id } => {
+            to_binary(&PROPOSALS.load(deps.storage, U64Key::new(proposal_id))?)
+        }
         QueryMsg::ProposalVotes { proposal_id } => {
             to_binary(&query_proposal_votes(deps, proposal_id)?)
         }
@@ -648,15 +639,6 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             to_binary(&calc_total_voting_power_at(deps, &proposal)?)
         }
     }
-}
-
-/// ## Description
-/// Returns the contract configuration stored in the [`Config`] structure.
-/// ## Params
-/// * **deps** is an object of type [`Deps`].
-pub fn query_config(deps: Deps) -> StdResult<Config> {
-    let config = CONFIG.load(deps.storage)?;
-    Ok(config)
 }
 
 /// ## Description
@@ -677,30 +659,19 @@ pub fn query_proposals(
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
     let start = start.map(|start| Bound::inclusive(U64Key::new(start)));
 
-    let proposals_list: StdResult<Vec<_>> = PROPOSALS
+    let proposal_list = PROPOSALS
         .range(deps.storage, start, None, Order::Ascending)
         .take(limit)
         .map(|item| {
             let (_k, v) = item?;
             Ok(v)
         })
-        .collect();
+        .collect::<StdResult<Vec<_>>>()?;
 
     Ok(ProposalListResponse {
         proposal_count,
-        proposal_list: proposals_list?,
+        proposal_list,
     })
-}
-
-/// ## Description
-/// Returns proposal information stored in the [`Proposal`] structure.
-/// ## Params
-/// * **deps** is an object of type [`Deps`].
-///
-/// * **proposal_id** is a parameter of type `u64`. This is the proposal identifier.
-pub fn query_proposal(deps: Deps, proposal_id: u64) -> StdResult<Proposal> {
-    let proposal = PROPOSALS.load(deps.storage, U64Key::new(proposal_id))?;
-    Ok(proposal)
 }
 
 /// ## Description

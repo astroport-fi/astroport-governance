@@ -308,7 +308,7 @@ fn handle_vote(
                 }
             }
             // Check an address is a lp token
-            pair_info_by_pool(deps.as_ref(), addr.clone())
+            pair_info_by_pool(&deps.querier, &addr)
                 .map_err(|_| ContractError::InvalidLPTokenAddress(addr.to_string()))?;
             let bps: BasicPoints = bps.try_into()?;
             Ok((addr, bps))
