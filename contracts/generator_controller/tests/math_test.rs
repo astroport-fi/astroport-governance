@@ -20,7 +20,7 @@ use astroport_tests::{
 #[derive(Clone, Debug)]
 enum Event {
     Vote(Vec<((String, String), u16)>),
-    GaugePools,
+    TunePools,
     ChangePoolLimit(u64),
 }
 
@@ -165,7 +165,7 @@ impl Simulator {
                     println!("{}", err);
                 }
             }
-            GaugePools => {
+            TunePools => {
                 if let Err(err) = self.helper.tune(&mut self.router) {
                     println!("{}", err);
                 }
@@ -314,7 +314,7 @@ fn vote_strategy(tokens: Vec<String>) -> impl Strategy<Value = Event> {
 
 fn controller_events_strategy(tokens: Vec<String>) -> impl Strategy<Value = Event> {
     prop_oneof![
-        Just(Event::GaugePools),
+        Just(Event::TunePools),
         (2..=MAX_POOLS as u64).prop_map(Event::ChangePoolLimit),
         vote_strategy(tokens)
     ]

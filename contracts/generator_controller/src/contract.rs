@@ -143,24 +143,24 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> E
                 config.owner,
                 OWNERSHIP_PROPOSAL,
             )
-            .map_err(|e| e.into())
+            .map_err(Into::into)
         }
         ExecuteMsg::DropOwnershipProposal {} => {
             let config: Config = CONFIG.load(deps.storage)?;
 
             drop_ownership_proposal(deps, info, config.owner, OWNERSHIP_PROPOSAL)
-                .map_err(|e| e.into())
+                .map_err(Into::into)
         }
         ExecuteMsg::ClaimOwnership {} => {
             claim_ownership(deps, info, env, OWNERSHIP_PROPOSAL, |deps, new_owner| {
-                CONFIG.update::<_, StdError>(deps.storage, |mut v| {
-                    v.owner = new_owner;
-                    Ok(v)
-                })?;
-
-                Ok(())
+                CONFIG
+                    .update::<_, StdError>(deps.storage, |mut v| {
+                        v.owner = new_owner;
+                        Ok(v)
+                    })
+                    .map(|_| ())
             })
-            .map_err(|e| e.into())
+            .map_err(Into::into)
         }
     }
 }
@@ -190,7 +190,7 @@ fn kick_blacklisted_voters(deps: DepsMut, env: Env, voters: Vec<String>) -> Exec
         return Err(ContractError::DuplicatedVoters {});
     }
 
-    // check if voters are blacklisted
+    // Check if voters are blacklisted
     let res: BlacklistedVotersResponse = deps.querier.query_wasm_smart(
         config.escrow_addr,
         &CheckVotersAreBlacklisted {
@@ -417,7 +417,7 @@ fn tune_pools(deps: DepsMut, env: Env) -> ExecuteResult {
         .collect();
 
     tune_info.pool_alloc_points = filter_pools(
-        deps.as_ref(),
+        &deps.querier,
         &config.generator_addr,
         &config.factory_addr,
         pool_votes,
@@ -469,17 +469,17 @@ fn tune_pools(deps: DepsMut, env: Env) -> ExecuteResult {
         return Err(ContractError::TuneNoPools {});
     }
 
+    tune_info.tune_ts = env.block.time.seconds();
+    TUNE_INFO.save(deps.storage, &tune_info)?;
+
     // Set new alloc points
     let setup_pools_msg = CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: config.generator_addr.to_string(),
         msg: to_binary(&astroport::generator::ExecuteMsg::SetupPools {
-            pools: tune_info.pool_alloc_points.clone(),
+            pools: tune_info.pool_alloc_points,
         })?,
         funds: vec![],
     });
-
-    tune_info.tune_ts = env.block.time.seconds();
-    TUNE_INFO.save(deps.storage, &tune_info)?;
 
     Ok(Response::new()
         .add_message(setup_pools_msg)
