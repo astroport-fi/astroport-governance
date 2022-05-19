@@ -750,7 +750,7 @@ fn query_simulate_withdraw(
     let mut status = STATUS.load(deps.storage, &account_checked)?;
 
     Ok(helpers::compute_withdraw_amount(
-        timestamp.unwrap_or(env.block.time.seconds()),
+        timestamp.unwrap_or_else(|| env.block.time.seconds()),
         &params,
         &mut status,
     ))

@@ -1,10 +1,12 @@
 use crate::error::ContractError;
-use cosmwasm_std::{Decimal, Fraction, StdError, StdResult, Uint128, Uint256};
+use astroport_governance::utils::CheckedMultiplyRatio;
+use cosmwasm_std::{Decimal, Fraction, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::convert::{TryFrom, TryInto};
 use std::ops::Mul;
 
+/// ## Description
 /// BasicPoints struct implementation. BasicPoints value is within [0, 10000] interval.
 /// Technically BasicPoints is wrapper over [`u16`] with additional limit checks and
 /// several implementations of math functions so BasicPoints object
@@ -84,37 +86,5 @@ impl Mul<Decimal> for BasicPoints {
             self.0 as u128 * rhs.numerator(),
             rhs.denominator() * Self::MAX as u128,
         )
-    }
-}
-
-pub(crate) trait CheckedMulRatio {
-    fn checked_multiply_ratio(
-        self,
-        numerator: impl Into<u128>,
-        denominator: impl Into<Uint256>,
-    ) -> StdResult<Uint128>;
-}
-
-impl CheckedMulRatio for Uint128 {
-    fn checked_multiply_ratio(
-        self,
-        numerator: impl Into<u128>,
-        denominator: impl Into<Uint256>,
-    ) -> StdResult<Uint128> {
-        let numerator = self.full_mul(numerator);
-        let denominator = denominator.into();
-        let mut result = numerator
-            .checked_div(denominator)
-            .map_err(|_| StdError::generic_err("Division by zero"))?;
-        let rem = numerator
-            .checked_rem(denominator)
-            .map_err(|_| StdError::generic_err("Division by zero"))?;
-        // Rounding up if residual is more than 50% of denominator
-        if rem.ge(&(denominator / Uint256::from(2u8))) {
-            result += Uint256::from(1u128);
-        }
-        result
-            .try_into()
-            .map_err(|_| StdError::generic_err("Uint256 -> Uint128 conversion error"))
     }
 }

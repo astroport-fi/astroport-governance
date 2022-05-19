@@ -274,7 +274,7 @@ fn handle_vote(
     let user = info.sender;
     let block_period = get_period(env.block.time.seconds())?;
     let config = CONFIG.load(deps.storage)?;
-    let user_vp = get_voting_power(deps.querier, &config.escrow_addr, &user)?;
+    let user_vp = get_voting_power(&deps.querier, &config.escrow_addr, &user)?;
 
     if user_vp.is_zero() {
         return Err(ContractError::ZeroVotingPower {});
@@ -346,7 +346,7 @@ fn handle_vote(
         })?;
     }
 
-    let ve_lock_info = get_lock_info(deps.querier, &config.escrow_addr, &user)?;
+    let ve_lock_info = get_lock_info(&deps.querier, &config.escrow_addr, &user)?;
 
     // Votes are applied to the next period
     votes.iter().try_for_each(|(pool_addr, bps)| {
