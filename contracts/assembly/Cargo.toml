@@ -2,7 +2,9 @@
 name = "astro-assembly"
 version = "1.1.1"
 authors = ["Astroport"]
-edition = "2018"
+edition = "2021"
+repository = "https://github.com/astroport-fi/astroport-governance"
+homepage = "https://astroport.fi"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
@@ -19,15 +21,15 @@ cw-storage-plus = {version = "0.8.0", features = ['iterator']}
 schemars = "0.8.1"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 astroport-governance = { path = "../../packages/astroport-governance", default-features = false, version = "1.0.0"}
-astroport = {git = "https://github.com/astroport-fi/astroport.git", package = "astroport"}
+astroport = { git = "https://github.com/astroport-fi/astroport-core.git", package = "astroport", branch = "main" }
 thiserror = { version = "1.0.20" }
 
 [dev-dependencies]
 cosmwasm-schema = { version = "0.16.0", default-features = false }
 terra-multi-test = {git = "https://github.com/astroport-fi/terra-plus.git", tag = "v0.9.1-terra"}
-astroport-token = {git = "https://github.com/astroport-fi/astroport.git", package = "astroport-token"}
-astroport-xastro-token = {git = "https://github.com/astroport-fi/astroport.git",package = "astroport-xastro-token"}
+astroport-token = {git = "https://github.com/astroport-fi/astroport-core.git", branch = "main" }
+astroport-xastro-token = {git = "https://github.com/astroport-fi/astroport-core.git", branch = "main"}
 voting-escrow = { path= "../voting_escrow", default-features = false, version = "1.0.0" }
-astroport-staking = {git = "https://github.com/astroport-fi/astroport.git", package = "astroport-staking"}
+astroport-staking = {git = "https://github.com/astroport-fi/astroport-core.git", branch = "main" }
 builder-unlock = {path = "../builder_unlock", default-features = false, version = "1.0.0"}
 anyhow = "1"

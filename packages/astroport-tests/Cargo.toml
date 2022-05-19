@@ -1,10 +1,10 @@
 [package]
 name = "astroport-tests"
 version = "1.0.0"
-authors = ["astroport"]
-edition = "2018"
+authors = ["Astroport"]
+edition = "2021"
 repository = "https://github.com/astroport-fi/astroport-governance"
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+homepage = "https://astroport.fi"
 
 [features]
 # for quicker tests, cargo test --lib

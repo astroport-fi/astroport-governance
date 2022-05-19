@@ -2,7 +2,9 @@
 name = "astroport-escrow-fee-distributor"
 version = "1.0.0"
 authors = ["Astroport"]
-edition = "2018"
+edition = "2021"
+repository = "https://github.com/astroport-fi/astroport-governance"
+homepage = "https://astroport.fi"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
