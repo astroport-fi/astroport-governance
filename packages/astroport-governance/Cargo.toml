@@ -18,4 +18,4 @@ cw20 = { version = "0.8" }
 cosmwasm-std = { version = "0.16", features = ["iterator"] }
 schemars = "0.8.1"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
-astroport = { git = "https://github.com/astroport-fi/astroport-core.git", branch = "feat/global_refactoring" }
+astroport = { git = "https://github.com/astroport-fi/astroport-core.git", branch = "main" }
