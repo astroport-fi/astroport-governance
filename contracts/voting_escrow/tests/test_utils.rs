@@ -15,6 +15,7 @@ use std::str::FromStr;
 use terra_multi_test::{
     AppBuilder, AppResponse, BankKeeper, ContractWrapper, Executor, TerraApp, TerraMock,
 };
+use voting_escrow::astroport;
 
 pub const MULTIPLIER: u64 = 1000000;
 

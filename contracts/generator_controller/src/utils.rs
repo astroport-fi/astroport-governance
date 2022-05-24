@@ -1,10 +1,11 @@
 use std::convert::TryInto;
 use std::ops::RangeInclusive;
 
+use crate::astroport;
 use astroport::asset::{pair_info_by_pool, AssetInfo};
 use astroport::factory::PairType;
 use astroport::querier::query_pair_info;
-use cosmwasm_std::{Addr, Deps, Order, Pair, StdError, StdResult, Storage, Uint128};
+use cosmwasm_std::{Addr, Order, Pair, QuerierWrapper, StdError, StdResult, Storage, Uint128};
 use cw_storage_plus::{Bound, U64Key};
 
 use astroport_governance::utils::calc_voting_power;
@@ -54,17 +55,17 @@ pub(crate) enum VotedPoolInfoResult {
 /// * pool's pair type is not in blocked list,
 /// * any of pair's token is not listed in blocked tokens list.
 pub(crate) fn filter_pools(
-    deps: Deps,
+    querier: &QuerierWrapper,
     generator_addr: &Addr,
     factory_addr: &Addr,
     pools: Vec<(Addr, Uint128)>,
     pools_limit: u64,
 ) -> StdResult<Vec<(String, Uint128)>> {
-    let blocked_tokens: Vec<AssetInfo> = deps.querier.query_wasm_smart(
+    let blocked_tokens: Vec<AssetInfo> = querier.query_wasm_smart(
         generator_addr.clone(),
         &astroport::generator::QueryMsg::BlockedTokensList {},
     )?;
-    let blocklisted_pair_types: Vec<PairType> = deps.querier.query_wasm_smart(
+    let blocklisted_pair_types: Vec<PairType> = querier.query_wasm_smart(
         factory_addr.clone(),
         &astroport::factory::QueryMsg::BlacklistedPairTypes {},
     )?;
@@ -73,9 +74,9 @@ pub(crate) fn filter_pools(
         .into_iter()
         .filter_map(|(pool_addr, vxastro_amount)| {
             // Check the address is a LP token and retrieve a pair info
-            let pair_info = pair_info_by_pool(deps, pool_addr).ok()?;
+            let pair_info = pair_info_by_pool(querier, pool_addr).ok()?;
             // Check a pair is registered in factory
-            query_pair_info(&deps.querier, factory_addr.clone(), &pair_info.asset_infos).ok()?;
+            query_pair_info(querier, factory_addr.clone(), &pair_info.asset_infos).ok()?;
             let condition = !blocklisted_pair_types.contains(&pair_info.pair_type)
                 && !blocked_tokens.contains(&pair_info.asset_infos[0])
                 && !blocked_tokens.contains(&pair_info.asset_infos[1]);

@@ -8,17 +8,11 @@ pub enum ContractError {
     #[error("{0}")]
     Std(#[from] StdError),
 
-    #[error("{0}")]
-    InvalidProposal(String),
-
     #[error("Unauthorized")]
     Unauthorized {},
 
     #[error("Proposal not active!")]
     ProposalNotActive {},
-
-    #[error("Proposal submitter cannot vote on their own proposal!")]
-    SubmitterCannotVote {},
 
     #[error("Voting period ended!")]
     VotingPeriodEnded {},

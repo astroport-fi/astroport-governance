@@ -1,3 +1,4 @@
+use crate::astroport;
 use crate::marketing_validation::validate_whitelist_links;
 use astroport::asset::addr_validate_to_lower;
 use cosmwasm_std::{Addr, Decimal, DepsMut, Env, StdError, StdResult};

@@ -1,11 +1,14 @@
+use crate::astroport;
 use astroport::asset::addr_validate_to_lower;
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
+use astroport::querier::query_token_balance;
 use astroport::DecimalCheckedOps;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    from_binary, to_binary, Addr, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo,
-    QueryRequest, Response, StdError, StdResult, SubMsg, Uint128, WasmMsg, WasmQuery,
+    attr, from_binary, to_binary, Addr, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env,
+    MessageInfo, QueryRequest, Response, StdError, StdResult, Storage, SubMsg, Uint128, WasmMsg,
+    WasmQuery,
 };
 use cw2::{get_contract_version, set_contract_version, ContractVersion, CONTRACT};
 use cw20::{
@@ -18,7 +21,8 @@ use cw20_base::contract::{
 use cw20_base::state::{MinterData, TokenInfo, LOGO, MARKETING_INFO, TOKEN_INFO};
 use cw_storage_plus::U64Key;
 
-use astroport_governance::querier::query_token_balance;
+use crate::astroport::asset::addr_opt_validate;
+use crate::astroport::common::validate_addresses;
 use astroport_governance::utils::{get_period, get_periods_count, EPOCH_START, WEEK};
 use astroport_governance::voting_escrow::{
     BlacklistedVotersResponse, ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg,
@@ -36,7 +40,7 @@ use crate::state::{
 use crate::utils::{
     adjust_vp_and_slope, blacklist_check, calc_coefficient, calc_early_withdraw_amount,
     calc_voting_power, cancel_scheduled_slope, fetch_last_checkpoint, fetch_slope_changes,
-    schedule_slope_change, time_limits_check, validate_addresses, xastro_token_check,
+    schedule_slope_change, time_limits_check, xastro_token_check,
 };
 
 /// Contract name that is used for migration.
@@ -69,10 +73,7 @@ pub fn instantiate(
     if msg.max_exit_penalty > Decimal::one() {
         return Err(StdError::generic_err("Max exit penalty should be <= 1").into());
     }
-    let slashed_fund_receiver = msg
-        .slashed_fund_receiver
-        .map(|addr| addr_validate_to_lower(deps.api, &addr))
-        .transpose()?;
+    let slashed_fund_receiver = addr_opt_validate(deps.api, &msg.slashed_fund_receiver)?;
     let deposit_token_addr = addr_validate_to_lower(deps.api, &msg.deposit_token_addr)?;
 
     // Initialize early withdraw parameters
@@ -83,11 +84,13 @@ pub fn instantiate(
         &xastro_minter_resp.minter,
         &astroport::staking::QueryMsg::Config {},
     )?;
-    validate_whitelist_links(&msg.logo_urls_whitelist)?;
 
-    let mut config = Config {
+    validate_whitelist_links(&msg.logo_urls_whitelist)?;
+    let guardian_addr = addr_opt_validate(deps.api, &msg.guardian_addr)?;
+
+    let config = Config {
         owner: addr_validate_to_lower(deps.api, &msg.owner)?,
-        guardian_addr: None,
+        guardian_addr,
         deposit_token_addr,
         max_exit_penalty: msg.max_exit_penalty,
         astro_addr: staking_config.deposit_token_addr,
@@ -95,9 +98,6 @@ pub fn instantiate(
         slashed_fund_receiver,
         logo_urls_whitelist: msg.logo_urls_whitelist.clone(),
     };
-    if let Some(guardian_addr) = msg.guardian_addr {
-        config.guardian_addr = Some(addr_validate_to_lower(deps.api, &guardian_addr)?);
-    }
     CONFIG.save(deps.storage, &config)?;
 
     let cur_period = get_period(env.block.time.seconds())?;
@@ -140,10 +140,7 @@ pub fn instantiate(
         let data = MarketingInfoResponse {
             project: marketing.project,
             description: marketing.description,
-            marketing: marketing
-                .marketing
-                .map(|addr| addr_validate_to_lower(deps.api, &addr))
-                .transpose()?,
+            marketing: addr_opt_validate(deps.api, &marketing.marketing)?,
             logo,
         };
         MARKETING_INFO.save(deps.storage, &data)?;
@@ -211,8 +208,7 @@ pub fn execute(
             new_owner,
             expires_in,
         } => {
-            let config: Config = CONFIG.load(deps.storage)?;
-
+            let config = CONFIG.load(deps.storage)?;
             propose_new_owner(
                 deps,
                 info,
@@ -232,12 +228,12 @@ pub fn execute(
         }
         ExecuteMsg::ClaimOwnership {} => {
             claim_ownership(deps, info, env, OWNERSHIP_PROPOSAL, |deps, new_owner| {
-                CONFIG.update::<_, StdError>(deps.storage, |mut v| {
-                    v.owner = new_owner;
-                    Ok(v)
-                })?;
-
-                Ok(())
+                CONFIG
+                    .update::<_, StdError>(deps.storage, |mut v| {
+                        v.owner = new_owner;
+                        Ok(v)
+                    })
+                    .map(|_| ())
             })
             .map_err(Into::into)
         }
@@ -284,7 +280,7 @@ pub fn execute(
 /// The function returns Ok(()) in case of success or [`StdError`]
 /// in case of a serialization/deserialization error.
 /// ## Params
-/// * **deps** is an object of type [`DepsMut`].
+/// * **storage** is a mutable reference of type [`Storage`].
 ///
 /// * **env** is an object of type [`Env`].
 ///
@@ -296,7 +292,7 @@ pub fn execute(
 ///
 /// * **new_slope** is an object of type [`Decimal`]. This is the new slope to be applied to the total voting power (vxASTRO supply).
 fn checkpoint_total(
-    deps: DepsMut,
+    storage: &mut dyn Storage,
     env: Env,
     add_voting_power: Option<Uint128>,
     reduce_power: Option<Uint128>,
@@ -309,14 +305,12 @@ fn checkpoint_total(
     let add_voting_power = add_voting_power.unwrap_or_default();
 
     // Get last checkpoint
-    let last_checkpoint = fetch_last_checkpoint(deps.as_ref(), &contract_addr, &cur_period_key)?;
+    let last_checkpoint = fetch_last_checkpoint(storage, &contract_addr, &cur_period_key)?;
     let new_point = if let Some((_, mut point)) = last_checkpoint {
-        let last_slope_change = LAST_SLOPE_CHANGE
-            .may_load(deps.as_ref().storage)?
-            .unwrap_or(0);
+        let last_slope_change = LAST_SLOPE_CHANGE.may_load(storage)?.unwrap_or(0);
         if last_slope_change < cur_period {
             let scheduled_slope_changes =
-                fetch_slope_changes(deps.as_ref(), last_slope_change, cur_period)?;
+                fetch_slope_changes(storage, last_slope_change, cur_period)?;
             // Recalculating passed points
             for (recalc_period, scheduled_change) in scheduled_slope_changes {
                 point = Point {
@@ -326,13 +320,13 @@ fn checkpoint_total(
                     ..point
                 };
                 HISTORY.save(
-                    deps.storage,
+                    storage,
                     (contract_addr.clone(), U64Key::new(recalc_period)),
                     &point,
                 )?
             }
 
-            LAST_SLOPE_CHANGE.save(deps.storage, &cur_period)?
+            LAST_SLOPE_CHANGE.save(storage, &cur_period)?
         }
 
         let new_power = (calc_voting_power(&point, cur_period) + add_voting_power)
@@ -352,7 +346,7 @@ fn checkpoint_total(
             end: 0, // we don't use 'end' in total voting power calculations
         }
     };
-    HISTORY.save(deps.storage, (contract_addr, cur_period_key), &new_point)
+    HISTORY.save(storage, (contract_addr, cur_period_key), &new_point)
 }
 
 /// ## Description
@@ -373,7 +367,7 @@ fn checkpoint_total(
 ///
 /// * **new_end** is an object of type [`Option<u64>`]. This is a new lock time for the staker's vxASTRO position.
 fn checkpoint(
-    mut deps: DepsMut,
+    deps: DepsMut,
     env: Env,
     addr: Addr,
     add_amount: Option<Uint128>,
@@ -386,7 +380,7 @@ fn checkpoint(
     let mut add_voting_power = Uint128::zero();
 
     // Get the last user checkpoint
-    let last_checkpoint = fetch_last_checkpoint(deps.as_ref(), &addr, &cur_period_key)?;
+    let last_checkpoint = fetch_last_checkpoint(deps.storage, &addr, &cur_period_key)?;
     let new_point = if let Some((_, point)) = last_checkpoint {
         let end = new_end.unwrap_or(point.end);
         let dt = end.saturating_sub(cur_period);
@@ -416,7 +410,7 @@ fn checkpoint(
         };
 
         // Cancel the previously scheduled slope change
-        cancel_scheduled_slope(deps.branch(), point.slope, point.end)?;
+        cancel_scheduled_slope(deps.storage, point.slope, point.end)?;
 
         // We need to subtract the slope point from the total voting power slope
         old_slope = point.slope;
@@ -443,11 +437,11 @@ fn checkpoint(
     };
 
     // Schedule a slope change
-    schedule_slope_change(deps.branch(), new_point.slope, new_point.end)?;
+    schedule_slope_change(deps.storage, new_point.slope, new_point.end)?;
 
     HISTORY.save(deps.storage, (addr, cur_period_key), &new_point)?;
     checkpoint_total(
-        deps,
+        deps.storage,
         env,
         Some(add_voting_power),
         None,
@@ -474,16 +468,16 @@ fn receive_cw20(
     info: MessageInfo,
     cw20_msg: Cw20ReceiveMsg,
 ) -> Result<Response, ContractError> {
-    xastro_token_check(deps.as_ref(), info.sender)?;
+    xastro_token_check(deps.storage, info.sender)?;
     let sender = addr_validate_to_lower(deps.api, &cw20_msg.sender)?;
-    blacklist_check(deps.as_ref(), &sender)?;
+    blacklist_check(deps.storage, &sender)?;
 
     match from_binary(&cw20_msg.msg)? {
         Cw20HookMsg::CreateLock { time } => create_lock(deps, env, sender, cw20_msg.amount, time),
         Cw20HookMsg::ExtendLockAmount {} => deposit_for(deps, env, cw20_msg.amount, sender),
         Cw20HookMsg::DepositFor { user } => {
             let addr = addr_validate_to_lower(deps.api, &user)?;
-            blacklist_check(deps.as_ref(), &addr)?;
+            blacklist_check(deps.storage, &addr)?;
             deposit_for(deps, env, cw20_msg.amount, addr)
         }
     }
@@ -670,11 +664,7 @@ fn configure_early_withdrawal(
 /// * **env** is an object of type [`Env`].
 ///
 /// * **info** is an object of type [`MessageInfo`]. This is the withdrawal message coming from a user.
-fn withdraw_early(
-    mut deps: DepsMut,
-    env: Env,
-    info: MessageInfo,
-) -> Result<Response, ContractError> {
+fn withdraw_early(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, ContractError> {
     let sender = info.sender;
     // 'LockDoesntExist' is either a lock does not exist in LOCKED or a lock exits but lock.amount == 0
     let mut lock = LOCKED
@@ -741,7 +731,7 @@ fn withdraw_early(
     LOCKED.save(deps.storage, sender.clone(), &lock, env.block.height)?;
 
     let cur_period_key = U64Key::new(cur_period);
-    let last_checkpoint = fetch_last_checkpoint(deps.as_ref(), &sender, &cur_period_key)?;
+    let last_checkpoint = fetch_last_checkpoint(deps.storage, &sender, &cur_period_key)?;
 
     // If a user has voting power they must have checkpoint.
     let (_, point) = last_checkpoint.ok_or_else(|| {
@@ -764,10 +754,10 @@ fn withdraw_early(
 
     let cur_power = calc_voting_power(&point, cur_period);
     if !cur_power.is_zero() {
-        cancel_scheduled_slope(deps.branch(), point.slope, point.end)?;
+        cancel_scheduled_slope(deps.storage, point.slope, point.end)?;
         // We need to checkpoint total VP and eliminate the slope influence on a future lock
         checkpoint_total(
-            deps,
+            deps.storage,
             env,
             None,
             Some(cur_power),
@@ -807,11 +797,8 @@ fn withdraw_early_callback(
 
     let config = CONFIG.load(deps.storage)?;
 
-    let current_astro_balance = query_token_balance(
-        &deps.querier,
-        config.astro_addr.clone(),
-        env.contract.address,
-    )?;
+    let current_astro_balance =
+        query_token_balance(&deps.querier, &config.astro_addr, env.contract.address)?;
     let return_astro_amount = current_astro_balance.saturating_sub(precallback_astro);
 
     if !return_astro_amount.is_zero() {
@@ -879,7 +866,7 @@ fn extend_lock_time(
     time: u64,
 ) -> Result<Response, ContractError> {
     let user = info.sender;
-    blacklist_check(deps.as_ref(), &user)?;
+    blacklist_check(deps.storage, &user)?;
     let mut lock = LOCKED
         .may_load(deps.storage, user.clone())?
         .filter(|lock| !lock.amount.is_zero())
@@ -932,11 +919,11 @@ fn update_blacklist(
     let append_addrs = append_addrs.unwrap_or_default();
     let remove_addrs = remove_addrs.unwrap_or_default();
     let blacklist = BLACKLIST.load(deps.storage)?;
-    let append: Vec<_> = validate_addresses(deps.as_ref(), &append_addrs)?
+    let append: Vec<_> = validate_addresses(deps.api, &append_addrs)?
         .into_iter()
         .filter(|addr| !blacklist.contains(addr))
         .collect();
-    let remove: Vec<_> = validate_addresses(deps.as_ref(), &remove_addrs)?
+    let remove: Vec<_> = validate_addresses(deps.api, &remove_addrs)?
         .into_iter()
         .filter(|addr| blacklist.contains(addr))
         .collect();
@@ -951,7 +938,7 @@ fn update_blacklist(
     let mut old_slopes = Uint128::zero(); // accumulator for old slopes
 
     for addr in append.iter() {
-        let last_checkpoint = fetch_last_checkpoint(deps.as_ref(), addr, &cur_period_key)?;
+        let last_checkpoint = fetch_last_checkpoint(deps.storage, addr, &cur_period_key)?;
         if let Some((_, point)) = last_checkpoint {
             // We need to checkpoint with zero power and zero slope
             HISTORY.save(
@@ -974,14 +961,14 @@ fn update_blacklist(
             // User's contribution in the total voting power calculation
             reduce_total_vp += cur_power;
             old_slopes += point.slope;
-            cancel_scheduled_slope(deps.branch(), point.slope, point.end)?;
+            cancel_scheduled_slope(deps.storage, point.slope, point.end)?;
         }
     }
 
     if !reduce_total_vp.is_zero() || !old_slopes.is_zero() {
         // Trigger a total voting power recalculation
         checkpoint_total(
-            deps.branch(),
+            deps.storage,
             env.clone(),
             None,
             Some(reduce_total_vp),
@@ -1012,14 +999,12 @@ fn update_blacklist(
         Ok(updated_blacklist)
     })?;
 
-    let mut attrs = vec![("action", "update_blacklist")];
-    let append_joined = append_addrs.join(",");
+    let mut attrs = vec![attr("action", "update_blacklist")];
     if !append_addrs.is_empty() {
-        attrs.push(("added_addresses", append_joined.as_str()))
+        attrs.push(attr("added_addresses", append_addrs.join(",")))
     }
-    let remove_joined = remove_addrs.join(",");
     if !remove_addrs.is_empty() {
-        attrs.push(("removed_addresses", remove_joined.as_str()))
+        attrs.push(attr("removed_addresses", remove_addrs.join(",")))
     }
 
     Ok(Response::default().add_attributes(attrs))
@@ -1205,7 +1190,7 @@ fn get_user_lock_info(deps: Deps, env: Env, user: String) -> StdResult<LockInfoR
     let addr = addr_validate_to_lower(deps.api, &user)?;
     if let Some(lock) = LOCKED.may_load(deps.storage, addr.clone())? {
         let cur_period = get_period(env.block.time.seconds())?;
-        let slope = fetch_last_checkpoint(deps, &addr, &U64Key::new(cur_period))?
+        let slope = fetch_last_checkpoint(deps.storage, &addr, &U64Key::new(cur_period))?
             .map(|(_, point)| point.slope)
             .unwrap_or_default();
         let resp = LockInfoResponse {
@@ -1306,7 +1291,7 @@ fn get_user_voting_power_at_period(
     let user = addr_validate_to_lower(deps.api, &user)?;
     let period_key = U64Key::new(period);
 
-    let last_checkpoint = fetch_last_checkpoint(deps, &user, &period_key)?;
+    let last_checkpoint = fetch_last_checkpoint(deps.storage, &user, &period_key)?;
 
     if let Some(point) = last_checkpoint.map(|(_, point)| point) {
         // The voting power point at the specified `time` was found
@@ -1373,7 +1358,7 @@ fn get_total_voting_power_at_period(
 ) -> StdResult<VotingPowerResponse> {
     let period_key = U64Key::new(period);
 
-    let last_checkpoint = fetch_last_checkpoint(deps, &env.contract.address, &period_key)?;
+    let last_checkpoint = fetch_last_checkpoint(deps.storage, &env.contract.address, &period_key)?;
 
     let point = last_checkpoint.map_or(
         Point {
@@ -1388,7 +1373,7 @@ fn get_total_voting_power_at_period(
     let voting_power = if point.start == period {
         point.power
     } else {
-        let scheduled_slope_changes = fetch_slope_changes(deps, point.start, period)?;
+        let scheduled_slope_changes = fetch_slope_changes(deps.storage, point.start, period)?;
         let mut init_point = point;
         for (recalc_period, scheduled_change) in scheduled_slope_changes {
             init_point = Point {

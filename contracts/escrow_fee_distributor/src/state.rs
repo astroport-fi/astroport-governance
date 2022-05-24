@@ -1,7 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use astroport::common::OwnershipProposal;
+use crate::astroport::common::OwnershipProposal;
 
 use cosmwasm_std::{Addr, Uint128};
 use cw_storage_plus::{Item, Map, U64Key};
@@ -26,6 +26,6 @@ pub const CONFIG: Item<Config> = Item::new("config");
 /// Contains information about weekly distributed rewards.
 pub const REWARDS_PER_WEEK: Map<U64Key, Uint128> = Map::new("rewards_per_week");
 /// Contains information about the last week of reward issuance.
-pub const LAST_CLAIM_PERIOD: Map<Addr, u64> = Map::new("last_claim_period");
+pub const LAST_CLAIM_PERIOD: Map<&Addr, u64> = Map::new("last_claim_period");
 /// Contains the proposal to change contract ownership.
 pub const OWNERSHIP_PROPOSAL: Item<OwnershipProposal> = Item::new("ownership_proposal");

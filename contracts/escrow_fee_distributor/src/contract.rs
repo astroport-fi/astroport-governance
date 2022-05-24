@@ -1,26 +1,24 @@
 use astroport::asset::addr_validate_to_lower;
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use cosmwasm_std::{
-    attr, entry_point, to_binary, Addr, Attribute, Binary, Deps, DepsMut, Env, MessageInfo, Order,
-    Response, StdError, StdResult, Uint128,
+    attr, entry_point, to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Order, Response,
+    StdError, StdResult, Uint128,
 };
 use cw2::set_contract_version;
 use cw20::Cw20ReceiveMsg;
 use cw_storage_plus::{Bound, PrimaryKey, U64Key};
-use std::cmp::min;
 
 use astroport_governance::escrow_fee_distributor::{
     ConfigResponse, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg,
 };
-use astroport_governance::utils::CheckedMultiplyRatio;
 use astroport_governance::utils::{get_period, CLAIM_LIMIT, MIN_CLAIM_LIMIT};
-use astroport_governance::voting_escrow::{
-    LockInfoResponse, QueryMsg as VotingQueryMsg, VotingPowerResponse, DEFAULT_PERIODS_LIMIT,
-};
+use astroport_governance::voting_escrow::{get_total_voting_power_at, get_voting_power_at};
 
+use crate::astroport;
+use crate::astroport::asset::addr_opt_validate;
 use crate::error::ContractError;
-use crate::state::{Config, CONFIG, LAST_CLAIM_PERIOD, OWNERSHIP_PROPOSAL, REWARDS_PER_WEEK};
-use crate::utils::transfer_token_amount;
+use crate::state::{Config, CONFIG, OWNERSHIP_PROPOSAL, REWARDS_PER_WEEK};
+use crate::utils::{calc_claim_amount, calculate_reward, transfer_token_amount};
 
 /// Contract name that is used for migration.
 const CONTRACT_NAME: &str = "astroport-escrow-fee-distributor";
@@ -110,21 +108,21 @@ pub fn execute(
             config.owner,
             OWNERSHIP_PROPOSAL,
         )
-        .map_err(|e| e.into()),
+        .map_err(Into::into),
         ExecuteMsg::DropOwnershipProposal {} => {
             drop_ownership_proposal(deps, info, config.owner, OWNERSHIP_PROPOSAL)
-                .map_err(|e| e.into())
+                .map_err(Into::into)
         }
         ExecuteMsg::ClaimOwnership {} => {
             claim_ownership(deps, info, env, OWNERSHIP_PROPOSAL, |deps, new_owner| {
-                CONFIG.update::<_, StdError>(deps.storage, |mut v| {
-                    v.owner = new_owner;
-                    Ok(v)
-                })?;
-
-                Ok(())
+                CONFIG
+                    .update::<_, StdError>(deps.storage, |mut v| {
+                        v.owner = new_owner;
+                        Ok(v)
+                    })
+                    .map(|_| ())
             })
-            .map_err(|e| e.into())
+            .map_err(Into::into)
         }
         ExecuteMsg::Claim {
             recipient,
@@ -191,28 +189,31 @@ fn receive_cw20(
 ///
 /// * **recipient** is an [`Option`] of type [`String`]. This is the address that will receive the ASTRO staking rewards.
 pub fn claim(
-    mut deps: DepsMut,
+    deps: DepsMut,
     env: Env,
     info: MessageInfo,
     recipient: Option<String>,
     max_periods: Option<u64>,
 ) -> Result<Response, ContractError> {
-    let recipient_addr = addr_validate_to_lower(
-        deps.api,
-        &recipient.unwrap_or_else(|| info.sender.to_string()),
-    )?;
-
-    let config: Config = CONFIG.load(deps.storage)?;
+    let config = CONFIG.load(deps.storage)?;
 
     if config.is_claim_disabled {
         return Err(ContractError::ClaimDisabled {});
     }
 
-    let claim_amount =
-        calc_claim_amount(deps.branch(), env, info.sender, config.clone(), max_periods)?;
+    let recipient_addr =
+        addr_opt_validate(deps.api, &recipient)?.unwrap_or_else(|| info.sender.clone());
+    let current_period = get_period(env.block.time.seconds())?;
 
-    let transfer_msg =
-        transfer_token_amount(config.astro_token, recipient_addr.clone(), claim_amount)?;
+    let claim_amount = calc_claim_amount(
+        deps,
+        current_period,
+        &info.sender,
+        &config.voting_escrow_addr,
+        max_periods,
+    )?;
+
+    let transfer_msg = transfer_token_amount(&config.astro_token, &recipient_addr, claim_amount)?;
 
     let response = Response::new()
         .add_attributes(vec![
@@ -239,7 +240,7 @@ fn claim_many(
     env: Env,
     receivers: Vec<String>,
 ) -> Result<Response, ContractError> {
-    let config: Config = CONFIG.load(deps.storage)?;
+    let config = CONFIG.load(deps.storage)?;
 
     if config.is_claim_disabled {
         return Err(ContractError::ClaimDisabled {});
@@ -251,21 +252,22 @@ fn claim_many(
 
     let mut claim_total_amount = Uint128::zero();
     let mut transfer_msg = vec![];
+    let current_period = get_period(env.block.time.seconds())?;
 
     for receiver in receivers {
         let receiver_addr = addr_validate_to_lower(deps.api, &receiver)?;
         let claim_amount = calc_claim_amount(
             deps.branch(),
-            env.clone(),
-            receiver_addr.clone(),
-            config.clone(),
+            current_period,
+            &receiver_addr,
+            &config.voting_escrow_addr,
             None,
         )?;
 
         if !claim_amount.is_zero() {
             transfer_msg.extend(transfer_token_amount(
-                config.astro_token.clone(),
-                receiver_addr,
+                &config.astro_token,
+                &receiver_addr,
                 claim_amount,
             )?);
             claim_total_amount = claim_total_amount.checked_add(claim_amount)?;
@@ -280,108 +282,6 @@ fn claim_many(
         .add_messages(transfer_msg);
 
     Ok(response)
-}
-
-/// ## Description
-/// Calculates the amount of ASTRO available to claim by a specific address.
-/// ## Params
-/// * **deps** is an object of type [`DepsMut`].
-///
-/// * **env** is an object of type [`Env`].
-///
-/// * **account** is an object of type [`Addr`]. This is the account for which we calculate the amount of ASTRO rewards available to claim.
-///
-/// * **config** is an object of type [`Config`]. This is the fee distributor contract configuration.
-fn calc_claim_amount(
-    deps: DepsMut,
-    env: Env,
-    account: Addr,
-    config: Config,
-    max_periods: Option<u64>,
-) -> StdResult<Uint128> {
-    let user_lock_info: LockInfoResponse = deps.querier.query_wasm_smart(
-        &config.voting_escrow_addr,
-        &VotingQueryMsg::LockInfo {
-            user: account.to_string(),
-        },
-    )?;
-
-    let mut claim_period = LAST_CLAIM_PERIOD
-        .may_load(deps.storage, account.clone())?
-        .unwrap_or(user_lock_info.start);
-
-    let current_period = get_period(env.block.time.seconds())?;
-    let lock_end_period = user_lock_info.end;
-    let mut claim_amount: Uint128 = Default::default();
-    let max_period = min(
-        max_periods.unwrap_or(DEFAULT_PERIODS_LIMIT) + claim_period,
-        current_period,
-    );
-
-    loop {
-        // User cannot claim for the current period/
-        if claim_period >= max_period {
-            break;
-        }
-
-        // User cannot claim past their max lock period
-        if claim_period > lock_end_period {
-            break;
-        }
-
-        let user_voting_power: VotingPowerResponse = deps.querier.query_wasm_smart(
-            &config.voting_escrow_addr,
-            &VotingQueryMsg::UserVotingPowerAtPeriod {
-                user: account.to_string(),
-                period: claim_period,
-            },
-        )?;
-
-        let total_voting_power: VotingPowerResponse = deps.querier.query_wasm_smart(
-            &config.voting_escrow_addr,
-            &VotingQueryMsg::TotalVotingPowerAtPeriod {
-                period: claim_period,
-            },
-        )?;
-
-        if !user_voting_power.voting_power.is_zero() && !total_voting_power.voting_power.is_zero() {
-            claim_amount = claim_amount.checked_add(calculate_reward(
-                deps.as_ref(),
-                claim_period,
-                user_voting_power.voting_power,
-                total_voting_power.voting_power,
-            )?)?;
-        }
-
-        claim_period += 1;
-    }
-
-    LAST_CLAIM_PERIOD.save(deps.storage, account, &claim_period)?;
-
-    Ok(claim_amount)
-}
-
-/// ## Description
-/// Returns the amount of rewards distributed to a user for a specific period.
-/// ## Params
-/// * **deps** is an object of type [`DepsMut`].
-///
-/// * **period** is a parameter of type [`u64`]. This is the period for which we calculate the user's reward.
-///
-/// * **user_vp** is an object of type [`Uint128`]. This is the user's voting power for the specified period.
-///
-/// * **total_vp** is an object of type [`Uint128`]. This is the total voting power for the specified period.
-fn calculate_reward(
-    deps: Deps,
-    period: u64,
-    user_vp: Uint128,
-    total_vp: Uint128,
-) -> StdResult<Uint128> {
-    let rewards_per_week = REWARDS_PER_WEEK
-        .may_load(deps.storage, U64Key::from(period))?
-        .unwrap_or_default();
-
-    user_vp.checked_multiply_ratio(rewards_per_week, total_vp)
 }
 
 /// ## Description
@@ -401,12 +301,13 @@ fn update_config(
     claim_many_limit: Option<u64>,
     is_claim_disabled: Option<bool>,
 ) -> Result<Response, ContractError> {
-    let mut attributes = vec![attr("action", "update_config")];
-    let mut config: Config = CONFIG.load(deps.storage)?;
+    let mut config = CONFIG.load(deps.storage)?;
 
     if info.sender != config.owner {
         return Err(ContractError::Unauthorized {});
     }
+
+    let mut attributes = vec![attr("action", "update_config")];
 
     if let Some(is_claim_disabled) = is_claim_disabled {
         if config.is_claim_disabled == is_claim_disabled {
@@ -416,25 +317,20 @@ fn update_config(
             ))));
         }
         config.is_claim_disabled = is_claim_disabled;
-        attributes.push(Attribute::new(
-            "is_claim_disabled",
-            is_claim_disabled.to_string(),
-        ));
+        attributes.push(attr("is_claim_disabled", is_claim_disabled.to_string()));
     };
 
     if let Some(claim_many_limit) = claim_many_limit {
         if claim_many_limit < MIN_CLAIM_LIMIT {
-            return Err(ContractError::Std(StdError::generic_err(format!(
+            return Err(StdError::generic_err(format!(
                 "Accounts limit for claim operation cannot be less than {} !",
                 MIN_CLAIM_LIMIT
-            ))));
+            ))
+            .into());
         }
 
         config.claim_many_limit = claim_many_limit;
-        attributes.push(Attribute::new(
-            "claim_many_limit",
-            claim_many_limit.to_string(),
-        ));
+        attributes.push(attr("claim_many_limit", claim_many_limit.to_string()));
     };
 
     CONFIG.save(deps.storage, &config)?;
@@ -447,7 +343,7 @@ fn update_config(
 /// ## Params
 /// * **deps** is an object of type [`Deps`].
 ///
-/// * **env** is an object of type [`Env`].
+/// * **_env** is an object of type [`Env`].
 ///
 /// * **msg** is an object of type [`QueryMsg`].
 ///
@@ -459,10 +355,10 @@ fn update_config(
 /// * **QueryMsg::AvailableRewardPerWeek { start_after, limit }** Returns a vector with total amounts
 /// of ASTRO distributed as rewards every week to stakers.
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::UserReward { user, timestamp } => {
-            to_binary(&query_user_reward(deps, env, user, timestamp)?)
+            to_binary(&query_user_reward(deps, user, timestamp)?)
         }
         QueryMsg::Config {} => to_binary(&query_config(deps)?),
         QueryMsg::AvailableRewardPerWeek { start_after, limit } => {
@@ -503,7 +399,7 @@ fn query_available_reward_per_week(
         .range(deps.storage, start, None, Order::Ascending)
         .take(limit)
         .map(|week| Ok(week?.1))
-        .collect::<StdResult<Vec<_>>>()
+        .collect()
 }
 
 /// ## Description
@@ -516,30 +412,22 @@ fn query_available_reward_per_week(
 /// * **user** is an object of type [`String`]. This is the user for which we return the amount of rewards.
 ///
 /// * **timestamp** is a parameter of type [`u64`]. This is the timestamp at which we fetch the user's reward amount.
-fn query_user_reward(deps: Deps, _env: Env, user: String, timestamp: u64) -> StdResult<Uint128> {
+fn query_user_reward(deps: Deps, user: String, timestamp: u64) -> StdResult<Uint128> {
     let config = CONFIG.load(deps.storage)?;
-    let user_voting_power: VotingPowerResponse = deps.querier.query_wasm_smart(
-        &config.voting_escrow_addr,
-        &VotingQueryMsg::UserVotingPowerAt {
-            user,
-            time: timestamp,
-        },
-    )?;
 
-    let total_voting_power: VotingPowerResponse = deps.querier.query_wasm_smart(
-        &config.voting_escrow_addr,
-        &VotingQueryMsg::TotalVotingPowerAt { time: timestamp },
-    )?;
+    let user_voting_power =
+        get_voting_power_at(&deps.querier, &config.voting_escrow_addr, &user, timestamp)?;
+    let total_voting_power =
+        get_total_voting_power_at(&deps.querier, &config.voting_escrow_addr, timestamp)?;
 
-    let current_period = get_period(timestamp)?;
-
-    if !total_voting_power.voting_power.is_zero() {
-        Ok(calculate_reward(
-            deps,
+    if !total_voting_power.is_zero() {
+        let current_period = get_period(timestamp)?;
+        calculate_reward(
+            deps.storage,
             current_period,
-            user_voting_power.voting_power,
-            total_voting_power.voting_power,
-        )?)
+            user_voting_power,
+            total_voting_power,
+        )
     } else {
         Ok(Uint128::zero())
     }
@@ -550,7 +438,7 @@ fn query_user_reward(deps: Deps, _env: Env, user: String, timestamp: u64) -> Std
 /// ## Params
 /// * **deps** is an object of type [`Deps`].
 pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
-    let config: Config = CONFIG.load(deps.storage)?;
+    let config = CONFIG.load(deps.storage)?;
 
     let resp = ConfigResponse {
         owner: config.owner,

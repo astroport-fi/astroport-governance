@@ -1,4 +1,4 @@
-use astroport::common::OwnershipProposal;
+use crate::astroport::common::OwnershipProposal;
 use cosmwasm_std::{Addr, Decimal, Uint128};
 use cw_storage_plus::{Item, Map, SnapshotMap, Strategy, U64Key};
 use schemars::JsonSchema;

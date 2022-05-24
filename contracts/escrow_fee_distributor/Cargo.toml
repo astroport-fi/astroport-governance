@@ -2,7 +2,9 @@
 name = "astroport-escrow-fee-distributor"
 version = "1.0.0"
 authors = ["Astroport"]
-edition = "2018"
+edition = "2021"
+repository = "https://github.com/astroport-fi/astroport-governance"
+homepage = "https://astroport.fi"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
@@ -19,7 +21,6 @@ cosmwasm-std = { version = "0.16" }
 cw-storage-plus = {version = "0.8.0", features = ['iterator']}
 schemars = "0.8.1"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
-astroport = {git = "https://github.com/astroport-fi/astroport-core.git", branch = "main"}
 thiserror = { version = "1.0.20" }
 astroport-governance = { path = "../../packages/astroport-governance", default-features = false, version = "1.0.0"}
 
