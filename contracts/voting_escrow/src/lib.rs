@@ -7,5 +7,4 @@ pub use astroport_governance::astroport;
 
 pub mod error;
 mod marketing_validation;
-mod migration;
 mod utils;

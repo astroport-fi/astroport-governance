@@ -7,5 +7,4 @@ pub mod state;
 pub use astroport_governance::astroport;
 
 mod error;
-mod migration;
 mod utils;
