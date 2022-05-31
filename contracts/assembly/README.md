@@ -163,6 +163,21 @@ Returns information about the votes cast on a proposal.
 }
 ```
 
+### `proposal_voters`
+
+Returns list of voters of specified proposal.
+
+```json
+{
+  "proposal_voters": {
+    "proposal_id": 123,
+    "vote_option": "for",
+    "start": 30,
+    "limit": 15
+  }
+}
+```
+
 ### `user_voting_power`
 
 Returns user voting power for a specific proposal.

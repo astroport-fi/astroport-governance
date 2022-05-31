@@ -11,7 +11,7 @@ use crate::astroport;
 use astroport::asset::addr_validate_to_lower;
 use astroport_governance::assembly::{
     helpers::validate_links, Config, Cw20HookMsg, ExecuteMsg, InstantiateMsg, Proposal,
-    ProposalListResponse, ProposalMessage, ProposalStatus, ProposalVoteOption,
+    ProposalListResponse, ProposalMessage, ProposalResponse, ProposalStatus, ProposalVoteOption,
     ProposalVotesResponse, QueryMsg, UpdateConfig,
 };
 
@@ -616,14 +616,19 @@ pub fn update_config(
 /// * **QueryMsg::UserVotingPower { user, proposal_id }** Returns user voting power for a specific proposal.
 ///
 /// * **QueryMsg::TotalVotingPower { proposal_id }** Returns total voting power for a specific proposal.
+///
+/// * **QueryMsg::ProposalVoters {
+///             proposal_id,
+///             vote_option,
+///             start,
+///             limit,
+///         }** Returns a vector of proposal voters according to the specified input parameters.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Config {} => to_binary(&CONFIG.load(deps.storage)?),
         QueryMsg::Proposals { start, limit } => to_binary(&query_proposals(deps, start, limit)?),
-        QueryMsg::Proposal { proposal_id } => {
-            to_binary(&PROPOSALS.load(deps.storage, U64Key::new(proposal_id))?)
-        }
+        QueryMsg::Proposal { proposal_id } => to_binary(&query_proposal(deps, proposal_id)?),
         QueryMsg::ProposalVotes { proposal_id } => {
             to_binary(&query_proposal_votes(deps, proposal_id)?)
         }
@@ -638,7 +643,47 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             let proposal = PROPOSALS.load(deps.storage, U64Key::new(proposal_id))?;
             to_binary(&calc_total_voting_power_at(deps, &proposal)?)
         }
+        QueryMsg::ProposalVoters {
+            proposal_id,
+            vote_option,
+            start,
+            limit,
+        } => to_binary(&query_proposal_voters(
+            deps,
+            proposal_id,
+            vote_option,
+            start,
+            limit,
+        )?),
     }
+}
+
+/// ## Description
+/// Returns proposal information stored in the [`ProposalResponse`].
+/// ## Params
+/// * **deps** is an object of type [`Deps`].
+///
+/// * **proposal_id** is a parameter of type `u64`. This is the proposal identifier.
+pub fn query_proposal(deps: Deps, proposal_id: u64) -> StdResult<ProposalResponse> {
+    let proposal = PROPOSALS.load(deps.storage, U64Key::new(proposal_id))?;
+
+    Ok(ProposalResponse {
+        proposal_id: proposal.proposal_id,
+        submitter: proposal.submitter,
+        status: proposal.status,
+        for_power: proposal.for_power,
+        against_power: proposal.against_power,
+        start_block: proposal.start_block,
+        start_time: proposal.start_time,
+        end_block: proposal.end_block,
+        delayed_end_block: proposal.delayed_end_block,
+        expiration_block: proposal.expiration_block,
+        title: proposal.title,
+        description: proposal.description,
+        link: proposal.link,
+        messages: proposal.messages,
+        deposit_amount: proposal.deposit_amount,
+    })
 }
 
 /// ## Description
@@ -663,8 +708,24 @@ pub fn query_proposals(
         .range(deps.storage, start, None, Order::Ascending)
         .take(limit)
         .map(|item| {
-            let (_k, v) = item?;
-            Ok(v)
+            let (_, proposal) = item?;
+            Ok(ProposalResponse {
+                proposal_id: proposal.proposal_id,
+                submitter: proposal.submitter,
+                status: proposal.status,
+                for_power: proposal.for_power,
+                against_power: proposal.against_power,
+                start_block: proposal.start_block,
+                start_time: proposal.start_time,
+                end_block: proposal.end_block,
+                delayed_end_block: proposal.delayed_end_block,
+                expiration_block: proposal.expiration_block,
+                title: proposal.title,
+                description: proposal.description,
+                link: proposal.link,
+                messages: proposal.messages,
+                deposit_amount: proposal.deposit_amount,
+            })
         })
         .collect::<StdResult<Vec<_>>>()?;
 
@@ -672,6 +733,43 @@ pub fn query_proposals(
         proposal_count,
         proposal_list,
     })
+}
+
+/// ## Description
+/// Returns proposal voters stored in the vector of [`Addr`].
+/// ## Params
+/// * **deps** is an object of type [`Deps`].
+///
+/// * **proposal_id** is a parameter of type `u64`. This is the proposal identifier.
+///
+/// * **vote_option** is an [`ProposalVoteOption`] type.
+///
+/// * **start_after** is an [`Option`] type. Specifies the proposal list index to start reading from.
+///
+/// * **limit** is a [`Option`] type. Specifies the number of items to read.
+pub fn query_proposal_voters(
+    deps: Deps,
+    proposal_id: u64,
+    vote_option: ProposalVoteOption,
+    start: Option<u64>,
+    limit: Option<u32>,
+) -> StdResult<Vec<Addr>> {
+    let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT);
+    let start = start.unwrap_or_default();
+
+    let proposal = PROPOSALS.load(deps.storage, U64Key::from(proposal_id))?;
+
+    let voters = match vote_option {
+        ProposalVoteOption::For => proposal.for_voters,
+        ProposalVoteOption::Against => proposal.against_voters,
+    };
+
+    Ok(voters
+        .iter()
+        .skip(start as usize)
+        .take(limit as usize)
+        .cloned()
+        .collect())
 }
 
 /// ## Description
@@ -869,6 +967,7 @@ pub fn migrate(mut deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response
                 let config = CONFIG.load(deps.storage)?;
                 migrate_proposals_to_v111(&mut deps, &config)?;
             }
+            "1.1.1" => {}
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),

@@ -105,6 +105,17 @@ pub enum QueryMsg {
         /// The amount of proposals to return
         limit: Option<u32>,
     },
+    /// Return proposal voters of specified proposal
+    ProposalVoters {
+        /// Proposal unique id
+        proposal_id: u64,
+        /// Proposal vote option
+        vote_option: ProposalVoteOption,
+        /// Id from which to start querying
+        start: Option<u64>,
+        /// The amount of proposals to return
+        limit: Option<u32>,
+    },
     /// Return information about a specific proposal
     Proposal { proposal_id: u64 },
     /// Return information about the votes cast on a specific proposal
@@ -280,6 +291,41 @@ pub struct Proposal {
     pub deposit_amount: Uint128,
 }
 
+/// This structure describes a proposal response.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct ProposalResponse {
+    /// Unique proposal ID
+    pub proposal_id: Uint64,
+    /// The address of the proposal submitter
+    pub submitter: Addr,
+    /// Status of the proposal
+    pub status: ProposalStatus,
+    /// `For` power of proposal
+    pub for_power: Uint128,
+    /// `Against` power of proposal
+    pub against_power: Uint128,
+    /// Start block of proposal
+    pub start_block: u64,
+    /// Start time of proposal
+    pub start_time: u64,
+    /// End block of proposal
+    pub end_block: u64,
+    /// Delayed end block of proposal
+    pub delayed_end_block: u64,
+    /// Expiration block of proposal
+    pub expiration_block: u64,
+    /// Proposal title
+    pub title: String,
+    /// Proposal description
+    pub description: String,
+    /// Proposal link
+    pub link: Option<String>,
+    /// Proposal messages
+    pub messages: Option<Vec<ProposalMessage>>,
+    /// Amount of xASTRO deposited in order to post the proposal
+    pub deposit_amount: Uint128,
+}
+
 impl Proposal {
     pub fn validate(&self, whitelisted_links: Vec<String>) -> StdResult<()> {
         // Title validation
@@ -407,7 +453,7 @@ pub struct ProposalListResponse {
     /// The amount of proposals returned
     pub proposal_count: Uint64,
     /// The list of proposals that are returned
-    pub proposal_list: Vec<Proposal>,
+    pub proposal_list: Vec<ProposalResponse>,
 }
 
 pub mod helpers {
