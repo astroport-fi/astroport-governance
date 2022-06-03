@@ -1,7 +1,7 @@
 [workspace]
 members = [
-    "packages/*",
-    "contracts/*",
+    "packages/astroport-governance",
+    "contracts/builder_unlock",
 ]
 
 [profile.release]

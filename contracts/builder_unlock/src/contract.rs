@@ -812,7 +812,7 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> StdResult<Response>
 
                 let keys = STATUSV100
                     .keys(deps.storage, None, None, cosmwasm_std::Order::Ascending {})
-                    .map(|v| String::from_utf8(v).map_err(StdError::from))
+                    .map(|v| Ok(v?.to_string()))
                     .collect::<Result<Vec<String>, StdError>>()?;
 
                 for key in keys {
