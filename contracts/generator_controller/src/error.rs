@@ -46,4 +46,7 @@ pub enum ContractError {
 
     #[error("Exceeded voters limit for kick blacklisted voters operation!")]
     KickVotersLimitExceeded {},
+
+    #[error("Contract can't be migrated!")]
+    MigrationError {},
 }

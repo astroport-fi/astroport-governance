@@ -1405,7 +1405,7 @@ fn query_token_info(deps: Deps, env: Env) -> StdResult<TokenInfoResponse> {
 }
 
 /// ## Description
-/// Used for contract migration. Returns a default object of type [`Response`].
+/// Used for contract migration. Returns a default object of type [`ContractError`].
 /// ## Params
 /// * **_deps** is an object of type [`DepsMut`].
 ///
@@ -1414,5 +1414,5 @@ fn query_token_info(deps: Deps, env: Env) -> StdResult<TokenInfoResponse> {
 /// * **_msg** is an object of type [`MigrateMsg`].
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
-    Ok(Response::default())
+    Err(ContractError::MigrationError {})
 }

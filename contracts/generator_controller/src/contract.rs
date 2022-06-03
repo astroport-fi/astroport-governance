@@ -623,8 +623,8 @@ fn pool_info(
 }
 
 /// ## Description
-/// Used for migration of contract. Returns the default object of type [`Response`].
+/// Used for migration of contract. Returns the default object of type [`ContractError`].
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
-    Ok(Response::default())
+    Err(ContractError::MigrationError {})
 }

@@ -38,4 +38,7 @@ pub enum ContractError {
 
     #[error("Marketing info validation error: {0}")]
     MarketingInfoValidationError(String),
+
+    #[error("Contract can't be migrated!")]
+    MigrationError {},
 }
