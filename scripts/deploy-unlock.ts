@@ -25,9 +25,9 @@ import { writeFileSync } from "fs";
 
 const ARTIFACTS_PATH = "../artifacts";
 
-const START_TIME = 1639440000;
-const CLIFF = 31536000;
-const UNLOCK_DURATION = 94608000;
+const START_TIME = 1654646400; // 8 June 2022 00:00
+const CLIFF = 16329600; // distribution starts on 14 Dec 2022 00:00
+const UNLOCK_DURATION = 63072000; // 2 years + 1 day since 2024 is a leap year
 
 async function main() {
   // terra, wallet
@@ -40,8 +40,10 @@ async function main() {
   let network = readArtifact(terra.config.chainID);
   console.log("network:", network);
 
+  const TOKEN_ADDR = network.tokenAddress;
+
   // ASTRO token addresss should be set
-  if (terra.config.chainID == "picso-1" && !network.astro_token_address) {
+  if (terra.config.chainID == "phoenix-1" && !TOKEN_ADDR) {
     console.log(
       `Please deploy the CW20-base ASTRO token, and then set this address in the deploy config before running this script...`
     );
@@ -50,69 +52,32 @@ async function main() {
 
   /*************************************** VESTING ::: DEPOYMENT AND INITIALIZATION  *****************************************/
 
-  if (terra.config.chainID == "picso-1") {
+  if (terra.config.chainID == "phoenix-1") {
     // Multisig details:
-    const MULTI_SIG_ADDRESS = "";
-
-    // Deploy dummy ASTRO token for testing on bombay-12
-    // if (terra.config.chainID == "bombay-12" && !network.astro_token_address) {
-    //   // CW20 TOKEN CODE ID
-    //   if (!network.cw20_token_code_id) {
-    //     network.cw20_token_code_id = await uploadContract(
-    //       terra,
-    //       wallet,
-    //       join(ARTIFACTS_PATH, "cw20_token.wasm")
-    //     );
-    //     console.log(`Cw20 Code id = ${network.cw20_token_code_id}`);
-    //     writeArtifact(network, terra.config.chainID);
-    //   }
-    //   // ASTRO Token for testing
-    //   network.astro_token_address = await instantiateContract(
-    //     terra,
-    //     wallet,
-    //     network.cw20_token_code_id,
-    //     {
-    //       name: "Astroport",
-    //       symbol: "ASTRO",
-    //       decimals: 6,
-    //       initial_balances: [
-    //         {
-    //           address: wallet.key.accAddress,
-    //           amount: String(1_000_000_000_000000),
-    //         },
-    //       ],
-    //       mint: {
-    //         minter: wallet.key.accAddress,
-    //         cap: String(1_000_000_000_000000),
-    //       },
-    //     },
-    //     "ASTRO Token for testing"
-    //   );
-    //   console.log(
-    //     `ASTRO Token deployed successfully, address : ${network.astro_token_address}`
-    //   );
-    //   writeArtifact(network, terra.config.chainID);
-    // }
+    const MULTI_SIG_ADDRESS = network.multisigAddress;
+    const MAX_ALLOC_AMOUNT = 300_000_000_000100;
 
     // VESTING CONTRACT ::: DEPLOYMENT
-    if (!network.vesting_address) {
+    if (!network.builderUnlockAddress) {
       console.log(`${terra.config.chainID} :: Deploying Unlocking Contract`);
-      let instantiate_msg = {
-        owner: wallet.key.accAddress,
-        astro_token: network.astro_token_address,
-      };
-      console.log(instantiate_msg);
-      // Deploy vesting contract
-      network.vesting_address = await deployContract(
-        terra,
-        wallet,
-        join(ARTIFACTS_PATH, "astro_vesting.wasm"),
-        instantiate_msg,
-        "ASTROPORT -::- Unlocking Contract"
-      );
+
+      network.builderUnlockAddress = await deployContract(
+          terra,
+          wallet,
+          network.multisigAddress,
+          join(ARTIFACTS_PATH, 'builder_unlock-aarch64.wasm'),
+          {
+            "owner": wallet.key.accAddress,
+            "astro_token": TOKEN_ADDR,
+            "max_allocations_amount": String(MAX_ALLOC_AMOUNT)
+          },
+          "Astroport Builder Unlocking Contract"
+      )
+
+      console.log("builderUnlockAddress", network.builderUnlockAddress)
       writeArtifact(network, terra.config.chainID);
       console.log(
-        `${terra.config.chainID} :: Unlocking Contract Address : ${network.vesting_address} \n`
+        `${terra.config.chainID} :: Unlocking Contract Address : ${network.builderUnlockAddress} \n`
       );
     }
 
@@ -449,13 +414,21 @@ async function main() {
       ],
     ];
 
+    let sum = 0;
+    for (let builder of allocations) {
+      sum += parseInt(builder[1].amount.toString());
+    }
+    if (sum != MAX_ALLOC_AMOUNT) {
+        throw new Error(`Sum of allocations is ${sum}, but should be ${MAX_ALLOC_AMOUNT}`);
+    }
+
     // Create allocations tx : 0-5
     if (!network.allocations_created_0_5) {
       await create_allocations(
         terra,
         wallet,
-        network.astro_token_address,
-        network.vesting_address,
+        TOKEN_ADDR,
+        network.builderUnlockAddress,
         allocations,
         0,
         5
@@ -470,8 +443,8 @@ async function main() {
       await create_allocations(
         terra,
         wallet,
-        network.astro_token_address,
-        network.vesting_address,
+        TOKEN_ADDR,
+        network.builderUnlockAddress,
         allocations,
         6,
         10
@@ -486,8 +459,8 @@ async function main() {
       await create_allocations(
         terra,
         wallet,
-        network.astro_token_address,
-        network.vesting_address,
+        TOKEN_ADDR,
+        network.builderUnlockAddress,
         allocations,
         11,
         15
@@ -502,8 +475,8 @@ async function main() {
       await create_allocations(
         terra,
         wallet,
-        network.astro_token_address,
-        network.vesting_address,
+        TOKEN_ADDR,
+        network.builderUnlockAddress,
         allocations,
         16,
         20
@@ -518,8 +491,8 @@ async function main() {
       await create_allocations(
         terra,
         wallet,
-        network.astro_token_address,
-        network.vesting_address,
+        TOKEN_ADDR,
+        network.builderUnlockAddress,
         allocations,
         21,
         26
@@ -535,35 +508,37 @@ async function main() {
       let tx = await executeContract(
         terra,
         wallet,
-        network.vesting_address,
+        network.builderUnlockAddress,
         {
-          transfer_ownership: {
+          propose_new_owner: {
             new_owner: MULTI_SIG_ADDRESS,
+            expires_in: 86400 * 7,
           },
         },
         [],
-        `ASTRO Unlocking :: Update Owner`
+        `ASTRO Unlocking :: Propose new owner`
       );
 
       console.log(
-        `Updated owner of ASTRO Unlocking contract, \n Tx hash --> ${tx.txhash} \n`
+        `Created proposal to change an owner of ASTRO Unlocking contract, \n Tx hash --> ${tx.txhash} \n`
       );
     }
 
     // Update contract admin to multiSig
-    if (MULTI_SIG_ADDRESS) {
-      let update_admin = new MsgUpdateContractAdmin(
-        wallet.key.accAddress,
-        MULTI_SIG_ADDRESS,
-        network.vesting_address
-      );
-      // TransferOwnership : TX
-      let tx = await performTransaction(terra, wallet, update_admin);
-
-      console.log(
-        `Updated ownership of ASTRO Unlocking contract, \n Tx hash --> ${tx.txhash} \n`
-      );
-    }
+    // TODO: change admin API method was changed in cosmwasm-1.0
+    // if (MULTI_SIG_ADDRESS) {
+    //   let update_admin = new MsgUpdateContractAdmin(
+    //     wallet.key.accAddress,
+    //     MULTI_SIG_ADDRESS,
+    //     network.builderUnlockAddress
+    //   );
+    //   // TransferOwnership : TX
+    //   let tx = await performTransaction(terra, wallet, update_admin);
+    //
+    //   console.log(
+    //     `Updated admin of ASTRO Unlocking contract, \n Tx hash --> ${tx.txhash} \n`
+    //   );
+    // }
 
     console.log("FINISH");
   }
@@ -585,6 +560,8 @@ async function main() {
       astro_to_transfer += Number(allocations[i][1]["amount"]);
       allocations_to_create.push(allocations[i]);
     }
+
+    console.log(`from ${from} to ${till}:  ${astro_to_transfer / 1000000} ASTRO to transfer.`);
 
     // Create allocations : TX
     let tx = await executeContract(
