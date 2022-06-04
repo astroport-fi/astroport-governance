@@ -32,7 +32,7 @@ async function main() {
 
     /*************************************** VESTING ::: DEPOYMENT AND INITIALIZATION  *****************************************/
 
-    if (terra.config.chainID == "pisco-1") {
+    if (terra.config.chainID == "phoenix-1") {
         const MAX_ALLOC_AMOUNT = 300_000_000_000100;
 
         // VESTING CONTRACT ::: DEPLOYMENT
@@ -390,6 +390,7 @@ async function main() {
 
         // Create allocations tx : 0-5
         if (!network.allocations_created_0_5) {
+            console.log("Creating allocations tx 0-5");
             await create_allocations(
                 terra,
                 wallet,
@@ -406,6 +407,7 @@ async function main() {
 
         // Create allocations tx : 6-10
         if (!network.allocations_created_6_10) {
+            console.log("Creating allocations tx 6-10");
             await create_allocations(
                 terra,
                 wallet,
@@ -422,6 +424,7 @@ async function main() {
 
         // Create allocations tx : 11-15
         if (!network.allocations_created_11_15) {
+            console.log("Creating allocations tx 11-15");
             await create_allocations(
                 terra,
                 wallet,
@@ -438,6 +441,7 @@ async function main() {
 
         // Create allocations tx : 16-20
         if (!network.allocations_created_16_20) {
+            console.log("Creating allocations tx 16-20");
             await create_allocations(
                 terra,
                 wallet,
@@ -452,8 +456,9 @@ async function main() {
             await delay(1000);
         }
 
-        // Create allocations tx : 21-26
-        if (!network.allocations_created_21_26) {
+        // Create allocations tx : 21-25
+        if (!network.allocations_created_21_25) {
+            console.log("Creating allocations tx 21-25");
             await create_allocations(
                 terra,
                 wallet,
@@ -461,15 +466,16 @@ async function main() {
                 network.builderUnlockAddress,
                 allocations,
                 21,
-                26
+                25
             );
-            network.allocations_created_21_26 = true;
+            network.allocations_created_21_25 = true;
             writeArtifact(network, terra.config.chainID);
             await delay(1000);
         }
 
         // Update Owner to multiSig
         if (network.multisigAddress) {
+            console.log("Updating Owner to multiSig");
             // TransferOwnership : TX
             let tx = await executeContract(
                 terra,
