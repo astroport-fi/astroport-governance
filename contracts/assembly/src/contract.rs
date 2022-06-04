@@ -23,7 +23,7 @@ use astroport_governance::builder_unlock::msg::{
 use astroport_governance::voting_escrow::{QueryMsg as VotingEscrowQueryMsg, VotingPowerResponse};
 
 use crate::error::ContractError;
-use crate::migration::{migrate_proposals_to_v111, MigrateMsg, CONFIGV100, CONFIGV101};
+use crate::migration::{migrate_proposals_to_v111, MigrateMsg};
 use crate::state::{CONFIG, PROPOSALS, PROPOSAL_COUNT};
 
 // Contract name and version used for migration.
@@ -807,64 +807,11 @@ pub fn calc_total_voting_power_at(deps: Deps, proposal: &Proposal) -> StdResult<
 ///
 /// * **msg** is an object of type [`MigrateMsg`].
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(mut deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
+pub fn migrate(mut deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
     let contract_version = get_contract_version(deps.storage)?;
 
     match contract_version.contract.as_ref() {
         "astro-assembly" => match contract_version.version.as_ref() {
-            "1.0.0" => {
-                let config_v100 = CONFIGV100.load(deps.storage)?;
-
-                if msg.whitelisted_links.is_none() {
-                    return Err(ContractError::WhitelistEmpty {});
-                }
-                if let Some(links) = &msg.whitelisted_links {
-                    validate_links(links)?;
-                }
-
-                let config = Config {
-                    xastro_token_addr: config_v100.xastro_token_addr,
-                    vxastro_token_addr: Some(config_v100.vxastro_token_addr),
-                    builder_unlock_addr: config_v100.builder_unlock_addr,
-                    proposal_voting_period: msg
-                        .proposal_voting_period
-                        .ok_or(ContractError::MigrationError {})?,
-                    proposal_effective_delay: msg
-                        .proposal_effective_delay
-                        .ok_or(ContractError::MigrationError {})?,
-                    proposal_expiration_period: config_v100.proposal_expiration_period,
-                    proposal_required_deposit: config_v100.proposal_required_deposit,
-                    proposal_required_quorum: config_v100.proposal_required_quorum,
-                    proposal_required_threshold: config_v100.proposal_required_threshold,
-                    whitelisted_links: msg
-                        .whitelisted_links
-                        .ok_or(ContractError::MigrationError {})?,
-                };
-
-                config.validate()?;
-
-                migrate_proposals_to_v111(&mut deps, &config)?;
-                CONFIG.save(deps.storage, &config)?;
-            }
-            "1.0.1" => {
-                let config_v101 = CONFIGV101.load(deps.storage)?;
-
-                let config = Config {
-                    xastro_token_addr: config_v101.xastro_token_addr,
-                    vxastro_token_addr: Some(config_v101.vxastro_token_addr),
-                    builder_unlock_addr: config_v101.builder_unlock_addr,
-                    proposal_voting_period: config_v101.proposal_voting_period,
-                    proposal_effective_delay: config_v101.proposal_effective_delay,
-                    proposal_expiration_period: config_v101.proposal_expiration_period,
-                    proposal_required_deposit: config_v101.proposal_required_deposit,
-                    proposal_required_quorum: config_v101.proposal_required_quorum,
-                    proposal_required_threshold: config_v101.proposal_required_threshold,
-                    whitelisted_links: config_v101.whitelisted_links,
-                };
-
-                migrate_proposals_to_v111(&mut deps, &config)?;
-                CONFIG.save(deps.storage, &config)?;
-            }
             "1.0.2" | "1.1.0" => {
                 let config = CONFIG.load(deps.storage)?;
                 migrate_proposals_to_v111(&mut deps, &config)?;
