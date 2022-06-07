@@ -41,7 +41,7 @@ async function main() {
   console.log("network:", network);
 
   // ASTRO token addresss should be set
-  if (terra.config.chainID == "columbus-5" && !network.astro_token_address) {
+  if (terra.config.chainID == "picso-1" && !network.astro_token_address) {
     console.log(
       `Please deploy the CW20-base ASTRO token, and then set this address in the deploy config before running this script...`
     );
@@ -50,7 +50,7 @@ async function main() {
 
   /*************************************** VESTING ::: DEPOYMENT AND INITIALIZATION  *****************************************/
 
-  if (terra.config.chainID == "columbus-5") {
+  if (terra.config.chainID == "picso-1") {
     // Multisig details:
     const MULTI_SIG_ADDRESS = "";
 

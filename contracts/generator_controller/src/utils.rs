@@ -1,12 +1,12 @@
-use std::convert::TryInto;
 use std::ops::RangeInclusive;
 
 use crate::astroport;
 use astroport::asset::{pair_info_by_pool, AssetInfo};
 use astroport::factory::PairType;
 use astroport::querier::query_pair_info;
-use cosmwasm_std::{Addr, Order, Pair, QuerierWrapper, StdError, StdResult, Storage, Uint128};
-use cw_storage_plus::{Bound, U64Key};
+use astroport_governance::U64Key;
+use cosmwasm_std::{Addr, Order, QuerierWrapper, StdError, StdResult, Storage, Uint128};
+use cw_storage_plus::Bound;
 
 use astroport_governance::utils::calc_voting_power;
 
@@ -311,24 +311,13 @@ pub(crate) fn fetch_last_pool_period(
         .range(
             storage,
             None,
-            Some(Bound::Exclusive(U64Key::new(period).wrapped)),
+            Some(Bound::exclusive(U64Key::new(period))),
             Order::Descending,
         )
         .next()
-        .map(deserialize_pair)
         .transpose()?
         .map(|(period, _)| period);
     Ok(period_opt)
-}
-
-/// ## Description
-/// Helper function for deserialization.
-pub(crate) fn deserialize_pair<T>(pair: StdResult<Pair<T>>) -> StdResult<(u64, T)> {
-    let (period_serialized, data) = pair?;
-    let period_bytes: [u8; 8] = period_serialized
-        .try_into()
-        .map_err(|_| StdError::generic_err("Deserialization error"))?;
-    Ok((u64::from_be_bytes(period_bytes), data))
 }
 
 /// ## Description
@@ -343,11 +332,10 @@ pub(crate) fn fetch_slope_changes(
         .prefix(pool_addr)
         .range(
             storage,
-            Some(Bound::Exclusive(U64Key::new(last_period).wrapped)),
-            Some(Bound::Inclusive(U64Key::new(period).wrapped)),
+            Some(Bound::exclusive(U64Key::new(last_period))),
+            Some(Bound::inclusive(U64Key::new(period))),
             Order::Ascending,
         )
-        .map(deserialize_pair)
         .collect()
 }
 

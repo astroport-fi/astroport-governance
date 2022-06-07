@@ -4,7 +4,7 @@ use cosmwasm_std::{
 };
 use cw2::{get_contract_version, set_contract_version};
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20ReceiveMsg};
-use cw_storage_plus::{Bound, U64Key};
+use cw_storage_plus::Bound;
 use std::str::FromStr;
 
 use crate::astroport;
@@ -21,6 +21,7 @@ use astroport_governance::builder_unlock::msg::{
     AllocationResponse, QueryMsg as BuilderUnlockQueryMsg, StateResponse,
 };
 use astroport_governance::voting_escrow::{QueryMsg as VotingEscrowQueryMsg, VotingPowerResponse};
+use astroport_governance::U64Key;
 
 use crate::error::ContractError;
 use crate::migration::{migrate_proposals_to_v111, MigrateMsg, CONFIGV100, CONFIGV101};
@@ -155,7 +156,7 @@ pub fn receive_cw20(
             link,
             messages,
         } => {
-            let sender = addr_validate_to_lower(deps.api, cw20_msg.sender)?;
+            let sender = addr_validate_to_lower(deps.api, &cw20_msg.sender)?;
             submit_proposal(
                 deps,
                 env,

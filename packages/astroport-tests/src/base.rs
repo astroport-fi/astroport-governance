@@ -9,11 +9,14 @@ use astroport_governance::voting_escrow::{
     Cw20HookMsg, ExecuteMsg, InstantiateMsg as AstroVotingEscrowInstantiateMsg, QueryMsg,
     VotingPowerResponse,
 };
-use cosmwasm_std::{attr, to_binary, Addr, Decimal, QueryRequest, StdResult, Uint128, WasmQuery};
+use cosmwasm_std::{
+    attr, to_binary, Addr, BalanceResponse, Decimal, QueryRequest, StdResult, Uint128, WasmQuery,
+};
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
 use terra_multi_test::{AppResponse, ContractWrapper, Executor, TerraApp};
 
 use anyhow::Result;
+use cw_multi_test::{AppResponse, ContractWrapper};
 
 pub const MULTIPLIER: u64 = 1_000_000;
 

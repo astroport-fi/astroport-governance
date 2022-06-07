@@ -1,6 +1,5 @@
 use crate::error::ContractError;
-use astroport_governance::utils::CheckedMultiplyRatio;
-use cosmwasm_std::{Decimal, Fraction, Uint128};
+use cosmwasm_std::{Decimal, Fraction, StdError, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::convert::{TryFrom, TryInto};
@@ -28,7 +27,8 @@ impl BasicPoints {
 
     pub fn from_ratio(numerator: Uint128, denominator: Uint128) -> Result<Self, ContractError> {
         numerator
-            .checked_multiply_ratio(Self::MAX, denominator)?
+            .checked_multiply_ratio(Self::MAX, denominator)
+            .map_err(|_| StdError::generic_err("Checked multiple ratio error!"))?
             .u128()
             .try_into()
     }
@@ -83,8 +83,8 @@ impl Mul<Decimal> for BasicPoints {
 
     fn mul(self, rhs: Decimal) -> Self::Output {
         Decimal::from_ratio(
-            self.0 as u128 * rhs.numerator(),
-            rhs.denominator() * Self::MAX as u128,
+            rhs.numerator() * Uint128::from(self.0),
+            rhs.denominator() * Uint128::from(Self::MAX),
         )
     }
 }

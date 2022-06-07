@@ -3,8 +3,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::astroport::common::OwnershipProposal;
 
+use astroport_governance::U64Key;
 use cosmwasm_std::{Addr, Uint128};
-use cw_storage_plus::{Item, Map, U64Key};
+use cw_storage_plus::{Item, Map};
 
 /// This structure stores the main parameters for the distributor contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

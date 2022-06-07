@@ -1,26 +1,18 @@
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 use astroport_governance::builder_unlock::{AllocationParams, Schedule};
-use builder_unlock::astroport;
 
 use astroport_governance::builder_unlock::msg::{
     AllocationResponse, ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg, ReceiveMsg,
     SimulateWithdrawResponse, StateResponse,
 };
-use cosmwasm_std::testing::{mock_env, MockApi, MockQuerier, MockStorage};
 use cosmwasm_std::{attr, to_binary, Addr, Timestamp, Uint128};
 use cw20::BalanceResponse;
-use terra_multi_test::{App, BankKeeper, ContractWrapper, Executor, TerraMockQuerier};
+use cw_multi_test::{App, BasicApp, ContractWrapper, Executor};
 
 const OWNER: &str = "owner";
 
 fn mock_app() -> App {
-    let api = MockApi::default();
-    let env = mock_env();
-    let bank = BankKeeper::new();
-    let storage = MockStorage::new();
-    let tmq = TerraMockQuerier::new(MockQuerier::new(&[]));
-
-    App::new(api, env.block, bank, storage, tmq)
+    BasicApp::default()
 }
 
 fn init_contracts(app: &mut App) -> (Addr, Addr, InstantiateMsg) {
@@ -42,6 +34,7 @@ fn init_contracts(app: &mut App) -> (Addr, Addr, InstantiateMsg) {
             minter: OWNER.clone().to_string(),
             cap: None,
         }),
+        marketing: None,
     };
 
     let astro_token_instance = app
@@ -175,7 +168,7 @@ fn test_transfer_ownership() {
             &[],
         )
         .unwrap_err();
-    assert_eq!(err.to_string(), "Generic error: Unauthorized");
+    assert_eq!(err.root_cause().to_string(), "Generic error: Unauthorized");
 
     app.execute_contract(
         Addr::unchecked(OWNER.to_string()),
@@ -282,7 +275,7 @@ fn test_create_allocations() {
         )
         .unwrap_err();
     assert_eq!(
-        err.to_string(),
+        err.root_cause().to_string(),
         "Generic error: Only the contract owner can create allocations"
     );
 
@@ -305,6 +298,7 @@ fn test_create_allocations() {
             minter: OWNER.clone().to_string(),
             cap: None,
         }),
+        marketing: None,
     };
 
     let not_astro_token_instance = app
@@ -345,7 +339,7 @@ fn test_create_allocations() {
         )
         .unwrap_err();
     assert_eq!(
-        err.to_string(),
+        err.root_cause().to_string(),
         "Generic error: Only ASTRO can be deposited"
     );
 
@@ -366,7 +360,7 @@ fn test_create_allocations() {
         )
         .unwrap_err();
     assert_eq!(
-        err.to_string(),
+        err.root_cause().to_string(),
         "Generic error: ASTRO deposit amount mismatch"
     );
 
@@ -480,7 +474,7 @@ fn test_create_allocations() {
         )
         .unwrap_err();
     assert_eq!(
-        err.to_string(),
+        err.root_cause().to_string(),
         "Generic error: Allocation (params) already exists for investor_1"
     );
 }
@@ -562,7 +556,7 @@ fn test_withdraw() {
         )
         .unwrap_err();
     assert_eq!(
-        err.to_string(),
+        err.root_cause().to_string(),
         "astroport_governance::builder_unlock::AllocationParams not found"
     );
 
@@ -654,7 +648,7 @@ fn test_withdraw() {
         )
         .unwrap_err();
     assert_eq!(
-        err.to_string(),
+        err.root_cause().to_string(),
         "Generic error: No unlocked ASTRO to be withdrawn"
     );
 
@@ -723,7 +717,7 @@ fn test_withdraw() {
         )
         .unwrap_err();
     assert_eq!(
-        err.to_string(),
+        err.root_cause().to_string(),
         "Generic error: No unlocked ASTRO to be withdrawn"
     );
 
@@ -913,7 +907,7 @@ fn test_propose_new_receiver() {
         )
         .unwrap_err();
     assert_eq!(
-        err.to_string(),
+        err.root_cause().to_string(),
         "astroport_governance::builder_unlock::AllocationParams not found"
     );
 
@@ -929,7 +923,7 @@ fn test_propose_new_receiver() {
         )
         .unwrap_err();
     assert_eq!(
-        err.to_string(),
+        err.root_cause().to_string(),
         "Generic error: Invalid new_receiver. Proposed receiver already has an ASTRO allocation of 5000000000000 ASTRO"
     );
 
@@ -970,7 +964,7 @@ fn test_propose_new_receiver() {
         )
         .unwrap_err();
     assert_eq!(
-        err.to_string(),
+        err.root_cause().to_string(),
         "Generic error: Proposed receiver already set to investor_1_new"
     );
 }
@@ -1052,7 +1046,7 @@ fn test_drop_new_receiver() {
         )
         .unwrap_err();
     assert_eq!(
-        err.to_string(),
+        err.root_cause().to_string(),
         "astroport_governance::builder_unlock::AllocationParams not found"
     );
 
@@ -1065,7 +1059,10 @@ fn test_drop_new_receiver() {
             &[],
         )
         .unwrap_err();
-    assert_eq!(err.to_string(), "Generic error: Proposed receiver not set");
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Generic error: Proposed receiver not set"
+    );
 
     // ######   SUCCESSFULLY DROP NEW RECEIVER   ######
     // SUCCESSFULLY PROPOSES NEW RECEIVER
@@ -1190,7 +1187,7 @@ fn test_claim_receiver() {
         )
         .unwrap_err();
     assert_eq!(
-        err.to_string(),
+        err.root_cause().to_string(),
         "astroport_governance::builder_unlock::AllocationParams not found"
     );
 
@@ -1205,7 +1202,10 @@ fn test_claim_receiver() {
             &[],
         )
         .unwrap_err();
-    assert_eq!(err.to_string(), "Generic error: Proposed receiver not set");
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Generic error: Proposed receiver not set"
+    );
 
     // ######   SUCCESSFULLY CLAIMED BY NEW RECEIVER   ######
     // SUCCESSFULLY PROPOSES NEW RECEIVER
@@ -1424,7 +1424,7 @@ fn test_increase_and_decrease_allocation() {
         )
         .unwrap_err();
     assert_eq!(
-        err.to_string(),
+        err.root_cause().to_string(),
         "Generic error: Insufficient amount of lock to decrease allocation, user has locked 4919528246563 ASTRO."
     );
 
@@ -1473,7 +1473,7 @@ fn test_increase_and_decrease_allocation() {
         )
         .unwrap_err();
     assert_eq!(
-        err.to_string(),
+        err.root_cause().to_string(),
         "Generic error: Insufficient unallocated ASTRO to increase allocation. Contract has: 1000000000000 unallocated ASTRO."
     );
 
