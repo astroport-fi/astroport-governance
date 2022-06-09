@@ -1,8 +1,8 @@
 use crate::state::PROPOSALS;
 use astroport_governance::assembly::{Config, Proposal, ProposalMessage, ProposalStatus};
 use astroport_governance::U64Key;
-use cosmwasm_std::{Addr, Decimal, DepsMut, StdError, StdResult, Uint128, Uint64};
-use cw_storage_plus::{Item, Map};
+use cosmwasm_std::{Addr, DepsMut, StdError, StdResult, Uint128, Uint64};
+use cw_storage_plus::Map;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
