@@ -4,9 +4,9 @@ use astroport_governance::utils::{
     get_period, get_periods_count, EPOCH_START, MAX_LOCK_TIME, WEEK,
 };
 use cosmwasm_std::Addr;
+use cw_multi_test::{next_block, App, AppResponse};
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
-use terra_multi_test::{next_block, AppResponse, TerraApp};
 
 mod test_utils;
 
@@ -35,7 +35,7 @@ struct Simulator {
     locked: HashMap<String, (f64, u64)>,
     users: Vec<String>,
     helper: Helper,
-    router: TerraApp,
+    router: App,
 }
 
 fn apply_coefficient(amount: f64, interval: u64) -> f64 {

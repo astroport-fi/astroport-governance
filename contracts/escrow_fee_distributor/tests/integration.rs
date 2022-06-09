@@ -14,7 +14,7 @@ use astroport_tests::base::{
     check_balance, mint, BaseAstroportTestInitMessage, BaseAstroportTestPackage, MULTIPLIER,
 };
 use cw20::Cw20ExecuteMsg;
-use terra_multi_test::{next_block, AppBuilder, BankKeeper, Executor, TerraApp, TerraMock};
+use cw_multi_test::{next_block, App, AppBuilder, BankKeeper, Executor};
 
 const OWNER: &str = "owner";
 const USER1: &str = "user1";
@@ -24,24 +24,22 @@ const USER4: &str = "user4";
 const USER5: &str = "user5";
 const MAKER: &str = "maker";
 
-fn mock_app() -> TerraApp {
+fn mock_app() -> App {
     let mut env = mock_env();
     env.block.time = Timestamp::from_seconds(EPOCH_START);
     let api = MockApi::default();
     let bank = BankKeeper::new();
     let storage = MockStorage::new();
-    let custom = TerraMock::luna_ust_case();
 
     AppBuilder::new()
         .with_api(api)
         .with_block(env.block)
         .with_bank(bank)
         .with_storage(storage)
-        .with_custom(custom)
-        .build()
+        .build(|_, _, _| {})
 }
 
-fn init_astroport_test_package(router: &mut TerraApp) -> StdResult<BaseAstroportTestPackage> {
+fn init_astroport_test_package(router: &mut App) -> StdResult<BaseAstroportTestPackage> {
     let base_msg = BaseAstroportTestInitMessage {
         owner: Addr::unchecked(OWNER),
     };
@@ -215,7 +213,7 @@ fn update_config() {
             &[],
         )
         .unwrap_err();
-    assert_eq!("Unauthorized", err.to_string());
+    assert_eq!("Unauthorized", err.root_cause().to_string());
 
     // Check that the owner can update the config
     let resp = router_ref
@@ -734,7 +732,7 @@ fn claim_multiple_users() {
 
     assert_eq!(
         "Exceeded account limit for the claim operation!",
-        err.to_string()
+        err.root_cause().to_string()
     );
 
     mint(
@@ -1053,7 +1051,7 @@ fn is_claim_enabled() {
         )
         .unwrap_err();
 
-    assert_eq!("Claiming is disabled!", err.to_string());
+    assert_eq!("Claiming is disabled!", err.root_cause().to_string());
 
     // Send 100_000_000 ASTRO from the Maker to the distributor for the first period
     let msg = Cw20ExecuteMsg::Send {
@@ -1092,7 +1090,7 @@ fn is_claim_enabled() {
         )
         .unwrap_err();
 
-    assert_eq!("Claiming is disabled!", err.to_string());
+    assert_eq!("Claiming is disabled!", err.root_cause().to_string());
 
     // Going to the next week
     router_ref.update_block(next_block);

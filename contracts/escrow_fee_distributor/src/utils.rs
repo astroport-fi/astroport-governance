@@ -2,7 +2,7 @@ use std::cmp::min;
 
 use astroport_governance::U64Key;
 use cosmwasm_std::{
-    to_binary, Addr, CosmosMsg, Decimal, DepsMut, StdResult, Storage, Uint128, WasmMsg,
+    to_binary, Addr, CosmosMsg, DepsMut, StdError, StdResult, Storage, Uint128, WasmMsg,
 };
 use cw20::Cw20ExecuteMsg;
 
@@ -61,7 +61,9 @@ pub(crate) fn calculate_reward(
         .may_load(storage, U64Key::from(period))?
         .unwrap_or_default();
 
-    Ok(user_vp * Decimal::from_ratio(rewards_per_week, total_vp))
+    user_vp
+        .checked_multiply_ratio(rewards_per_week, total_vp)
+        .map_err(|e| StdError::generic_err(format!("{:?}", e)))
 }
 
 /// ## Description

@@ -35,7 +35,7 @@ astroport-governance = { path = "../../packages/astroport-governance", version =
 
 [dev-dependencies]
 cosmwasm-schema = { version = "0.16.0" }
-terra-multi-test = { git = "https://github.com/astroport-fi/terra-plus.git", tag = "v0.9.1-terra" }
+cw-multi-test = "0.13.2"
 astroport-tests = {path = "../../packages/astroport-tests", version = "1.0.0"}
 
 astroport-generator = { git = "https://github.com/astroport-fi/astroport-core.git", branch = "main" }

@@ -22,6 +22,7 @@ cw-storage-plus = "0.13.3"
 schemars = "0.8.1"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 astroport-governance = { path = "../../packages/astroport-governance", default-features = false, version = "1.0.0"}
+astroport = {git = "https://github.com/astroport-fi/astroport.git", branch = "feat/update_main_to_cosmwasm_1.0.0"}
 thiserror = { version = "1.0.20" }
 
 [dev-dependencies]

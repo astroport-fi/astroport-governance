@@ -1,5 +1,5 @@
+use crate::astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::asset::addr_validate_to_lower;
-use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 
@@ -10,7 +10,6 @@ use cosmwasm_std::{
 use cw2::{get_contract_version, set_contract_version};
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 
-use crate::astroport;
 use crate::astroport::asset::addr_opt_validate;
 use crate::contract::helpers::compute_unlocked_amount;
 use crate::migration::{MigrateMsg, CONFIGV100, STATEV100, STATUSV100};
