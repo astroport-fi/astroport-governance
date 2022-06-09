@@ -10,7 +10,7 @@ use cosmwasm_std::{
     MessageInfo, QueryRequest, Response, StdError, StdResult, Storage, SubMsg, Uint128, WasmMsg,
     WasmQuery,
 };
-use cw2::{get_contract_version, set_contract_version, ContractVersion, CONTRACT};
+use cw2::{set_contract_version, ContractVersion, CONTRACT};
 use cw20::{
     BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, Cw20ReceiveMsg, Logo, LogoInfo,
     MarketingInfoResponse, MinterResponse, TokenInfoResponse,
@@ -30,9 +30,6 @@ use astroport_governance::voting_escrow::{
 
 use crate::error::ContractError;
 use crate::marketing_validation::{validate_marketing_info, validate_whitelist_links};
-use crate::migration::v110::MigrationV110;
-use crate::migration::v130::MigrationV130;
-use crate::migration::Migration;
 use crate::state::{
     Config, Lock, Point, BLACKLIST, CONFIG, HISTORY, LAST_SLOPE_CHANGE, LOCKED, OWNERSHIP_PROPOSAL,
 };
@@ -1407,37 +1404,14 @@ fn query_token_info(deps: Deps, env: Env) -> StdResult<TokenInfoResponse> {
 }
 
 /// ## Description
-/// Used for contract migration. Returns a default object of type [`Response`].
+/// Used for contract migration. Returns a default object of type [`ContractError`].
 /// ## Params
 /// * **_deps** is an object of type [`DepsMut`].
 ///
-/// * **env** is an object of type [`Env`].
+/// * **_env** is an object of type [`Env`].
 ///
-/// * **msg** is an object of type [`MigrateMsg`].
+/// * **_msg** is an object of type [`MigrateMsg`].
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
-    let contract_version = get_contract_version(deps.storage)?;
-
-    match contract_version.contract.as_str() {
-        "voting-escrow" => match contract_version.version.as_ref() {
-            "1.0.0" => {
-                // 1.0.0 -> 1.1.0
-                MigrationV110::migrate(deps.branch(), env, msg)?;
-            }
-            "1.1.0" | "1.2.0" => {
-                // 1.1.0 | 1.2.0 -> 1.3.0
-                MigrationV130::migrate(deps.branch(), env, msg)?;
-            }
-            _ => return Err(ContractError::MigrationError {}),
-        },
-        _ => return Err(ContractError::MigrationError {}),
-    }
-
-    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-
-    Ok(Response::new()
-        .add_attribute("previous_contract_name", &contract_version.contract)
-        .add_attribute("previous_contract_version", &contract_version.version)
-        .add_attribute("new_contract_name", CONTRACT_NAME)
-        .add_attribute("new_contract_version", CONTRACT_VERSION))
+pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
+    Err(ContractError::MigrationError {})
 }
