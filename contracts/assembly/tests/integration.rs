@@ -5,8 +5,8 @@ use astroport::{
 use std::str::FromStr;
 
 use astroport_governance::assembly::{
-    Config, Cw20HookMsg, ExecuteMsg, InstantiateMsg, Proposal, ProposalListResponse,
-    ProposalMessage, ProposalStatus, ProposalVoteOption, ProposalVotesResponse, QueryMsg,
+    Config, Cw20HookMsg, ExecuteMsg, InstantiateMsg, ProposalListResponse, ProposalMessage,
+    ProposalResponse, ProposalStatus, ProposalVoteOption, ProposalVotesResponse, QueryMsg,
     UpdateConfig, DEPOSIT_INTERVAL, VOTING_PERIOD_INTERVAL,
 };
 
@@ -493,7 +493,7 @@ fn test_proposal_submitting() {
     )
     .unwrap();
 
-    let proposal: Proposal = app
+    let proposal: ProposalResponse = app
         .wrap()
         .query_wasm_smart(
             assembly_addr.clone(),
@@ -506,8 +506,6 @@ fn test_proposal_submitting() {
     assert_eq!(proposal.status, ProposalStatus::Active);
     assert_eq!(proposal.for_power, Uint128::zero());
     assert_eq!(proposal.against_power, Uint128::zero());
-    assert_eq!(proposal.for_voters, Vec::<Addr>::new());
-    assert_eq!(proposal.against_voters, Vec::<Addr>::new());
     assert_eq!(proposal.start_block, 12_345);
     assert_eq!(proposal.end_block, 12_345 + PROPOSAL_VOTING_PERIOD);
     assert_eq!(proposal.title, String::from("Title"));
@@ -701,7 +699,7 @@ fn test_successful_proposal() {
         cast_vote(&mut app, assembly_addr.clone(), 1, sender, option).unwrap();
     }
 
-    let proposal: Proposal = app
+    let proposal: ProposalResponse = app
         .wrap()
         .query_wasm_smart(
             assembly_addr.clone(),
@@ -717,6 +715,32 @@ fn test_successful_proposal() {
         )
         .unwrap();
 
+    let proposal_for_voters: Vec<Addr> = app
+        .wrap()
+        .query_wasm_smart(
+            assembly_addr.clone(),
+            &QueryMsg::ProposalVoters {
+                proposal_id: 1,
+                vote_option: ProposalVoteOption::For,
+                start: None,
+                limit: None,
+            },
+        )
+        .unwrap();
+
+    let proposal_against_voters: Vec<Addr> = app
+        .wrap()
+        .query_wasm_smart(
+            assembly_addr.clone(),
+            &QueryMsg::ProposalVoters {
+                proposal_id: 1,
+                vote_option: ProposalVoteOption::Against,
+                start: None,
+                limit: None,
+            },
+        )
+        .unwrap();
+
     // Check proposal votes
     assert_eq!(proposal.for_power, Uint128::from(10000002500u128));
     assert_eq!(proposal.against_power, Uint128::from(1150u32));
@@ -725,7 +749,7 @@ fn test_successful_proposal() {
     assert_eq!(proposal_votes.against_power, Uint128::from(1150u32));
 
     assert_eq!(
-        proposal.for_voters,
+        proposal_for_voters,
         vec![
             Addr::unchecked("user1"),
             Addr::unchecked("user2"),
@@ -738,7 +762,7 @@ fn test_successful_proposal() {
         ]
     );
     assert_eq!(
-        proposal.against_voters,
+        proposal_against_voters,
         vec![
             Addr::unchecked("user8"),
             Addr::unchecked("user9"),
@@ -795,7 +819,7 @@ fn test_successful_proposal() {
         PROPOSAL_REQUIRED_DEPOSIT,
     );
 
-    let proposal: Proposal = app
+    let proposal: ProposalResponse = app
         .wrap()
         .query_wasm_smart(
             assembly_addr.clone(),
@@ -849,7 +873,7 @@ fn test_successful_proposal() {
         .query_wasm_smart(assembly_addr.to_string(), &QueryMsg::Config {})
         .unwrap();
 
-    let proposal: Proposal = app
+    let proposal: ProposalResponse = app
         .wrap()
         .query_wasm_smart(
             assembly_addr.to_string(),
@@ -1023,7 +1047,7 @@ fn test_voting_power_changes() {
     )
     .unwrap();
 
-    let proposal: Proposal = app
+    let proposal: ProposalResponse = app
         .wrap()
         .query_wasm_smart(
             assembly_addr.clone(),
@@ -1143,7 +1167,7 @@ fn test_block_height_selection() {
     )
     .unwrap();
 
-    let proposal: Proposal = app
+    let proposal: ProposalResponse = app
         .wrap()
         .query_wasm_smart(
             assembly_addr.clone(),
@@ -1255,7 +1279,7 @@ fn test_unsuccessful_proposal() {
     );
 
     // Check proposal status
-    let proposal: Proposal = app
+    let proposal: ProposalResponse = app
         .wrap()
         .query_wasm_smart(
             assembly_addr.clone(),
