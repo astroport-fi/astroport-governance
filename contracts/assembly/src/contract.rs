@@ -34,6 +34,8 @@ const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 // Default pagination constants
 const DEFAULT_LIMIT: u32 = 10;
 const MAX_LIMIT: u32 = 30;
+const DEFAULT_VOTERS_LIMIT: u32 = 100;
+const MAX_VOTERS_LIMIT: u32 = 250;
 
 /// ## Description
 /// Creates a new contract with the specified parameters in the `msg` variable.
@@ -755,7 +757,7 @@ pub fn query_proposal_voters(
     start: Option<u64>,
     limit: Option<u32>,
 ) -> StdResult<Vec<Addr>> {
-    let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT);
+    let limit = limit.unwrap_or(DEFAULT_VOTERS_LIMIT).min(MAX_VOTERS_LIMIT);
     let start = start.unwrap_or_default();
 
     let proposal = PROPOSALS.load(deps.storage, U64Key::from(proposal_id))?;

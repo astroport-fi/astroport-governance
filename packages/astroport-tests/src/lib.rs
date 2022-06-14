@@ -17,14 +17,12 @@ pub fn mock_app() -> App {
     let api = MockApi::default();
     let bank = BankKeeper::new();
     let storage = MockStorage::new();
-    //    let custom = TerraMock::luna_ust_case();
 
     BasicAppBuilder::new()
         .with_api(api)
         .with_block(env.block)
         .with_bank(bank)
         .with_storage(storage)
-        //        .with_custom(custom)
         .build(|_, _, _| {})
 }
 

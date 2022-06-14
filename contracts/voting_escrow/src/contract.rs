@@ -2,6 +2,7 @@ use crate::astroport;
 use astroport::asset::addr_validate_to_lower;
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::querier::query_token_balance;
+use astroport_governance::astroport::DecimalCheckedOps;
 use astroport_governance::U64Key;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
@@ -385,7 +386,7 @@ fn checkpoint(
             if end > point.end && add_amount.is_zero() {
                 // This is extend_lock_time. Recalculating user's voting power
                 let mut lock = LOCKED.load(deps.storage, addr.clone())?;
-                let mut new_voting_power = lock.amount * calc_coefficient(dt);
+                let mut new_voting_power = calc_coefficient(dt).checked_mul_uint128(lock.amount)?;
                 let slope = adjust_vp_and_slope(&mut new_voting_power, dt)?;
                 // new_voting_power should always be >= current_power. saturating_sub is used for extra safety
                 add_voting_power = new_voting_power.saturating_sub(current_power);
@@ -394,7 +395,7 @@ fn checkpoint(
                 slope
             } else {
                 // This is an increase in the user's lock amount
-                let raw_add_voting_power = add_amount * calc_coefficient(dt);
+                let raw_add_voting_power = calc_coefficient(dt).checked_mul_uint128(add_amount)?;
                 let mut new_voting_power = current_power.checked_add(raw_add_voting_power)?;
                 let slope = adjust_vp_and_slope(&mut new_voting_power, dt)?;
                 // new_voting_power should always be >= current_power. saturating_sub is used for extra safety
@@ -422,7 +423,7 @@ fn checkpoint(
         let end =
             new_end.ok_or_else(|| StdError::generic_err("Checkpoint initialization error"))?;
         let dt = end - cur_period;
-        add_voting_power = add_amount * calc_coefficient(dt);
+        add_voting_power = calc_coefficient(dt).checked_mul_uint128(add_amount)?;
         let slope = adjust_vp_and_slope(&mut add_voting_power, dt)?;
         Point {
             power: add_voting_power,

@@ -28,7 +28,7 @@ impl BasicPoints {
     pub fn from_ratio(numerator: Uint128, denominator: Uint128) -> Result<Self, ContractError> {
         numerator
             .checked_multiply_ratio(Self::MAX, denominator)
-            .map_err(|_| StdError::generic_err("Checked multiple ratio error!"))?
+            .map_err(|_| StdError::generic_err("Checked multiply ratio error!"))?
             .u128()
             .try_into()
     }
