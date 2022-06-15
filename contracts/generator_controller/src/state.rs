@@ -4,8 +4,9 @@ use crate::bps::BasicPoints;
 use astroport_governance::generator_controller::{
     ConfigResponse, GaugeInfoResponse, UserInfoResponse, VotedPoolInfoResponse,
 };
+use astroport_governance::U64Key;
 use cosmwasm_std::{Addr, Uint128};
-use cw_storage_plus::{Item, Map, U64Key};
+use cw_storage_plus::{Item, Map};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 

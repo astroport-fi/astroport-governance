@@ -45,6 +45,7 @@ async function deployGeneratorController(terra: LCDClient, wallet: any) {
     network.generatorControllerAddress = await deployContract(
         terra,
         wallet,
+        network.multisigAddress,
         join(ARTIFACTS_PATH, 'generator_controller.wasm'),
         {
             "owner": network.assemblyAddress,
@@ -52,7 +53,8 @@ async function deployGeneratorController(terra: LCDClient, wallet: any) {
             "generator_addr": network.generatorAddress,
             "factory_addr": network.factoryAddress,
             "pools_limit": 12,
-        }
+        },
+        "Astroport Generator Controller Contract"
     )
 
     console.log("Generator controller: ", network.generatorControllerAddress)
@@ -74,6 +76,7 @@ async function deployFeeDistributor(terra: LCDClient, wallet: any) {
     network.feeDistributorAddress = await deployContract(
         terra,
         wallet,
+        network.multisigAddress,
         join(ARTIFACTS_PATH, 'astroport_escrow_fee_distributor.wasm'),
         {
             "owner": network.assemblyAddress,
@@ -81,7 +84,8 @@ async function deployFeeDistributor(terra: LCDClient, wallet: any) {
             "voting_escrow_addr": network.votingEscrowAddress,
             "is_claim_disabled": false,
             "claim_many_limit": 12,
-        }
+        },
+        "Astroport Escrow Fee Distributor Contract"
     )
 
     console.log("fee distributor: ", network.feeDistributorAddress)
@@ -103,6 +107,7 @@ async function deployVotingEscrow(terra: LCDClient, wallet: any) {
     network.votingEscrowAddress = await deployContract(
         terra,
         wallet,
+        network.multisigAddress,
         join(ARTIFACTS_PATH, 'voting_escrow.wasm'),
         {
             "owner": network.assemblyAddress,
@@ -117,8 +122,10 @@ async function deployVotingEscrow(terra: LCDClient, wallet: any) {
                 }
             },
             "max_exit_penalty": "0.75",
-            "slashed_fund_receiver": network.feeDistributorAddress
-        }
+            "slashed_fund_receiver": network.feeDistributorAddress,
+            "logo_urls_whitelist": ["https://astroport.fi/"]
+        },
+        "Astroport Voting Escrow Contract"
     )
 
     console.log("votingEscrow", network.votingEscrowAddress)
@@ -137,12 +144,14 @@ async function deployTeamUnlock(terra: LCDClient, wallet: any) {
     network.builderUnlockAddress = await deployContract(
         terra,
         wallet,
+        network.multisigAddress,
         join(ARTIFACTS_PATH, 'builder_unlock.wasm'),
         {
             "owner": wallet.key.accAddress,
             "astro_token": network.tokenAddress,
             "max_allocations_amount": String(300_000_000_000000)
-        }
+        },
+        "Astroport Builder Unlocking Contract"
     )
 
     console.log("builderUnlockAddress", network.builderUnlockAddress)
@@ -218,18 +227,20 @@ async function deployAssembly(terra: LCDClient, wallet: any) {
     network.assemblyAddress = await deployContract(
         terra,
         wallet,
+        network.multisigAddress,
         join(ARTIFACTS_PATH, 'astro_assembly.wasm'),
         {
             "xastro_token_addr": network.xastroAddress,
             "builder_unlock_addr": network.builderUnlockAddress,
             "proposal_voting_period": 57600,
-            "proposal_effective_delay": 28800,
-            "proposal_expiration_period": 201600,
+            "proposal_effective_delay": 6171,
+            "proposal_expiration_period": 12342,
             "proposal_required_deposit": "30000000000", // 30k ASTRO
             "proposal_required_quorum": "0.1", // 10%
             "proposal_required_threshold": '0.50',   // 50%
             "whitelisted_links": ["https://forum.astroport.fi/", "http://forum.astroport.fi/", "https://astroport.fi/", "http://astroport.fi/"]
-        }
+        },
+        "Astroport Assembly Contract"
     )
 
     console.log("assemblyAddress", network.assemblyAddress)

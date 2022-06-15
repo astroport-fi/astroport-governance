@@ -1,7 +1,8 @@
 use crate::state::PROPOSALS;
 use astroport_governance::assembly::{Config, Proposal, ProposalMessage, ProposalStatus};
+use astroport_governance::U64Key;
 use cosmwasm_std::{Addr, DepsMut, StdError, StdResult, Uint128, Uint64};
-use cw_storage_plus::{Map, U64Key};
+use cw_storage_plus::Map;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -49,16 +50,12 @@ pub const PROPOSALS_V100: Map<U64Key, ProposalV100> = Map::new("proposals");
 pub(crate) fn migrate_proposals_to_v111(deps: &mut DepsMut, cfg: &Config) -> StdResult<()> {
     let proposals_v100 = PROPOSALS_V100
         .range(deps.storage, None, None, cosmwasm_std::Order::Ascending {})
-        .map(|pair| {
-            let (_, proposal) = pair?;
-            Ok(proposal)
-        })
-        .collect::<Result<Vec<ProposalV100>, StdError>>()?;
+        .collect::<Result<Vec<_>, StdError>>()?;
 
-    for proposal in proposals_v100 {
+    for (key, proposal) in proposals_v100 {
         PROPOSALS.save(
             deps.storage,
-            U64Key::new(proposal.proposal_id.u64()),
+            U64Key::new(key),
             &Proposal {
                 proposal_id: proposal.proposal_id,
                 submitter: proposal.submitter,

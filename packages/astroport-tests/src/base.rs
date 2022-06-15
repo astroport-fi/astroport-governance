@@ -11,9 +11,9 @@ use astroport_governance::voting_escrow::{
 };
 use cosmwasm_std::{attr, to_binary, Addr, Decimal, QueryRequest, StdResult, Uint128, WasmQuery};
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
-use terra_multi_test::{AppResponse, ContractWrapper, Executor, TerraApp};
 
 use anyhow::Result;
+use cw_multi_test::{App, AppResponse, ContractWrapper, Executor};
 
 pub const MULTIPLIER: u64 = 1_000_000;
 
@@ -41,7 +41,7 @@ pub struct BaseAstroportTestInitMessage {
 }
 
 impl BaseAstroportTestPackage {
-    pub fn init_all(router: &mut TerraApp, msg: BaseAstroportTestInitMessage) -> Self {
+    pub fn init_all(router: &mut App, msg: BaseAstroportTestInitMessage) -> Self {
         let mut base_pack = BaseAstroportTestPackage {
             owner: msg.owner.clone(),
             astro_token: None,
@@ -57,7 +57,7 @@ impl BaseAstroportTestPackage {
         base_pack
     }
 
-    fn init_astro_token(&mut self, router: &mut TerraApp, owner: Addr) {
+    fn init_astro_token(&mut self, router: &mut App, owner: Addr) {
         let astro_token_contract = Box::new(ContractWrapper::new_with_empty(
             astroport_token::contract::execute,
             astroport_token::contract::instantiate,
@@ -75,6 +75,7 @@ impl BaseAstroportTestPackage {
                 minter: owner.to_string(),
                 cap: None,
             }),
+            marketing: None,
         };
 
         let astro_token_instance = router
@@ -94,7 +95,7 @@ impl BaseAstroportTestPackage {
         })
     }
 
-    fn init_staking(&mut self, router: &mut TerraApp, owner: Addr) {
+    fn init_staking(&mut self, router: &mut App, owner: Addr) {
         let staking_contract = Box::new(
             ContractWrapper::new_with_empty(
                 astroport_staking::contract::execute,
@@ -129,7 +130,7 @@ impl BaseAstroportTestPackage {
         })
     }
 
-    pub fn get_staking_xastro(&self, router: &TerraApp) -> Addr {
+    pub fn get_staking_xastro(&self, router: &App) -> Addr {
         let res = router
             .wrap()
             .query::<staking::ConfigResponse>(&QueryRequest::Wasm(WasmQuery::Smart {
@@ -141,7 +142,7 @@ impl BaseAstroportTestPackage {
         res.share_token_addr
     }
 
-    fn init_voting_escrow(&mut self, router: &mut TerraApp, owner: Addr) {
+    fn init_voting_escrow(&mut self, router: &mut App, owner: Addr) {
         let voting_contract = Box::new(ContractWrapper::new_with_empty(
             voting_escrow::contract::execute,
             voting_escrow::contract::instantiate,
@@ -177,7 +178,7 @@ impl BaseAstroportTestPackage {
         })
     }
 
-    pub fn init_escrow_fee_distributor(&mut self, router: &mut TerraApp, owner: Addr) {
+    pub fn init_escrow_fee_distributor(&mut self, router: &mut App, owner: Addr) {
         let escrow_fee_distributor_contract = Box::new(ContractWrapper::new_with_empty(
             astroport_escrow_fee_distributor::contract::execute,
             astroport_escrow_fee_distributor::contract::instantiate,
@@ -213,7 +214,7 @@ impl BaseAstroportTestPackage {
 
     pub fn create_lock(
         &self,
-        router: &mut TerraApp,
+        router: &mut App,
         user: Addr,
         time: u64,
         amount: u64,
@@ -230,7 +231,7 @@ impl BaseAstroportTestPackage {
 
     pub fn extend_lock_amount(
         &mut self,
-        router: &mut TerraApp,
+        router: &mut App,
         user: &str,
         amount: u64,
     ) -> Result<AppResponse> {
@@ -250,7 +251,7 @@ impl BaseAstroportTestPackage {
 
     pub fn extend_lock_time(
         &mut self,
-        router: &mut TerraApp,
+        router: &mut App,
         user: &str,
         time: u64,
     ) -> Result<AppResponse> {
@@ -262,7 +263,7 @@ impl BaseAstroportTestPackage {
         )
     }
 
-    pub fn withdraw(&self, router: &mut TerraApp, user: &str) -> Result<AppResponse> {
+    pub fn withdraw(&self, router: &mut App, user: &str) -> Result<AppResponse> {
         router.execute_contract(
             Addr::unchecked(user),
             self.voting_escrow.clone().unwrap().address,
@@ -271,7 +272,7 @@ impl BaseAstroportTestPackage {
         )
     }
 
-    pub fn query_user_vp(&self, router: &mut TerraApp, user: Addr) -> StdResult<f32> {
+    pub fn query_user_vp(&self, router: &mut App, user: Addr) -> StdResult<f32> {
         router
             .wrap()
             .query_wasm_smart(
@@ -283,7 +284,7 @@ impl BaseAstroportTestPackage {
             .map(|vp: VotingPowerResponse| vp.voting_power.u128() as f32 / MULTIPLIER as f32)
     }
 
-    pub fn query_user_vp_at(&self, router: &mut TerraApp, user: Addr, time: u64) -> StdResult<f32> {
+    pub fn query_user_vp_at(&self, router: &mut App, user: Addr, time: u64) -> StdResult<f32> {
         router
             .wrap()
             .query_wasm_smart(
@@ -296,7 +297,7 @@ impl BaseAstroportTestPackage {
             .map(|vp: VotingPowerResponse| vp.voting_power.u128() as f32 / MULTIPLIER as f32)
     }
 
-    pub fn query_total_vp(&self, router: &mut TerraApp) -> StdResult<f32> {
+    pub fn query_total_vp(&self, router: &mut App) -> StdResult<f32> {
         router
             .wrap()
             .query_wasm_smart(
@@ -306,7 +307,7 @@ impl BaseAstroportTestPackage {
             .map(|vp: VotingPowerResponse| vp.voting_power.u128() as f32 / MULTIPLIER as f32)
     }
 
-    pub fn query_total_vp_at(&self, router: &mut TerraApp, time: u64) -> StdResult<f32> {
+    pub fn query_total_vp_at(&self, router: &mut App, time: u64) -> StdResult<f32> {
         router
             .wrap()
             .query_wasm_smart(
@@ -317,7 +318,7 @@ impl BaseAstroportTestPackage {
     }
 }
 
-pub fn mint(router: &mut TerraApp, owner: Addr, token_instance: Addr, to: &Addr, amount: u128) {
+pub fn mint(router: &mut App, owner: Addr, token_instance: Addr, to: &Addr, amount: u128) {
     let amount = amount * MULTIPLIER as u128;
     let msg = cw20::Cw20ExecuteMsg::Mint {
         recipient: to.to_string(),
@@ -335,7 +336,7 @@ pub fn mint(router: &mut TerraApp, owner: Addr, token_instance: Addr, to: &Addr,
     );
 }
 
-pub fn check_balance(app: &mut TerraApp, token_addr: &Addr, contract_addr: &Addr, expected: u128) {
+pub fn check_balance(app: &mut App, token_addr: &Addr, contract_addr: &Addr, expected: u128) {
     let msg = Cw20QueryMsg::Balance {
         address: contract_addr.to_string(),
     };
@@ -344,7 +345,7 @@ pub fn check_balance(app: &mut TerraApp, token_addr: &Addr, contract_addr: &Addr
 }
 
 pub fn increase_allowance(
-    router: &mut TerraApp,
+    router: &mut App,
     owner: Addr,
     spender: Addr,
     token: Addr,

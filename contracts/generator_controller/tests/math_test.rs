@@ -3,9 +3,9 @@ use std::collections::HashMap;
 
 use anyhow::Result;
 use cosmwasm_std::{Addr, Uint128};
+use cw_multi_test::{App, AppResponse, Executor};
 use itertools::Itertools;
 use proptest::prelude::*;
-use terra_multi_test::{AppResponse, Executor, TerraApp};
 
 use astroport_governance::generator_controller::ExecuteMsg;
 use astroport_governance::utils::{calc_voting_power, MAX_LOCK_TIME, WEEK};
@@ -36,7 +36,7 @@ struct Simulator {
     user_votes: HashMap<String, HashMap<String, u16>>,
     locks: HashMap<String, (Uint128, u64, f32)>,
     helper: ControllerHelper,
-    router: TerraApp,
+    router: App,
     owner: Addr,
     limit: u64,
     pairs: HashMap<(String, String), Addr>,

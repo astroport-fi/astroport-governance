@@ -1,5 +1,5 @@
+use crate::astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::asset::addr_validate_to_lower;
-use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 
@@ -10,7 +10,6 @@ use cosmwasm_std::{
 use cw2::{get_contract_version, set_contract_version};
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 
-use crate::astroport;
 use crate::astroport::asset::addr_opt_validate;
 use crate::contract::helpers::compute_unlocked_amount;
 use crate::migration::{MigrateMsg, CONFIGV100, STATEV100, STATUSV100};
@@ -49,8 +48,8 @@ pub fn instantiate(
     CONFIG.save(
         deps.storage,
         &Config {
-            owner: addr_validate_to_lower(deps.api, msg.owner)?,
-            astro_token: addr_validate_to_lower(deps.api, msg.astro_token)?,
+            owner: addr_validate_to_lower(deps.api, &msg.owner)?,
+            astro_token: addr_validate_to_lower(deps.api, &msg.astro_token)?,
             max_allocations_amount: msg.max_allocations_amount,
         },
     )?;
@@ -245,7 +244,7 @@ fn execute_create_allocations(
 ) -> StdResult<Response> {
     let config = CONFIG.load(deps.storage)?;
 
-    if addr_validate_to_lower(deps.api, creator)? != config.owner {
+    if addr_validate_to_lower(deps.api, &creator)? != config.owner {
         return Err(StdError::generic_err(
             "Only the contract owner can create allocations",
         ));
@@ -272,7 +271,7 @@ fn execute_create_allocations(
     }
 
     for (user_unchecked, params) in allocations {
-        let user = addr_validate_to_lower(deps.api, user_unchecked)?;
+        let user = addr_validate_to_lower(deps.api, &user_unchecked)?;
 
         if PARAMS.has(deps.storage, &user) {
             return Err(StdError::generic_err(format!(
@@ -694,7 +693,7 @@ pub fn query_state(deps: Deps) -> StdResult<StateResponse> {
 ///
 /// * **account** is an object of type [`String`]. This is the account whose allocation we query.
 fn query_allocation(deps: Deps, account: String) -> StdResult<AllocationResponse> {
-    let account_checked = addr_validate_to_lower(deps.api, account)?;
+    let account_checked = addr_validate_to_lower(deps.api, &account)?;
 
     Ok(AllocationResponse {
         params: PARAMS
@@ -715,7 +714,7 @@ fn query_allocation(deps: Deps, account: String) -> StdResult<AllocationResponse
 ///
 /// * **account** is an object of type [`String`]. This is the account whose unlocked token amount we query.
 fn query_tokens_unlocked(deps: Deps, env: Env, account: String) -> StdResult<Uint128> {
-    let account_checked = addr_validate_to_lower(deps.api, account)?;
+    let account_checked = addr_validate_to_lower(deps.api, &account)?;
 
     let params = PARAMS.load(deps.storage, &account_checked)?;
     let status = STATUS.load(deps.storage, &account_checked)?;
@@ -744,7 +743,7 @@ fn query_simulate_withdraw(
     account: String,
     timestamp: Option<u64>,
 ) -> StdResult<SimulateWithdrawResponse> {
-    let account_checked = addr_validate_to_lower(deps.api, account)?;
+    let account_checked = addr_validate_to_lower(deps.api, &account)?;
 
     let params = PARAMS.load(deps.storage, &account_checked)?;
     let mut status = STATUS.load(deps.storage, &account_checked)?;
@@ -783,7 +782,7 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> StdResult<Response>
 
                 let keys = STATUSV100
                     .keys(deps.storage, None, None, cosmwasm_std::Order::Ascending {})
-                    .map(|v| String::from_utf8(v).map_err(StdError::from))
+                    .map(|v| Ok(v?.to_string()))
                     .collect::<Result<Vec<String>, StdError>>()?;
 
                 for key in keys {

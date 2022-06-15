@@ -4,7 +4,7 @@ use crate::error::ContractError::MarketingInfoValidationError;
 use cosmwasm_std::StdError;
 use cw20::Logo;
 
-const SAFE_TEXT_CHARS: &str = "!&?#()*+'-./\"";
+const SAFE_TEXT_CHARS: &str = "!&?#()*+'-.,/\"";
 const SAFE_LINK_CHARS: &str = "-_:/?#@!$&()*+,;=.~[]'%";
 
 fn validate_text(text: &str, name: &str) -> Result<(), ContractError> {

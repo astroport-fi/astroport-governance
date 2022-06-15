@@ -4,7 +4,7 @@ use cosmwasm_std::{
 };
 use cw2::{get_contract_version, set_contract_version};
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20ReceiveMsg};
-use cw_storage_plus::{Bound, U64Key};
+use cw_storage_plus::Bound;
 use std::str::FromStr;
 
 use crate::astroport;
@@ -21,6 +21,7 @@ use astroport_governance::builder_unlock::msg::{
     AllocationResponse, QueryMsg as BuilderUnlockQueryMsg, StateResponse,
 };
 use astroport_governance::voting_escrow::{QueryMsg as VotingEscrowQueryMsg, VotingPowerResponse};
+use astroport_governance::U64Key;
 
 use crate::error::ContractError;
 use crate::migration::{migrate_proposals_to_v111, MigrateMsg};
@@ -33,6 +34,8 @@ const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 // Default pagination constants
 const DEFAULT_LIMIT: u32 = 10;
 const MAX_LIMIT: u32 = 30;
+const DEFAULT_VOTERS_LIMIT: u32 = 100;
+const MAX_VOTERS_LIMIT: u32 = 250;
 
 /// ## Description
 /// Creates a new contract with the specified parameters in the `msg` variable.
@@ -155,7 +158,7 @@ pub fn receive_cw20(
             link,
             messages,
         } => {
-            let sender = addr_validate_to_lower(deps.api, cw20_msg.sender)?;
+            let sender = addr_validate_to_lower(deps.api, &cw20_msg.sender)?;
             submit_proposal(
                 deps,
                 env,
@@ -754,7 +757,7 @@ pub fn query_proposal_voters(
     start: Option<u64>,
     limit: Option<u32>,
 ) -> StdResult<Vec<Addr>> {
-    let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT);
+    let limit = limit.unwrap_or(DEFAULT_VOTERS_LIMIT).min(MAX_VOTERS_LIMIT);
     let start = start.unwrap_or_default();
 
     let proposal = PROPOSALS.load(deps.storage, U64Key::from(proposal_id))?;

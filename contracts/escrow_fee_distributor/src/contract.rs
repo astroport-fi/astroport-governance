@@ -6,13 +6,14 @@ use cosmwasm_std::{
 };
 use cw2::set_contract_version;
 use cw20::Cw20ReceiveMsg;
-use cw_storage_plus::{Bound, PrimaryKey, U64Key};
+use cw_storage_plus::Bound;
 
 use astroport_governance::escrow_fee_distributor::{
     ConfigResponse, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg,
 };
 use astroport_governance::utils::{get_period, CLAIM_LIMIT, MIN_CLAIM_LIMIT};
 use astroport_governance::voting_escrow::{get_total_voting_power_at, get_voting_power_at};
+use astroport_governance::U64Key;
 
 use crate::astroport;
 use crate::astroport::asset::addr_opt_validate;
@@ -389,8 +390,7 @@ fn query_available_reward_per_week(
 ) -> StdResult<Vec<Uint128>> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
     let start = if let Some(timestamp) = start_after {
-        let bound = U64Key::from(get_period(timestamp)?).joined_key();
-        Some(Bound::Exclusive(bound))
+        Some(Bound::exclusive(U64Key::from(get_period(timestamp)?)))
     } else {
         None
     };

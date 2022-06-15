@@ -1,10 +1,11 @@
 use std::cmp::min;
 
-use cosmwasm_std::{to_binary, Addr, CosmosMsg, DepsMut, StdResult, Storage, Uint128, WasmMsg};
+use astroport_governance::U64Key;
+use cosmwasm_std::{
+    to_binary, Addr, CosmosMsg, DepsMut, StdError, StdResult, Storage, Uint128, WasmMsg,
+};
 use cw20::Cw20ExecuteMsg;
-use cw_storage_plus::U64Key;
 
-use astroport_governance::utils::CheckedMultiplyRatio;
 use astroport_governance::voting_escrow::{
     get_lock_info, QueryMsg as VotingQueryMsg, VotingPowerResponse, DEFAULT_PERIODS_LIMIT,
 };
@@ -60,7 +61,9 @@ pub(crate) fn calculate_reward(
         .may_load(storage, U64Key::from(period))?
         .unwrap_or_default();
 
-    user_vp.checked_multiply_ratio(rewards_per_week, total_vp)
+    user_vp
+        .checked_multiply_ratio(rewards_per_week, total_vp)
+        .map_err(|e| StdError::generic_err(format!("{:?}", e)))
 }
 
 /// ## Description
