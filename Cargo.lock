@@ -33,19 +33,6 @@ dependencies = [
 [[package]]
 name = "astroport"
 version = "2.0.0"
-source = "git+https://github.com/astroport-fi/astroport-core.git?branch=feat/update_main_to_cosmwasm_1.0.0#601cfbc96cd03180f59ed43ee39c1e1e834c73c5"
-dependencies = [
- "cosmwasm-std 1.0.0",
- "cw-storage-plus",
- "cw20",
- "schemars",
- "serde",
- "uint",
-]
-
-[[package]]
-name = "astroport"
-version = "2.0.0"
 source = "git+https://github.com/astroport-fi/astroport.git?branch=main#fec937ff517b4b1122f3bbf266c852ab56ae5cff"
 dependencies = [
  "cosmwasm-std 1.0.0",
@@ -108,7 +95,7 @@ version = "2.0.0"
 source = "git+https://github.com/astroport-fi/astroport-core.git?branch=main#fec937ff517b4b1122f3bbf266c852ab56ae5cff"
 dependencies = [
  "astroport 2.0.0 (git+https://github.com/astroport-fi/astroport-core.git?branch=main)",
- "astroport-governance 1.1.0 (git+https://github.com/astroport-fi/astroport-governance.git?branch=feat/main-terra2)",
+ "astroport-governance 1.1.0 (git+https://github.com/astroport-fi/astroport-governance.git?branch=main#4d4de2aac59eb7150b990aec781725cd3425f0c0)",
  "cosmwasm-std 1.0.0",
  "cw-storage-plus",
  "cw2",
@@ -134,9 +121,9 @@ dependencies = [
 [[package]]
 name = "astroport-governance"
 version = "1.1.0"
-source = "git+https://github.com/astroport-fi/astroport-governance.git?branch=feat/main-terra2#7847805e8dcd6f68b17ab0b6b2a433c78f6ba8d2"
+source = "git+https://github.com/astroport-fi/astroport-governance.git?branch=main#4d4de2aac59eb7150b990aec781725cd3425f0c0"
 dependencies = [
- "astroport 2.0.0 (git+https://github.com/astroport-fi/astroport-core.git?branch=feat/update_main_to_cosmwasm_1.0.0)",
+ "astroport 2.0.0 (git+https://github.com/astroport-fi/astroport-core.git?branch=main#fec937ff517b4b1122f3bbf266c852ab56ae5cff)",
  "cosmwasm-std 1.0.0",
  "cw-storage-plus",
  "cw20",
