@@ -26,7 +26,7 @@ thiserror = { version = "1.0.20" }
 [dev-dependencies]
 cosmwasm-schema = "1.0"
 cw-multi-test = "0.13"
-astroport-token = {git = "https://github.com/astroport-fi/astroport.git", branch = "main" }
+astroport-token = {git = "https://github.com/astroport-fi/astroport-core.git", branch = "main" }
 astroport-xastro-token = {git = "https://github.com/astroport-fi/astroport-core.git", branch = "main"}
 voting-escrow = { path= "../voting_escrow" }
 astroport-staking = {git = "https://github.com/astroport-fi/astroport-core.git", branch = "main" }
