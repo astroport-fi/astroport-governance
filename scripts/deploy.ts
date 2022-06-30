@@ -10,12 +10,6 @@ import {LCDClient} from '@terra-money/terra.js';
 
 const ARTIFACTS_PATH = '../artifacts'
 
-const BUILDER_UNLOCK_LABEL = "Astroport Builder Unlock"
-const ASSEMBLY_LABEL = "Astroport Assembly"
-const VOTING_ESCROW_LABEL = "Astroport Voting Escrow"
-const FEE_DISTRIBUTOR_LABEL = "Astroport Fee Distributor"
-const GENERATOR_CONTROLLER_LABEL = "Astroport Generator Controller"
-
 async function main() {
     const { terra, wallet } = newClient()
     console.log(`chainID: ${terra.config.chainID} wallet: ${wallet.key.accAddress}`)
@@ -51,7 +45,7 @@ async function deployGeneratorController(terra: LCDClient, wallet: any) {
     network.generatorControllerAddress = await deployContract(
         terra,
         wallet,
-        undefined,
+        network.multisigAddress,
         join(ARTIFACTS_PATH, 'generator_controller.wasm'),
         {
             "owner": network.assemblyAddress,
@@ -60,7 +54,7 @@ async function deployGeneratorController(terra: LCDClient, wallet: any) {
             "factory_addr": network.factoryAddress,
             "pools_limit": 12,
         },
-        GENERATOR_CONTROLLER_LABEL
+        "Astroport Generator Controller Contract"
     )
 
     console.log("Generator controller: ", network.generatorControllerAddress)
@@ -82,7 +76,7 @@ async function deployFeeDistributor(terra: LCDClient, wallet: any) {
     network.feeDistributorAddress = await deployContract(
         terra,
         wallet,
-        undefined,
+        network.multisigAddress,
         join(ARTIFACTS_PATH, 'astroport_escrow_fee_distributor.wasm'),
         {
             "owner": network.assemblyAddress,
@@ -91,7 +85,7 @@ async function deployFeeDistributor(terra: LCDClient, wallet: any) {
             "is_claim_disabled": false,
             "claim_many_limit": 12,
         },
-        FEE_DISTRIBUTOR_LABEL
+        "Astroport Escrow Fee Distributor Contract"
     )
 
     console.log("fee distributor: ", network.feeDistributorAddress)
@@ -113,7 +107,7 @@ async function deployVotingEscrow(terra: LCDClient, wallet: any) {
     network.votingEscrowAddress = await deployContract(
         terra,
         wallet,
-        undefined,
+        network.multisigAddress,
         join(ARTIFACTS_PATH, 'voting_escrow.wasm'),
         {
             "owner": network.assemblyAddress,
@@ -131,7 +125,7 @@ async function deployVotingEscrow(terra: LCDClient, wallet: any) {
             "slashed_fund_receiver": network.feeDistributorAddress,
             "logo_urls_whitelist": ["https://astroport.fi/vxastro_logo.png", ]
         },
-        VOTING_ESCROW_LABEL
+        "Astroport Voting Escrow Contract"
     )
 
     console.log("votingEscrow", network.votingEscrowAddress)
@@ -150,14 +144,14 @@ async function deployTeamUnlock(terra: LCDClient, wallet: any) {
     network.builderUnlockAddress = await deployContract(
         terra,
         wallet,
-        undefined,
+        network.multisigAddress,
         join(ARTIFACTS_PATH, 'builder_unlock.wasm'),
         {
             "owner": wallet.key.accAddress,
             "astro_token": network.tokenAddress,
             "max_allocations_amount": String(300_000_000_000000)
         },
-        BUILDER_UNLOCK_LABEL
+        "Astroport Builder Unlocking Contract"
     )
 
     console.log("builderUnlockAddress", network.builderUnlockAddress)
@@ -233,7 +227,7 @@ async function deployAssembly(terra: LCDClient, wallet: any) {
     network.assemblyAddress = await deployContract(
         terra,
         wallet,
-        undefined,
+        network.multisigAddress,
         join(ARTIFACTS_PATH, 'astro_assembly.wasm'),
         {
             "xastro_token_addr": network.xastroAddress,
@@ -246,7 +240,7 @@ async function deployAssembly(terra: LCDClient, wallet: any) {
             "proposal_required_threshold": '0.50',   // 50%
             "whitelisted_links": ["https://forum.astroport.fi/", "http://forum.astroport.fi/", "https://astroport.fi/", "http://astroport.fi/"]
         },
-        ASSEMBLY_LABEL
+        "Astroport Assembly Contract"
     )
 
     console.log("assemblyAddress", network.assemblyAddress)
