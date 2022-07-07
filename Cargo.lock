@@ -100,6 +100,7 @@ dependencies = [
  "astroport",
  "cosmwasm-std 1.0.0",
  "cw-storage-plus",
+ "cw-utils",
  "cw20",
  "schemars",
  "serde",
@@ -116,6 +117,21 @@ dependencies = [
  "cw20",
  "schemars",
  "serde",
+]
+
+[[package]]
+name = "astroport-nft"
+version = "1.0.0"
+dependencies = [
+ "cosmwasm-schema",
+ "cosmwasm-std 1.0.0",
+ "cw-storage-plus",
+ "cw-utils",
+ "cw2",
+ "cw721",
+ "schemars",
+ "serde",
+ "thiserror",
 ]
 
 [[package]]
@@ -589,6 +605,18 @@ dependencies = [
  "schemars",
  "serde",
  "thiserror",
+]
+
+[[package]]
+name = "cw721"
+version = "0.13.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "72b9fd71276795554c35899bb3a378561ed0c288d231113e9915f6ee1f42b7b5"
+dependencies = [
+ "cosmwasm-std 1.0.0",
+ "cw-utils",
+ "schemars",
+ "serde",
 ]
 
 [[package]]
@@ -1442,6 +1470,26 @@ dependencies = [
  "cw20",
  "cw20-base",
  "proptest",
+ "schemars",
+ "serde",
+ "thiserror",
+]
+
+[[package]]
+name = "voting-escrow-delegation"
+version = "1.0.0"
+dependencies = [
+ "astroport-governance 1.1.0",
+ "astroport-nft",
+ "cosmwasm-schema",
+ "cosmwasm-std 1.0.0",
+ "cosmwasm-storage",
+ "cw-multi-test",
+ "cw-storage-plus",
+ "cw-utils",
+ "cw2",
+ "cw721",
+ "prost",
  "schemars",
  "serde",
  "thiserror",
