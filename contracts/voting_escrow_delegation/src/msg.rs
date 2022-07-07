@@ -28,6 +28,6 @@ pub enum ExecuteMsg {
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
     Config {},
-    AdjustedBalance {},
-    AdjustedBalanceAt { period: u64 },
+    AdjustedBalance { account: String },
+    AdjustedBalanceAt { account: String, period: u64 },
 }

@@ -166,7 +166,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
                 voting_escrow_addr: config.voting_escrow_addr,
             })
         }
-        QueryMsg::AdjustedBalance {} => to_binary(&Uint128::zero()),
+        QueryMsg::AdjustedBalance { .. } => to_binary(&Uint128::zero()),
         QueryMsg::AdjustedBalanceAt { .. } => to_binary(&Uint128::zero()),
     }
 }
