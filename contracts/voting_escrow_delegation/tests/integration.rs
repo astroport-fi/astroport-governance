@@ -101,9 +101,6 @@ mod tests {
         #[test]
         fn mint() {
             let (mut app, cw_template_contract, cw_nft_template_id_inside) = proper_instantiate();
-            let cw_nft_template_id = app.store_code(contract_nft_template());
-            let cw_nft_template_id2 = app.store_code(contract_nft_template());
-            let cw_nft_template_id3 = app.store_code(contract_nft_template());
 
             let msg = QueryMsg::Config {};
             let res = app
@@ -118,7 +115,7 @@ mod tests {
                 cw_template_contract.clone(),
                 res.nft_token_addr.clone(),
                 &ExecuteMsgNFT::Mint(MintMsg::<Extension> {
-                    token_id: cw_nft_template_id.to_string(),
+                    token_id: "cw_nft_template_id".to_string(),
                     owner: USER.to_string(),
                     token_uri: None,
                     extension: None,
@@ -135,6 +132,7 @@ mod tests {
                 }))
                 .unwrap();
             assert_eq!(1, resp.count);
+
             let resp = app
                 .wrap()
                 .query::<ContractInfoResponse>(&QueryRequest::Wasm(WasmQuery::Smart {
@@ -157,13 +155,12 @@ mod tests {
                     .unwrap(),
                 }))
                 .unwrap();
-            assert_eq!(vec!["3"], resp.tokens);
 
             app.execute_contract(
                 cw_template_contract.clone(),
                 res.nft_token_addr.clone(),
                 &ExecuteMsgNFT::Mint(MintMsg::<Extension> {
-                    token_id: cw_nft_template_id2.to_string(),
+                    token_id: "cw_nft_template_id2".to_string(),
                     owner: USER.to_string(),
                     token_uri: None,
                     extension: None,
@@ -176,7 +173,7 @@ mod tests {
                 cw_template_contract.clone(),
                 res.nft_token_addr.clone(),
                 &ExecuteMsgNFT::Mint(MintMsg::<Extension> {
-                    token_id: cw_nft_template_id_inside.to_string(),
+                    token_id: "cw_nft_template_id_inside".to_string(),
                     owner: USER.to_string(),
                     token_uri: None,
                     extension: None,
@@ -189,7 +186,7 @@ mod tests {
                 cw_template_contract.clone(),
                 res.nft_token_addr.clone(),
                 &ExecuteMsgNFT::Mint(MintMsg::<Extension> {
-                    token_id: cw_nft_template_id3.to_string(),
+                    token_id: "cw_nft_template_id3".to_string(),
                     owner: USER.to_string(),
                     token_uri: None,
                     extension: None,
@@ -219,7 +216,15 @@ mod tests {
                     .unwrap(),
                 }))
                 .unwrap();
-            assert_eq!(vec!["2", "3", "4", "5"], resp.tokens);
+            assert_eq!(
+                vec![
+                    "cw_nft_template_id",
+                    "cw_nft_template_id2",
+                    "cw_nft_template_id3",
+                    "cw_nft_template_id_inside",
+                ],
+                resp.tokens
+            );
         }
     }
 }

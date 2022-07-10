@@ -22,6 +22,13 @@ pub enum ExecuteMsg {
         expire_time: u64,
         id: Uint128,
     },
+    CreateDelegation {
+        receiver: String,
+        percentage: Uint128,
+        cancel_time: u64,
+        expire_time: u64,
+        id: Uint128,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema)]
@@ -29,5 +36,5 @@ pub enum ExecuteMsg {
 pub enum QueryMsg {
     Config {},
     AdjustedBalance { account: String },
-    AdjustedBalanceAt { account: String, period: u64 },
+    AdjustedBalanceAt { account: String, timestamp: u64 },
 }

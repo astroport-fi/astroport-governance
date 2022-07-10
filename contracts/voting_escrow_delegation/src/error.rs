@@ -24,4 +24,10 @@ pub enum ContractError {
 
     #[error("The delegation period must be at least a week and not more than a user lock period.")]
     DelegationPeriodError {},
+
+    #[error("The percentage range must be from 0 to 100.")]
+    PercentageError {},
+
+    #[error("Cancel time cannot be greater then expire time.")]
+    CancelTimeWrong {},
 }
