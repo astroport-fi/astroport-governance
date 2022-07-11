@@ -15,12 +15,9 @@ pub struct InstantiateMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
-    DelegateVxAstro {
+    DelegateVotingPower {
         receiver: String,
-        percentage: Uint128,
-        cancel_time: u64,
-        expire_time: u64,
-        id: String,
+        token_id: String,
     },
     CreateDelegation {
         percentage: Uint128,

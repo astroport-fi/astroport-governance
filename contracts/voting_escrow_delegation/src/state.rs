@@ -38,7 +38,7 @@ pub struct Point {
     pub slope: Uint128,
 }
 
-pub const TOKENS: Map<String, Token> = Map::new("tokens");
+pub const NFT_TOKENS: Map<String, Token> = Map::new("tokens");
 
 /// ## Description
 /// Stores all user lock history

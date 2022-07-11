@@ -15,7 +15,7 @@ use cw_utils::parse_reply_instantiate_data;
 
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
-use crate::state::{Config, Token, CONFIG, DELEGATED, TOKENS};
+use crate::state::{Config, Token, CONFIG, DELEGATED, NFT_TOKENS, RECEIVED};
 
 use astroport_nft::msg::{ExecuteMsg as ExecuteMsgNFT, InstantiateMsg as InstantiateMsgNFT};
 
@@ -79,22 +79,9 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::DelegateVxAstro {
-            receiver,
-            percentage,
-            cancel_time,
-            expire_time,
-            id,
-        } => delegate_vx_astro(
-            deps,
-            env,
-            info,
-            receiver,
-            percentage,
-            cancel_time,
-            expire_time,
-            id,
-        ),
+        ExecuteMsg::DelegateVotingPower { receiver, token_id } => {
+            delegate_voting_power(deps, env, receiver, token_id)
+        }
         ExecuteMsg::CreateDelegation {
             percentage,
             cancel_time,
@@ -138,7 +125,7 @@ pub fn create_delegation(
     token_id: String,
 ) -> Result<Response, ContractError> {
     // We can create only one NFT token for specify token ID
-    if TOKENS.has(deps.storage, token_id.clone()) {
+    if NFT_TOKENS.has(deps.storage, token_id.clone()) {
         return Err(ContractError::DelegateTokenAlreadyExists(token_id));
     }
 
@@ -185,7 +172,7 @@ pub fn create_delegation(
     };
 
     // create a new delegation NFT token
-    TOKENS.save(deps.storage, token_id.clone(), &delegate_token_info)?;
+    NFT_TOKENS.save(deps.storage, token_id.clone(), &delegate_token_info)?;
 
     DELEGATED.update(
         deps.storage,
@@ -200,10 +187,7 @@ pub fn create_delegation(
                 Ok(token)
             } else {
                 Ok(Token {
-                    bias: delegate_token_info.bias,
-                    slope: delegate_token_info.slope,
-                    start: delegate_token_info.start,
-                    expire_period: delegate_token_info.expire_period,
+                    ..delegate_token_info
                 })
             }
         },
@@ -250,40 +234,46 @@ fn calc_delegate_bias_slope(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub fn delegate_vx_astro(
+pub fn delegate_voting_power(
     deps: DepsMut,
     env: Env,
-    info: MessageInfo,
     receiver: String,
-    _percentage: Uint128,
-    _cancel_time: u64,
-    expire_time: u64,
-    _id: String,
+    token_id: String,
 ) -> Result<Response, ContractError> {
-    let delegator = info.sender;
-    let _receiver_addr = addr_validate_to_lower(deps.api, receiver)?;
-
+    let receiver_addr = addr_validate_to_lower(deps.api, receiver)?;
     let config = CONFIG.load(deps.storage)?;
-    let delegator_vp = get_voting_power(&deps.querier, &config.voting_escrow_addr, &delegator)?;
-
-    if delegator_vp.is_zero() {
-        return Err(ContractError::ZeroVotingPower {});
-    }
-
-    let delegator_lock = get_lock_info(&deps.querier, &config.voting_escrow_addr, &delegator)?;
     let block_period = get_period(env.block.time.seconds())?;
-    let expire_period = get_period(expire_time)?;
 
-    // vxASTRO delegation must be at least WEEK and no more then lock end period
-    if (expire_period <= block_period) || (expire_period > delegator_lock.end) {
-        return Err(ContractError::DelegationPeriodError {});
-    }
+    let token_to_transfer = NFT_TOKENS.load(deps.storage, token_id.clone())?;
 
-    // check if token not exists
+    RECEIVED.update(
+        deps.storage,
+        (receiver_addr.clone(), U64Key::new(block_period)),
+        env.block.height,
+        |token| -> StdResult<Token> {
+            if let Some(mut token) = token {
+                token.bias += token_to_transfer.bias;
+                token.slope = token_to_transfer.slope;
+                token.expire_period = token_to_transfer.expire_period;
+                Ok(token)
+            } else {
+                Ok(Token {
+                    ..token_to_transfer
+                })
+            }
+        },
+    )?;
 
-    // delegate vxAstro to recipient
-
-    Ok(Response::default().add_attribute("action", "delegate_vx_astro"))
+    Ok(Response::default()
+        .add_attribute("action", "delegate_voting_power")
+        .add_submessage(SubMsg::new(WasmMsg::Execute {
+            contract_addr: config.nft_token_addr.to_string(),
+            msg: to_binary(&ExecuteMsgNFT::<Extension>::TransferNft {
+                recipient: receiver_addr.to_string(),
+                token_id,
+            })?,
+            funds: vec![],
+        })))
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -362,10 +352,10 @@ fn adjusted_balance(
     };
 
     let nft_helper = astroport_nft::helpers::Cw721Contract(config.nft_token_addr);
-    let tokens = nft_helper.tokens(&deps.querier, account_addr, start_after, limit)?;
+    let tokens_resp = nft_helper.tokens(&deps.querier, account_addr, start_after, limit)?;
 
-    for token_id in tokens.tokens {
-        if let Some(token) = TOKENS.may_load(deps.storage, token_id)? {
+    for token_id in tokens_resp.tokens {
+        if let Some(token) = NFT_TOKENS.may_load(deps.storage, token_id)? {
             if token.start <= block_period && token.expire_period >= block_period {
                 let calc_vp = calc_delegate_vp(token, block_period)?;
                 total_vp += calc_vp;
@@ -375,13 +365,3 @@ fn adjusted_balance(
 
     Ok(total_vp)
 }
-
-// fn update_delegated_vp(
-//     deps: Deps,
-//     env: Env,
-//     account: String,
-//     time: Option<u64>,
-//     start_after: Option<String>,
-//     limit: Option<u32>,
-// ) -> StdResult<Uint128> {
-// }

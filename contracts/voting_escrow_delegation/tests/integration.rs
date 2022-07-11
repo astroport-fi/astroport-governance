@@ -76,18 +76,6 @@ mod tests {
         });
 
         app
-        // let mut env = mock_env();
-        // env.block.time = Timestamp::from_seconds(EPOCH_START);
-        // let api = MockApi::default();
-        // let bank = BankKeeper::new();
-        // let storage = MockStorage::new();
-        //
-        // AppBuilder::new()
-        //     .with_api(api)
-        //     .with_block(env.block)
-        //     .with_bank(bank)
-        //     .with_storage(storage)
-        //     .build(|_, _, _| {})
     }
 
     fn proper_instantiate() -> (App, DelegatorHelper) {
