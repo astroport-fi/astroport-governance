@@ -30,4 +30,13 @@ pub enum ContractError {
 
     #[error("Cancel time cannot be greater then expire time.")]
     CancelTimeWrong {},
+
+    #[error("Expired lock period")]
+    ExpiredLockPeriod {},
+
+    #[error("A delegation with a token {0} already exists.")]
+    DelegateTokenAlreadyExists(String),
+
+    #[error("The {0} address is blacklisted")]
+    AddressBlacklisted(String),
 }

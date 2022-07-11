@@ -1481,6 +1481,7 @@ version = "1.0.0"
 dependencies = [
  "astroport-governance 1.1.0",
  "astroport-nft",
+ "astroport-tests",
  "cosmwasm-schema",
  "cosmwasm-std 1.0.0",
  "cosmwasm-storage",
@@ -1488,6 +1489,7 @@ dependencies = [
  "cw-storage-plus",
  "cw-utils",
  "cw2",
+ "cw20",
  "cw721",
  "prost",
  "schemars",

@@ -22,9 +22,6 @@ pub const CONFIG: Item<Config> = Item::new("config");
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema)]
 pub struct DelegateVP {
     pub delegated: Uint128,
-    pub received: Uint128,
-    pub delegated_expire_time: u64,
-    pub received_expire_time: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema)]
@@ -32,7 +29,9 @@ pub struct Token {
     pub bias: Uint128,
     pub slope: Uint128,
     pub percentage: Uint128,
+    pub start: u64,
     pub expire_period: u64,
+    pub delegator: Addr,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema)]
@@ -42,6 +41,8 @@ pub struct Point {
 }
 
 pub const TOKENS: Map<String, Token> = Map::new("tokens");
+pub const RECEIVED_VP: Map<(Addr, U64Key), Uint128> = Map::new("received_vp");
+pub const TOTAL_DELEGATED_VP: Map<Addr, DelegateVP> = Map::new("delegated_vp");
 
 /// ## Description
 /// Stores all user lock history

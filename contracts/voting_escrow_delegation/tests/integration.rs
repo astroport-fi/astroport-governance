@@ -1,10 +1,12 @@
 #[cfg(test)]
 mod tests {
-    use cosmwasm_std::{Addr, Coin, Empty, Uint128};
-    use cw_multi_test::{App, AppBuilder, Contract, ContractWrapper, Executor};
-    use voting_escrow_delegation::msg::InstantiateMsg;
+    use astroport_governance::utils::EPOCH_START;
+    use astroport_tests::escrow_helper::EscrowHelper;
+    use cosmwasm_std::{to_binary, Addr, Empty, QueryRequest, WasmQuery};
+    use cw_multi_test::{App, Contract, ContractWrapper, Executor};
+    use voting_escrow_delegation::{msg, state};
 
-    pub fn contract_template() -> Box<dyn Contract<Empty>> {
+    pub fn contract_escrow_delegation_template() -> Box<dyn Contract<Empty>> {
         let contract = ContractWrapper::new_with_empty(
             voting_escrow_delegation::contract::execute,
             voting_escrow_delegation::contract::instantiate,
@@ -25,97 +27,147 @@ mod tests {
 
     const USER: &str = "user";
     const ADMIN: &str = "admin";
-    const NATIVE_DENOM: &str = "denom";
 
-    fn mock_app() -> App {
-        AppBuilder::new().build(|router, _, storage| {
-            router
-                .bank
-                .init_balance(
-                    storage,
-                    &Addr::unchecked(USER),
-                    vec![Coin {
-                        denom: NATIVE_DENOM.to_string(),
-                        amount: Uint128::new(1),
-                    }],
-                )
-                .unwrap();
-        })
+    pub struct DelegatorHelper {
+        pub escrow_helper: EscrowHelper,
+        pub delegation_instance: Addr,
+        pub nft_instance: Addr,
     }
 
-    fn proper_instantiate() -> (App, Addr, u64) {
-        let mut app = mock_app();
-        let cw_template_id = app.store_code(contract_template());
-        let cw_nft_template_id = app.store_code(contract_nft_template());
-
-        let msg = InstantiateMsg {
-            owner: ADMIN.to_string(),
-            nft_token_code_id: cw_nft_template_id,
-            voting_escrow_addr: "voting_escrow_addr".to_string(),
-        };
-        let cw_template_contract_addr = app
+    fn instantiate_delegation(
+        router: &mut App,
+        escrow_addr: Addr,
+        delegation_id: u64,
+        nft_id: u64,
+    ) -> (Addr, Addr) {
+        let delegation_addr = router
             .instantiate_contract(
-                cw_template_id,
-                Addr::unchecked(ADMIN),
-                &msg,
+                delegation_id,
+                Addr::unchecked(ADMIN.to_string()),
+                &msg::InstantiateMsg {
+                    owner: ADMIN.to_string(),
+                    nft_token_code_id: nft_id,
+                    voting_escrow_addr: escrow_addr.to_string(),
+                },
                 &[],
-                "test",
+                String::from("Astroport Escrow Delegation"),
                 None,
             )
             .unwrap();
 
-        (app, cw_template_contract_addr, cw_nft_template_id)
+        let res = router
+            .wrap()
+            .query::<state::Config>(&QueryRequest::Wasm(WasmQuery::Smart {
+                contract_addr: delegation_addr.to_string(),
+                msg: to_binary(&msg::QueryMsg::Config {}).unwrap(),
+            }))
+            .unwrap();
+
+        (delegation_addr, res.nft_token_addr)
+    }
+
+    fn mock_app() -> App {
+        let mut app = App::new(|_router, _, _| {});
+
+        app.update_block(|bi| {
+            bi.time = bi.time.plus_seconds(EPOCH_START);
+            bi.height += 1;
+            bi.chain_id = "cosm-wasm-test".to_string();
+        });
+
+        app
+    }
+
+    fn proper_instantiate() -> (App, DelegatorHelper) {
+        let mut router = mock_app();
+        let helper = EscrowHelper::init(&mut router, Addr::unchecked(ADMIN));
+
+        let delegation_id = router.store_code(contract_escrow_delegation_template());
+        let nft_id = router.store_code(contract_nft_template());
+
+        let (delegation_addr, nft_addr) = instantiate_delegation(
+            &mut router,
+            helper.escrow_instance.clone(),
+            delegation_id,
+            nft_id,
+        );
+
+        (
+            router,
+            DelegatorHelper {
+                escrow_helper: helper,
+                delegation_instance: delegation_addr,
+                nft_instance: nft_addr,
+            },
+        )
     }
 
     mod queries {
         use super::*;
-        use astroport_nft::QueryMsg::ContractInfo;
-        use astroport_nft::{
-            helpers as nft_helpers, ExecuteMsg as ExecuteMsgNFT, Extension, MintMsg,
-            QueryMsg as QueryMsgNFT,
-        };
-        use cosmwasm_std::{to_binary, QuerierWrapper, QueryRequest, WasmQuery};
-        use cw721::{ContractInfoResponse, NumTokensResponse, TokensResponse};
-        use std::borrow::Borrow;
-        use voting_escrow_delegation::msg::{ExecuteMsg, QueryMsg};
-        use voting_escrow_delegation::state::Config;
+        use cosmwasm_std::{to_binary, QueryRequest, WasmQuery};
 
         #[test]
         fn config() {
-            let (app, cw_template_contract, _) = proper_instantiate();
+            let (app, delegator_helper) = proper_instantiate();
 
-            let msg = QueryMsg::Config {};
             let res = app
                 .wrap()
-                .query::<Config>(&QueryRequest::Wasm(WasmQuery::Smart {
-                    contract_addr: cw_template_contract.to_string(),
-                    msg: to_binary(&msg).unwrap(),
+                .query::<state::Config>(&QueryRequest::Wasm(WasmQuery::Smart {
+                    contract_addr: delegator_helper.delegation_instance.to_string(),
+                    msg: to_binary(&msg::QueryMsg::Config {}).unwrap(),
                 }))
                 .unwrap();
 
-            assert_eq!("voting_escrow_addr", res.voting_escrow_addr.to_string());
             assert_eq!("admin", res.owner.to_string());
-            assert_eq!("contract1", res.nft_token_addr.to_string())
         }
+    }
+
+    mod executes {
+        use super::*;
+        use astroport_governance::utils::get_period;
+        use astroport_nft::{
+            ExecuteMsg as ExecuteMsgNFT, Extension, MintMsg, QueryMsg as QueryMsgNFT,
+        };
+        use cosmwasm_std::{to_binary, QueryRequest, Uint128, WasmQuery};
+        use cw721::{ContractInfoResponse, NumTokensResponse, TokensResponse};
+        use voting_escrow_delegation::msg::{ExecuteMsg, QueryMsg};
 
         #[test]
         fn mint() {
-            let (mut app, cw_template_contract, cw_nft_template_id_inside) = proper_instantiate();
+            let (mut app, delegator_helper) = proper_instantiate();
 
-            let msg = QueryMsg::Config {};
-            let res = app
+            let resp = app
                 .wrap()
-                .query::<Config>(&QueryRequest::Wasm(WasmQuery::Smart {
-                    contract_addr: cw_template_contract.to_string(),
-                    msg: to_binary(&msg).unwrap(),
+                .query::<ContractInfoResponse>(&QueryRequest::Wasm(WasmQuery::Smart {
+                    contract_addr: delegator_helper.nft_instance.to_string(),
+                    msg: to_binary(&QueryMsgNFT::ContractInfo {}).unwrap(),
                 }))
                 .unwrap();
+            assert_eq!("Astroport NFT", resp.name);
+            assert_eq!("ASTRO-NFT", resp.symbol);
 
+            // try to mint from random
+            let err = app
+                .execute_contract(
+                    Addr::unchecked("random"),
+                    delegator_helper.nft_instance.clone(),
+                    &ExecuteMsgNFT::Mint(MintMsg::<Extension> {
+                        token_id: "token_1".to_string(),
+                        owner: USER.to_string(),
+                        token_uri: None,
+                        extension: None,
+                    }),
+                    &[],
+                )
+                .unwrap_err();
+            assert_eq!("Unauthorized", err.root_cause().to_string());
+
+            // try to mint from owner
             app.execute_contract(
-                cw_template_contract.clone(),
-                res.nft_token_addr.clone(),
+                delegator_helper.delegation_instance.clone(),
+                delegator_helper.nft_instance.clone(),
                 &ExecuteMsgNFT::Mint(MintMsg::<Extension> {
-                    token_id: "cw_nft_template_id".to_string(),
+                    token_id: "token_1".to_string(),
                     owner: USER.to_string(),
                     token_uri: None,
                     extension: None,
@@ -127,7 +179,7 @@ mod tests {
             let resp = app
                 .wrap()
                 .query::<NumTokensResponse>(&QueryRequest::Wasm(WasmQuery::Smart {
-                    contract_addr: res.nft_token_addr.to_string(),
+                    contract_addr: delegator_helper.nft_instance.to_string(),
                     msg: to_binary(&QueryMsgNFT::NumTokens {}).unwrap(),
                 }))
                 .unwrap();
@@ -135,18 +187,8 @@ mod tests {
 
             let resp = app
                 .wrap()
-                .query::<ContractInfoResponse>(&QueryRequest::Wasm(WasmQuery::Smart {
-                    contract_addr: res.nft_token_addr.to_string(),
-                    msg: to_binary(&QueryMsgNFT::ContractInfo {}).unwrap(),
-                }))
-                .unwrap();
-            assert_eq!("Astroport NFT", resp.name);
-            assert_eq!("ASTRO-NFT", resp.symbol);
-
-            let resp = app
-                .wrap()
                 .query::<TokensResponse>(&QueryRequest::Wasm(WasmQuery::Smart {
-                    contract_addr: res.nft_token_addr.to_string(),
+                    contract_addr: delegator_helper.nft_instance.to_string(),
                     msg: to_binary(&QueryMsgNFT::Tokens {
                         owner: USER.to_string(),
                         start_after: None,
@@ -155,75 +197,30 @@ mod tests {
                     .unwrap(),
                 }))
                 .unwrap();
+            assert_eq!(vec!["token_1",], resp.tokens);
+        }
 
-            app.execute_contract(
-                cw_template_contract.clone(),
-                res.nft_token_addr.clone(),
-                &ExecuteMsgNFT::Mint(MintMsg::<Extension> {
-                    token_id: "cw_nft_template_id2".to_string(),
-                    owner: USER.to_string(),
-                    token_uri: None,
-                    extension: None,
-                }),
-                &[],
-            )
-            .unwrap();
+        #[test]
+        fn create_delegation() {
+            let (mut app, delegator_helper) = proper_instantiate();
 
-            app.execute_contract(
-                cw_template_contract.clone(),
-                res.nft_token_addr.clone(),
-                &ExecuteMsgNFT::Mint(MintMsg::<Extension> {
-                    token_id: "cw_nft_template_id_inside".to_string(),
-                    owner: USER.to_string(),
-                    token_uri: None,
-                    extension: None,
-                }),
-                &[],
-            )
-            .unwrap();
-
-            app.execute_contract(
-                cw_template_contract.clone(),
-                res.nft_token_addr.clone(),
-                &ExecuteMsgNFT::Mint(MintMsg::<Extension> {
-                    token_id: "cw_nft_template_id3".to_string(),
-                    owner: USER.to_string(),
-                    token_uri: None,
-                    extension: None,
-                }),
-                &[],
-            )
-            .unwrap();
-
-            let resp = app
-                .wrap()
-                .query::<NumTokensResponse>(&QueryRequest::Wasm(WasmQuery::Smart {
-                    contract_addr: res.nft_token_addr.to_string(),
-                    msg: to_binary(&QueryMsgNFT::NumTokens {}).unwrap(),
-                }))
-                .unwrap();
-            assert_eq!(4, resp.count);
-
-            let resp = app
-                .wrap()
-                .query::<TokensResponse>(&QueryRequest::Wasm(WasmQuery::Smart {
-                    contract_addr: res.nft_token_addr.to_string(),
-                    msg: to_binary(&QueryMsgNFT::Tokens {
-                        owner: USER.to_string(),
-                        start_after: None,
-                        limit: None,
-                    })
-                    .unwrap(),
-                }))
-                .unwrap();
+            // try to mint from random
+            let err = app
+                .execute_contract(
+                    Addr::unchecked("random"),
+                    delegator_helper.delegation_instance.clone(),
+                    &ExecuteMsg::CreateDelegation {
+                        percentage: Uint128::new(50),
+                        cancel_time: 0,
+                        expire_time: get_period(app.block_info().time.seconds()).unwrap() + 10u64,
+                        id: "token_1".to_string(),
+                    },
+                    &[],
+                )
+                .unwrap_err();
             assert_eq!(
-                vec![
-                    "cw_nft_template_id",
-                    "cw_nft_template_id2",
-                    "cw_nft_template_id3",
-                    "cw_nft_template_id_inside",
-                ],
-                resp.tokens
+                "You can't delegate with zero voting power",
+                err.root_cause().to_string()
             );
         }
     }

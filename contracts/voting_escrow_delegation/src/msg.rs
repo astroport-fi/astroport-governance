@@ -20,14 +20,13 @@ pub enum ExecuteMsg {
         percentage: Uint128,
         cancel_time: u64,
         expire_time: u64,
-        id: Uint128,
+        id: String,
     },
     CreateDelegation {
-        receiver: String,
         percentage: Uint128,
         cancel_time: u64,
         expire_time: u64,
-        id: Uint128,
+        id: String,
     },
 }
 

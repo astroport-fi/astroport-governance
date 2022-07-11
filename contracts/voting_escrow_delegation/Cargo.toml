@@ -34,8 +34,11 @@ thiserror = { version = "1.0.31" }
 astroport-governance = { path = "../../packages/astroport-governance" }
 astroport-nft = { path = "../nft"}
 
+
 [dev-dependencies]
 cosmwasm-schema = "1.0.0"
 cw-multi-test = "0.13"
 prost = "0.9"
 cw721 = "0.13"
+cw20 = "0.13"
+astroport-tests = {path = "../../packages/astroport-tests"}
