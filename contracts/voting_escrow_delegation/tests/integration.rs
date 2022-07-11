@@ -76,6 +76,18 @@ mod tests {
         });
 
         app
+        // let mut env = mock_env();
+        // env.block.time = Timestamp::from_seconds(EPOCH_START);
+        // let api = MockApi::default();
+        // let bank = BankKeeper::new();
+        // let storage = MockStorage::new();
+        //
+        // AppBuilder::new()
+        //     .with_api(api)
+        //     .with_block(env.block)
+        //     .with_bank(bank)
+        //     .with_storage(storage)
+        //     .build(|_, _, _| {})
     }
 
     fn proper_instantiate() -> (App, DelegatorHelper) {
@@ -105,12 +117,13 @@ mod tests {
     mod queries {
         use super::*;
         use cosmwasm_std::{to_binary, QueryRequest, WasmQuery};
+        use voting_escrow_delegation::contract::create_delegation;
 
         #[test]
         fn config() {
-            let (app, delegator_helper) = proper_instantiate();
+            let (router, delegator_helper) = proper_instantiate();
 
-            let res = app
+            let res = router
                 .wrap()
                 .query::<state::Config>(&QueryRequest::Wasm(WasmQuery::Smart {
                     contract_addr: delegator_helper.delegation_instance.to_string(),
@@ -124,12 +137,15 @@ mod tests {
 
     mod executes {
         use super::*;
-        use astroport_governance::utils::get_period;
+        use astroport_governance::utils::{get_period, WEEK};
+        use astroport_governance::voting_escrow::get_lock_info;
         use astroport_nft::{
             ExecuteMsg as ExecuteMsgNFT, Extension, MintMsg, QueryMsg as QueryMsgNFT,
         };
+        use astroport_tests::TerraAppExtension;
         use cosmwasm_std::{to_binary, QueryRequest, Uint128, WasmQuery};
-        use cw721::{ContractInfoResponse, NumTokensResponse, TokensResponse};
+        use cw721::{ContractInfoResponse, Cw721ExecuteMsg, NumTokensResponse, TokensResponse};
+        use cw_multi_test::next_block;
         use voting_escrow_delegation::msg::{ExecuteMsg, QueryMsg};
 
         #[test]
@@ -202,17 +218,20 @@ mod tests {
 
         #[test]
         fn create_delegation() {
-            let (mut app, delegator_helper) = proper_instantiate();
+            let (mut router, delegator_helper) = proper_instantiate();
+            let router_ref = &mut router;
+            let nft_helper =
+                astroport_nft::helpers::Cw721Contract(delegator_helper.nft_instance.clone());
 
-            // try to mint from random
-            let err = app
+            // try to mint from user
+            let err = router_ref
                 .execute_contract(
-                    Addr::unchecked("random"),
+                    Addr::unchecked("user"),
                     delegator_helper.delegation_instance.clone(),
                     &ExecuteMsg::CreateDelegation {
                         percentage: Uint128::new(50),
-                        cancel_time: 0,
-                        expire_time: get_period(app.block_info().time.seconds()).unwrap() + 10u64,
+                        cancel_time: WEEK,
+                        expire_time: WEEK,
                         id: "token_1".to_string(),
                     },
                     &[],
@@ -222,6 +241,168 @@ mod tests {
                 "You can't delegate with zero voting power",
                 err.root_cause().to_string()
             );
+
+            // Mint ASTRO, stake it and mint xASTRO
+            delegator_helper
+                .escrow_helper
+                .mint_xastro(router_ref, "user", 100);
+            delegator_helper
+                .escrow_helper
+                .check_xastro_balance(router_ref, "user", 100);
+
+            // Create valid voting escrow lock
+            delegator_helper
+                .escrow_helper
+                .create_lock(router_ref, "user", WEEK * 2, 90f32)
+                .unwrap();
+            // Check that 90 xASTRO were actually debited
+            delegator_helper
+                .escrow_helper
+                .check_xastro_balance(router_ref, "user", 10);
+            delegator_helper.escrow_helper.check_xastro_balance(
+                router_ref,
+                delegator_helper.escrow_helper.escrow_instance.as_str(),
+                90,
+            );
+
+            // Mint ASTRO, stake it and mint xASTRO
+            delegator_helper
+                .escrow_helper
+                .mint_xastro(router_ref, "user2", 100);
+            delegator_helper
+                .escrow_helper
+                .check_xastro_balance(router_ref, "user2", 100);
+
+            // Create valid voting escrow lock
+            delegator_helper
+                .escrow_helper
+                .create_lock(router_ref, "user2", WEEK * 2, 90f32)
+                .unwrap();
+            // Check that 90 xASTRO were actually debited
+            delegator_helper
+                .escrow_helper
+                .check_xastro_balance(router_ref, "user2", 10);
+            delegator_helper.escrow_helper.check_xastro_balance(
+                router_ref,
+                delegator_helper.escrow_helper.escrow_instance.as_str(),
+                180,
+            );
+
+            // try to mint from user
+            router_ref
+                .execute_contract(
+                    Addr::unchecked("user"),
+                    delegator_helper.delegation_instance.clone(),
+                    &ExecuteMsg::CreateDelegation {
+                        percentage: Uint128::new(50),
+                        cancel_time: WEEK,
+                        expire_time: WEEK,
+                        id: "token_1".to_string(),
+                    },
+                    &[],
+                )
+                .unwrap();
+
+            // check user's nft token
+            let resp = nft_helper
+                .tokens(&router_ref.wrap().into(), "user", None, None)
+                .unwrap();
+            assert_eq!(vec!["token_1"], resp.tokens);
+
+            // check user's nft token
+            let resp = router_ref
+                .wrap()
+                .query::<Uint128>(&QueryRequest::Wasm(WasmQuery::Smart {
+                    contract_addr: delegator_helper.delegation_instance.to_string(),
+                    msg: to_binary(&QueryMsg::AdjustedBalance {
+                        account: "user".to_string(),
+                    })
+                    .unwrap(),
+                }))
+                .unwrap();
+            assert_eq!(Uint128::new(46298076), resp);
+
+            // transfer NFT to user2
+            router_ref
+                .execute_contract(
+                    Addr::unchecked("user"),
+                    delegator_helper.nft_instance.clone(),
+                    &Cw721ExecuteMsg::TransferNft {
+                        recipient: "user2".to_string(),
+                        token_id: "token_1".to_string(),
+                    },
+                    &[],
+                )
+                .unwrap();
+
+            // check user's nft token
+            let resp = nft_helper
+                .tokens(&router_ref.wrap().into(), "user", None, None)
+                .unwrap();
+            let empty_vec: Vec<String> = vec![];
+            assert_eq!(empty_vec, resp.tokens);
+
+            // check user2's nft token
+            let resp = nft_helper
+                .tokens(&router_ref.wrap().into(), "user2", None, None)
+                .unwrap();
+            assert_eq!(vec!["token_1"], resp.tokens);
+
+            // check user's adjusted balance
+            let resp = router_ref
+                .wrap()
+                .query::<Uint128>(&QueryRequest::Wasm(WasmQuery::Smart {
+                    contract_addr: delegator_helper.delegation_instance.to_string(),
+                    msg: to_binary(&QueryMsg::AdjustedBalance {
+                        account: "user".to_string(),
+                    })
+                    .unwrap(),
+                }))
+                .unwrap();
+            assert_eq!(Uint128::new(46_298_076), resp);
+
+            // check user2's adjusted balance
+            let resp = router_ref
+                .wrap()
+                .query::<Uint128>(&QueryRequest::Wasm(WasmQuery::Smart {
+                    contract_addr: delegator_helper.delegation_instance.to_string(),
+                    msg: to_binary(&QueryMsg::AdjustedBalance {
+                        account: "user2".to_string(),
+                    })
+                    .unwrap(),
+                }))
+                .unwrap();
+            assert_eq!(Uint128::new(92_596_152), resp);
+
+            router_ref.update_block(next_block);
+            router_ref
+                .update_block(|block_info| block_info.time = block_info.time.plus_seconds(WEEK));
+
+            // check user's adjusted balance
+            let resp = router_ref
+                .wrap()
+                .query::<Uint128>(&QueryRequest::Wasm(WasmQuery::Smart {
+                    contract_addr: delegator_helper.delegation_instance.to_string(),
+                    msg: to_binary(&QueryMsg::AdjustedBalance {
+                        account: "user".to_string(),
+                    })
+                    .unwrap(),
+                }))
+                .unwrap();
+            assert_eq!(Uint128::new(46_298_076), resp);
+
+            // check user2's adjusted balance
+            let resp = router_ref
+                .wrap()
+                .query::<Uint128>(&QueryRequest::Wasm(WasmQuery::Smart {
+                    contract_addr: delegator_helper.delegation_instance.to_string(),
+                    msg: to_binary(&QueryMsg::AdjustedBalance {
+                        account: "user2".to_string(),
+                    })
+                    .unwrap(),
+                }))
+                .unwrap();
+            assert_eq!(Uint128::new(92_596_152), resp);
         }
     }
 }

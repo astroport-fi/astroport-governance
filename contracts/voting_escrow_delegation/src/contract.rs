@@ -1,7 +1,8 @@
 use astroport_governance::astroport::asset::addr_validate_to_lower;
-use astroport_governance::utils::get_period;
+use astroport_governance::utils::{get_period, get_periods_count};
 use astroport_governance::voting_escrow::{get_lock_info, get_voting_power, get_voting_power_at};
 
+use astroport_governance::U64Key;
 use astroport_nft::{Extension, MintMsg};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
@@ -14,7 +15,7 @@ use cw_utils::parse_reply_instantiate_data;
 
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
-use crate::state::{Config, DelegateVP, Point, Token, CONFIG, TOKENS, TOTAL_DELEGATED_VP};
+use crate::state::{Config, Token, CONFIG, DELEGATED, TOKENS};
 
 use astroport_nft::msg::{ExecuteMsg as ExecuteMsgNFT, InstantiateMsg as InstantiateMsgNFT};
 
@@ -153,8 +154,8 @@ pub fn create_delegation(
 
     let delegator_lock = get_lock_info(&deps.querier, &config.voting_escrow_addr, &delegator)?;
     let block_period = get_period(env.block.time.seconds())?;
-    let expire_period = get_period(expire_time)?;
-    let cancel_period = get_period(cancel_time)?;
+    let expire_period = block_period + get_periods_count(expire_time);
+    let cancel_period = block_period + get_periods_count(cancel_time);
 
     if cancel_period > expire_period {
         return Err(ContractError::CancelTimeWrong {});
@@ -169,46 +170,40 @@ pub fn create_delegation(
         return Err(ContractError::PercentageError {});
     }
 
-    let new_delegate;
-    if let Some(delegated_balance) = TOTAL_DELEGATED_VP.may_load(deps.storage, delegator.clone())? {
-        new_delegate = calc_bias_slope(
-            delegator_balance - delegated_balance.delegated,
-            expire_period - block_period,
-        )?;
-    } else {
-        new_delegate = calc_bias_slope(delegator_balance, expire_period - block_period)?;
-    }
-
-    // create a new NFT delegation token
-    TOKENS.save(
+    let delegate_token_info = if let Some(delegated) = DELEGATED.may_load(
         deps.storage,
-        token_id.clone(),
-        &Token {
-            bias: new_delegate.bias,
-            slope: new_delegate.slope,
-            percentage,
-            start: block_period,
+        (delegator.clone(), U64Key::from(block_period)),
+    )? {
+        calc_delegate_bias_slope(
+            delegator_balance - delegated.bias,
+            block_period,
             expire_period,
-            delegator: delegator.clone(),
-        },
-    )?;
+            percentage,
+        )?
+    } else {
+        calc_delegate_bias_slope(delegator_balance, block_period, expire_period, percentage)?
+    };
 
-    TOTAL_DELEGATED_VP.update(
+    // create a new delegation NFT token
+    TOKENS.save(deps.storage, token_id.clone(), &delegate_token_info)?;
+
+    DELEGATED.update(
         deps.storage,
-        delegator.clone(),
-        |delegate| -> StdResult<DelegateVP> {
-            if let Some(mut delegate) = delegate {
-                delegate.delegated +=
-                    calc_delegate_vp(new_delegate, block_period, expire_period, percentage)?;
-                Ok(delegate)
+        (delegator.clone(), U64Key::new(block_period)),
+        env.block.height,
+        |token| -> StdResult<Token> {
+            if let Some(mut token) = token {
+                token.bias += delegate_token_info.bias;
+                token.start = delegate_token_info.start;
+                token.slope = delegate_token_info.slope;
+                token.expire_period = delegate_token_info.expire_period;
+                Ok(token)
             } else {
-                Ok(DelegateVP {
-                    delegated: calc_delegate_vp(
-                        new_delegate,
-                        block_period,
-                        expire_period,
-                        percentage,
-                    )?,
+                Ok(Token {
+                    bias: delegate_token_info.bias,
+                    slope: delegate_token_info.slope,
+                    start: delegate_token_info.start,
+                    expire_period: delegate_token_info.expire_period,
                 })
             }
         },
@@ -228,26 +223,30 @@ pub fn create_delegation(
         })))
 }
 
-fn calc_delegate_vp(
-    point: Point,
+fn calc_delegate_vp(token_info: Token, block_period: u64) -> StdResult<Uint128> {
+    let dt = Uint128::from(token_info.expire_period - block_period);
+    Ok(token_info.bias - token_info.slope.checked_mul(dt)?)
+}
+
+fn calc_delegate_bias_slope(
+    vp: Uint128,
     block_period: u64,
     expire_period: u64,
     percentage: Uint128,
-) -> StdResult<Uint128> {
-    let delegator_vp = point.bias
-        - point
-            .slope
-            .checked_mul(Uint128::from(expire_period - block_period))?;
-    Ok(delegator_vp.multiply_ratio(percentage, Uint128::new(100)))
-}
-
-fn calc_bias_slope(vp: Uint128, dt: u64) -> Result<Point, ContractError> {
-    let slope = vp
-        .checked_div(Uint128::from(dt))
+) -> Result<Token, ContractError> {
+    let delegated_vp = vp.multiply_ratio(percentage, Uint128::new(100));
+    let dt = Uint128::from(expire_period - block_period);
+    let slope = delegated_vp
+        .checked_div(dt)
         .map_err(|_| ContractError::ExpiredLockPeriod {})?;
-    let bias = slope * Uint128::from(dt);
+    let bias = slope * dt;
 
-    Ok(Point { bias, slope })
+    Ok(Token {
+        bias,
+        slope,
+        start: block_period,
+        expire_period,
+    })
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -354,25 +353,35 @@ fn adjusted_balance(
         total_vp = get_voting_power(&deps.querier, &config.voting_escrow_addr, &account_addr)?;
     }
 
+    let block_period = get_period(time.unwrap_or_else(|| env.block.time.seconds()))?;
+    if let Some(delegated) = DELEGATED.may_load(
+        deps.storage,
+        (account_addr.clone(), U64Key::from(block_period)),
+    )? {
+        total_vp -= delegated.bias;
+    };
+
     let nft_helper = astroport_nft::helpers::Cw721Contract(config.nft_token_addr);
     let tokens = nft_helper.tokens(&deps.querier, account_addr, start_after, limit)?;
 
-    let block_period = get_period(time.unwrap_or_else(|| env.block.time.seconds()))?;
-
     for token_id in tokens.tokens {
-        let token = TOKENS.load(deps.storage, token_id)?;
-        if token.start >= block_period && token.expire_period > block_period {
-            total_vp += calc_delegate_vp(
-                Point {
-                    bias: token.bias,
-                    slope: token.slope,
-                },
-                block_period,
-                token.expire_period,
-                token.percentage,
-            )?;
+        if let Some(token) = TOKENS.may_load(deps.storage, token_id)? {
+            if token.start <= block_period && token.expire_period >= block_period {
+                let calc_vp = calc_delegate_vp(token, block_period)?;
+                total_vp += calc_vp;
+            }
         }
     }
 
     Ok(total_vp)
 }
+
+// fn update_delegated_vp(
+//     deps: Deps,
+//     env: Env,
+//     account: String,
+//     time: Option<u64>,
+//     start_after: Option<String>,
+//     limit: Option<u32>,
+// ) -> StdResult<Uint128> {
+// }

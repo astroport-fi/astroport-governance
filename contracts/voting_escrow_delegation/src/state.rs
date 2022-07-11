@@ -28,10 +28,8 @@ pub struct DelegateVP {
 pub struct Token {
     pub bias: Uint128,
     pub slope: Uint128,
-    pub percentage: Uint128,
     pub start: u64,
     pub expire_period: u64,
-    pub delegator: Addr,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema)]
@@ -41,14 +39,21 @@ pub struct Point {
 }
 
 pub const TOKENS: Map<String, Token> = Map::new("tokens");
-pub const RECEIVED_VP: Map<(Addr, U64Key), Uint128> = Map::new("received_vp");
-pub const TOTAL_DELEGATED_VP: Map<Addr, DelegateVP> = Map::new("delegated_vp");
 
 /// ## Description
 /// Stores all user lock history
-pub const DELEGATED: SnapshotMap<Addr, DelegateVP> = SnapshotMap::new(
-    "delegate",
-    "delegate__checkpoints",
-    "delegate__changelog",
+pub const DELEGATED: SnapshotMap<(Addr, U64Key), Token> = SnapshotMap::new(
+    "delegated",
+    "delegated__checkpoints",
+    "delegated__changelog",
+    Strategy::EveryBlock,
+);
+
+/// ## Description
+/// Stores all user lock history
+pub const RECEIVED: SnapshotMap<(Addr, U64Key), Token> = SnapshotMap::new(
+    "delegated",
+    "delegated__checkpoints",
+    "delegated__changelog",
     Strategy::EveryBlock,
 );
