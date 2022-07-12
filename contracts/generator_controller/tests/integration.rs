@@ -1,8 +1,9 @@
 use astroport::asset::AssetInfo;
 use astroport::generator::PoolInfoResponse;
 use cosmwasm_std::{attr, Addr, Decimal, Uint128};
+use cw_multi_test::Executor;
+use generator_controller::astroport;
 use std::str::FromStr;
-use terra_multi_test::Executor;
 
 use astroport_governance::generator_controller::{
     ConfigResponse, ExecuteMsg, QueryMsg, VOTERS_MAX_LIMIT,
@@ -26,7 +27,7 @@ fn update_configs() {
     let err = helper
         .update_blacklisted_limit(&mut router, "user2", Some(4u32))
         .unwrap_err();
-    assert_eq!("Unauthorized", err.to_string());
+    assert_eq!("Unauthorized", err.root_cause().to_string());
 
     // successful update config by owner
     helper
@@ -54,7 +55,10 @@ fn check_kick_holders_works() {
     let err = helper
         .vote(&mut router, "user1", vec![(pools[0].as_str(), 1000)])
         .unwrap_err();
-    assert_eq!(err.to_string(), "You can't vote with zero voting power");
+    assert_eq!(
+        err.root_cause().to_string(),
+        "You can't vote with zero voting power"
+    );
 
     helper.escrow_helper.mint_xastro(&mut router, "user1", 100);
     // Create short lock
@@ -146,7 +150,7 @@ fn check_kick_holders_works() {
         .unwrap_err();
     assert_eq!(
         "Exceeded voters limit for kick blacklisted voters operation!",
-        err.to_string()
+        err.root_cause().to_string()
     );
 
     // Removes votes for user2
@@ -204,7 +208,10 @@ fn check_vote_works() {
     let err = helper
         .vote(&mut router, "user1", vec![(pools[0].as_str(), 1000)])
         .unwrap_err();
-    assert_eq!(err.to_string(), "You can't vote with zero voting power");
+    assert_eq!(
+        err.root_cause().to_string(),
+        "You can't vote with zero voting power"
+    );
 
     helper.escrow_helper.mint_xastro(&mut router, "user1", 100);
     // Create short lock
@@ -227,7 +234,7 @@ fn check_vote_works() {
         .vote(&mut router, "user2", vec![(pools[1].as_str(), 10001)])
         .unwrap_err();
     assert_eq!(
-        err.to_string(),
+        err.root_cause().to_string(),
         "Basic points conversion error. 10001 > 10000"
     );
 
@@ -239,7 +246,10 @@ fn check_vote_works() {
             vec![(pools[0].as_str(), 3000), (pools[1].as_str(), 8000)],
         )
         .unwrap_err();
-    assert_eq!(err.to_string(), "Basic points sum exceeds limit");
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Basic points sum exceeds limit"
+    );
 
     // Duplicated pools
     let err = helper
@@ -249,7 +259,10 @@ fn check_vote_works() {
             vec![(pools[0].as_str(), 3000), (pools[0].as_str(), 7000)],
         )
         .unwrap_err();
-    assert_eq!(err.to_string(), "Votes contain duplicated pool addresses");
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Votes contain duplicated pool addresses"
+    );
 
     // Valid votes
     helper
@@ -268,7 +281,7 @@ fn check_vote_works() {
         )
         .unwrap_err();
     assert_eq!(
-        err.to_string(),
+        err.root_cause().to_string(),
         "You can only run this action every 10 days"
     );
 
@@ -373,14 +386,14 @@ fn check_tuning() {
     // The contract was just created so we need to wait for 2 weeks
     let err = helper.tune(&mut router).unwrap_err();
     assert_eq!(
-        err.to_string(),
+        err.root_cause().to_string(),
         "You can only run this action every 14 days"
     );
 
     router.next_block(WEEK);
     let err = helper.tune(&mut router).unwrap_err();
     assert_eq!(
-        err.to_string(),
+        err.root_cause().to_string(),
         "You can only run this action every 14 days"
     );
 
@@ -413,7 +426,7 @@ fn check_tuning() {
             &[],
         )
         .unwrap_err();
-    assert_eq!(err.to_string(), "Unauthorized");
+    assert_eq!(err.root_cause().to_string(), "Unauthorized");
 
     router
         .execute_contract(
@@ -433,7 +446,7 @@ fn check_tuning() {
         )
         .unwrap_err();
     assert_eq!(
-        err.to_string(),
+        err.root_cause().to_string(),
         "Invalid pool number: 101. Must be within [2, 100] range"
     );
 
@@ -516,7 +529,10 @@ fn check_bad_pools_filtering() {
             vec![("random_pool", 5000), (pools[0].as_str(), 5000)],
         )
         .unwrap_err();
-    assert_eq!(err.to_string(), "Invalid lp token address: random_pool");
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Invalid lp token address: random_pool"
+    );
     helper
         .vote(&mut router, user, vec![(pools[0].as_str(), 5000)])
         .unwrap();
@@ -556,7 +572,7 @@ fn check_bad_pools_filtering() {
         .vote(&mut router, user, vec![(pools[0].as_str(), 10000)])
         .unwrap();
     let err = helper.tune(&mut router).unwrap_err();
-    assert_eq!(err.to_string(), "There are no pools to tune");
+    assert_eq!(err.root_cause().to_string(), "There are no pools to tune");
 
     router.next_block(2 * WEEK);
 
@@ -630,7 +646,7 @@ fn check_update_owner() {
             &[],
         )
         .unwrap_err();
-    assert_eq!(err.to_string(), "Generic error: Unauthorized");
+    assert_eq!(err.root_cause().to_string(), "Generic error: Unauthorized");
 
     // Claim before proposal
     let err = app
@@ -642,7 +658,7 @@ fn check_update_owner() {
         )
         .unwrap_err();
     assert_eq!(
-        err.to_string(),
+        err.root_cause().to_string(),
         "Generic error: Ownership proposal not found"
     );
 
@@ -664,7 +680,7 @@ fn check_update_owner() {
             &[],
         )
         .unwrap_err();
-    assert_eq!(err.to_string(), "Generic error: Unauthorized");
+    assert_eq!(err.root_cause().to_string(), "Generic error: Unauthorized");
 
     // Claim ownership
     app.execute_contract(
@@ -736,7 +752,7 @@ fn check_main_pool() {
         )
         .unwrap_err();
     assert_eq!(
-        &err.to_string(),
+        &err.root_cause().to_string(),
         "main_pool_min_alloc should be more than 0 and less than 1"
     );
     let err = helper
@@ -749,7 +765,7 @@ fn check_main_pool() {
         )
         .unwrap_err();
     assert_eq!(
-        &err.to_string(),
+        &err.root_cause().to_string(),
         "main_pool_min_alloc should be more than 0 and less than 1"
     );
     helper
@@ -771,8 +787,8 @@ fn check_main_pool() {
         )
         .unwrap_err();
     assert_eq!(
-        &err.to_string(),
-        "contract #11 is the main pool. Voting for the main pool is prohibited"
+        &err.root_cause().to_string(),
+        "contract11 is the main pool. Voting for the main pool is prohibited"
     );
 
     router

@@ -14,11 +14,9 @@ homepage = "https://astroport.fi"
 backtraces = ["cosmwasm-std/backtraces"]
 
 [dependencies]
-cw20 = "0.13.4"
-cosmwasm-std = "1.0.0"
+cw20 = "0.13"
+cosmwasm-std = "1.0"
+cw-storage-plus = "0.13"
 schemars = "0.8.1"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
-uint = "0.9.1"
-
-[dev-dependencies]
-cosmwasm-schema = "1.0.0"
+astroport = { git = "https://github.com/astroport-fi/astroport-core.git", branch = "main" }

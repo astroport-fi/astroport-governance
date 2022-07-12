@@ -24,8 +24,8 @@ use cosmwasm_std::{
     Uint64, WasmMsg, WasmQuery,
 };
 use cw20::{BalanceResponse, Cw20ExecuteMsg, MinterResponse};
-use terra_multi_test::{
-    next_block, AppBuilder, AppResponse, BankKeeper, ContractWrapper, Executor, TerraApp, TerraMock,
+use cw_multi_test::{
+    next_block, App, AppBuilder, AppResponse, BankKeeper, ContractWrapper, Executor,
 };
 
 const PROPOSAL_VOTING_PERIOD: u64 = 500;
@@ -69,7 +69,7 @@ fn test_contract_instantiation() {
     };
 
     // Try to instantiate assembly with wrong threshold
-    let res = app
+    let err = app
         .instantiate_contract(
             assembly_code,
             owner.clone(),
@@ -84,11 +84,11 @@ fn test_contract_instantiation() {
         .unwrap_err();
 
     assert_eq!(
-        res.to_string(),
+        err.root_cause().to_string(),
         "Generic error: The required threshold for a proposal cannot be lower than 33% or higher than 100%"
     );
 
-    let res = app
+    let err = app
         .instantiate_contract(
             assembly_code,
             owner.clone(),
@@ -103,11 +103,11 @@ fn test_contract_instantiation() {
         .unwrap_err();
 
     assert_eq!(
-        res.to_string(),
+        err.root_cause().to_string(),
         "Generic error: The required threshold for a proposal cannot be lower than 33% or higher than 100%"
     );
 
-    let res = app
+    let err = app
         .instantiate_contract(
             assembly_code,
             owner.clone(),
@@ -122,11 +122,11 @@ fn test_contract_instantiation() {
         .unwrap_err();
 
     assert_eq!(
-        res.to_string(),
+        err.root_cause().to_string(),
         "Generic error: The required quorum for a proposal cannot be higher than 100%"
     );
 
-    let res = app
+    let err = app
         .instantiate_contract(
             assembly_code,
             owner.clone(),
@@ -141,11 +141,11 @@ fn test_contract_instantiation() {
         .unwrap_err();
 
     assert_eq!(
-        res.to_string(),
+        err.root_cause().to_string(),
         "Generic error: The expiration period for a proposal cannot be less than 86399 blocks."
     );
 
-    let res = app
+    let err = app
         .instantiate_contract(
             assembly_code,
             owner.clone(),
@@ -160,7 +160,7 @@ fn test_contract_instantiation() {
         .unwrap_err();
 
     assert_eq!(
-        res.to_string(),
+        err.root_cause().to_string(),
         "Generic error: The effective delay for a proposal cannot be less than 12342 blocks."
     );
 
@@ -244,14 +244,14 @@ fn test_proposal_submitting() {
         amount: Uint128::from(PROPOSAL_REQUIRED_DEPOSIT - 1),
     };
 
-    let res = app
+    let err = app
         .execute_contract(user.clone(), xastro_addr.clone(), &submit_proposal_msg, &[])
         .unwrap_err();
 
-    assert_eq!(res.to_string(), "Insufficient token deposit!");
+    assert_eq!(err.root_cause().to_string(), "Insufficient token deposit!");
 
     // Try to create a proposal with wrong title
-    let res = app
+    let err = app
         .execute_contract(
             user.clone(),
             xastro_addr.clone(),
@@ -270,9 +270,12 @@ fn test_proposal_submitting() {
         )
         .unwrap_err();
 
-    assert_eq!(res.to_string(), "Generic error: Title too short!");
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Generic error: Title too short!"
+    );
 
-    let res = app
+    let err = app
         .execute_contract(
             user.clone(),
             xastro_addr.clone(),
@@ -291,10 +294,13 @@ fn test_proposal_submitting() {
         )
         .unwrap_err();
 
-    assert_eq!(res.to_string(), "Generic error: Title too long!");
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Generic error: Title too long!"
+    );
 
     // Try to create a proposal with wrong description
-    let res = app
+    let err = app
         .execute_contract(
             user.clone(),
             xastro_addr.clone(),
@@ -313,9 +319,12 @@ fn test_proposal_submitting() {
         )
         .unwrap_err();
 
-    assert_eq!(res.to_string(), "Generic error: Description too short!");
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Generic error: Description too short!"
+    );
 
-    let res = app
+    let err = app
         .execute_contract(
             user.clone(),
             xastro_addr.clone(),
@@ -334,10 +343,13 @@ fn test_proposal_submitting() {
         )
         .unwrap_err();
 
-    assert_eq!(res.to_string(), "Generic error: Description too long!");
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Generic error: Description too long!"
+    );
 
     // Try to create a proposal with wrong link
-    let res = app
+    let err = app
         .execute_contract(
             user.clone(),
             xastro_addr.clone(),
@@ -356,9 +368,12 @@ fn test_proposal_submitting() {
         )
         .unwrap_err();
 
-    assert_eq!(res.to_string(), "Generic error: Link too short!");
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Generic error: Link too short!"
+    );
 
-    let res = app
+    let err = app
         .execute_contract(
             user.clone(),
             xastro_addr.clone(),
@@ -377,9 +392,12 @@ fn test_proposal_submitting() {
         )
         .unwrap_err();
 
-    assert_eq!(res.to_string(), "Generic error: Link too long!");
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Generic error: Link too long!"
+    );
 
-    let res = app
+    let err = app
         .execute_contract(
             user.clone(),
             xastro_addr.clone(),
@@ -398,9 +416,12 @@ fn test_proposal_submitting() {
         )
         .unwrap_err();
 
-    assert_eq!(res.to_string(), "Generic error: Link is not whitelisted!");
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Generic error: Link is not whitelisted!"
+    );
 
-    let res = app
+    let err = app
         .execute_contract(
             user.clone(),
             xastro_addr.clone(),
@@ -422,7 +443,7 @@ fn test_proposal_submitting() {
         .unwrap_err();
 
     assert_eq!(
-        res.to_string(),
+        err.root_cause().to_string(),
         "Generic error: Link is not properly formatted or contains unsafe characters!"
     );
 
@@ -718,7 +739,7 @@ fn test_successful_proposal() {
     });
 
     // Try to vote after voting period
-    let res = cast_vote(
+    let err = cast_vote(
         &mut app,
         assembly_addr.clone(),
         1,
@@ -727,10 +748,10 @@ fn test_successful_proposal() {
     )
     .unwrap_err();
 
-    assert_eq!(res.to_string(), "Voting period ended!");
+    assert_eq!(err.root_cause().to_string(), "Voting period ended!");
 
     // Try to execute the proposal before end_proposal
-    let res = app
+    let err = app
         .execute_contract(
             Addr::unchecked("user0"),
             assembly_addr.clone(),
@@ -739,7 +760,7 @@ fn test_successful_proposal() {
         )
         .unwrap_err();
 
-    assert_eq!(res.to_string(), "Proposal not passed!");
+    assert_eq!(err.root_cause().to_string(), "Proposal not passed!");
 
     // Check the successful completion of the proposal
     check_token_balance(&mut app, &xastro_addr, &Addr::unchecked("user0"), 0);
@@ -765,7 +786,7 @@ fn test_successful_proposal() {
     assert_eq!(proposal.status, ProposalStatus::Passed);
 
     // Try to end proposal again
-    let res = app
+    let err = app
         .execute_contract(
             Addr::unchecked("user0"),
             assembly_addr.clone(),
@@ -774,10 +795,10 @@ fn test_successful_proposal() {
         )
         .unwrap_err();
 
-    assert_eq!(res.to_string(), "Proposal not active!");
+    assert_eq!(err.root_cause().to_string(), "Proposal not active!");
 
     // Try to execute the proposal before the delay
-    let res = app
+    let err = app
         .execute_contract(
             Addr::unchecked("user0"),
             assembly_addr.clone(),
@@ -786,7 +807,7 @@ fn test_successful_proposal() {
         )
         .unwrap_err();
 
-    assert_eq!(res.to_string(), "Proposal delay not ended!");
+    assert_eq!(err.root_cause().to_string(), "Proposal delay not ended!");
 
     // Skip blocks
     app.update_block(|bi| {
@@ -828,7 +849,7 @@ fn test_successful_proposal() {
     assert_eq!(proposal.status, ProposalStatus::Executed);
 
     // Try to remove proposal before expiration period
-    let res = app
+    let err = app
         .execute_contract(
             Addr::unchecked("user0"),
             assembly_addr.clone(),
@@ -837,7 +858,7 @@ fn test_successful_proposal() {
         )
         .unwrap_err();
 
-    assert_eq!(res.to_string(), "Proposal not completed!");
+    assert_eq!(err.root_cause().to_string(), "Proposal not completed!");
 
     // Remove expired proposal
     app.update_block(|bi| {
@@ -947,7 +968,7 @@ fn test_voting_power_changes() {
     )
     .unwrap();
     // Should panic, because user2 doesn't have any voting power.
-    let res = cast_vote(
+    let err = cast_vote(
         &mut app,
         assembly_addr.clone(),
         1,
@@ -958,7 +979,10 @@ fn test_voting_power_changes() {
 
     // user2 doesn't have voting power and doesn't affect on total voting power(total supply at)
     // total supply = 5000
-    assert_eq!(res.to_string(), "You don't have any voting power!");
+    assert_eq!(
+        err.root_cause().to_string(),
+        "You don't have any voting power!"
+    );
 
     app.update_block(next_block);
 
@@ -1267,7 +1291,7 @@ fn test_check_messages() {
         )
         .unwrap_err();
     assert_eq!(
-        &err.to_string(),
+        &err.root_cause().to_string(),
         "Generic error: Max exit penalty should be <= 1"
     );
 
@@ -1298,7 +1322,7 @@ fn test_check_messages() {
         )
         .unwrap_err();
     assert_eq!(
-        &err.to_string(),
+        &err.root_cause().to_string(),
         "Messages check passed. Nothing was committed to the blockchain"
     );
 
@@ -1312,27 +1336,22 @@ fn test_check_messages() {
     assert_eq!(config_before, config_after);
 }
 
-fn mock_app() -> TerraApp {
+fn mock_app() -> App {
     let mut env = mock_env();
     env.block.time = Timestamp::from_seconds(EPOCH_START);
     let api = MockApi::default();
     let bank = BankKeeper::new();
     let storage = MockStorage::new();
-    let custom = TerraMock::luna_ust_case();
 
     AppBuilder::new()
         .with_api(api)
         .with_block(env.block)
         .with_bank(bank)
         .with_storage(storage)
-        .with_custom(custom)
-        .build()
+        .build(|_, _, _| {})
 }
 
-fn instantiate_contracts(
-    router: &mut TerraApp,
-    owner: Addr,
-) -> (Addr, Addr, Addr, Addr, Addr, Addr) {
+fn instantiate_contracts(router: &mut App, owner: Addr) -> (Addr, Addr, Addr, Addr, Addr, Addr) {
     let token_addr = instantiate_astro_token(router, &owner);
     let (staking_instance, xastro_token_addr) =
         instantiate_xastro_token(router, &owner, &token_addr);
@@ -1346,11 +1365,11 @@ fn instantiate_contracts(
         &builder_unlock_addr,
     );
 
-    assert_eq!("contract #0", token_addr);
-    assert_eq!("contract #2", xastro_token_addr);
-    assert_eq!("contract #3", vxastro_token_addr);
-    assert_eq!("contract #4", builder_unlock_addr);
-    assert_eq!("contract #5", assembly_addr);
+    assert_eq!(Addr::unchecked("contract0"), token_addr);
+    assert_eq!(Addr::unchecked("contract2"), xastro_token_addr);
+    assert_eq!(Addr::unchecked("contract3"), vxastro_token_addr);
+    assert_eq!(Addr::unchecked("contract4"), builder_unlock_addr);
+    assert_eq!(Addr::unchecked("contract5"), assembly_addr);
 
     (
         token_addr,
@@ -1362,7 +1381,7 @@ fn instantiate_contracts(
     )
 }
 
-fn instantiate_astro_token(router: &mut TerraApp, owner: &Addr) -> Addr {
+fn instantiate_astro_token(router: &mut App, owner: &Addr) -> Addr {
     let astro_token_contract = Box::new(ContractWrapper::new_with_empty(
         astroport_token::contract::execute,
         astroport_token::contract::instantiate,
@@ -1380,6 +1399,7 @@ fn instantiate_astro_token(router: &mut TerraApp, owner: &Addr) -> Addr {
             minter: owner.to_string(),
             cap: None,
         }),
+        marketing: None,
     };
 
     router
@@ -1394,11 +1414,7 @@ fn instantiate_astro_token(router: &mut TerraApp, owner: &Addr) -> Addr {
         .unwrap()
 }
 
-fn instantiate_xastro_token(
-    router: &mut TerraApp,
-    owner: &Addr,
-    astro_token: &Addr,
-) -> (Addr, Addr) {
+fn instantiate_xastro_token(router: &mut App, owner: &Addr, astro_token: &Addr) -> (Addr, Addr) {
     let xastro_contract = Box::new(ContractWrapper::new_with_empty(
         astroport_xastro_token::contract::execute,
         astroport_xastro_token::contract::instantiate,
@@ -1445,7 +1461,7 @@ fn instantiate_xastro_token(
     (staking_instance, res.share_token_addr)
 }
 
-fn instantiate_vxastro_token(router: &mut TerraApp, owner: &Addr, xastro: &Addr) -> Addr {
+fn instantiate_vxastro_token(router: &mut App, owner: &Addr, xastro: &Addr) -> Addr {
     let vxastro_token_contract = Box::new(ContractWrapper::new_with_empty(
         voting_escrow::contract::execute,
         voting_escrow::contract::instantiate,
@@ -1475,11 +1491,7 @@ fn instantiate_vxastro_token(router: &mut TerraApp, owner: &Addr, xastro: &Addr)
         .unwrap()
 }
 
-fn instantiate_builder_unlock_contract(
-    router: &mut TerraApp,
-    owner: &Addr,
-    astro_token: &Addr,
-) -> Addr {
+fn instantiate_builder_unlock_contract(router: &mut App, owner: &Addr, astro_token: &Addr) -> Addr {
     let builder_unlock_contract = Box::new(ContractWrapper::new_with_empty(
         builder_unlock::contract::execute,
         builder_unlock::contract::instantiate,
@@ -1507,7 +1519,7 @@ fn instantiate_builder_unlock_contract(
 }
 
 fn instantiate_assembly_contract(
-    router: &mut TerraApp,
+    router: &mut App,
     owner: &Addr,
     xastro: &Addr,
     vxastro: &Addr,
@@ -1546,7 +1558,7 @@ fn instantiate_assembly_contract(
         .unwrap()
 }
 
-fn mint_tokens(app: &mut TerraApp, minter: &Addr, token: &Addr, recipient: &Addr, amount: u128) {
+fn mint_tokens(app: &mut App, minter: &Addr, token: &Addr, recipient: &Addr, amount: u128) {
     let msg = Cw20ExecuteMsg::Mint {
         recipient: recipient.to_string(),
         amount: Uint128::from(amount),
@@ -1557,7 +1569,7 @@ fn mint_tokens(app: &mut TerraApp, minter: &Addr, token: &Addr, recipient: &Addr
 }
 
 fn mint_vxastro(
-    app: &mut TerraApp,
+    app: &mut App,
     staking_instance: &Addr,
     xastro: Addr,
     vxastro: &Addr,
@@ -1582,7 +1594,7 @@ fn mint_vxastro(
 }
 
 fn create_allocations(
-    app: &mut TerraApp,
+    app: &mut App,
     token: Addr,
     builder_unlock_contract_addr: Addr,
     allocations: Vec<(String, AllocationParams)>,
@@ -1614,7 +1626,7 @@ fn create_allocations(
 }
 
 fn create_proposal(
-    app: &mut TerraApp,
+    app: &mut App,
     token: &Addr,
     assembly: &Addr,
     submitter: Addr,
@@ -1640,7 +1652,7 @@ fn create_proposal(
     .unwrap();
 }
 
-fn check_token_balance(app: &mut TerraApp, token: &Addr, address: &Addr, expected: u128) {
+fn check_token_balance(app: &mut App, token: &Addr, address: &Addr, expected: u128) {
     let msg = XAstroQueryMsg::Balance {
         address: address.to_string(),
     };
@@ -1648,13 +1660,7 @@ fn check_token_balance(app: &mut TerraApp, token: &Addr, address: &Addr, expecte
     assert_eq!(res.unwrap().balance, Uint128::from(expected));
 }
 
-fn check_user_vp(
-    app: &mut TerraApp,
-    assembly: &Addr,
-    address: &Addr,
-    proposal_id: u64,
-    expected: u128,
-) {
+fn check_user_vp(app: &mut App, assembly: &Addr, address: &Addr, proposal_id: u64, expected: u128) {
     let res: Uint128 = app
         .wrap()
         .query_wasm_smart(
@@ -1669,7 +1675,7 @@ fn check_user_vp(
     assert_eq!(res.u128(), expected);
 }
 
-fn check_total_vp(app: &mut TerraApp, assembly: &Addr, proposal_id: u64, expected: u128) {
+fn check_total_vp(app: &mut App, assembly: &Addr, proposal_id: u64, expected: u128) {
     let res: Uint128 = app
         .wrap()
         .query_wasm_smart(
@@ -1682,7 +1688,7 @@ fn check_total_vp(app: &mut TerraApp, assembly: &Addr, proposal_id: u64, expecte
 }
 
 fn cast_vote(
-    app: &mut TerraApp,
+    app: &mut App,
     assembly: Addr,
     proposal_id: u64,
     sender: Addr,
@@ -1699,7 +1705,7 @@ fn cast_vote(
     )
 }
 
-fn change_owner(app: &mut TerraApp, contract: &Addr, assembly: &Addr) {
+fn change_owner(app: &mut App, contract: &Addr, assembly: &Addr) {
     let msg = astroport_governance::voting_escrow::ExecuteMsg::ProposeNewOwner {
         new_owner: assembly.to_string(),
         expires_in: 100,

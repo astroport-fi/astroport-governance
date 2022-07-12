@@ -1,4 +1,4 @@
-use astroport::asset::addr_validate_to_lower;
+use crate::astroport::asset::addr_validate_to_lower;
 use cosmwasm_std::{Addr, Decimal, DepsMut, Env, StdError, StdResult};
 use cw20::{Cw20QueryMsg, MinterResponse};
 use cw_storage_plus::Item;
@@ -40,10 +40,11 @@ impl Migration<ParamsV110> for MigrationV110 {
         let xastro_minter_resp: MinterResponse = deps
             .querier
             .query_wasm_smart(&configv100.deposit_token_addr, &Cw20QueryMsg::Minter {})?;
-        let staking_config: astroport::staking::ConfigResponse = deps.querier.query_wasm_smart(
-            &xastro_minter_resp.minter,
-            &astroport::staking::QueryMsg::Config {},
-        )?;
+        let staking_config: crate::astroport::staking::ConfigResponse =
+            deps.querier.query_wasm_smart(
+                &xastro_minter_resp.minter,
+                &crate::astroport::staking::QueryMsg::Config {},
+            )?;
 
         CONFIG.save(
             deps.storage,

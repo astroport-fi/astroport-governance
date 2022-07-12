@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 use std::convert::TryInto;
 
+use crate::astroport;
 use astroport::asset::{addr_validate_to_lower, pair_info_by_pool};
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 #[cfg(not(feature = "library"))]
@@ -307,7 +308,7 @@ fn handle_vote(
                 }
             }
             // Check an address is a lp token
-            pair_info_by_pool(deps.as_ref(), addr.clone())
+            pair_info_by_pool(&deps.querier, &addr)
                 .map_err(|_| ContractError::InvalidLPTokenAddress(addr.to_string()))?;
             let bps: BasicPoints = bps.try_into()?;
             Ok((addr, bps))
@@ -398,10 +399,9 @@ fn tune_pools(deps: DepsMut, env: Env) -> ExecuteResult {
         .keys(deps.as_ref().storage, None, None, Order::Ascending)
         .collect::<Vec<_>>()
         .into_iter()
-        .map(|pool_addr_serialized| {
-            let pool_addr = String::from_utf8(pool_addr_serialized)
-                .map_err(|_| StdError::generic_err("Deserialization error"))
-                .and_then(|pool_addr_string| addr_validate_to_lower(deps.api, &pool_addr_string))?;
+        .map(|pool_addr| {
+            let pool_addr = pool_addr?;
+
             let pool_info = update_pool_info(deps.storage, block_period, &pool_addr, None)?;
             // Remove pools with zero voting power so we won't iterate over them in future
             if pool_info.vxastro_amount.is_zero() {
@@ -416,7 +416,7 @@ fn tune_pools(deps: DepsMut, env: Env) -> ExecuteResult {
         .collect();
 
     tune_info.pool_alloc_points = filter_pools(
-        deps.as_ref(),
+        &deps.querier,
         &config.generator_addr,
         &config.factory_addr,
         pool_votes,
