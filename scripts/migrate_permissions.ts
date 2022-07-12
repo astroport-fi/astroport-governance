@@ -57,11 +57,11 @@ async function main() {
         await updateAdmin(terra, wallet, network.assemblyAddress, network[key]);
     }
 
-    const stablePairs = readArtifact("stablepairs-pisco")
+    const pools = readArtifact("stablepairs-pisco")
     // update admin for pools
-    for (const obj of stablePairs) {
-        console.log(`Updating: `, obj["contractAddr"]);
-        await updateAdmin(terra, wallet, network.assemblyAddress, obj["contractAddr"]);
+    for (const pool of pools) {
+        console.log(`Updating: `, pool["contractAddr"]);
+        await updateAdmin(terra, wallet, network.assemblyAddress, pool["contractAddr"]);
     }
 
     console.log('FINISH')
