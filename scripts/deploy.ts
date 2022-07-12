@@ -10,6 +10,8 @@ import {LCDClient} from '@terra-money/terra.js';
 
 const ARTIFACTS_PATH = '../artifacts'
 
+const ASSEMBLY_LABEL = "Astroport Assembly contract"
+
 async function main() {
     const { terra, wallet } = newClient()
     console.log(`chainID: ${terra.config.chainID} wallet: ${wallet.key.accAddress}`)
@@ -45,6 +47,7 @@ async function deployGeneratorController(terra: LCDClient, wallet: any) {
     network.generatorControllerAddress = await deployContract(
         terra,
         wallet,
+        undefined,
         join(ARTIFACTS_PATH, 'generator_controller.wasm'),
         {
             "owner": network.assemblyAddress,
@@ -74,6 +77,7 @@ async function deployFeeDistributor(terra: LCDClient, wallet: any) {
     network.feeDistributorAddress = await deployContract(
         terra,
         wallet,
+        undefined,
         join(ARTIFACTS_PATH, 'astroport_escrow_fee_distributor.wasm'),
         {
             "owner": network.assemblyAddress,
@@ -103,6 +107,7 @@ async function deployVotingEscrow(terra: LCDClient, wallet: any) {
     network.votingEscrowAddress = await deployContract(
         terra,
         wallet,
+        undefined,
         join(ARTIFACTS_PATH, 'voting_escrow.wasm'),
         {
             "owner": network.assemblyAddress,
@@ -137,6 +142,7 @@ async function deployTeamUnlock(terra: LCDClient, wallet: any) {
     network.builderUnlockAddress = await deployContract(
         terra,
         wallet,
+        undefined,
         join(ARTIFACTS_PATH, 'builder_unlock.wasm'),
         {
             "owner": wallet.key.accAddress,
@@ -218,18 +224,20 @@ async function deployAssembly(terra: LCDClient, wallet: any) {
     network.assemblyAddress = await deployContract(
         terra,
         wallet,
+        network.multisigAddress,
         join(ARTIFACTS_PATH, 'astro_assembly.wasm'),
         {
             "xastro_token_addr": network.xastroAddress,
             "builder_unlock_addr": network.builderUnlockAddress,
-            "proposal_voting_period": 57600,
-            "proposal_effective_delay": 28800,
-            "proposal_expiration_period": 201600,
-            "proposal_required_deposit": "30000000000", // 30k ASTRO
-            "proposal_required_quorum": "0.1", // 10%
-            "proposal_required_threshold": '0.50',   // 50%
+            "proposal_voting_period": 200,
+            "proposal_effective_delay": 50,
+            "proposal_expiration_period": 400,
+            "proposal_required_deposit": "1000", // 30k ASTRO
+            "proposal_required_quorum": "0.001", // 10%
+            "proposal_required_threshold": '0.51',   // 50%
             "whitelisted_links": ["https://forum.astroport.fi/", "http://forum.astroport.fi/", "https://astroport.fi/", "http://astroport.fi/"]
-        }
+        },
+        ASSEMBLY_LABEL
     )
 
     console.log("assemblyAddress", network.assemblyAddress)

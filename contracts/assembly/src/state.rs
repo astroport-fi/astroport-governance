@@ -1,6 +1,8 @@
 use astroport_governance::assembly::{Config, Proposal};
 use cosmwasm_std::Uint64;
-use cw_storage_plus::{Item, Map, U64Key};
+use cw_storage_plus::{IntKeyOld, Item, Map};
+
+pub type U64Key = IntKeyOld<u64>;
 
 /// ## Description
 /// Stores the config for the Assembly contract

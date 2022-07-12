@@ -2,6 +2,7 @@
 members = [
     "packages/astroport-governance",
     "contracts/builder_unlock",
+    "contracts/assembly",
 ]
 
 [profile.release]
