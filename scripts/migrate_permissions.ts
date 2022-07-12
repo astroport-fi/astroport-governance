@@ -48,7 +48,7 @@ async function main() {
     for (const key in network) {
         console.log(`Updating owner for ${key}: ${network[key]}`);
         await proposeNewOwner(terra, wallet, network.assemblyAddress, network[key]);
-        await claimOwnership(terra, wallet, network[key]);
+        //await claimOwnership(terra, wallet, network[key]);
     }
 
     // update admin for our contracts
