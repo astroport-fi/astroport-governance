@@ -19,6 +19,9 @@ pub enum ContractError {
     #[error("You can't delegate with zero voting power")]
     ZeroVotingPower {},
 
+    #[error("You have already delegated all the voting power.")]
+    DelegationVotingPowerNotAllowed {},
+
     #[error("NFT delegation already exists")]
     NFTDelegationAlreadyExists {},
 
