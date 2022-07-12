@@ -19,10 +19,11 @@ use astroport_governance::builder_unlock::msg::{
     AllocationResponse, QueryMsg as BuilderUnlockQueryMsg, StateResponse,
 };
 use astroport_governance::voting_escrow::{QueryMsg as VotingEscrowQueryMsg, VotingPowerResponse};
+use astroport_governance::U64Key;
 
 use crate::error::ContractError;
 use crate::migration::{MigrateMsg, CONFIGV100, CONFIGV101};
-use crate::state::{U64Key, CONFIG, PROPOSALS, PROPOSAL_COUNT};
+use crate::state::{CONFIG, PROPOSALS, PROPOSAL_COUNT};
 
 // Contract name and version used for migration.
 const CONTRACT_NAME: &str = "astro-assembly";

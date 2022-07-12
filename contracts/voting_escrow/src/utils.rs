@@ -1,10 +1,10 @@
+use crate::astroport::asset::addr_validate_to_lower;
 use crate::error::ContractError;
-use astroport::asset::addr_validate_to_lower;
 use astroport_governance::utils::{get_periods_count, MAX_LOCK_TIME, WEEK};
-use cosmwasm_std::{Addr, Decimal, Deps, DepsMut, Order, Pair, StdError, StdResult, Uint128};
-use cw_storage_plus::{Bound, U64Key};
+use astroport_governance::U64Key;
+use cosmwasm_std::{Addr, Decimal, Deps, DepsMut, Order, StdResult, Uint128};
+use cw_storage_plus::Bound;
 use std::cmp::min;
-use std::convert::TryInto;
 
 use crate::state::{Point, BLACKLIST, CONFIG, HISTORY, LAST_SLOPE_CHANGE, SLOPE_CHANGES};
 
@@ -68,13 +68,13 @@ pub(crate) fn fetch_last_checkpoint(
     deps: Deps,
     addr: &Addr,
     period_key: &U64Key,
-) -> StdResult<Option<Pair<Point>>> {
+) -> StdResult<Option<(u64, Point)>> {
     HISTORY
         .prefix(addr.clone())
         .range(
             deps.storage,
             None,
-            Some(Bound::Inclusive(period_key.wrapped.clone())),
+            Some(Bound::inclusive(period_key.clone())),
             Order::Descending,
         )
         .next()
@@ -125,15 +125,6 @@ pub(crate) fn schedule_slope_change(deps: DepsMut, slope: Uint128, period: u64) 
     }
 }
 
-/// Helper function for deserialization.
-pub(crate) fn deserialize_pair(pair: StdResult<Pair<Uint128>>) -> StdResult<(u64, Uint128)> {
-    let (period_serialized, change) = pair?;
-    let period_bytes: [u8; 8] = period_serialized
-        .try_into()
-        .map_err(|_| StdError::generic_err("Deserialization error"))?;
-    Ok((u64::from_be_bytes(period_bytes), change))
-}
-
 /// Fetches all slope changes between `last_slope_change` and `period`.
 pub(crate) fn fetch_slope_changes(
     deps: Deps,
@@ -143,11 +134,10 @@ pub(crate) fn fetch_slope_changes(
     SLOPE_CHANGES
         .range(
             deps.storage,
-            Some(Bound::Exclusive(U64Key::new(last_slope_change).wrapped)),
-            Some(Bound::Inclusive(U64Key::new(period).wrapped)),
+            Some(Bound::exclusive(U64Key::new(last_slope_change))),
+            Some(Bound::inclusive(U64Key::new(period))),
             Order::Ascending,
         )
-        .map(deserialize_pair)
         .collect()
 }
 

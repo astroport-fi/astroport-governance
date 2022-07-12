@@ -5,12 +5,8 @@ pub mod generator_controller;
 pub mod utils;
 pub mod voting_escrow;
 
-#[allow(clippy::all)]
-mod uints {
-    use uint::construct_uint;
-    construct_uint! {
-        pub struct U256(4);
-    }
-}
+pub use astroport;
 
-pub use uints::U256;
+use cw_storage_plus::IntKeyOld;
+
+pub type U64Key = IntKeyOld<u64>;
