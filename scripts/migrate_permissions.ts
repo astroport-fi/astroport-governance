@@ -20,6 +20,16 @@ async function proposeNewOwner(terra: LCDClient, wallet: Wallet, newOwner: strin
     }
 }
 
+async function claimOwnership(terra: LCDClient, wallet: Wallet, contractAddress: string) {
+    try {
+        await executeContract(terra, wallet, contractAddress, {
+            claim_ownership: {}
+        });
+    } catch (e: any) {
+        console.log(e.response.data.message)
+    }
+}
+
 async function updateAdmin(terra: LCDClient, wallet: Wallet, newAdminAddress: string, contractAddress: string) {
     try {
         await updateContractAdmin(terra, wallet, newAdminAddress, contractAddress);
@@ -38,6 +48,7 @@ async function main() {
     for (const key in network) {
         console.log(`Updating owner for ${key}: ${network[key]}`);
         await proposeNewOwner(terra, wallet, network.assemblyAddress, network[key]);
+        await claimOwnership(terra, wallet, network[key]);
     }
 
     // update admin for our contracts
