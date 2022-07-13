@@ -4,7 +4,7 @@ use cosmwasm_std::{
 };
 use cw2::{get_contract_version, set_contract_version};
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20ReceiveMsg};
-use cw_storage_plus::{Bound, U64Key};
+use cw_storage_plus::Bound;
 use std::str::FromStr;
 
 use astroport::asset::addr_validate_to_lower;
@@ -19,6 +19,7 @@ use astroport_governance::builder_unlock::msg::{
     AllocationResponse, QueryMsg as BuilderUnlockQueryMsg, StateResponse,
 };
 use astroport_governance::voting_escrow::{QueryMsg as VotingEscrowQueryMsg, VotingPowerResponse};
+use astroport_governance::U64Key;
 
 use crate::error::ContractError;
 use crate::migration::{MigrateMsg, CONFIGV100, CONFIGV101};

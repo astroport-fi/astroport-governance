@@ -11,10 +11,9 @@ use cosmwasm_std::{
     attr, to_binary, Addr, Decimal, QueryRequest, StdResult, Timestamp, Uint128, WasmQuery,
 };
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
+use cw_multi_test::{App, AppBuilder, AppResponse, BankKeeper, ContractWrapper, Executor};
 use std::str::FromStr;
-use terra_multi_test::{
-    AppBuilder, AppResponse, BankKeeper, ContractWrapper, Executor, TerraApp, TerraMock,
-};
+use voting_escrow::astroport;
 
 pub const MULTIPLIER: u64 = 1000000;
 
@@ -28,7 +27,7 @@ pub struct Helper {
 }
 
 impl Helper {
-    pub fn init(router: &mut TerraApp, owner: Addr) -> Self {
+    pub fn init(router: &mut App, owner: Addr) -> Self {
         let astro_token_contract = Box::new(ContractWrapper::new_with_empty(
             astroport_token::contract::execute,
             astroport_token::contract::instantiate,
@@ -46,6 +45,7 @@ impl Helper {
                 minter: owner.to_string(),
                 cap: None,
             }),
+            marketing: None,
         };
 
         let astro_token = router
@@ -74,6 +74,7 @@ impl Helper {
             owner: owner.to_string(),
             token_code_id: astro_token_code_id,
             deposit_token_addr: astro_token.to_string(),
+            marketing: None,
         };
         let staking_instance = router
             .instantiate_contract(
@@ -158,7 +159,7 @@ impl Helper {
         }
     }
 
-    pub fn mint_xastro(&self, router: &mut TerraApp, to: &str, amount: u64) {
+    pub fn mint_xastro(&self, router: &mut App, to: &str, amount: u64) {
         let amount = amount * MULTIPLIER;
         let msg = cw20::Cw20ExecuteMsg::Mint {
             recipient: String::from(to),
@@ -185,7 +186,7 @@ impl Helper {
             .unwrap();
     }
 
-    pub fn check_xastro_balance(&self, router: &mut TerraApp, user: &str, amount: u64) {
+    pub fn check_xastro_balance(&self, router: &mut App, user: &str, amount: u64) {
         let amount = amount * MULTIPLIER;
         let res: BalanceResponse = router
             .wrap()
@@ -199,7 +200,7 @@ impl Helper {
         assert_eq!(res.balance.u128(), amount as u128);
     }
 
-    pub fn check_astro_balance(&self, router: &mut TerraApp, user: &str, amount: u64) {
+    pub fn check_astro_balance(&self, router: &mut App, user: &str, amount: u64) {
         let amount = amount * MULTIPLIER;
         let res: BalanceResponse = router
             .wrap()
@@ -215,7 +216,7 @@ impl Helper {
 
     pub fn create_lock(
         &self,
-        router: &mut TerraApp,
+        router: &mut App,
         user: &str,
         time: u64,
         amount: f32,
@@ -236,7 +237,7 @@ impl Helper {
 
     pub fn create_lock_u128(
         &self,
-        router: &mut TerraApp,
+        router: &mut App,
         user: &str,
         time: u64,
         amount: u128,
@@ -256,7 +257,7 @@ impl Helper {
 
     pub fn extend_lock_amount(
         &self,
-        router: &mut TerraApp,
+        router: &mut App,
         user: &str,
         amount: f32,
     ) -> Result<AppResponse> {
@@ -276,7 +277,7 @@ impl Helper {
 
     pub fn deposit_for(
         &self,
-        router: &mut TerraApp,
+        router: &mut App,
         from: &str,
         to: &str,
         amount: f32,
@@ -298,12 +299,7 @@ impl Helper {
         )
     }
 
-    pub fn extend_lock_time(
-        &self,
-        router: &mut TerraApp,
-        user: &str,
-        time: u64,
-    ) -> Result<AppResponse> {
+    pub fn extend_lock_time(&self, router: &mut App, user: &str, time: u64) -> Result<AppResponse> {
         router.execute_contract(
             Addr::unchecked(user),
             self.voting_instance.clone(),
@@ -312,7 +308,7 @@ impl Helper {
         )
     }
 
-    pub fn withdraw(&self, router: &mut TerraApp, user: &str) -> Result<AppResponse> {
+    pub fn withdraw(&self, router: &mut App, user: &str) -> Result<AppResponse> {
         router.execute_contract(
             Addr::unchecked(user),
             self.voting_instance.clone(),
@@ -321,7 +317,7 @@ impl Helper {
         )
     }
 
-    pub fn withdraw_early(&self, router: &mut TerraApp, user: &str) -> Result<AppResponse> {
+    pub fn withdraw_early(&self, router: &mut App, user: &str) -> Result<AppResponse> {
         router.execute_contract(
             Addr::unchecked(user),
             self.voting_instance.clone(),
@@ -332,7 +328,7 @@ impl Helper {
 
     pub fn configure_early_withdrawal(
         &self,
-        router: &mut TerraApp,
+        router: &mut App,
         max_penalty: &str,
         slashed_fund_receiver: &str,
     ) -> Result<AppResponse> {
@@ -349,7 +345,7 @@ impl Helper {
 
     pub fn update_blacklist(
         &self,
-        router: &mut TerraApp,
+        router: &mut App,
         append_addrs: Option<Vec<String>>,
         remove_addrs: Option<Vec<String>>,
     ) -> Result<AppResponse> {
@@ -364,7 +360,7 @@ impl Helper {
         )
     }
 
-    pub fn query_user_vp(&self, router: &mut TerraApp, user: &str) -> StdResult<f32> {
+    pub fn query_user_vp(&self, router: &mut App, user: &str) -> StdResult<f32> {
         router
             .wrap()
             .query_wasm_smart(
@@ -376,7 +372,7 @@ impl Helper {
             .map(|vp: VotingPowerResponse| vp.voting_power.u128() as f32 / MULTIPLIER as f32)
     }
 
-    pub fn query_exact_user_vp(&self, router: &mut TerraApp, user: &str) -> StdResult<u128> {
+    pub fn query_exact_user_vp(&self, router: &mut App, user: &str) -> StdResult<u128> {
         router
             .wrap()
             .query_wasm_smart(
@@ -388,7 +384,7 @@ impl Helper {
             .map(|vp: VotingPowerResponse| vp.voting_power.u128())
     }
 
-    pub fn query_user_vp_at(&self, router: &mut TerraApp, user: &str, time: u64) -> StdResult<f32> {
+    pub fn query_user_vp_at(&self, router: &mut App, user: &str, time: u64) -> StdResult<f32> {
         router
             .wrap()
             .query_wasm_smart(
@@ -403,7 +399,7 @@ impl Helper {
 
     pub fn query_user_vp_at_period(
         &self,
-        router: &mut TerraApp,
+        router: &mut App,
         user: &str,
         period: u64,
     ) -> StdResult<f32> {
@@ -419,21 +415,21 @@ impl Helper {
             .map(|vp: VotingPowerResponse| vp.voting_power.u128() as f32 / MULTIPLIER as f32)
     }
 
-    pub fn query_total_vp(&self, router: &mut TerraApp) -> StdResult<f32> {
+    pub fn query_total_vp(&self, router: &mut App) -> StdResult<f32> {
         router
             .wrap()
             .query_wasm_smart(self.voting_instance.clone(), &QueryMsg::TotalVotingPower {})
             .map(|vp: VotingPowerResponse| vp.voting_power.u128() as f32 / MULTIPLIER as f32)
     }
 
-    pub fn query_exact_total_vp(&self, router: &mut TerraApp) -> StdResult<u128> {
+    pub fn query_exact_total_vp(&self, router: &mut App) -> StdResult<u128> {
         router
             .wrap()
             .query_wasm_smart(self.voting_instance.clone(), &QueryMsg::TotalVotingPower {})
             .map(|vp: VotingPowerResponse| vp.voting_power.u128())
     }
 
-    pub fn query_total_vp_at(&self, router: &mut TerraApp, time: u64) -> StdResult<f32> {
+    pub fn query_total_vp_at(&self, router: &mut App, time: u64) -> StdResult<f32> {
         router
             .wrap()
             .query_wasm_smart(
@@ -443,7 +439,7 @@ impl Helper {
             .map(|vp: VotingPowerResponse| vp.voting_power.u128() as f32 / MULTIPLIER as f32)
     }
 
-    pub fn query_total_vp_at_period(&self, router: &mut TerraApp, period: u64) -> StdResult<f32> {
+    pub fn query_total_vp_at_period(&self, router: &mut App, period: u64) -> StdResult<f32> {
         router
             .wrap()
             .query_wasm_smart(
@@ -453,7 +449,7 @@ impl Helper {
             .map(|vp: VotingPowerResponse| vp.voting_power.u128() as f32 / MULTIPLIER as f32)
     }
 
-    pub fn query_early_withdraw_amount(&self, router: &mut TerraApp, user: &str) -> StdResult<f32> {
+    pub fn query_early_withdraw_amount(&self, router: &mut App, user: &str) -> StdResult<f32> {
         router
             .wrap()
             .query_wasm_smart(
@@ -467,7 +463,7 @@ impl Helper {
 
     pub fn query_locked_balance_at(
         &self,
-        router: &mut TerraApp,
+        router: &mut App,
         user: &str,
         height: u64,
     ) -> StdResult<f32> {
@@ -485,7 +481,7 @@ impl Helper {
 
     pub fn query_blacklisted_voters(
         &self,
-        router: &mut TerraApp,
+        router: &mut App,
         start_after: Option<String>,
         limit: Option<u32>,
     ) -> StdResult<Vec<Addr>> {
@@ -497,7 +493,7 @@ impl Helper {
 
     pub fn check_voters_are_blacklisted(
         &self,
-        router: &mut TerraApp,
+        router: &mut App,
         voters: Vec<String>,
     ) -> StdResult<BlacklistedVotersResponse> {
         router.wrap().query_wasm_smart(
@@ -507,19 +503,17 @@ impl Helper {
     }
 }
 
-pub fn mock_app() -> TerraApp {
+pub fn mock_app() -> App {
     let mut env = mock_env();
     env.block.time = Timestamp::from_seconds(EPOCH_START);
     let api = MockApi::default();
     let bank = BankKeeper::new();
     let storage = MockStorage::new();
-    let custom = TerraMock::luna_ust_case();
 
     AppBuilder::new()
         .with_api(api)
         .with_block(env.block)
         .with_bank(bank)
         .with_storage(storage)
-        .with_custom(custom)
-        .build()
+        .build(|_, _, _| {})
 }

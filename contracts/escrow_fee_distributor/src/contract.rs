@@ -15,13 +15,15 @@ use astroport_governance::escrow_fee_distributor::{
 };
 use astroport_governance::utils::{get_period, CLAIM_LIMIT, MIN_CLAIM_LIMIT};
 
+use crate::astroport;
 use astroport_governance::voting_escrow::{
     LockInfoResponse, QueryMsg as VotingQueryMsg, VotingPowerResponse,
 };
 use cw20::Cw20ReceiveMsg;
 
+use astroport_governance::U64Key;
 use cw2::set_contract_version;
-use cw_storage_plus::{Bound, PrimaryKey, U64Key};
+use cw_storage_plus::Bound;
 
 /// Contract name that is used for migration.
 const CONTRACT_NAME: &str = "astroport-escrow-fee-distributor";
@@ -475,8 +477,7 @@ fn query_available_reward_per_week(
 ) -> StdResult<Vec<Uint128>> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
     let start = if let Some(timestamp) = start_after {
-        let bound = U64Key::from(get_period(timestamp)?).joined_key();
-        Some(Bound::Exclusive(bound))
+        Some(Bound::exclusive(U64Key::from(get_period(timestamp)?)))
     } else {
         None
     };

@@ -12,7 +12,7 @@ import {
   MsgStoreCode,
   Wallet,
   PublicKey,
-  Fee, Tx,
+  Fee, Tx, MsgUpdateContractAdmin,
 } from "@terra-money/terra.js";
   import { readFileSync, writeFileSync } from "fs";
   import path from "path";
@@ -121,6 +121,11 @@ import {
     let result = await performTransaction(terra, wallet, uploadMsg);
     return Number(result.logs[0].eventsByType.store_code.code_id[0]); // code_id
   }
+
+export async function updateContractAdmin(terra: LocalTerra | LCDClient, wallet: Wallet, newAdminAddress: string, contractAddress: string) {
+  const updateAdminMsg = new MsgUpdateContractAdmin(wallet.key.accAddress, newAdminAddress, contractAddress);
+  return await performTransaction(terra, wallet, updateAdminMsg);
+}
 
 export async function instantiateContract(terra: LCDClient, wallet: Wallet, admin_address: string | undefined, codeId: number, msg: object, label?: string) {
   const instantiateMsg = new MsgInstantiateContract(wallet.key.accAddress, admin_address, codeId, msg, undefined, label);

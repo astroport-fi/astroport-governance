@@ -1,7 +1,8 @@
 use astroport::token as astro;
 use cosmwasm_std::{attr, to_binary, Addr, Fraction, StdError, Uint128};
 use cw20::{Cw20ExecuteMsg, MinterResponse};
-use terra_multi_test::{next_block, ContractWrapper, Executor};
+use cw_multi_test::{next_block, ContractWrapper, Executor};
+use voting_escrow::astroport;
 
 use astroport_governance::utils::{get_period, MAX_LOCK_TIME, WEEK};
 use astroport_governance::voting_escrow::{
@@ -24,47 +25,47 @@ fn lock_unlock_logic() {
     helper.check_xastro_balance(router_ref, "user", 100);
 
     // Create invalid vx position
-    let res = helper
+    let err = helper
         .create_lock(router_ref, "user", WEEK - 1, 1f32)
         .unwrap_err();
     assert_eq!(
-        res.to_string(),
+        err.root_cause().to_string(),
         "Lock time must be within limits (week <= lock time < 2 years)"
     );
-    let res = helper
+    let err = helper
         .create_lock(router_ref, "user", MAX_LOCK_TIME + 1, 1f32)
         .unwrap_err();
     assert_eq!(
-        res.to_string(),
+        err.root_cause().to_string(),
         "Lock time must be within limits (week <= lock time < 2 years)"
     );
-    let res = helper
+    let err = helper
         .create_lock(router_ref, "user", WEEK, 101f32)
         .unwrap_err();
     assert_eq!(
-        res.to_string(),
+        err.root_cause().to_string(),
         format!(
-            "Overflow: Cannot Sub with {} and {}",
+            "Cannot Sub with {} and {}",
             100 * MULTIPLIER,
             101 * MULTIPLIER
         )
     );
 
     // Try to increase the lock time for a position that doesn't exist
-    let res = helper
+    let err = helper
         .extend_lock_time(router_ref, "user", MAX_LOCK_TIME)
         .unwrap_err();
-    assert_eq!(res.to_string(), "Lock does not exist");
+    assert_eq!(err.root_cause().to_string(), "Lock does not exist");
 
     // Try to withdraw from a non-existent lock
-    let res = helper.withdraw(router_ref, "user").unwrap_err();
-    assert_eq!(res.to_string(), "Lock does not exist");
+    let err = helper.withdraw(router_ref, "user").unwrap_err();
+    assert_eq!(err.root_cause().to_string(), "Lock does not exist");
 
     // Try to deposit more xASTRO in a position that does not already exist
-    let res = helper
+    let err = helper
         .extend_lock_amount(router_ref, "user", 1f32)
         .unwrap_err();
-    assert_eq!(res.to_string(), "Lock does not exist");
+    assert_eq!(err.root_cause().to_string(), "Lock does not exist");
 
     // Current total voting power is 0
     let vp = helper.query_total_vp(router_ref).unwrap();
@@ -79,27 +80,27 @@ fn lock_unlock_logic() {
     helper.check_xastro_balance(router_ref, helper.voting_instance.as_str(), 90);
 
     // A user can have a single vxASTRO position
-    let res = helper
+    let err = helper
         .create_lock(router_ref, "user", MAX_LOCK_TIME, 1f32)
         .unwrap_err();
-    assert_eq!(res.to_string(), "Lock already exists");
+    assert_eq!(err.root_cause().to_string(), "Lock already exists");
 
     // Try to increase the lock time by less than a week
-    let res = helper
+    let err = helper
         .extend_lock_time(router_ref, "user", 86400)
         .unwrap_err();
     assert_eq!(
-        res.to_string(),
+        err.root_cause().to_string(),
         "Lock time must be within limits (week <= lock time < 2 years)"
     );
 
     // Try to exceed MAX_LOCK_TIME
     // We locked for 2 weeks so increasing by MAX_LOCK_TIME - week is impossible
-    let res = helper
+    let err = helper
         .extend_lock_time(router_ref, "user", MAX_LOCK_TIME - WEEK)
         .unwrap_err();
     assert_eq!(
-        res.to_string(),
+        err.root_cause().to_string(),
         "Lock time must be within limits (week <= lock time < 2 years)"
     );
 
@@ -109,35 +110,41 @@ fn lock_unlock_logic() {
     helper.check_xastro_balance(router_ref, helper.voting_instance.as_str(), 99);
 
     // Try to withdraw from a non-expired lock
-    let res = helper.withdraw(router_ref, "user").unwrap_err();
-    assert_eq!(res.to_string(), "The lock time has not yet expired");
+    let err = helper.withdraw(router_ref, "user").unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        "The lock time has not yet expired"
+    );
 
     // Go in the future
     router_ref.update_block(next_block);
     router_ref.update_block(|block| block.time = block.time.plus_seconds(WEEK));
 
     // The lock has not yet expired since we locked for 2 weeks
-    let res = helper.withdraw(router_ref, "user").unwrap_err();
-    assert_eq!(res.to_string(), "The lock time has not yet expired");
+    let err = helper.withdraw(router_ref, "user").unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        "The lock time has not yet expired"
+    );
 
     // Go to the future again
     router_ref.update_block(next_block);
     router_ref.update_block(|block| block.time = block.time.plus_seconds(WEEK));
 
     // Try to add more xASTRO to an expired position
-    let res = helper
+    let err = helper
         .extend_lock_amount(router_ref, "user", 1f32)
         .unwrap_err();
     assert_eq!(
-        res.to_string(),
+        err.root_cause().to_string(),
         "The lock expired. Withdraw and create new lock"
     );
     // Try to increase the lock time for an expired position
-    let res = helper
+    let err = helper
         .extend_lock_time(router_ref, "user", WEEK)
         .unwrap_err();
     assert_eq!(
-        res.to_string(),
+        err.root_cause().to_string(),
         "The lock expired. Withdraw and create new lock"
     );
 
@@ -151,10 +158,10 @@ fn lock_unlock_logic() {
     helper.check_xastro_balance(router_ref, helper.voting_instance.as_str(), 0);
 
     // Check that the lock has disappeared
-    let res = helper
+    let err = helper
         .extend_lock_amount(router_ref, "user", 1f32)
         .unwrap_err();
-    assert_eq!(res.to_string(), "Lock does not exist");
+    assert_eq!(err.root_cause().to_string(), "Lock does not exist");
 }
 
 #[test]
@@ -180,6 +187,7 @@ fn random_token_lock() {
             minter: helper.owner.to_string(),
             cap: None,
         }),
+        marketing: None,
     };
 
     let random_token = router
@@ -207,11 +215,11 @@ fn random_token_lock() {
         amount: Uint128::from(10_u128),
         msg: to_binary(&Cw20HookMsg::CreateLock { time: WEEK }).unwrap(),
     };
-    let res = router
+    let err = router
         .execute_contract(Addr::unchecked("user"), random_token, &cw20msg, &[])
         .unwrap_err();
 
-    assert_eq!(res.to_string(), "Unauthorized");
+    assert_eq!(err.root_cause().to_string(), "Unauthorized");
 }
 
 #[test]
@@ -467,8 +475,8 @@ fn check_queries() {
     assert_eq!(user_lock.amount.u128(), 90_u128 * MULTIPLIER as u128);
     assert_eq!(user_lock.start, cur_period);
     assert_eq!(user_lock.end, cur_period + 2);
-    let coeff =
-        user_lock.coefficient.numerator() as f32 / user_lock.coefficient.denominator() as f32;
+    let coeff = user_lock.coefficient.numerator().u128() as f32
+        / user_lock.coefficient.denominator().u128() as f32;
     if (coeff - 1.02884f32).abs() > 1e-5 {
         assert_eq!(coeff, 1.02884f32)
     }
@@ -699,7 +707,7 @@ fn check_update_owner() {
             &[],
         )
         .unwrap_err();
-    assert_eq!(err.to_string(), "Generic error: Unauthorized");
+    assert_eq!(err.root_cause().to_string(), "Generic error: Unauthorized");
 
     // Claim before proposal
     let err = app
@@ -711,7 +719,7 @@ fn check_update_owner() {
         )
         .unwrap_err();
     assert_eq!(
-        err.to_string(),
+        err.root_cause().to_string(),
         "Generic error: Ownership proposal not found"
     );
 
@@ -733,7 +741,7 @@ fn check_update_owner() {
             &[],
         )
         .unwrap_err();
-    assert_eq!(err.to_string(), "Generic error: Unauthorized");
+    assert_eq!(err.root_cause().to_string(), "Generic error: Unauthorized");
 
     // Claim ownership
     app.execute_contract(
@@ -769,7 +777,7 @@ fn check_blacklist() {
     // Try to execute with empty arrays
     let err = helper.update_blacklist(router_ref, None, None).unwrap_err();
     assert_eq!(
-        err.to_string(),
+        err.root_cause().to_string(),
         "Generic error: Append and remove arrays are empty"
     );
 
@@ -793,11 +801,17 @@ fn check_blacklist() {
     let err = helper
         .create_lock(router_ref, "user2", WEEK * 10, 100f32)
         .unwrap_err();
-    assert_eq!(err.to_string(), "The user2 address is blacklisted");
+    assert_eq!(
+        err.root_cause().to_string(),
+        "The user2 address is blacklisted"
+    );
     let err = helper
         .deposit_for(router_ref, "user2", "user3", 50f32)
         .unwrap_err();
-    assert_eq!(err.to_string(), "The user2 address is blacklisted");
+    assert_eq!(
+        err.root_cause().to_string(),
+        "The user2 address is blacklisted"
+    );
 
     // Since user2 is blacklisted, their xASTRO balance was left unchanged
     helper.check_xastro_balance(router_ref, "user2", 100);
@@ -813,7 +827,10 @@ fn check_blacklist() {
     let err = helper
         .create_lock(router_ref, "user2", WEEK * 10, 100f32)
         .unwrap_err();
-    assert_eq!(err.to_string(), "The user2 address is blacklisted");
+    assert_eq!(
+        err.root_cause().to_string(),
+        "The user2 address is blacklisted"
+    );
 
     // Blacklisting user1 using the guardian
     let msg = ExecuteMsg::UpdateBlacklist {
@@ -841,19 +858,31 @@ fn check_blacklist() {
     let err = helper
         .extend_lock_time(router_ref, "user1", WEEK * 10)
         .unwrap_err();
-    assert_eq!(err.to_string(), "The user1 address is blacklisted");
+    assert_eq!(
+        err.root_cause().to_string(),
+        "The user1 address is blacklisted"
+    );
     let err = helper
         .extend_lock_amount(router_ref, "user1", 10f32)
         .unwrap_err();
-    assert_eq!(err.to_string(), "The user1 address is blacklisted");
+    assert_eq!(
+        err.root_cause().to_string(),
+        "The user1 address is blacklisted"
+    );
     let err = helper
         .deposit_for(router_ref, "user2", "user1", 50f32)
         .unwrap_err();
-    assert_eq!(err.to_string(), "The user2 address is blacklisted");
+    assert_eq!(
+        err.root_cause().to_string(),
+        "The user2 address is blacklisted"
+    );
     let err = helper
         .deposit_for(router_ref, "user3", "user1", 50f32)
         .unwrap_err();
-    assert_eq!(err.to_string(), "The user1 address is blacklisted");
+    assert_eq!(
+        err.root_cause().to_string(),
+        "The user1 address is blacklisted"
+    );
     // user1 doesn't have voting power now
     let vp = helper.query_user_vp(router_ref, "user1").unwrap();
     assert_eq!(vp, 0.0);
@@ -964,7 +993,7 @@ fn early_withdraw() {
         .configure_early_withdrawal(router_ref, "1.1", "holder")
         .unwrap_err();
     assert_eq!(
-        err.to_string(),
+        err.root_cause().to_string(),
         "Generic error: Max exit penalty should be <= 1"
     );
 
@@ -1059,18 +1088,18 @@ fn total_vp_multiple_slope_subtraction() {
         .extend_lock_amount(router_ref, "user1", 100f32)
         .unwrap_err();
     assert_eq!(
-        err.to_string(),
+        err.root_cause().to_string(),
         "The lock expired. Withdraw and create new lock"
     );
     let err = helper
         .create_lock(router_ref, "user1", 2 * WEEK, 100f32)
         .unwrap_err();
-    assert_eq!(err.to_string(), "Lock already exists");
+    assert_eq!(err.root_cause().to_string(), "Lock already exists");
     let err = helper
         .extend_lock_time(router_ref, "user1", 2 * WEEK)
         .unwrap_err();
     assert_eq!(
-        err.to_string(),
+        err.root_cause().to_string(),
         "The lock expired. Withdraw and create new lock"
     );
     let total = helper.query_total_vp(router_ref).unwrap();
