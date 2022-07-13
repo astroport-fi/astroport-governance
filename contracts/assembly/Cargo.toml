@@ -19,15 +19,15 @@ cw-storage-plus = {version = "0.13", features = ['iterator']}
 schemars = "0.8"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 astroport-governance = { path = "../../packages/astroport-governance", default-features = false, version = "1.0.0"}
-astroport = {git = "https://github.com/astroport-fi/astroport.git", package = "astroport"}
+astroport = {git = "https://github.com/astroport-fi/astroport.git", package = "astroport", branch = "release/terra2"}
 thiserror = { version = "1.0.20" }
 
 [dev-dependencies]
 cosmwasm-schema = { version = "1.0", default-features = false }
 cw-multi-test = "0.13"
-astroport-token = {git = "https://github.com/astroport-fi/astroport.git", package = "astroport-token"}
-astroport-xastro-token = {git = "https://github.com/astroport-fi/astroport.git",package = "astroport-xastro-token"}
+astroport-token = {git = "https://github.com/astroport-fi/astroport.git", package = "astroport-token", branch = "release/terra2"}
+astroport-xastro-token = {git = "https://github.com/astroport-fi/astroport.git", package = "astroport-xastro-token", branch = "release/terra2"}
 voting-escrow = { path= "../voting_escrow", default-features = false, version = "1.0.0" }
-astroport-staking = {git = "https://github.com/astroport-fi/astroport.git", package = "astroport-staking"}
+astroport-staking = {git = "https://github.com/astroport-fi/astroport.git", package = "astroport-staking", branch = "release/terra2"}
 builder-unlock = {path = "../builder_unlock", default-features = false, version = "1.0.0"}
 anyhow = "1"

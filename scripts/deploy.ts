@@ -47,7 +47,7 @@ async function deployGeneratorController(terra: LCDClient, wallet: any) {
     network.generatorControllerAddress = await deployContract(
         terra,
         wallet,
-        undefined,
+        network.multisigAddress,
         join(ARTIFACTS_PATH, 'generator_controller.wasm'),
         {
             "owner": network.assemblyAddress,
@@ -77,7 +77,7 @@ async function deployFeeDistributor(terra: LCDClient, wallet: any) {
     network.feeDistributorAddress = await deployContract(
         terra,
         wallet,
-        undefined,
+        network.multisigAddress,
         join(ARTIFACTS_PATH, 'astroport_escrow_fee_distributor.wasm'),
         {
             "owner": network.assemblyAddress,
@@ -107,7 +107,7 @@ async function deployVotingEscrow(terra: LCDClient, wallet: any) {
     network.votingEscrowAddress = await deployContract(
         terra,
         wallet,
-        undefined,
+        network.multisigAddress,
         join(ARTIFACTS_PATH, 'voting_escrow.wasm'),
         {
             "owner": network.assemblyAddress,
@@ -142,7 +142,7 @@ async function deployTeamUnlock(terra: LCDClient, wallet: any) {
     network.builderUnlockAddress = await deployContract(
         terra,
         wallet,
-        undefined,
+        network.multisigAddress,
         join(ARTIFACTS_PATH, 'builder_unlock.wasm'),
         {
             "owner": wallet.key.accAddress,
