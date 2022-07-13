@@ -111,6 +111,7 @@ impl BaseAstroportTestPackage {
             owner: owner.to_string(),
             token_code_id: self.astro_token.clone().unwrap().code_id,
             deposit_token_addr: self.astro_token.clone().unwrap().address.to_string(),
+            marketing: None,
         };
 
         let staking_instance = router

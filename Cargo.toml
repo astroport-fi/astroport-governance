@@ -1,7 +1,10 @@
 [workspace]
 members = [
     "packages/*",
-    "contracts/*",
+    "contracts/assembly",
+    "contracts/builder_unlock",
+    "contracts/escrow_fee_distributor",
+    "contracts/voting_escrow",
 ]
 
 [profile.release]
