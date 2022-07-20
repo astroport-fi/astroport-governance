@@ -1,9 +1,8 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use astroport_governance::U64Key;
 use cosmwasm_std::{Addr, Uint128};
-use cw_storage_plus::{Item, Map, SnapshotMap, Strategy};
+use cw_storage_plus::{Item, SnapshotMap, Strategy};
 
 /// This structure stores the main parameters for the voting escrow delegation contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema)]
@@ -20,11 +19,6 @@ pub struct Config {
 pub const CONFIG: Item<Config> = Item::new("config");
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema)]
-pub struct DelegateVP {
-    pub delegated: Uint128,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema)]
 pub struct Token {
     pub bias: Uint128,
     pub slope: Uint128,
@@ -38,11 +32,9 @@ pub struct Point {
     pub slope: Uint128,
 }
 
-pub const NFT_TOKENS: Map<String, Token> = Map::new("tokens");
-
 /// ## Description
 /// Stores all user lock history
-pub const DELEGATED: SnapshotMap<(Addr, U64Key), Token> = SnapshotMap::new(
+pub const DELEGATED: SnapshotMap<(Addr, String), Token> = SnapshotMap::new(
     "delegated",
     "delegated__checkpoints",
     "delegated__changelog",
@@ -51,9 +43,12 @@ pub const DELEGATED: SnapshotMap<(Addr, U64Key), Token> = SnapshotMap::new(
 
 /// ## Description
 /// Stores all user lock history
-pub const RECEIVED: SnapshotMap<(Addr, U64Key), Token> = SnapshotMap::new(
-    "delegated",
-    "delegated__checkpoints",
-    "delegated__changelog",
+pub const RECEIVED: SnapshotMap<(Addr, String), Token> = SnapshotMap::new(
+    "received",
+    "received__checkpoints",
+    "received__changelog",
     Strategy::EveryBlock,
 );
+
+pub const DELEGATION_MAX_PERCENT: Uint128 = Uint128::new(100);
+pub const DELEGATION_MIN_PERCENT: Uint128 = Uint128::new(1);

@@ -15,15 +15,17 @@ pub struct InstantiateMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
-    DelegateVotingPower {
-        receiver: String,
-        token_id: String,
-    },
     CreateDelegation {
-        percentage: Uint128,
-        cancel_time: u64,
+        percent: Uint128,
         expire_time: u64,
-        id: String,
+        token_id: String,
+        recipient: String,
+    },
+    ExtendDelegation {
+        percentage: Uint128,
+        expire_time: u64,
+        token_id: String,
+        recipient: String,
     },
 }
 
@@ -31,6 +33,15 @@ pub enum ExecuteMsg {
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
     Config {},
-    AdjustedBalance { account: String },
-    AdjustedBalanceAt { account: String, timestamp: u64 },
+    AdjustedBalance {
+        account: String,
+    },
+    AdjustedBalanceAt {
+        account: String,
+        timestamp: u64,
+    },
+    AlreadyDelegatedVP {
+        account: String,
+        timestamp: Option<u64>,
+    },
 }

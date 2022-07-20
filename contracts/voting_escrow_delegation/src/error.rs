@@ -28,6 +28,9 @@ pub enum ContractError {
     #[error("The delegation period must be at least a week and not more than a user lock period.")]
     DelegationPeriodError {},
 
+    #[error("The extended delegation period must be greater than previously set and no longer than the user's lockout period.")]
+    DelegationExtendPeriodError {},
+
     #[error("The percentage range must be from 0 to 100.")]
     PercentageError {},
 
@@ -39,6 +42,9 @@ pub enum ContractError {
 
     #[error("A delegation with a token {0} already exists.")]
     DelegateTokenAlreadyExists(String),
+
+    #[error("A delegation token {0} not found.")]
+    DelegateTokenNotFound(String),
 
     #[error("The {0} address is blacklisted")]
     AddressBlacklisted(String),
