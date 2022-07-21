@@ -1,8 +1,12 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+use astroport_governance::astroport::common::OwnershipProposal;
 use cosmwasm_std::{Addr, Uint128};
 use cw_storage_plus::{Item, SnapshotMap, Strategy};
+
+/// Contains a proposal to change contract ownership
+pub const OWNERSHIP_PROPOSAL: Item<OwnershipProposal> = Item::new("ownership_proposal");
 
 /// This structure stores the main parameters for the voting escrow delegation contract.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema)]

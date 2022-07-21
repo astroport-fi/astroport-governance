@@ -2,19 +2,22 @@ use astroport_governance::astroport::asset::addr_validate_to_lower;
 use astroport_governance::utils::{get_period, get_periods_count};
 use astroport_governance::voting_escrow::{get_voting_power, get_voting_power_at};
 
+use astroport_governance::astroport::common::{
+    claim_ownership, drop_ownership_proposal, propose_new_owner,
+};
 use astroport_governance::voting_escrow_delegation::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use astroport_nft::{Extension, MintMsg};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Reply, ReplyOn, Response, StdResult,
-    SubMsg, Uint128, WasmMsg,
+    to_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Reply, ReplyOn, Response, StdError,
+    StdResult, SubMsg, Uint128, WasmMsg,
 };
 use cw2::set_contract_version;
 use cw_utils::parse_reply_instantiate_data;
 
 use crate::error::ContractError;
-use crate::state::{Config, Token, CONFIG, DELEGATED, RECEIVED};
+use crate::state::{Config, Token, CONFIG, DELEGATED, OWNERSHIP_PROPOSAL, RECEIVED};
 
 use crate::helpers::DelegationHelper;
 use astroport_nft::msg::{ExecuteMsg as ExecuteMsgNFT, InstantiateMsg as InstantiateMsgNFT};
@@ -125,6 +128,42 @@ pub fn execute(
             token_id,
             recipient,
         ),
+        ExecuteMsg::UpdateConfig { new_voting_escrow } => {
+            execute_update_config(deps, info, new_voting_escrow)
+        }
+        ExecuteMsg::ProposeNewOwner {
+            new_owner,
+            expires_in,
+        } => {
+            let config = CONFIG.load(deps.storage)?;
+            propose_new_owner(
+                deps,
+                info,
+                env,
+                new_owner,
+                expires_in,
+                config.owner,
+                OWNERSHIP_PROPOSAL,
+            )
+            .map_err(Into::into)
+        }
+        ExecuteMsg::DropOwnershipProposal {} => {
+            let config: Config = CONFIG.load(deps.storage)?;
+
+            drop_ownership_proposal(deps, info, config.owner, OWNERSHIP_PROPOSAL)
+                .map_err(Into::into)
+        }
+        ExecuteMsg::ClaimOwnership {} => {
+            claim_ownership(deps, info, env, OWNERSHIP_PROPOSAL, |deps, new_owner| {
+                CONFIG
+                    .update::<_, StdError>(deps.storage, |mut v| {
+                        v.owner = new_owner;
+                        Ok(v)
+                    })
+                    .map(|_| ())
+            })
+            .map_err(Into::into)
+        }
     }
 }
 
@@ -338,6 +377,35 @@ pub fn extend_delegation(
     )?;
 
     Ok(Response::default().add_attribute("action", "extend_delegation"))
+}
+
+/// ## Description
+/// Updates contract parameters.
+///
+/// ## Params
+/// * **deps** is an object of type [`DepsMut`].
+///
+/// * **info** is an object of type [`MessageInfo`].
+///
+/// * **new_voting_escrow** is an optional object of type [`String`].
+fn execute_update_config(
+    deps: DepsMut,
+    info: MessageInfo,
+    new_voting_escrow: Option<String>,
+) -> Result<Response, ContractError> {
+    let mut cfg = CONFIG.load(deps.storage)?;
+
+    if info.sender != cfg.owner {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    if let Some(new_voting_escrow) = new_voting_escrow {
+        cfg.voting_escrow_addr = addr_validate_to_lower(deps.api, &new_voting_escrow)?;
+    }
+
+    CONFIG.save(deps.storage, &cfg)?;
+
+    Ok(Response::default().add_attribute("action", "execute_update_config"))
 }
 
 /// # Description

@@ -30,6 +30,16 @@ pub enum ExecuteMsg {
         token_id: String,
         recipient: String,
     },
+    UpdateConfig {
+        /// vxASTRO contract address
+        new_voting_escrow: Option<String>,
+    },
+    /// Propose a new owner for the contract
+    ProposeNewOwner { new_owner: String, expires_in: u64 },
+    /// Remove the ownership transfer proposal
+    DropOwnershipProposal {},
+    /// Claim contract ownership
+    ClaimOwnership {},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema)]
