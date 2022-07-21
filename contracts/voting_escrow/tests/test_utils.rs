@@ -7,12 +7,9 @@ use astroport_governance::voting_escrow::{
     UpdateMarketingInfo, VotingPowerResponse,
 };
 use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
-use cosmwasm_std::{
-    attr, to_binary, Addr, Decimal, QueryRequest, StdResult, Timestamp, Uint128, WasmQuery,
-};
+use cosmwasm_std::{attr, to_binary, Addr, QueryRequest, StdResult, Timestamp, Uint128, WasmQuery};
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, Logo, MinterResponse};
 use cw_multi_test::{App, AppBuilder, AppResponse, BankKeeper, ContractWrapper, Executor};
-use std::str::FromStr;
 use voting_escrow::astroport;
 
 pub const MULTIPLIER: u64 = 1000000;
@@ -114,8 +111,6 @@ impl Helper {
             guardian_addr: Some("guardian".to_string()),
             deposit_token_addr: res.share_token_addr.to_string(),
             marketing: Some(marketing_info),
-            max_exit_penalty: Decimal::from_str("0.75").unwrap(),
-            slashed_fund_receiver: None,
             logo_urls_whitelist: vec!["https://astroport.com/".to_string()],
         };
         let voting_instance = router
@@ -324,32 +319,6 @@ impl Helper {
         )
     }
 
-    pub fn withdraw_early(&self, router: &mut App, user: &str) -> Result<AppResponse> {
-        router.execute_contract(
-            Addr::unchecked(user),
-            self.voting_instance.clone(),
-            &ExecuteMsg::WithdrawEarly {},
-            &[],
-        )
-    }
-
-    pub fn configure_early_withdrawal(
-        &self,
-        router: &mut App,
-        max_penalty: &str,
-        slashed_fund_receiver: &str,
-    ) -> Result<AppResponse> {
-        router.execute_contract(
-            self.owner.clone(),
-            self.voting_instance.clone(),
-            &ExecuteMsg::ConfigureEarlyWithdrawal {
-                max_penalty: Some(Decimal::from_str(max_penalty).unwrap()),
-                slashed_fund_receiver: Some(slashed_fund_receiver.to_string()),
-            },
-            &[],
-        )
-    }
-
     pub fn update_blacklist(
         &self,
         router: &mut App,
@@ -454,18 +423,6 @@ impl Helper {
                 &QueryMsg::TotalVotingPowerAtPeriod { period },
             )
             .map(|vp: VotingPowerResponse| vp.voting_power.u128() as f32 / MULTIPLIER as f32)
-    }
-
-    pub fn query_early_withdraw_amount(&self, router: &mut App, user: &str) -> StdResult<f32> {
-        router
-            .wrap()
-            .query_wasm_smart(
-                self.voting_instance.clone(),
-                &QueryMsg::EarlyWithdrawAmount {
-                    user: user.to_string(),
-                },
-            )
-            .map(|amount: Uint128| amount.u128() as f32 / MULTIPLIER as f32)
     }
 
     pub fn query_locked_balance_at(

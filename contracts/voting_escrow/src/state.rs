@@ -1,6 +1,6 @@
 use crate::astroport::common::OwnershipProposal;
 use astroport_governance::U64Key;
-use cosmwasm_std::{Addr, Decimal, Uint128};
+use cosmwasm_std::{Addr, Uint128};
 use cw_storage_plus::{Item, Map, SnapshotMap, Strategy};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -14,10 +14,6 @@ pub struct Config {
     pub guardian_addr: Option<Addr>,
     /// The xASTRO token contract address
     pub deposit_token_addr: Addr,
-    /// The maximum % of staked xASTRO that is confiscated upon an early exit
-    pub max_exit_penalty: Decimal,
-    /// The address that receives slashed ASTRO (slashed xASTRO is burned in order to claim ASTRO)
-    pub slashed_fund_receiver: Option<Addr>,
     /// The address of $ASTRO
     pub astro_addr: Addr,
     /// The address of $xASTRO staking contract

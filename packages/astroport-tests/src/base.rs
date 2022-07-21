@@ -1,6 +1,5 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use std::str::FromStr;
 
 use astroport::staking;
 use astroport::token::InstantiateMsg as AstroTokenInstantiateMsg;
@@ -9,7 +8,7 @@ use astroport_governance::voting_escrow::{
     Cw20HookMsg, ExecuteMsg, InstantiateMsg as AstroVotingEscrowInstantiateMsg, QueryMsg,
     VotingPowerResponse,
 };
-use cosmwasm_std::{attr, to_binary, Addr, Decimal, QueryRequest, StdResult, Uint128, WasmQuery};
+use cosmwasm_std::{attr, to_binary, Addr, QueryRequest, StdResult, Uint128, WasmQuery};
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
 
 use anyhow::Result;
@@ -156,8 +155,6 @@ impl BaseAstroportTestPackage {
             marketing: None,
             owner: owner.to_string(),
             deposit_token_addr: self.get_staking_xastro(router).to_string(),
-            max_exit_penalty: Decimal::from_str("0.75").unwrap(),
-            slashed_fund_receiver: None,
             logo_urls_whitelist: vec![],
         };
 

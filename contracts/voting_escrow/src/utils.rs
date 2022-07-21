@@ -3,7 +3,6 @@ use astroport_governance::utils::{get_periods_count, MAX_LOCK_TIME, WEEK};
 use astroport_governance::U64Key;
 use cosmwasm_std::{Addr, Decimal, Order, StdResult, Storage, Uint128};
 use cw_storage_plus::Bound;
-use std::cmp::min;
 
 use crate::state::{Point, BLACKLIST, CONFIG, HISTORY, LAST_SLOPE_CHANGE, SLOPE_CHANGES};
 
@@ -152,20 +151,4 @@ pub(crate) fn fetch_slope_changes(
             Order::Ascending,
         )
         .collect()
-}
-
-/// ## Description
-/// Calculate slashed and return amount based on a given parameters.
-/// The penalty is calculated as min(max_exit_penalty, time_left_until_unlock / MAX_LOCK_TIME).
-pub(crate) fn calc_early_withdraw_amount(
-    max_exit_penalty: Decimal,
-    periods_upon_unlock: u64,
-    xastro_amount: Uint128,
-) -> (Uint128, Uint128) {
-    let user_penalty = Decimal::from_ratio(periods_upon_unlock, get_periods_count(MAX_LOCK_TIME));
-    let exact_penalty = min(max_exit_penalty, user_penalty);
-    let slashed_amount = xastro_amount * exact_penalty;
-    let return_amount = xastro_amount.saturating_sub(slashed_amount);
-
-    (slashed_amount, return_amount)
 }
