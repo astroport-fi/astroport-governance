@@ -11,7 +11,7 @@ use crate::msg::{ExecuteMsg, InstantiateMsg, MintMsg};
 use crate::state::{Approval, Cw721Contract, TokenInfo};
 
 // version info for migration info
-const CONTRACT_NAME: &str = "crates.io:cw721-base";
+const CONTRACT_NAME: &str = "astroport-nft";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 impl<'a, T, C> Cw721Contract<'a, T, C>
