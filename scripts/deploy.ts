@@ -24,6 +24,40 @@ async function main() {
     await deployVotingEscrow(terra, wallet)
     await deployFeeDistributor(terra, wallet)
     await deployGeneratorController(terra, wallet)
+    await deployVotingEscrowDelegation(terra, wallet)
+}
+
+async function deployVotingEscrowDelegation(terra: LCDClient, wallet: any) {
+    let network = readArtifact(terra.config.chainID)
+
+    checkParams(network, [
+        "votingEscrowAddress",
+        "assemblyAddress",
+        "nftTokenCodeID"
+    ])
+
+    if (network.votingEscrowDelegationAddress) {
+        console.log("Voting escrow delegation contract already deployed: ", network.votingEscrowDelegationAddress)
+        return
+    }
+
+    console.log('Deploying voting escrow delegation...')
+    network.votingEscrowDelegationAddress = await deployContract(
+        terra,
+        wallet,
+        network.multisigAddress,
+        join(ARTIFACTS_PATH, 'voting_escrow_delegation.wasm'),
+        {
+            "owner": network.assemblyAddress,
+            "voting_escrow_addr": network.votingEscrowAddress,
+            "nft_token_code_id": network.nftTokenCodeID,
+        },
+        "Astroport Voting Escrow Delegation Contract"
+    )
+
+    console.log("Voting Escrow Delegation: ", network.votingEscrowDelegationAddress)
+
+    writeArtifact(network, terra.config.chainID)
 }
 
 async function deployGeneratorController(terra: LCDClient, wallet: any) {
