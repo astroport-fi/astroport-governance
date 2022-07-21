@@ -1,16 +1,17 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+use crate::state::{Config, Token, DELEGATED};
 use crate::ContractError;
 use astroport_governance::voting_escrow::get_lock_info;
+use astroport_governance::voting_escrow_delegation::{
+    ExecuteMsg, QueryMsg, DELEGATION_MAX_PERCENT, DELEGATION_MIN_PERCENT,
+};
 use cosmwasm_std::{
     to_binary, Addr, CosmosMsg, Deps, DepsMut, Order, QuerierWrapper, StdResult, Uint128, WasmMsg,
     WasmQuery,
 };
 use serde::de::DeserializeOwned;
-
-use crate::msg::{ExecuteMsg, QueryMsg};
-use crate::state::{Config, Token, DELEGATED, DELEGATION_MAX_PERCENT, DELEGATION_MIN_PERCENT};
 
 /// CwTemplateContract is a wrapper around Addr that provides a lot of helpers
 /// for working with this.
@@ -55,9 +56,9 @@ impl DelegationHelper {
         balance: Uint128,
         block_period: u64,
         exp_period: u64,
-        percent: Uint128,
+        percentage: Uint128,
     ) -> Result<Token, ContractError> {
-        let delegated_balance = balance.multiply_ratio(percent, DELEGATION_MAX_PERCENT);
+        let delegated_balance = balance.multiply_ratio(percentage, DELEGATION_MAX_PERCENT);
         let dt = Uint128::from(exp_period - block_period);
         let slope = delegated_balance
             .checked_div(dt)
@@ -75,11 +76,11 @@ impl DelegationHelper {
     pub(crate) fn calc_total_delegated_vp(
         &self,
         deps: Deps,
-        user: &Addr,
+        account: &Addr,
         block_period: u64,
     ) -> StdResult<Uint128> {
         let delegates = DELEGATED
-            .prefix(user.clone())
+            .prefix(account.clone())
             .range(deps.storage, None, None, Order::Ascending)
             .collect::<StdResult<Vec<_>>>()?;
 
@@ -101,7 +102,7 @@ impl DelegationHelper {
         user: &Addr,
         block_period: u64,
         exp_period: u64,
-        percent: Uint128,
+        percentage: Uint128,
         old_delegate: Option<&Token>,
     ) -> Result<(), ContractError> {
         let user_lock = get_lock_info(&deps.querier, &cfg.voting_escrow_addr, user)?;
@@ -111,7 +112,7 @@ impl DelegationHelper {
             return Err(ContractError::DelegationPeriodError {});
         }
 
-        if percent.lt(&DELEGATION_MIN_PERCENT) || percent.gt(&DELEGATION_MAX_PERCENT) {
+        if percentage.lt(&DELEGATION_MIN_PERCENT) || percentage.gt(&DELEGATION_MAX_PERCENT) {
             return Err(ContractError::PercentageError {});
         }
 
@@ -162,23 +163,5 @@ impl DelegationHelper {
         }
 
         Ok(balance - delegated_vp)
-    }
-
-    pub fn update_info(
-        &self,
-        deps: Deps,
-        user: &Addr,
-        mut balance: Uint128,
-        block_period: u64,
-    ) -> Result<Uint128, ContractError> {
-        let total_delegated_vp = self.calc_total_delegated_vp(deps, user, block_period)?;
-
-        if balance <= total_delegated_vp {
-            return Err(ContractError::DelegationVotingPowerNotAllowed {});
-        } else {
-            balance -= total_delegated_vp;
-        }
-
-        Ok(balance)
     }
 }

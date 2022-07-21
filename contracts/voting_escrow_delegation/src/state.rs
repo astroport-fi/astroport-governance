@@ -49,6 +49,3 @@ pub const RECEIVED: SnapshotMap<(Addr, String), Token> = SnapshotMap::new(
     "received__changelog",
     Strategy::EveryBlock,
 );
-
-pub const DELEGATION_MAX_PERCENT: Uint128 = Uint128::new(100);
-pub const DELEGATION_MIN_PERCENT: Uint128 = Uint128::new(1);

@@ -2,6 +2,9 @@ use cosmwasm_std::Uint128;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+pub const DELEGATION_MAX_PERCENT: Uint128 = Uint128::new(100);
+pub const DELEGATION_MIN_PERCENT: Uint128 = Uint128::new(1);
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema)]
 pub struct InstantiateMsg {
     /// The contract owner address

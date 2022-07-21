@@ -1,10 +1,11 @@
 #[cfg(test)]
 mod tests {
     use astroport_governance::utils::EPOCH_START;
+    use astroport_governance::voting_escrow_delegation::{InstantiateMsg, QueryMsg};
     use astroport_tests::escrow_helper::EscrowHelper;
     use cosmwasm_std::{to_binary, Addr, Empty, QueryRequest, WasmQuery};
     use cw_multi_test::{App, Contract, ContractWrapper, Executor};
-    use voting_escrow_delegation::{msg, state};
+    use voting_escrow_delegation::state;
 
     pub fn contract_escrow_delegation_template() -> Box<dyn Contract<Empty>> {
         let contract = ContractWrapper::new_with_empty(
@@ -44,7 +45,7 @@ mod tests {
             .instantiate_contract(
                 delegation_id,
                 Addr::unchecked(ADMIN.to_string()),
-                &msg::InstantiateMsg {
+                &InstantiateMsg {
                     owner: ADMIN.to_string(),
                     nft_token_code_id: nft_id,
                     voting_escrow_addr: escrow_addr.to_string(),
@@ -59,7 +60,7 @@ mod tests {
             .wrap()
             .query::<state::Config>(&QueryRequest::Wasm(WasmQuery::Smart {
                 contract_addr: delegation_addr.to_string(),
-                msg: to_binary(&msg::QueryMsg::Config {}).unwrap(),
+                msg: to_binary(&QueryMsg::Config {}).unwrap(),
             }))
             .unwrap();
 
@@ -114,7 +115,7 @@ mod tests {
                 .wrap()
                 .query::<state::Config>(&QueryRequest::Wasm(WasmQuery::Smart {
                     contract_addr: delegator_helper.delegation_instance.to_string(),
-                    msg: to_binary(&msg::QueryMsg::Config {}).unwrap(),
+                    msg: to_binary(&QueryMsg::Config {}).unwrap(),
                 }))
                 .unwrap();
 
@@ -129,10 +130,10 @@ mod tests {
             ExecuteMsg as ExecuteMsgNFT, Extension, MintMsg, QueryMsg as QueryMsgNFT,
         };
 
+        use astroport_governance::voting_escrow_delegation::{ExecuteMsg, QueryMsg};
         use cosmwasm_std::{to_binary, QueryRequest, Uint128, WasmQuery};
         use cw721::{ContractInfoResponse, NumTokensResponse, TokensResponse};
         use cw_multi_test::next_block;
-        use voting_escrow_delegation::msg::{ExecuteMsg, QueryMsg};
 
         #[test]
         fn mint() {

@@ -2,6 +2,7 @@ use astroport_governance::astroport::asset::addr_validate_to_lower;
 use astroport_governance::utils::{get_period, get_periods_count};
 use astroport_governance::voting_escrow::{get_voting_power, get_voting_power_at};
 
+use astroport_governance::voting_escrow_delegation::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use astroport_nft::{Extension, MintMsg};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
@@ -13,7 +14,6 @@ use cw2::set_contract_version;
 use cw_utils::parse_reply_instantiate_data;
 
 use crate::error::ContractError;
-use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::{Config, Token, CONFIG, DELEGATED, RECEIVED};
 
 use crate::helpers::DelegationHelper;
@@ -83,7 +83,7 @@ pub fn instantiate(
 /// Delegates voting power in percent into other account.
 ///
 /// * **ExecuteMsg::ExtendDelegation { percentage, cancel_time, expire_time, token_id, recipient}**
-/// Extends a delegation already created with a new specified parameters
+/// Extends an already created delegation with a new specified parameters
 ///
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
@@ -129,7 +129,9 @@ pub fn execute(
 }
 
 /// ## Description
-/// The entry point to the contract for processing replies from submessages. For now it only sets the xASTRO contract address.
+/// The entry point to the contract for processing replies from submessages. For now it only
+/// sets the NFT contract address.
+///
 /// # Params
 /// * **deps** is an object of type [`DepsMut`].
 ///
@@ -163,13 +165,27 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
 ///
 /// * **info** is an object of type [`MessageInfo`].
 ///
+/// * **helper** is an object of type [`DelegationHelper`]. This instance describes support
+/// delegation functions.
+///
+/// * **percentage** is an object of type [`Uint128`]. Uses percentage to determine the amount of
+/// voting power to delegate
+///
+/// * **expire_time** is an object of type [`u64`]. The point in time, at least a day in the
+/// future, at which the value of the voting power will reach 0.
+///
+/// * **token_id** is an object of type [`String`]. NFT token identifier.
+///
+/// * **recipient** is an object of type [`String`]. The account to receive the delegated
+/// voting power
+///
 #[allow(clippy::too_many_arguments)]
 pub fn create_delegation(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
     helper: &DelegationHelper,
-    percent: Uint128,
+    percentage: Uint128,
     expire_time: u64,
     token_id: String,
     recipient: String,
@@ -194,10 +210,18 @@ pub fn create_delegation(
     let block_period = get_period(env.block.time.seconds())?;
     let exp_period = block_period + get_periods_count(expire_time);
 
-    helper.checks_parameters(&deps, &cfg, &user, block_period, exp_period, percent, None)?;
+    helper.checks_parameters(
+        &deps,
+        &cfg,
+        &user,
+        block_period,
+        exp_period,
+        percentage,
+        None,
+    )?;
     balance = helper.calc_new_balance(&deps, &user, balance, block_period)?;
 
-    let token = helper.calc_delegate_bias_slope(balance, block_period, exp_period, percent)?;
+    let token = helper.calc_delegate_bias_slope(balance, block_period, exp_period, percentage)?;
 
     DELEGATED.update(
         deps.storage,
@@ -235,28 +259,46 @@ pub fn create_delegation(
         })))
 }
 
+/// ## Description
+/// Extends a previously created delegation by a new specified parameters. Returns [`Response`] in
+/// case of success or [`ContractError`] in case of errors.
+///
+/// ## Params
+/// * **deps** is an object of type [`DepsMut`].
+///
+/// * **env** is an object of type [`Env`].
+///
+/// * **info** is an object of type [`MessageInfo`].
+///
+/// * **helper** is an object of type [`DelegationHelper`]. This instance describes support
+/// delegation functions.
+///
+/// * **percentage** is an object of type [`Uint128`]. Uses percentage to determine the amount of
+/// voting power to delegate
+///
+/// * **expire_time** is an object of type [`u64`]. The point in time, at least a day in the
+/// future, at which the value of the voting power will reach 0.
+///
+/// * **token_id** is an object of type [`String`]. NFT token identifier.
+///
+/// * **recipient** is an object of type [`String`]. The account to receive the delegated
+/// voting power
+///
 #[allow(clippy::too_many_arguments)]
 pub fn extend_delegation(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
     helper: &DelegationHelper,
-    percent: Uint128,
+    percentage: Uint128,
     expire_time: u64,
     token_id: String,
     recipient: String,
 ) -> Result<Response, ContractError> {
-    // We can extend only exists NFT token
-    // if !NFT_TOKENS.has(deps.storage, token_id.clone()) {
-    //     return Err(ContractError::DelegateTokenNotFound(token_id));
-    // }
-
     let recipient_addr = addr_validate_to_lower(deps.api, recipient)?;
     let user = info.sender;
     let cfg = CONFIG.load(deps.storage)?;
 
-    // TODO: do we need to check if NFT token exists with token_id?
-    // We can create only one NFT token for specify token ID
     let old_delegate = DELEGATED.load(deps.storage, (user.clone(), token_id.clone()))?;
 
     let mut balance = get_voting_power(&deps.querier, &cfg.voting_escrow_addr, &user)?;
@@ -273,13 +315,13 @@ pub fn extend_delegation(
         &user,
         block_period,
         exp_period,
-        percent,
+        percentage,
         Some(&old_delegate),
     )?;
     balance = helper.calc_extend_balance(&deps, &user, balance, &old_delegate, block_period)?;
 
     let new_delegate =
-        helper.calc_delegate_bias_slope(balance, block_period, exp_period, percent)?;
+        helper.calc_delegate_bias_slope(balance, block_period, exp_period, percentage)?;
 
     DELEGATED.update(
         deps.storage,
@@ -300,22 +342,25 @@ pub fn extend_delegation(
 
 /// # Description
 /// Expose available contract queries.
+///
 /// ## Params
 /// * **deps** is an object of type [`Deps`].
 ///
 /// * **env** is an object of type [`Env`].
 ///
 /// * **msg** is an object of type [`QueryMsg`].
+///
 /// ## Queries
-/// * **QueryMsg::UserInfo { user }** Fetch user information
+/// * **QueryMsg::Config {}** Fetch contract config
 ///
-/// * **QueryMsg::TuneInfo** Fetch last tuning information
+/// * **QueryMsg::AdjustedBalance { account }** Adjusted voting power balance after accounting
+/// for delegations.
 ///
-/// * **QueryMsg::Config** Fetch contract config
+/// * **QueryMsg::AdjustedBalanceAt { account, timestamp }** Adjusted voting power balance after
+/// accounting for delegations for specified block height.
 ///
-/// * **QueryMsg::PoolInfo { pool_addr }** Fetch pool's voting information at the current period.
-///
-/// * **QueryMsg::PoolInfoAtPeriod { pool_addr, period }** Fetch pool's voting information at a specified period.
+/// * **QueryMsg::AlreadyDelegatedVP { account, timestamp }** Returns the amount of delegated
+/// voting power according to the given parameters.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     let helper = DelegationHelper(env.contract.address.clone());
@@ -348,24 +393,28 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 }
 
 /// ## Description
-/// Returns a account balance with delegation.
+/// Returns an adjusted voting power balance after accounting for delegations. Returns [`Response`]
+/// in case of success or [`StdError`] in case of errors.
 ///
 /// ## Params
 /// * **deps** is an object of type [`Deps`].
 ///
 /// * **env** is an object of type [`Env`].
 ///
-/// * **account** is an object of type [`String`].
+/// * **helper** is an object of type [`DelegationHelper`]. This instance describes support
+/// delegation functions.
 ///
-/// * **time** is an object of type [`Option<u64>`]. This is an optional field that specifies
-/// the period for which the function returns voting power.
+/// * **user** is an object of type [`String`]. The address of the account to return adjusted balance.
 ///
-/// * **start_after** is an object of type [`Option<String>`]. This is an optional field
+/// * **time** is an object of type [`Option<u64>`]. The point in time, at least a day in the
+/// future, at which the value of the voting power will reach 0.
+///
+/// * **start_after** is an object of type [`String`]. This is an optional field
 /// that specifies whether the function should return a list of NFT tokens starting from a
 /// specific ID onward.
 ///
-/// * **limit** is an object of type [`Option<u32>`]. This is the max amount of NFT tokens
-/// to return.
+/// * **limit** is an object of type [`Option<String>`]. This is the max amount of entries to return.
+///
 fn adjusted_balance(
     deps: Deps,
     env: Env,
@@ -375,23 +424,23 @@ fn adjusted_balance(
     start_after: Option<String>,
     limit: Option<u32>,
 ) -> StdResult<Uint128> {
-    let account_addr = addr_validate_to_lower(deps.api, account)?;
+    let account = addr_validate_to_lower(deps.api, account)?;
     let config = CONFIG.load(deps.storage)?;
 
     let mut current_vp;
-    if let Some(time) = time {
+    if let Some(timestamp) = time {
         current_vp = get_voting_power_at(
             &deps.querier,
             &config.voting_escrow_addr,
-            &account_addr,
-            time,
+            &account,
+            timestamp,
         )?;
     } else {
-        current_vp = get_voting_power(&deps.querier, &config.voting_escrow_addr, &account_addr)?;
+        current_vp = get_voting_power(&deps.querier, &config.voting_escrow_addr, &account)?;
     }
 
     let block_period = get_period(time.unwrap_or_else(|| env.block.time.seconds()))?;
-    let total_delegated_vp = helper.calc_total_delegated_vp(deps, &account_addr, block_period)?;
+    let total_delegated_vp = helper.calc_total_delegated_vp(deps, &account, block_period)?;
 
     // we must to subtract the delegated voting power
     if current_vp >= total_delegated_vp {
@@ -402,11 +451,11 @@ fn adjusted_balance(
     }
 
     let nft_helper = astroport_nft::helpers::Cw721Contract(config.nft_token_addr);
-    let tokens_resp = nft_helper.tokens(&deps.querier, account_addr.clone(), start_after, limit)?;
+    let tokens_resp = nft_helper.tokens(&deps.querier, account.clone(), start_after, limit)?;
 
     for token_id in tokens_resp.tokens {
         if let Some(token) =
-            DELEGATED.may_load(deps.storage, (account_addr.clone(), token_id.clone()))?
+            DELEGATED.may_load(deps.storage, (account.clone(), token_id.clone()))?
         {
             if token.start <= block_period && token.expire_period >= block_period {
                 let calc_vp = helper.calc_delegate_vp(&token, block_period)?;
@@ -414,7 +463,7 @@ fn adjusted_balance(
             }
         }
 
-        if let Some(token) = RECEIVED.may_load(deps.storage, (account_addr.clone(), token_id))? {
+        if let Some(token) = RECEIVED.may_load(deps.storage, (account.clone(), token_id))? {
             if token.start <= block_period && token.expire_period >= block_period {
                 let calc_vp = helper.calc_delegate_vp(&token, block_period)?;
                 current_vp += calc_vp;
@@ -426,24 +475,20 @@ fn adjusted_balance(
 }
 
 /// ## Description
-/// Returns a account balance with delegation.
+/// Returns an amount of delegated voting power.
 ///
 /// ## Params
 /// * **deps** is an object of type [`Deps`].
 ///
 /// * **env** is an object of type [`Env`].
 ///
+/// * **helper** is an object of type [`DelegationHelper`]. This instance describes support
+/// delegation functions.
+///
 /// * **account** is an object of type [`String`].
 ///
-/// * **time** is an object of type [`Option<u64>`]. This is an optional field that specifies
+/// * **timestamp** is an object of type [`Option<u64>`]. This is an optional field that specifies
 /// the period for which the function returns voting power.
-///
-/// * **start_after** is an object of type [`Option<String>`]. This is an optional field
-/// that specifies whether the function should return a list of NFT tokens starting from a
-/// specific ID onward.
-///
-/// * **limit** is an object of type [`Option<u32>`]. This is the max amount of NFT tokens
-/// to return.
 fn already_delegated_vp(
     deps: Deps,
     env: Env,
@@ -451,8 +496,8 @@ fn already_delegated_vp(
     account: String,
     timestamp: Option<u64>,
 ) -> StdResult<Uint128> {
-    let account_addr = addr_validate_to_lower(deps.api, account)?;
+    let account = addr_validate_to_lower(deps.api, account)?;
     let block_period = get_period(timestamp.unwrap_or_else(|| env.block.time.seconds()))?;
 
-    helper.calc_total_delegated_vp(deps, &account_addr, block_period)
+    helper.calc_total_delegated_vp(deps, &account, block_period)
 }
