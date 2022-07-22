@@ -46,12 +46,16 @@ impl DelegationHelper {
         querier.query(&query)
     }
 
-    pub fn calc_delegate_vp(&self, token: &Token, block_period: u64) -> StdResult<Uint128> {
+    /// ## Description
+    /// Adjusting voting power according to the slope.
+    pub fn calc_vp(&self, token: &Token, block_period: u64) -> StdResult<Uint128> {
         let dt = Uint128::from(block_period - token.start);
         Ok(token.bias - token.slope.checked_mul(dt)?)
     }
 
-    pub fn calc_delegate_bias_slope(
+    /// ## Description
+    /// Adjusting voting power according to the slope by specified percentage.
+    pub fn calc_delegate_vp(
         &self,
         balance: Uint128,
         block_period: u64,
@@ -73,6 +77,8 @@ impl DelegationHelper {
         })
     }
 
+    /// ## Description
+    /// Calculates the total delegated voting power for specified account.
     pub(crate) fn calc_total_delegated_vp(
         &self,
         deps: Deps,
@@ -87,15 +93,17 @@ impl DelegationHelper {
         let mut total_delegated_vp = Uint128::zero();
         for delegate in delegates {
             if delegate.1.start <= block_period && delegate.1.expire_period >= block_period {
-                total_delegated_vp += self.calc_delegate_vp(&delegate.1, block_period)?;
+                total_delegated_vp += self.calc_vp(&delegate.1, block_period)?;
             }
         }
 
         Ok(total_delegated_vp)
     }
 
+    /// ## Description
+    /// Validates input parameters to create or extend a delegation.
     #[allow(clippy::too_many_arguments)]
-    pub fn checks_parameters(
+    pub fn validates_parameters(
         &self,
         deps: &DepsMut,
         cfg: &Config,
@@ -125,37 +133,39 @@ impl DelegationHelper {
         Ok(())
     }
 
+    /// ## Description
+    /// Calculates available balance for a new delegation.
     pub fn calc_new_balance(
         &self,
         deps: &DepsMut,
         user: &Addr,
-        mut balance: Uint128,
+        balance: Uint128,
         block_period: u64,
     ) -> Result<Uint128, ContractError> {
         let total_delegated_vp = self.calc_total_delegated_vp(deps.as_ref(), user, block_period)?;
 
         if balance <= total_delegated_vp {
             return Err(ContractError::DelegationVotingPowerNotAllowed {});
-        } else {
-            balance -= total_delegated_vp;
         }
 
-        Ok(balance)
+        Ok(balance - total_delegated_vp)
     }
 
+    /// ## Description
+    /// Calculates the available balance for the specified delegation.
     pub fn calc_extend_balance(
         &self,
         deps: &DepsMut,
         user: &Addr,
         balance: Uint128,
-        old_delegate: &Token,
+        old_delegation: &Token,
         block_period: u64,
     ) -> Result<Uint128, ContractError> {
         let mut delegated_vp = self.calc_total_delegated_vp(deps.as_ref(), user, block_period)?;
 
-        // we must subtract delegated voting power for specify token ID and reassign a new delegation
-        if old_delegate.expire_period >= block_period {
-            delegated_vp -= self.calc_delegate_vp(old_delegate, block_period)?;
+        // we should deduct the previous delegation balance and assign a new delegation data
+        if old_delegation.expire_period >= block_period {
+            delegated_vp -= self.calc_vp(old_delegation, block_period)?;
         }
 
         if balance <= delegated_vp {

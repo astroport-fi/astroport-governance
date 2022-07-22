@@ -2,6 +2,8 @@ use astroport_governance::astroport::asset::addr_validate_to_lower;
 use astroport_governance::utils::{get_period, get_periods_count};
 use astroport_governance::voting_escrow::{get_voting_power, get_voting_power_at};
 
+use crate::error::ContractError;
+use crate::state::{Config, Token, CONFIG, DELEGATED, OWNERSHIP_PROPOSAL, TOKENS};
 use astroport_governance::astroport::common::{
     claim_ownership, drop_ownership_proposal, propose_new_owner,
 };
@@ -15,9 +17,6 @@ use cosmwasm_std::{
 };
 use cw2::set_contract_version;
 use cw_utils::parse_reply_instantiate_data;
-
-use crate::error::ContractError;
-use crate::state::{Config, Token, CONFIG, DELEGATED, OWNERSHIP_PROPOSAL, RECEIVED};
 
 use crate::helpers::DelegationHelper;
 use astroport_nft::msg::{ExecuteMsg as ExecuteMsgNFT, InstantiateMsg as InstantiateMsgNFT};
@@ -99,7 +98,7 @@ pub fn execute(
 
     match msg {
         ExecuteMsg::CreateDelegation {
-            percent,
+            percentage,
             expire_time,
             token_id,
             recipient,
@@ -108,7 +107,7 @@ pub fn execute(
             env,
             info,
             &helper,
-            percent,
+            percentage,
             expire_time,
             token_id,
             recipient,
@@ -117,17 +116,7 @@ pub fn execute(
             percentage,
             expire_time,
             token_id,
-            recipient,
-        } => extend_delegation(
-            deps,
-            env,
-            info,
-            &helper,
-            percentage,
-            expire_time,
-            token_id,
-            recipient,
-        ),
+        } => extend_delegation(deps, env, info, &helper, percentage, expire_time, token_id),
         ExecuteMsg::UpdateConfig { new_voting_escrow } => {
             execute_update_config(deps, info, new_voting_escrow)
         }
@@ -241,7 +230,7 @@ pub fn create_delegation(
         return Err(ContractError::DelegateTokenAlreadyExists(token_id));
     }
 
-    let mut balance = get_voting_power(&deps.querier, &cfg.voting_escrow_addr, &user)?;
+    let balance = get_voting_power(&deps.querier, &cfg.voting_escrow_addr, &user)?;
     if balance.is_zero() {
         return Err(ContractError::ZeroVotingPower {});
     }
@@ -249,7 +238,7 @@ pub fn create_delegation(
     let block_period = get_period(env.block.time.seconds())?;
     let exp_period = block_period + get_periods_count(expire_time);
 
-    helper.checks_parameters(
+    helper.validates_parameters(
         &deps,
         &cfg,
         &user,
@@ -258,23 +247,18 @@ pub fn create_delegation(
         percentage,
         None,
     )?;
-    balance = helper.calc_new_balance(&deps, &user, balance, block_period)?;
 
-    let token = helper.calc_delegate_bias_slope(balance, block_period, exp_period, percentage)?;
+    let new_balance = helper.calc_new_balance(&deps, &user, balance, block_period)?;
+    let delegation = helper.calc_delegate_vp(new_balance, block_period, exp_period, percentage)?;
 
     DELEGATED.update(
         deps.storage,
         (user, token_id.clone()),
         env.block.height,
-        |_| -> StdResult<Token> { Ok(Token { ..token }) },
+        |_| -> StdResult<Token> { Ok(Token { ..delegation }) },
     )?;
 
-    RECEIVED.update(
-        deps.storage,
-        (recipient_addr.clone(), token_id.clone()),
-        env.block.height,
-        |_| -> StdResult<Token> { Ok(Token { ..token }) },
-    )?;
+    TOKENS.save(deps.storage, token_id.clone(), &delegation)?;
 
     Ok(Response::default()
         .add_attribute("action", "create_delegation")
@@ -332,15 +316,13 @@ pub fn extend_delegation(
     percentage: Uint128,
     expire_time: u64,
     token_id: String,
-    recipient: String,
 ) -> Result<Response, ContractError> {
-    let recipient_addr = addr_validate_to_lower(deps.api, recipient)?;
     let user = info.sender;
     let cfg = CONFIG.load(deps.storage)?;
 
-    let old_delegate = DELEGATED.load(deps.storage, (user.clone(), token_id.clone()))?;
+    let old_delegation = DELEGATED.load(deps.storage, (user.clone(), token_id.clone()))?;
 
-    let mut balance = get_voting_power(&deps.querier, &cfg.voting_escrow_addr, &user)?;
+    let balance = get_voting_power(&deps.querier, &cfg.voting_escrow_addr, &user)?;
     if balance.is_zero() {
         return Err(ContractError::ZeroVotingPower {});
     }
@@ -348,33 +330,31 @@ pub fn extend_delegation(
     let block_period = get_period(env.block.time.seconds())?;
     let exp_period = block_period + get_periods_count(expire_time);
 
-    helper.checks_parameters(
+    helper.validates_parameters(
         &deps,
         &cfg,
         &user,
         block_period,
         exp_period,
         percentage,
-        Some(&old_delegate),
+        Some(&old_delegation),
     )?;
-    balance = helper.calc_extend_balance(&deps, &user, balance, &old_delegate, block_period)?;
 
-    let new_delegate =
-        helper.calc_delegate_bias_slope(balance, block_period, exp_period, percentage)?;
+    let new_balance =
+        helper.calc_extend_balance(&deps, &user, balance, &old_delegation, block_period)?;
+    let new_delegation =
+        helper.calc_delegate_vp(new_balance, block_period, exp_period, percentage)?;
 
     DELEGATED.update(
         deps.storage,
         (user, token_id.clone()),
         env.block.height,
-        |_| -> StdResult<Token> { Ok(Token { ..new_delegate }) },
+        |_| -> StdResult<Token> { Ok(Token { ..new_delegation }) },
     )?;
 
-    RECEIVED.update(
-        deps.storage,
-        (recipient_addr, token_id),
-        env.block.height,
-        |_| -> StdResult<Token> { Ok(Token { ..new_delegate }) },
-    )?;
+    TOKENS.update(deps.storage, token_id, |_| -> StdResult<Token> {
+        Ok(Token { ..new_delegation })
+    })?;
 
     Ok(Response::default().add_attribute("action", "extend_delegation"))
 }
@@ -442,17 +422,15 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
                 voting_escrow_addr: config.voting_escrow_addr,
             })
         }
-        QueryMsg::AdjustedBalance { account } => to_binary(&adjusted_balance(
-            deps, env, &helper, account, None, None, None,
-        )?),
+        QueryMsg::AdjustedBalance { account } => {
+            to_binary(&adjusted_balance(deps, env, &helper, account, None)?)
+        }
         QueryMsg::AdjustedBalanceAt { account, timestamp } => to_binary(&adjusted_balance(
             deps,
             env,
             &helper,
             account,
             Some(timestamp),
-            None,
-            None,
         )?),
         QueryMsg::AlreadyDelegatedVP { account, timestamp } => to_binary(&already_delegated_vp(
             deps, env, &helper, account, timestamp,
@@ -477,20 +455,12 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 /// * **time** is an object of type [`Option<u64>`]. The point in time, at least a day in the
 /// future, at which the value of the voting power will reach 0.
 ///
-/// * **start_after** is an object of type [`String`]. This is an optional field
-/// that specifies whether the function should return a list of NFT tokens starting from a
-/// specific ID onward.
-///
-/// * **limit** is an object of type [`Option<String>`]. This is the max amount of entries to return.
-///
 fn adjusted_balance(
     deps: Deps,
     env: Env,
     helper: &DelegationHelper,
     account: String,
     time: Option<u64>,
-    start_after: Option<String>,
-    limit: Option<u32>,
 ) -> StdResult<Uint128> {
     let account = addr_validate_to_lower(deps.api, account)?;
     let config = CONFIG.load(deps.storage)?;
@@ -514,26 +484,17 @@ fn adjusted_balance(
     if current_vp >= total_delegated_vp {
         current_vp -= total_delegated_vp;
     } else {
-        // TODO: to be sure that we did not delegate more than we had
+        // to be sure that we did not delegate more than we had
         current_vp = Uint128::zero();
     }
 
     let nft_helper = astroport_nft::helpers::Cw721Contract(config.nft_token_addr);
-    let tokens_resp = nft_helper.tokens(&deps.querier, account.clone(), start_after, limit)?;
+    let tokens_resp = nft_helper.tokens(&deps.querier, account, None, None)?;
 
     for token_id in tokens_resp.tokens {
-        if let Some(token) =
-            DELEGATED.may_load(deps.storage, (account.clone(), token_id.clone()))?
-        {
+        if let Some(token) = TOKENS.may_load(deps.storage, token_id)? {
             if token.start <= block_period && token.expire_period >= block_period {
-                let calc_vp = helper.calc_delegate_vp(&token, block_period)?;
-                current_vp += calc_vp;
-            }
-        }
-
-        if let Some(token) = RECEIVED.may_load(deps.storage, (account.clone(), token_id))? {
-            if token.start <= block_period && token.expire_period >= block_period {
-                let calc_vp = helper.calc_delegate_vp(&token, block_period)?;
+                let calc_vp = helper.calc_vp(&token, block_period)?;
                 current_vp += calc_vp;
             }
         }

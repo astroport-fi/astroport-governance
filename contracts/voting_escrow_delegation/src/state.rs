@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use astroport_governance::astroport::common::OwnershipProposal;
 use cosmwasm_std::{Addr, Uint128};
-use cw_storage_plus::{Item, SnapshotMap, Strategy};
+use cw_storage_plus::{Item, Map, SnapshotMap, Strategy};
 
 /// Contains a proposal to change contract ownership
 pub const OWNERSHIP_PROPOSAL: Item<OwnershipProposal> = Item::new("ownership_proposal");
@@ -45,11 +45,4 @@ pub const DELEGATED: SnapshotMap<(Addr, String), Token> = SnapshotMap::new(
     Strategy::EveryBlock,
 );
 
-/// ## Description
-/// Stores all user lock history
-pub const RECEIVED: SnapshotMap<(Addr, String), Token> = SnapshotMap::new(
-    "received",
-    "received__checkpoints",
-    "received__changelog",
-    Strategy::EveryBlock,
-);
+pub const TOKENS: Map<String, Token> = Map::new("tokens");

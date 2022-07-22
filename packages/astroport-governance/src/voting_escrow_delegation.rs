@@ -19,7 +19,7 @@ pub struct InstantiateMsg {
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
     CreateDelegation {
-        percent: Uint128,
+        percentage: Uint128,
         expire_time: u64,
         token_id: String,
         recipient: String,
@@ -28,7 +28,6 @@ pub enum ExecuteMsg {
         percentage: Uint128,
         expire_time: u64,
         token_id: String,
-        recipient: String,
     },
     UpdateConfig {
         /// vxASTRO contract address

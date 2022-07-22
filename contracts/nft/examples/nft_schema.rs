@@ -5,10 +5,10 @@ use cosmwasm_schema::{export_schema, export_schema_with_title, remove_schemas, s
 
 use cw721::{
     AllNftInfoResponse, ApprovalResponse, ApprovalsResponse, ContractInfoResponse, NftInfoResponse,
-    NumTokensResponse, OperatorsResponse, OwnerOfResponse, TokensResponse
+    NumTokensResponse, OperatorsResponse, OwnerOfResponse, TokensResponse,
 };
 
-use astroport_nft::{Extension, ExecuteMsg, QueryMsg, InstantiateMsg, MinterResponse};
+use astroport_nft::{ExecuteMsg, Extension, InstantiateMsg, MinterResponse, QueryMsg};
 
 fn main() {
     let mut out_dir = current_dir().unwrap();
