@@ -118,7 +118,7 @@ pub fn execute(
             token_id,
         } => extend_delegation(deps, env, info, &helper, percentage, expire_time, token_id),
         ExecuteMsg::UpdateConfig { new_voting_escrow } => {
-            execute_update_config(deps, info, new_voting_escrow)
+            update_config(deps, info, new_voting_escrow)
         }
         ExecuteMsg::ProposeNewOwner {
             new_owner,
@@ -368,7 +368,7 @@ pub fn extend_delegation(
 /// * **info** is an object of type [`MessageInfo`].
 ///
 /// * **new_voting_escrow** is an optional object of type [`String`].
-fn execute_update_config(
+fn update_config(
     deps: DepsMut,
     info: MessageInfo,
     new_voting_escrow: Option<String>,
@@ -465,17 +465,16 @@ fn adjusted_balance(
     let account = addr_validate_to_lower(deps.api, account)?;
     let config = CONFIG.load(deps.storage)?;
 
-    let mut current_vp;
-    if let Some(timestamp) = time {
-        current_vp = get_voting_power_at(
+    let mut current_vp = if let Some(timestamp) = time {
+        get_voting_power_at(
             &deps.querier,
             &config.voting_escrow_addr,
             &account,
             timestamp,
-        )?;
+        )?
     } else {
-        current_vp = get_voting_power(&deps.querier, &config.voting_escrow_addr, &account)?;
-    }
+        get_voting_power(&deps.querier, &config.voting_escrow_addr, &account)?
+    };
 
     let block_period = get_period(time.unwrap_or_else(|| env.block.time.seconds()))?;
     let total_delegated_vp = helper.calc_total_delegated_vp(deps, &account, block_period)?;
