@@ -7,8 +7,8 @@ use std::fmt::{Display, Formatter, Result};
 
 pub const MINIMUM_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE: u64 = 33;
 pub const MAX_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE: u64 = 100;
-pub const MINIMUM_DELAY: u64 = 12_342; // 1 day in blocks (7 seconds as 1 block)
-pub const MINIMUM_EXPIRATION_PERIOD: u64 = 86_399; // 1 week in blocks (7 seconds as 1 block)
+pub const MINIMUM_DELAY: u64 = 14_400;
+pub const MINIMUM_EXPIRATION_PERIOD: u64 = 100_800;
 
 /// Proposal validation attributes
 const MIN_TITLE_LENGTH: usize = 4;

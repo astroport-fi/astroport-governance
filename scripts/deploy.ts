@@ -10,7 +10,7 @@ import {LCDClient} from '@terra-money/terra.js';
 
 const ARTIFACTS_PATH = '../artifacts'
 
-const ASSEMBLY_LABEL = "Astroport Assembly contract"
+const ASSEMBLY_LABEL = "Astroport Assembly"
 
 async function main() {
     const { terra, wallet } = newClient()
@@ -229,12 +229,12 @@ async function deployAssembly(terra: LCDClient, wallet: any) {
         {
             "xastro_token_addr": network.xastroAddress,
             "builder_unlock_addr": network.builderUnlockAddress,
-            "proposal_voting_period": 200,
-            "proposal_effective_delay": 50,
-            "proposal_expiration_period": 400,
-            "proposal_required_deposit": "1000", // 30k ASTRO
-            "proposal_required_quorum": "0.001", // 10%
-            "proposal_required_threshold": '0.51',   // 50%
+            "proposal_voting_period": 57600,
+            "proposal_effective_delay": 28800,
+            "proposal_expiration_period": 201600,
+            "proposal_required_deposit": "30000000000", // 30k xASTRO
+            "proposal_required_quorum": "0.1", // 10%
+            "proposal_required_threshold": '0.50',   // 50%
             "whitelisted_links": ["https://forum.astroport.fi/", "http://forum.astroport.fi/", "https://astroport.fi/", "http://astroport.fi/"]
         },
         ASSEMBLY_LABEL

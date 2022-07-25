@@ -28,9 +28,9 @@ use cw_multi_test::{
     next_block, App, AppBuilder, AppResponse, BankKeeper, ContractWrapper, Executor,
 };
 
-const PROPOSAL_VOTING_PERIOD: u64 = 500;
-const PROPOSAL_EFFECTIVE_DELAY: u64 = 12_342;
-const PROPOSAL_EXPIRATION_PERIOD: u64 = 86_399;
+const PROPOSAL_VOTING_PERIOD: u64 = 57_600;
+const PROPOSAL_EFFECTIVE_DELAY: u64 = 28_800;
+const PROPOSAL_EXPIRATION_PERIOD: u64 = 201_600;
 const PROPOSAL_REQUIRED_DEPOSIT: u128 = 1000u128;
 const PROPOSAL_REQUIRED_QUORUM: &str = "0.50";
 const PROPOSAL_REQUIRED_THRESHOLD: &str = "0.60";
@@ -142,7 +142,7 @@ fn test_contract_instantiation() {
 
     assert_eq!(
         err.root_cause().to_string(),
-        "Generic error: The expiration period for a proposal cannot be less than 86399 blocks."
+        "Generic error: The expiration period for a proposal cannot be less than 100800 blocks."
     );
 
     let err = app
@@ -161,7 +161,7 @@ fn test_contract_instantiation() {
 
     assert_eq!(
         err.root_cause().to_string(),
-        "Generic error: The effective delay for a proposal cannot be less than 12342 blocks."
+        "Generic error: The effective delay for a proposal cannot be less than 14400 blocks."
     );
 
     let assembly_instance = app
@@ -502,7 +502,7 @@ fn test_proposal_submitting() {
     assert_eq!(proposal.for_voters, Vec::<Addr>::new());
     assert_eq!(proposal.against_voters, Vec::<Addr>::new());
     assert_eq!(proposal.start_block, 12_345);
-    assert_eq!(proposal.end_block, 12_345 + 500);
+    assert_eq!(proposal.end_block, 12_345 + 57_600);
     assert_eq!(proposal.title, String::from("Title"));
     assert_eq!(proposal.description, String::from("Description"));
     assert_eq!(proposal.link, Some(String::from("https://some.link/q/")));
