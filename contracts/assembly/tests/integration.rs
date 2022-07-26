@@ -1345,29 +1345,6 @@ fn test_check_messages() {
         ExecuteMsg::CheckMessages { messages }
     };
 
-    let vxastro_blacklist_msg = vec![(
-        vxastro_addr.to_string(),
-        to_binary(
-            &astroport_governance::voting_escrow::ExecuteMsg::ConfigureEarlyWithdrawal {
-                max_penalty: Decimal::from_str("1.2").ok(),
-                slashed_fund_receiver: Some("holder".to_string()),
-            },
-        )
-        .unwrap(),
-    )];
-    let err = app
-        .execute_contract(
-            user.clone(),
-            assembly_addr.clone(),
-            &into_check_msg(vxastro_blacklist_msg),
-            &[],
-        )
-        .unwrap_err();
-    assert_eq!(
-        &err.root_cause().to_string(),
-        "Generic error: Max exit penalty should be <= 1"
-    );
-
     let config_before: astroport_governance::voting_escrow::ConfigResponse = app
         .wrap()
         .query_wasm_smart(
@@ -1379,10 +1356,7 @@ fn test_check_messages() {
     let vxastro_blacklist_msg = vec![(
         vxastro_addr.to_string(),
         to_binary(
-            &astroport_governance::voting_escrow::ExecuteMsg::ConfigureEarlyWithdrawal {
-                max_penalty: Decimal::from_str("0.5").ok(),
-                slashed_fund_receiver: Some("holder".to_string()),
-            },
+            &astroport_governance::voting_escrow::ExecuteMsg::UpdateConfig { new_guardian: None },
         )
         .unwrap(),
     )];
@@ -1548,8 +1522,6 @@ fn instantiate_vxastro_token(router: &mut App, owner: &Addr, xastro: &Addr) -> A
         guardian_addr: Some(owner.to_string()),
         deposit_token_addr: xastro.to_string(),
         marketing: None,
-        max_exit_penalty: Decimal::from_str("0.75").unwrap(),
-        slashed_fund_receiver: None,
         logo_urls_whitelist: vec![],
     };
 

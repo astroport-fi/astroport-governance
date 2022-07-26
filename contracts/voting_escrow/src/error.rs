@@ -33,9 +33,6 @@ pub enum ContractError {
     #[error("The {0} address is blacklisted")]
     AddressBlacklisted(String),
 
-    #[error("Slashed fund receiver is not set yet. Early withdrawal is not available")]
-    EarlyWithdrawNotAvailable {},
-
     #[error("Marketing info validation error: {0}")]
     MarketingInfoValidationError(String),
 

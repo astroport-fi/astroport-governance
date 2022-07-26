@@ -1,17 +1,15 @@
 use crate::astroport;
 use astroport::asset::addr_validate_to_lower;
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
-use astroport::querier::query_token_balance;
 use astroport_governance::astroport::DecimalCheckedOps;
 use astroport_governance::U64Key;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, from_binary, to_binary, Addr, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env,
-    MessageInfo, QueryRequest, Response, StdError, StdResult, Storage, SubMsg, Uint128, WasmMsg,
-    WasmQuery,
+    attr, from_binary, to_binary, Addr, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo,
+    Response, StdError, StdResult, Storage, Uint128, WasmMsg,
 };
-use cw2::{set_contract_version, ContractVersion, CONTRACT};
+use cw2::set_contract_version;
 use cw20::{
     BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, Cw20ReceiveMsg, Logo, LogoInfo,
     MarketingInfoResponse, MinterResponse, TokenInfoResponse,
@@ -35,9 +33,9 @@ use crate::state::{
     Config, Lock, Point, BLACKLIST, CONFIG, HISTORY, LAST_SLOPE_CHANGE, LOCKED, OWNERSHIP_PROPOSAL,
 };
 use crate::utils::{
-    adjust_vp_and_slope, blacklist_check, calc_coefficient, calc_early_withdraw_amount,
-    calc_voting_power, cancel_scheduled_slope, fetch_last_checkpoint, fetch_slope_changes,
-    schedule_slope_change, time_limits_check, xastro_token_check,
+    adjust_vp_and_slope, blacklist_check, calc_coefficient, calc_voting_power,
+    cancel_scheduled_slope, fetch_last_checkpoint, fetch_slope_changes, schedule_slope_change,
+    time_limits_check, xastro_token_check,
 };
 
 /// Contract name that is used for migration.
@@ -65,15 +63,8 @@ pub fn instantiate(
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-
-    // Accept values within [0,1] limit.
-    if msg.max_exit_penalty > Decimal::one() {
-        return Err(StdError::generic_err("Max exit penalty should be <= 1").into());
-    }
-    let slashed_fund_receiver = addr_opt_validate(deps.api, &msg.slashed_fund_receiver)?;
     let deposit_token_addr = addr_validate_to_lower(deps.api, &msg.deposit_token_addr)?;
 
-    // Initialize early withdraw parameters
     let xastro_minter_resp: MinterResponse = deps
         .querier
         .query_wasm_smart(&deposit_token_addr, &Cw20QueryMsg::Minter {})?;
@@ -89,10 +80,8 @@ pub fn instantiate(
         owner: addr_validate_to_lower(deps.api, &msg.owner)?,
         guardian_addr,
         deposit_token_addr,
-        max_exit_penalty: msg.max_exit_penalty,
         astro_addr: staking_config.deposit_token_addr,
         xastro_staking_addr: addr_validate_to_lower(deps.api, &xastro_minter_resp.minter)?,
-        slashed_fund_receiver,
         logo_urls_whitelist: msg.logo_urls_whitelist.clone(),
     };
     CONFIG.save(deps.storage, &config)?;
@@ -186,21 +175,6 @@ pub fn execute(
         ExecuteMsg::ExtendLockTime { time } => extend_lock_time(deps, env, info, time),
         ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
         ExecuteMsg::Withdraw {} => withdraw(deps, env, info),
-        ExecuteMsg::WithdrawEarly {} => withdraw_early(deps, env, info),
-        ExecuteMsg::EarlyWithdrawCallback {
-            precallback_astro,
-            slashed_funds_receiver,
-        } => withdraw_early_callback(
-            deps.as_ref(),
-            env,
-            info,
-            precallback_astro,
-            slashed_funds_receiver,
-        ),
-        ExecuteMsg::ConfigureEarlyWithdrawal {
-            max_penalty,
-            slashed_fund_receiver,
-        } => configure_early_withdrawal(deps, info, max_penalty, slashed_fund_receiver),
         ExecuteMsg::ProposeNewOwner {
             new_owner,
             expires_in,
@@ -620,223 +594,6 @@ fn withdraw(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, Cont
 }
 
 /// ## Description
-/// Sets a max exit penalty and a slashed funds receiver. Can be called by the owner only.
-fn configure_early_withdrawal(
-    deps: DepsMut,
-    info: MessageInfo,
-    max_exit_penalty: Option<Decimal>,
-    slashed_fund_receiver: Option<String>,
-) -> Result<Response, ContractError> {
-    let mut config = CONFIG.load(deps.storage)?;
-    // Permission check
-    if info.sender != config.owner {
-        return Err(ContractError::Unauthorized {});
-    }
-
-    // Accept values within [0,1] limit
-    if let Some(max_exit_penalty) = max_exit_penalty {
-        if max_exit_penalty > Decimal::one() {
-            return Err(StdError::generic_err("Max exit penalty should be <= 1").into());
-        } else {
-            config.max_exit_penalty = max_exit_penalty;
-        }
-    }
-    if let Some(slashed_fund_receiver) = slashed_fund_receiver {
-        config.slashed_fund_receiver =
-            Some(addr_validate_to_lower(deps.api, &slashed_fund_receiver)?);
-    }
-
-    CONFIG.save(deps.storage, &config)?;
-
-    Ok(Response::default().add_attribute("action", "configure_early_withdrawal"))
-}
-
-/// ## Description
-/// Withdraws stacked funds with penalty before the lock expires.
-/// The penalty is calculated as min(max_exit_penalty, time_left_until_unlock / MAX_LOCK_TIME).
-/// Slashed funds are sent to the slashed funds receiver address.
-/// ## Params
-/// * **deps** is an object of type [`DepsMut`].
-///
-/// * **env** is an object of type [`Env`].
-///
-/// * **info** is an object of type [`MessageInfo`]. This is the withdrawal message coming from a user.
-fn withdraw_early(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, ContractError> {
-    let sender = info.sender;
-    // 'LockDoesntExist' is either a lock does not exist in LOCKED or a lock exits but lock.amount == 0
-    let mut lock = LOCKED
-        .may_load(deps.storage, sender.clone())?
-        .filter(|lock| !lock.amount.is_zero())
-        .ok_or(ContractError::LockDoesNotExist {})?;
-
-    let cur_period = get_period(env.block.time.seconds())?;
-    if lock.end <= cur_period {
-        return Err(ContractError::LockExpired {});
-    }
-
-    let config = CONFIG.load(deps.storage)?;
-
-    let (slashed_amount, return_amount) =
-        calc_early_withdraw_amount(config.max_exit_penalty, lock.end - cur_period, lock.amount);
-
-    let slashed_funds_receiver = config
-        .slashed_fund_receiver
-        .clone()
-        .ok_or(ContractError::EarlyWithdrawNotAvailable {})?;
-
-    let mut transfer_msgs = vec![];
-    if !return_amount.is_zero() {
-        let transfer_msg = SubMsg::new(WasmMsg::Execute {
-            contract_addr: config.deposit_token_addr.to_string(),
-            msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                recipient: sender.to_string(),
-                amount: return_amount,
-            })?,
-            funds: vec![],
-        });
-        transfer_msgs.push(transfer_msg);
-    }
-    if !slashed_amount.is_zero() {
-        let send_msg = SubMsg::new(WasmMsg::Execute {
-            contract_addr: config.deposit_token_addr.to_string(),
-            msg: to_binary(&Cw20ExecuteMsg::Send {
-                contract: config.xastro_staking_addr.to_string(),
-                amount: slashed_amount,
-                msg: to_binary(&astroport::staking::Cw20HookMsg::Leave {})?,
-            })?,
-            funds: vec![],
-        });
-        transfer_msgs.push(send_msg);
-
-        let precallback_astro = query_token_balance(
-            &deps.querier,
-            config.astro_addr,
-            env.contract.address.clone(),
-        )?;
-        let callback_msg = SubMsg::new(WasmMsg::Execute {
-            contract_addr: env.contract.address.to_string(),
-            msg: to_binary(&ExecuteMsg::EarlyWithdrawCallback {
-                precallback_astro,
-                slashed_funds_receiver,
-            })?,
-            funds: vec![],
-        });
-        transfer_msgs.push(callback_msg);
-    }
-
-    lock.amount = Uint128::zero();
-    LOCKED.save(deps.storage, sender.clone(), &lock, env.block.height)?;
-
-    let cur_period_key = U64Key::new(cur_period);
-    let last_checkpoint = fetch_last_checkpoint(deps.storage, &sender, &cur_period_key)?;
-
-    // If a user has voting power they must have checkpoint.
-    let (_, point) = last_checkpoint.ok_or_else(|| {
-        StdError::generic_err(format!(
-            "There is no previous checkpoint for user: {}",
-            sender.as_str()
-        ))
-    })?;
-    // We need to checkpoint with zero power and zero slope
-    HISTORY.save(
-        deps.storage,
-        (sender, cur_period_key),
-        &Point {
-            power: Uint128::zero(),
-            slope: Default::default(),
-            start: cur_period,
-            end: cur_period,
-        },
-    )?;
-
-    let cur_power = calc_voting_power(&point, cur_period);
-    if !cur_power.is_zero() {
-        cancel_scheduled_slope(deps.storage, point.slope, point.end)?;
-        // We need to checkpoint total VP and eliminate the slope influence on a future lock
-        checkpoint_total(
-            deps.storage,
-            env,
-            None,
-            Some(cur_power),
-            point.slope,
-            Default::default(),
-        )?
-    }
-
-    Ok(Response::default()
-        .add_submessages(transfer_msgs)
-        .add_attribute("action", "withdraw_early"))
-}
-
-/// ## Description
-/// A callback after early withdraw. Can be called only by the contract itself.
-/// This is intended for transferring converted xASTRO (in form of ASTRO) to the slashed funds receiver.
-/// ## Parameters
-/// * **deps** is an object of type [`DepsMut`].
-///
-/// * **env** is an object of type [`Env`].
-///
-/// * **info** is an object of type [`MessageInfo`].
-///
-/// * **precallback_astro** is a contracts' ASTRO balance before a callback
-///
-/// * **slashed_funds_receiver** is a slashed funds receiver address
-fn withdraw_early_callback(
-    deps: Deps,
-    env: Env,
-    info: MessageInfo,
-    precallback_astro: Uint128,
-    slashed_funds_receiver: Addr,
-) -> Result<Response, ContractError> {
-    if info.sender != env.contract.address {
-        return Err(ContractError::Unauthorized {});
-    }
-
-    let config = CONFIG.load(deps.storage)?;
-
-    let current_astro_balance =
-        query_token_balance(&deps.querier, &config.astro_addr, env.contract.address)?;
-    let return_astro_amount = current_astro_balance.saturating_sub(precallback_astro);
-
-    if !return_astro_amount.is_zero() {
-        // Check that slashed_funds_receiver is an escrow_fee_distributor contract
-        // otherwise transfer return_astro_amount to slashed_funds_receiver address
-        let version: StdResult<ContractVersion> =
-            deps.querier.query(&QueryRequest::Wasm(WasmQuery::Raw {
-                contract_addr: slashed_funds_receiver.to_string(),
-                key: CONTRACT.as_slice().into(),
-            }));
-        let transfer_msg = match version {
-            Ok(ContractVersion { contract, .. })
-                if contract.eq("astroport-escrow-fee-distributor") =>
-            {
-                SubMsg::new(WasmMsg::Execute {
-                    contract_addr: config.astro_addr.to_string(),
-                    msg: to_binary(&Cw20ExecuteMsg::Send {
-                        contract: slashed_funds_receiver.to_string(),
-                        amount: return_astro_amount,
-                        msg: to_binary(&{})?,
-                    })?,
-                    funds: vec![],
-                })
-            }
-            _ => SubMsg::new(WasmMsg::Execute {
-                contract_addr: config.astro_addr.to_string(),
-                msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                    recipient: slashed_funds_receiver.to_string(),
-                    amount: return_astro_amount,
-                })?,
-                funds: vec![],
-            }),
-        };
-
-        Ok(Response::new().add_submessage(transfer_msg))
-    } else {
-        Err(StdError::generic_err("Failed to unstake ASTRO").into())
-    }
-}
-
-/// ## Description
 /// Increase the current lock time for a staker by a specified time period.
 /// Evaluates that the `time` is within [`WEEK`]..[`MAX_LOCK_TIME`]
 /// and then it triggers a [`checkpoint`].
@@ -1080,9 +837,6 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             to_binary(&get_user_voting_power_at_period(deps, user, period)?)
         }
         QueryMsg::LockInfo { user } => to_binary(&get_user_lock_info(deps, env, user)?),
-        QueryMsg::EarlyWithdrawAmount { user } => {
-            to_binary(&get_early_withdraw_amount(deps, env, user)?)
-        }
         QueryMsg::UserDepositAtHeight { user, height } => {
             to_binary(&get_user_deposit_at_height(deps, user, height)?)
         }
@@ -1092,8 +846,6 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
                 owner: config.owner.to_string(),
                 guardian_addr: config.guardian_addr,
                 deposit_token_addr: config.deposit_token_addr.to_string(),
-                max_exit_penalty: config.max_exit_penalty,
-                slashed_fund_receiver: config.slashed_fund_receiver.map(|addr| addr.to_string()),
                 astro_addr: config.astro_addr.to_string(),
                 xastro_staking_addr: config.xastro_staking_addr.to_string(),
                 logo_urls_whitelist: config.logo_urls_whitelist,
@@ -1200,36 +952,6 @@ fn get_user_lock_info(deps: Deps, env: Env, user: String) -> StdResult<LockInfoR
         Ok(resp)
     } else {
         Err(StdError::generic_err("User is not found"))
-    }
-}
-
-/// ## Description
-/// Return early withdraw amount for a given user.
-/// ## Params
-/// * **deps** is an object of type [`Deps`].
-///
-/// * **env** is an object of type [`Env`].
-///
-/// * **user** is an object of type [`String`].
-fn get_early_withdraw_amount(deps: Deps, env: Env, user: String) -> StdResult<Uint128> {
-    let user = addr_validate_to_lower(deps.api, &user)?;
-    let lock = LOCKED.may_load(deps.storage, user)?;
-
-    let cur_period = get_period(env.block.time.seconds())?;
-    match lock {
-        None => Ok(Uint128::zero()),
-        Some(lock) if lock.end <= cur_period => Ok(lock.amount),
-        Some(lock) => {
-            let config = CONFIG.load(deps.storage)?;
-
-            let (_, return_amount) = calc_early_withdraw_amount(
-                config.max_exit_penalty,
-                lock.end - cur_period,
-                lock.amount,
-            );
-
-            Ok(return_amount)
-        }
     }
 }
 

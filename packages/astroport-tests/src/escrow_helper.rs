@@ -3,10 +3,9 @@ use astroport::{staking as xastro, token as astro};
 use astroport_governance::voting_escrow::{
     Cw20HookMsg, ExecuteMsg, InstantiateMsg, LockInfoResponse, QueryMsg, VotingPowerResponse,
 };
-use cosmwasm_std::{attr, to_binary, Addr, Decimal, QueryRequest, StdResult, Uint128, WasmQuery};
+use cosmwasm_std::{attr, to_binary, Addr, QueryRequest, StdResult, Uint128, WasmQuery};
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
 use cw_multi_test::{App, AppResponse, ContractWrapper, Executor};
-use std::str::FromStr;
 
 pub const MULTIPLIER: u64 = 1000000;
 
@@ -100,8 +99,6 @@ impl EscrowHelper {
             guardian_addr: Some("guardian".to_string()),
             deposit_token_addr: res.share_token_addr.to_string(),
             marketing: None,
-            max_exit_penalty: Decimal::from_str("0.75").unwrap(),
-            slashed_fund_receiver: None,
             logo_urls_whitelist: vec![],
         };
         let voting_instance = router
