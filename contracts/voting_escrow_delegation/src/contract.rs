@@ -8,18 +8,18 @@ use astroport_governance::astroport::common::{
     claim_ownership, drop_ownership_proposal, propose_new_owner,
 };
 use astroport_governance::voting_escrow_delegation::{ExecuteMsg, InstantiateMsg, QueryMsg};
-use astroport_nft::{Extension, MintMsg};
-#[cfg(not(feature = "library"))]
-use cosmwasm_std::entry_point;
+
 use cosmwasm_std::{
-    to_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Reply, ReplyOn, Response, StdError,
-    StdResult, SubMsg, Uint128, WasmMsg,
+    entry_point, to_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Reply, ReplyOn,
+    Response, StdError, StdResult, SubMsg, Uint128, WasmMsg,
 };
 use cw2::set_contract_version;
 use cw_utils::parse_reply_instantiate_data;
 
 use crate::helpers::DelegationHelper;
-use astroport_nft::msg::{ExecuteMsg as ExecuteMsgNFT, InstantiateMsg as InstantiateMsgNFT};
+use cw721_base::helpers as cw721_helpers;
+use cw721_base::msg::{ExecuteMsg as ExecuteMsgNFT, InstantiateMsg as InstantiateMsgNFT};
+use cw721_base::{Extension, MintMsg};
 
 // version info for migration info
 const CONTRACT_NAME: &str = "voting-escrow-delegation";
@@ -487,7 +487,7 @@ fn adjusted_balance(
         current_vp = Uint128::zero();
     }
 
-    let nft_helper = astroport_nft::helpers::Cw721Contract(config.nft_token_addr);
+    let nft_helper = cw721_helpers::Cw721Contract(config.nft_token_addr);
     let tokens_resp = nft_helper.tokens(&deps.querier, account, None, None)?;
 
     for token_id in tokens_resp.tokens {

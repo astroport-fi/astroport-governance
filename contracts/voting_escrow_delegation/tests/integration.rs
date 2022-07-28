@@ -19,9 +19,9 @@ mod tests {
 
     pub fn contract_nft_template() -> Box<dyn Contract<Empty>> {
         let contract = ContractWrapper::new(
-            astroport_nft::entry::execute,
-            astroport_nft::entry::instantiate,
-            astroport_nft::entry::query,
+            astroport_nft::contract::execute,
+            astroport_nft::contract::instantiate,
+            astroport_nft::contract::query,
         );
         Box::new(contract)
     }
@@ -126,7 +126,7 @@ mod tests {
     mod executes {
         use super::*;
         use astroport_governance::utils::WEEK;
-        use astroport_nft::{
+        use cw721_base::{
             ExecuteMsg as ExecuteMsgNFT, Extension, MintMsg, QueryMsg as QueryMsgNFT,
         };
 
@@ -225,7 +225,7 @@ mod tests {
             let (mut router, delegator_helper) = proper_instantiate();
             let router_ref = &mut router;
             let nft_helper =
-                astroport_nft::helpers::Cw721Contract(delegator_helper.nft_instance.clone());
+                cw721_base::helpers::Cw721Contract(delegator_helper.nft_instance.clone());
 
             // try to mint from user
             let err = router_ref
@@ -433,7 +433,7 @@ mod tests {
             let (mut router, delegator_helper) = proper_instantiate();
             let router_ref = &mut router;
             let nft_helper =
-                astroport_nft::helpers::Cw721Contract(delegator_helper.nft_instance.clone());
+                cw721_base::helpers::Cw721Contract(delegator_helper.nft_instance.clone());
 
             // Mint ASTRO, stake it and mint xASTRO
             delegator_helper
@@ -838,7 +838,7 @@ mod tests {
             let (mut router, delegator_helper) = proper_instantiate();
             let router_ref = &mut router;
             let nft_helper =
-                astroport_nft::helpers::Cw721Contract(delegator_helper.nft_instance.clone());
+                cw721_base::helpers::Cw721Contract(delegator_helper.nft_instance.clone());
 
             // Mint ASTRO, stake it and mint xASTRO
             delegator_helper
