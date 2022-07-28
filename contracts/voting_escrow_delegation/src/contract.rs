@@ -251,14 +251,19 @@ pub fn create_delegation(
     let new_balance = helper.calc_new_balance(&deps, &user, balance, block_period)?;
     let delegation = helper.calc_delegate_vp(new_balance, block_period, exp_period, percentage)?;
 
-    DELEGATED.update(
+    DELEGATED.save(
         deps.storage,
         (user, token_id.clone()),
+        &delegation,
         env.block.height,
-        |_| -> StdResult<Token> { Ok(Token { ..delegation }) },
     )?;
 
-    TOKENS.save(deps.storage, token_id.clone(), &delegation)?;
+    TOKENS.save(
+        deps.storage,
+        token_id.clone(),
+        &delegation,
+        env.block.height,
+    )?;
 
     Ok(Response::default()
         .add_attribute("action", "create_delegation")
@@ -352,9 +357,12 @@ pub fn extend_delegation(
         |_| -> StdResult<Token> { Ok(Token { ..new_delegation }) },
     )?;
 
-    TOKENS.update(deps.storage, token_id, |_| -> StdResult<Token> {
-        Ok(Token { ..new_delegation })
-    })?;
+    TOKENS.update(
+        deps.storage,
+        token_id,
+        env.block.height,
+        |_| -> StdResult<Token> { Ok(Token { ..new_delegation }) },
+    )?;
 
     Ok(Response::default().add_attribute("action", "extend_delegation"))
 }
