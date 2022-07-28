@@ -2,6 +2,7 @@ use cosmwasm_std::{
     entry_point, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response, StdResult,
 };
 
+use astroport_governance::nft::MigrateMsg;
 use cw2::set_contract_version;
 use cw721::ContractInfoResponse;
 use cw721_base::msg::{ExecuteMsg, InstantiateMsg};

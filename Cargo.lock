@@ -123,6 +123,8 @@ dependencies = [
 name = "astroport-nft"
 version = "1.0.0"
 dependencies = [
+ "astroport-governance 1.1.0",
+ "cosmwasm-schema",
  "cosmwasm-std 1.0.0",
  "cw-storage-plus",
  "cw-utils",
