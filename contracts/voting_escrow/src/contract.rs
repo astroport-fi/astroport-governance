@@ -20,7 +20,6 @@ use cw20_base::contract::{
     execute_update_marketing, execute_upload_logo, query_download_logo, query_marketing_info,
 };
 use cw20_base::state::{MinterData, TokenInfo, LOGO, MARKETING_INFO, TOKEN_INFO};
-use std::f32::consts::E;
 
 use crate::astroport::asset::addr_opt_validate;
 use crate::astroport::common::validate_addresses;
@@ -31,7 +30,6 @@ use astroport_governance::voting_escrow::{
 };
 
 use crate::error::ContractError;
-use crate::error::ContractError::Std;
 use crate::marketing_validation::{validate_marketing_info, validate_whitelist_links};
 use crate::state::{
     Config, Lock, Point, BLACKLIST, CONFIG, HISTORY, LAST_SLOPE_CHANGE, LOCKED, OWNERSHIP_PROPOSAL,
@@ -1250,24 +1248,6 @@ fn get_user_deposit_at_height(deps: Deps, user: String, block_height: u64) -> St
         Ok(lock.amount)
     } else {
         Ok(Uint128::zero())
-    }
-}
-
-/// ## Description
-/// Return a user's staked xASTRO amount at a given block height.
-/// ## Params
-/// * **deps** is an object of type [`Deps`].
-///
-/// * **user** is an object of type String. This is the address of the user for which we return lock information.
-///
-/// * **block_height** is an object of type u64. This is the block height at which we return the staked xASTRO amount.
-fn get_user_lock_at_height(deps: Deps, user: String, block_height: u64) -> StdResult<Lock> {
-    let addr = addr_validate_to_lower(deps.api, &user)?;
-    let locked_opt = LOCKED.may_load_at_height(deps.storage, addr, block_height)?;
-    if let Some(lock) = locked_opt {
-        Ok(lock)
-    } else {
-        return Err(StdError::generic_err(ContractError::LockDoesNotExist {}));
     }
 }
 

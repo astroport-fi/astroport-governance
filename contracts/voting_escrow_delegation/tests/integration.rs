@@ -358,6 +358,7 @@ mod tests {
                     contract_addr: delegator_helper.delegation_instance.to_string(),
                     msg: to_binary(&QueryMsg::AdjustedBalance {
                         account: "user".to_string(),
+                        timestamp: None,
                     })
                     .unwrap(),
                 }))
@@ -377,6 +378,7 @@ mod tests {
                     contract_addr: delegator_helper.delegation_instance.to_string(),
                     msg: to_binary(&QueryMsg::AdjustedBalance {
                         account: "user2".to_string(),
+                        timestamp: None,
                     })
                     .unwrap(),
                 }))
@@ -395,6 +397,7 @@ mod tests {
                     contract_addr: delegator_helper.delegation_instance.to_string(),
                     msg: to_binary(&QueryMsg::AdjustedBalance {
                         account: "user".to_string(),
+                        timestamp: None,
                     })
                     .unwrap(),
                 }))
@@ -408,6 +411,7 @@ mod tests {
                     contract_addr: delegator_helper.delegation_instance.to_string(),
                     msg: to_binary(&QueryMsg::AdjustedBalance {
                         account: "user2".to_string(),
+                        timestamp: None,
                     })
                     .unwrap(),
                 }))
@@ -579,6 +583,7 @@ mod tests {
                     contract_addr: delegator_helper.delegation_instance.to_string(),
                     msg: to_binary(&QueryMsg::AdjustedBalance {
                         account: "user".to_string(),
+                        timestamp: None,
                     })
                     .unwrap(),
                 }))
@@ -598,6 +603,7 @@ mod tests {
                     contract_addr: delegator_helper.delegation_instance.to_string(),
                     msg: to_binary(&QueryMsg::AdjustedBalance {
                         account: "user2".to_string(),
+                        timestamp: None,
                     })
                     .unwrap(),
                 }))
@@ -617,6 +623,7 @@ mod tests {
                     contract_addr: delegator_helper.delegation_instance.to_string(),
                     msg: to_binary(&QueryMsg::AdjustedBalance {
                         account: "user3".to_string(),
+                        timestamp: None,
                     })
                     .unwrap(),
                 }))
@@ -654,6 +661,7 @@ mod tests {
                     contract_addr: delegator_helper.delegation_instance.to_string(),
                     msg: to_binary(&QueryMsg::AdjustedBalance {
                         account: "user".to_string(),
+                        timestamp: None,
                     })
                     .unwrap(),
                 }))
@@ -667,6 +675,7 @@ mod tests {
                     contract_addr: delegator_helper.delegation_instance.to_string(),
                     msg: to_binary(&QueryMsg::AdjustedBalance {
                         account: "user2".to_string(),
+                        timestamp: None,
                     })
                     .unwrap(),
                 }))
@@ -680,6 +689,7 @@ mod tests {
                     contract_addr: delegator_helper.delegation_instance.to_string(),
                     msg: to_binary(&QueryMsg::AdjustedBalance {
                         account: "user3".to_string(),
+                        timestamp: None,
                     })
                     .unwrap(),
                 }))
@@ -738,6 +748,7 @@ mod tests {
                     contract_addr: delegator_helper.delegation_instance.to_string(),
                     msg: to_binary(&QueryMsg::AdjustedBalance {
                         account: "user".to_string(),
+                        timestamp: None,
                     })
                     .unwrap(),
                 }))
@@ -751,6 +762,7 @@ mod tests {
                     contract_addr: delegator_helper.delegation_instance.to_string(),
                     msg: to_binary(&QueryMsg::AdjustedBalance {
                         account: "user2".to_string(),
+                        timestamp: None,
                     })
                     .unwrap(),
                 }))
@@ -764,6 +776,7 @@ mod tests {
                     contract_addr: delegator_helper.delegation_instance.to_string(),
                     msg: to_binary(&QueryMsg::AdjustedBalance {
                         account: "user3".to_string(),
+                        timestamp: None,
                     })
                     .unwrap(),
                 }))
@@ -800,6 +813,7 @@ mod tests {
                     contract_addr: delegator_helper.delegation_instance.to_string(),
                     msg: to_binary(&QueryMsg::AdjustedBalance {
                         account: "user".to_string(),
+                        timestamp: None,
                     })
                     .unwrap(),
                 }))
@@ -813,6 +827,7 @@ mod tests {
                     contract_addr: delegator_helper.delegation_instance.to_string(),
                     msg: to_binary(&QueryMsg::AdjustedBalance {
                         account: "user2".to_string(),
+                        timestamp: None,
                     })
                     .unwrap(),
                 }))
@@ -826,6 +841,7 @@ mod tests {
                     contract_addr: delegator_helper.delegation_instance.to_string(),
                     msg: to_binary(&QueryMsg::AdjustedBalance {
                         account: "user3".to_string(),
+                        timestamp: None,
                     })
                     .unwrap(),
                 }))
@@ -920,6 +936,7 @@ mod tests {
                     contract_addr: delegator_helper.delegation_instance.to_string(),
                     msg: to_binary(&QueryMsg::AdjustedBalance {
                         account: "user".to_string(),
+                        timestamp: None,
                     })
                     .unwrap(),
                 }))
@@ -933,6 +950,7 @@ mod tests {
                     contract_addr: delegator_helper.delegation_instance.to_string(),
                     msg: to_binary(&QueryMsg::AdjustedBalance {
                         account: "user2".to_string(),
+                        timestamp: None,
                     })
                     .unwrap(),
                 }))
@@ -963,6 +981,7 @@ mod tests {
                     contract_addr: delegator_helper.delegation_instance.to_string(),
                     msg: to_binary(&QueryMsg::AdjustedBalance {
                         account: "user".to_string(),
+                        timestamp: None,
                     })
                     .unwrap(),
                 }))
@@ -976,6 +995,7 @@ mod tests {
                     contract_addr: delegator_helper.delegation_instance.to_string(),
                     msg: to_binary(&QueryMsg::AdjustedBalance {
                         account: "user2".to_string(),
+                        timestamp: None,
                     })
                     .unwrap(),
                 }))
@@ -1015,6 +1035,7 @@ mod tests {
                     contract_addr: delegator_helper.delegation_instance.to_string(),
                     msg: to_binary(&QueryMsg::AdjustedBalance {
                         account: "user".to_string(),
+                        timestamp: None,
                     })
                     .unwrap(),
                 }))
@@ -1028,6 +1049,7 @@ mod tests {
                     contract_addr: delegator_helper.delegation_instance.to_string(),
                     msg: to_binary(&QueryMsg::AdjustedBalance {
                         account: "user2".to_string(),
+                        timestamp: None,
                     })
                     .unwrap(),
                 }))
@@ -1058,6 +1080,7 @@ mod tests {
                     contract_addr: delegator_helper.delegation_instance.to_string(),
                     msg: to_binary(&QueryMsg::AdjustedBalance {
                         account: "user".to_string(),
+                        timestamp: None,
                     })
                     .unwrap(),
                 }))
@@ -1071,6 +1094,7 @@ mod tests {
                     contract_addr: delegator_helper.delegation_instance.to_string(),
                     msg: to_binary(&QueryMsg::AdjustedBalance {
                         account: "user2".to_string(),
+                        timestamp: None,
                     })
                     .unwrap(),
                 }))

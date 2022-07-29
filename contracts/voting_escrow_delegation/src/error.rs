@@ -10,6 +10,9 @@ pub enum ContractError {
     #[error("Unauthorized")]
     Unauthorized {},
 
+    #[error("{0}")]
+    ParseReplyError(#[from] ParseReplyError),
+
     #[error("You can't delegate with zero voting power")]
     ZeroVotingPower {},
 

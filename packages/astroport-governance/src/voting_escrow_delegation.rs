@@ -49,10 +49,6 @@ pub enum QueryMsg {
         account: String,
         timestamp: Option<u64>,
     },
-    AdjustedBalanceOf {
-        account: String,
-        block_height: u64,
-    },
     AlreadyDelegatedVP {
         account: String,
         timestamp: Option<u64>,
