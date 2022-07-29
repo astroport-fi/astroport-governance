@@ -1,6 +1,6 @@
 use astroport_governance::astroport::asset::addr_validate_to_lower;
 use astroport_governance::utils::{get_period, get_periods_count};
-use astroport_governance::voting_escrow::{get_voting_power, get_voting_power_at};
+use astroport_governance::voting_escrow::{get_voting_power, get_voting_power_at, MAX_LIMIT};
 
 use crate::error::ContractError;
 use crate::state::{Config, Token, CONFIG, DELEGATED, OWNERSHIP_PROPOSAL, TOKENS};
@@ -489,9 +489,29 @@ fn adjusted_balance(
     }
 
     let nft_helper = cw721_helpers::Cw721Contract(config.nft_addr);
-    let tokens_resp = nft_helper.tokens(&deps.querier, account, None, None)?;
+    let mut account_tokens = nft_helper
+        .tokens(&deps.querier, account.clone(), None, Some(MAX_LIMIT))?
+        .tokens;
 
-    for token_id in tokens_resp.tokens {
+    // we need to take all tokens
+    if account_tokens.len().eq(&(MAX_LIMIT as usize)) {
+        loop {
+            let mut tokens_resp = nft_helper.tokens(
+                &deps.querier,
+                account.clone(),
+                account_tokens.last().cloned(),
+                Some(MAX_LIMIT),
+            )?;
+
+            if tokens_resp.tokens.is_empty() {
+                break;
+            } else {
+                account_tokens.append(&mut tokens_resp.tokens);
+            }
+        }
+    }
+
+    for token_id in account_tokens {
         if let Some(token) = TOKENS.may_load(deps.storage, token_id)? {
             if token.start <= block_period && token.expire_period >= block_period {
                 let calc_vp = helper.calc_vp(&token, block_period)?;
