@@ -9,8 +9,8 @@ pub const DELEGATION_MIN_PERCENT: Uint128 = Uint128::new(1);
 pub struct InstantiateMsg {
     /// The contract owner address
     pub owner: String,
-    /// Astroport NFT token code identifier
-    pub nft_token_code_id: u64,
+    /// Astroport NFT code identifier
+    pub nft_code_id: u64,
     /// vxASTRO contract address
     pub voting_escrow_addr: String,
 }

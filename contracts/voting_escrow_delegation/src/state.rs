@@ -14,7 +14,7 @@ pub struct Config {
     /// Address that's allowed to change contract parameters
     pub owner: Addr,
     /// Astroport NFT contract address
-    pub nft_token_addr: Addr,
+    pub nft_addr: Addr,
     /// vxASTRO contract address
     pub voting_escrow_addr: Addr,
 }

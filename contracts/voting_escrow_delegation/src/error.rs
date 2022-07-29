@@ -19,9 +19,6 @@ pub enum ContractError {
     #[error("You have already delegated all the voting power.")]
     DelegationVotingPowerNotAllowed {},
 
-    #[error("NFT delegation already exists")]
-    NFTDelegationAlreadyExists {},
-
     #[error("The delegation period must be at least a week and not more than a user lock period.")]
     DelegationPeriodError {},
 

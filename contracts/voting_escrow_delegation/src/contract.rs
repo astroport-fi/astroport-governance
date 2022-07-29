@@ -47,7 +47,7 @@ pub fn instantiate(
 
     let config = Config {
         owner: addr_validate_to_lower(deps.api, &msg.owner)?,
-        nft_token_addr: Addr::unchecked(""),
+        nft_addr: Addr::unchecked(""),
         voting_escrow_addr: addr_validate_to_lower(deps.api, &msg.voting_escrow_addr)?,
     };
     CONFIG.save(deps.storage, &config)?;
@@ -56,7 +56,7 @@ pub fn instantiate(
     let sub_msg = vec![SubMsg {
         msg: WasmMsg::Instantiate {
             admin: Some(String::from(config.owner)),
-            code_id: msg.nft_token_code_id,
+            code_id: msg.nft_code_id,
             msg: to_binary(&InstantiateMsgNFT {
                 name: TOKEN_NAME.to_string(),
                 symbol: TOKEN_SYMBOL.to_string(),
@@ -170,12 +170,12 @@ pub fn execute(
 pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractError> {
     let mut config: Config = CONFIG.load(deps.storage)?;
 
-    if config.nft_token_addr != Addr::unchecked("") {
+    if config.nft_addr != Addr::unchecked("") {
         return Err(ContractError::Unauthorized {});
     }
 
     let res = parse_reply_instantiate_data(msg)?;
-    config.nft_token_addr = addr_validate_to_lower(deps.api, res.contract_address)?;
+    config.nft_addr = addr_validate_to_lower(deps.api, res.contract_address)?;
 
     CONFIG.save(deps.storage, &config)?;
     Ok(Response::new())
@@ -268,7 +268,7 @@ pub fn create_delegation(
     Ok(Response::default()
         .add_attribute("action", "create_delegation")
         .add_submessage(SubMsg::new(WasmMsg::Execute {
-            contract_addr: cfg.nft_token_addr.to_string(),
+            contract_addr: cfg.nft_addr.to_string(),
             msg: to_binary(&ExecuteMsgNFT::Mint(MintMsg::<Extension> {
                 token_id: token_id.clone(),
                 owner: env.contract.address.to_string(),
@@ -278,7 +278,7 @@ pub fn create_delegation(
             funds: vec![],
         }))
         .add_submessage(SubMsg::new(WasmMsg::Execute {
-            contract_addr: cfg.nft_token_addr.to_string(),
+            contract_addr: cfg.nft_addr.to_string(),
             msg: to_binary(&ExecuteMsgNFT::<Extension>::TransferNft {
                 recipient: recipient_addr.to_string(),
                 token_id,
@@ -426,7 +426,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             let config = CONFIG.load(deps.storage)?;
             to_binary(&Config {
                 owner: config.owner,
-                nft_token_addr: config.nft_token_addr,
+                nft_addr: config.nft_addr,
                 voting_escrow_addr: config.voting_escrow_addr,
             })
         }
@@ -488,7 +488,7 @@ fn adjusted_balance(
         current_vp = Uint128::zero();
     }
 
-    let nft_helper = cw721_helpers::Cw721Contract(config.nft_token_addr);
+    let nft_helper = cw721_helpers::Cw721Contract(config.nft_addr);
     let tokens_resp = nft_helper.tokens(&deps.querier, account, None, None)?;
 
     for token_id in tokens_resp.tokens {

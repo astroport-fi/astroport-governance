@@ -1,6 +1,6 @@
 # Astroport NFT token
 
-This is the contract implementation for the ASTRO NFT token.
+This is the contract implementation for the ASTRO NFT.
 
 
 # Cw721 Basic

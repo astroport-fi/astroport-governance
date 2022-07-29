@@ -47,7 +47,7 @@ mod tests {
                 Addr::unchecked(ADMIN.to_string()),
                 &InstantiateMsg {
                     owner: ADMIN.to_string(),
-                    nft_token_code_id: nft_id,
+                    nft_code_id: nft_id,
                     voting_escrow_addr: escrow_addr.to_string(),
                 },
                 &[],
@@ -64,7 +64,7 @@ mod tests {
             }))
             .unwrap();
 
-        (delegation_addr, res.nft_token_addr)
+        (delegation_addr, res.nft_addr)
     }
 
     fn mock_app() -> App {

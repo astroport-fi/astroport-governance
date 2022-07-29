@@ -1,6 +1,6 @@
 # Voting Escrow Delegation 
 
-Contract allows delegating voting power to other account in NFT token format.
+Contract allows delegating voting power to other account in NFT format.
 
 ## InstantiateMsg
 
@@ -9,7 +9,7 @@ Initialize the contract with the initial owner and the address of the xASTRO tok
 ```json
 {
   "owner": "terra...",
-  "nft_token_code_id": 123,
+  "nft_code_id": 123,
   "voting_escrow_addr": "terra..."
 }
 ```
@@ -105,18 +105,6 @@ Returns the contract's config.
 ```
 
 ### `adjusted_balance`
-
-Returns an adjusted voting power balance after accounting for delegations.
-
-```json
-{
-  "adjusted_balance": {
-    "account": "terra..."
-  }
-}
-```
-
-### `adjusted_balance_at`
 
 Returns an adjusted voting power balance after accounting for delegations at specified timestamp.
 

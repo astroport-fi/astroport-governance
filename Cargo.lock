@@ -100,7 +100,6 @@ dependencies = [
  "astroport",
  "cosmwasm-std 1.0.0",
  "cw-storage-plus",
- "cw-utils",
  "cw20",
  "schemars",
  "serde",
