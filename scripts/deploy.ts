@@ -3,7 +3,7 @@ import {
     newClient,
     writeArtifact,
     readArtifact,
-    deployContract, executeContract,
+    deployContract, executeContract, uploadContract,
 } from './helpers.js'
 import { join } from 'path'
 import {LCDClient} from '@terra-money/terra.js';
@@ -33,8 +33,12 @@ async function deployVotingEscrowDelegation(terra: LCDClient, wallet: any) {
     checkParams(network, [
         "votingEscrowAddress",
         "assemblyAddress",
-        "nftTokenCodeID"
     ])
+
+    if (!network.nftTokenCodeID) {
+        console.log('Register Astroport NFT Contract...')
+        network.nftTokenCodeID = await uploadContract(terra, wallet, join(ARTIFACTS_PATH, 'nft.wasm')!)
+    }
 
     if (network.votingEscrowDelegationAddress) {
         console.log("Voting escrow delegation contract already deployed: ", network.votingEscrowDelegationAddress)

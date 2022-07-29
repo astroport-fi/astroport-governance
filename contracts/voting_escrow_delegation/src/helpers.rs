@@ -54,6 +54,13 @@ impl DelegationHelper {
     }
 
     /// ## Description
+    /// Adjusting voting power according to the slope.
+    pub fn calc_vp_of_height(&self, token: &Token) -> StdResult<Uint128> {
+        let dt = Uint128::from(token.expire_period - token.start);
+        Ok(token.bias - token.slope.checked_mul(dt)?)
+    }
+
+    /// ## Description
     /// Adjusting voting power according to the slope by specified percentage.
     pub fn calc_delegate_vp(
         &self,
@@ -96,6 +103,30 @@ impl DelegationHelper {
                 total_delegated_vp += self.calc_vp(&delegate.1, block_period)?;
             }
         }
+
+        Ok(total_delegated_vp)
+    }
+
+    /// ## Description
+    /// Calculates the total delegated voting power for specified account.
+    pub(crate) fn calc_total_delegated_vp_at_height(
+        &self,
+        deps: Deps,
+        account: &Addr,
+        token_id: String,
+        block_height: u64,
+    ) -> StdResult<Uint128> {
+        let delegate = DELEGATED.may_load_at_height(
+            deps.storage,
+            (account.clone(), token_id),
+            block_height,
+        )?;
+
+        let mut total_delegated_vp = if let Some(delegate) = delegate {
+            self.calc_vp(&delegate, block_period)?
+        } else {
+            Uint128::zero()
+        };
 
         Ok(total_delegated_vp)
     }

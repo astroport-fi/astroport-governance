@@ -10,7 +10,7 @@ use astroport_governance::astroport::common::{
 use astroport_governance::voting_escrow_delegation::{ExecuteMsg, InstantiateMsg, QueryMsg};
 
 use cosmwasm_std::{
-    entry_point, to_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Reply, ReplyOn,
+    entry_point, to_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Order, Reply, ReplyOn,
     Response, StdError, StdResult, SubMsg, Uint128, WasmMsg,
 };
 use cw2::set_contract_version;
@@ -63,7 +63,7 @@ pub fn instantiate(
                 minter: env.contract.address.to_string(),
             })?,
             funds: vec![],
-            label: String::from("Astroport NFT token "),
+            label: String::from("Astroport NFT"),
         }
         .into(),
         id: INSTANTIATE_TOKEN_REPLY_ID,
@@ -430,16 +430,9 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
                 voting_escrow_addr: config.voting_escrow_addr,
             })
         }
-        QueryMsg::AdjustedBalance { account } => {
-            to_binary(&adjusted_balance(deps, env, &helper, account, None)?)
+        QueryMsg::AdjustedBalance { account, timestamp } => {
+            to_binary(&adjusted_balance(deps, env, &helper, account, timestamp)?)
         }
-        QueryMsg::AdjustedBalanceAt { account, timestamp } => to_binary(&adjusted_balance(
-            deps,
-            env,
-            &helper,
-            account,
-            Some(timestamp),
-        )?),
         QueryMsg::AlreadyDelegatedVP { account, timestamp } => to_binary(&already_delegated_vp(
             deps, env, &helper, account, timestamp,
         )?),
@@ -468,12 +461,12 @@ fn adjusted_balance(
     env: Env,
     helper: &DelegationHelper,
     account: String,
-    time: Option<u64>,
+    timestamp: Option<u64>,
 ) -> StdResult<Uint128> {
     let account = addr_validate_to_lower(deps.api, account)?;
     let config = CONFIG.load(deps.storage)?;
 
-    let mut current_vp = if let Some(timestamp) = time {
+    let mut current_vp = if let Some(timestamp) = timestamp {
         get_voting_power_at(
             &deps.querier,
             &config.voting_escrow_addr,
@@ -484,7 +477,7 @@ fn adjusted_balance(
         get_voting_power(&deps.querier, &config.voting_escrow_addr, &account)?
     };
 
-    let block_period = get_period(time.unwrap_or_else(|| env.block.time.seconds()))?;
+    let block_period = get_period(timestamp.unwrap_or_else(|| env.block.time.seconds()))?;
     let total_delegated_vp = helper.calc_total_delegated_vp(deps, &account, block_period)?;
 
     // we must to subtract the delegated voting power

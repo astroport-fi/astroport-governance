@@ -1502,7 +1502,6 @@ dependencies = [
  "astroport-tests",
  "cosmwasm-schema",
  "cosmwasm-std 1.0.0",
- "cosmwasm-storage",
  "cw-multi-test",
  "cw-storage-plus",
  "cw-utils",
