@@ -24,19 +24,16 @@ pub const CONFIG: Item<Config> = Item::new("config");
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema)]
 pub struct Token {
+    /// The amount of voting power to be delegated
     pub bias: Uint128,
+    /// Weekly voting power decay
     pub slope: Uint128,
+    /// The start period when the delegated voting power start to decrease
     pub start: u64,
+    /// The period when the delegated voting power should expire
     pub expire_period: u64,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema)]
-pub struct Point {
-    pub bias: Uint128,
-    pub slope: Uint128,
-}
-
-/// ## Description
 /// Stores all user delegate history
 pub const DELEGATED: SnapshotMap<(Addr, String), Token> = SnapshotMap::new(
     "delegated",
@@ -45,7 +42,6 @@ pub const DELEGATED: SnapshotMap<(Addr, String), Token> = SnapshotMap::new(
     Strategy::EveryBlock,
 );
 
-/// ## Description
 /// Stores all token history
 pub const TOKENS: SnapshotMap<String, Token> = SnapshotMap::new(
     "tokens",

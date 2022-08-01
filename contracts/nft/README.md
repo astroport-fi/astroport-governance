@@ -1,4 +1,4 @@
-# Astroport NFT token
+# Astroport NFT
 
 This is the contract implementation for the ASTRO NFT.
 

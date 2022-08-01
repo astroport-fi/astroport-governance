@@ -46,14 +46,12 @@ impl DelegationHelper {
         querier.query(&query)
     }
 
-    /// ## Description
     /// Adjusting voting power according to the slope.
     pub fn calc_vp(&self, token: &Token, block_period: u64) -> StdResult<Uint128> {
         let dt = Uint128::from(block_period - token.start);
         Ok(token.bias - token.slope.checked_mul(dt)?)
     }
 
-    /// ## Description
     /// Adjusting voting power according to the slope by specified percentage.
     pub fn calc_delegate_vp(
         &self,
@@ -77,7 +75,6 @@ impl DelegationHelper {
         })
     }
 
-    /// ## Description
     /// Calculates the total delegated voting power for specified account.
     pub(crate) fn calc_total_delegated_vp(
         &self,
@@ -100,7 +97,6 @@ impl DelegationHelper {
         Ok(total_delegated_vp)
     }
 
-    /// ## Description
     /// Validates input parameters to create or extend a delegation.
     #[allow(clippy::too_many_arguments)]
     pub fn validates_parameters(
@@ -133,7 +129,6 @@ impl DelegationHelper {
         Ok(())
     }
 
-    /// ## Description
     /// Calculates available balance for a new delegation.
     pub fn calc_new_balance(
         &self,
@@ -151,7 +146,6 @@ impl DelegationHelper {
         Ok(balance - total_delegated_vp)
     }
 
-    /// ## Description
     /// Calculates the available balance for the specified delegation.
     pub fn calc_extend_balance(
         &self,

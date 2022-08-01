@@ -32,7 +32,6 @@ const TOKEN_SYMBOL: &str = "ASTRO-NFT";
 /// A `reply` call code ID used for sub-messages.
 const INSTANTIATE_TOKEN_REPLY_ID: u64 = 1;
 
-/// ## Description
 /// Creates a new contract with the specified parameters in the [`InstantiateMsg`].
 /// Returns the default object of type [`Response`] if the operation was successful,
 /// or a [`ContractError`] if the contract was not created.
@@ -77,7 +76,6 @@ pub fn instantiate(
         .add_submessages(sub_msg))
 }
 
-/// ## Description
 /// Exposes all the execute functions available in the contract.
 ///
 /// ## Execute messages
@@ -87,6 +85,12 @@ pub fn instantiate(
 /// * **ExecuteMsg::ExtendDelegation { percentage, cancel_time, expire_time, token_id, recipient}**
 /// Extends an already created delegation with a new specified parameters
 ///
+/// * **ExecuteMsg::ProposeNewOwner { owner, expires_in }** Creates a new request to change
+/// contract ownership.
+///
+/// * **ExecuteMsg::DropOwnershipProposal {}** Removes a request to change contract ownership.
+///
+/// * **ExecuteMsg::ClaimOwnership {}** Claims contract ownership.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
@@ -156,16 +160,8 @@ pub fn execute(
     }
 }
 
-/// ## Description
-/// The entry point to the contract for processing replies from submessages. For now it only
+/// The entry point to the contract for processing replies from sub-messages. For now it only
 /// sets the NFT contract address.
-///
-/// # Params
-/// * **deps** is an object of type [`DepsMut`].
-///
-/// * **_env** is an object of type [`Env`].
-///
-/// * **msg** is an object of type [`Reply`].
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractError> {
     let mut config: Config = CONFIG.load(deps.storage)?;
@@ -181,32 +177,23 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
     Ok(Response::new())
 }
 
-/// ## Description
 /// Creates NFT token with specified parameters and connect it with delegated voting power
 /// in percent into other account. Returns [`Response`] in case of success or
 /// [`ContractError`] in case of errors.
 ///
 /// ## Params
-/// * **deps** is an object of type [`DepsMut`].
-///
-/// * **env** is an object of type [`Env`].
-///
-/// * **info** is an object of type [`MessageInfo`].
-///
-/// * **helper** is an object of type [`DelegationHelper`]. This instance describes support
+/// * **helper** is an object of type [`DelegationHelper`] which describes support
 /// delegation functions.
 ///
-/// * **percentage** is an object of type [`Uint128`]. Uses percentage to determine the amount of
+/// * **percentage** is a percentage value to determine the amount of
 /// voting power to delegate
 ///
-/// * **expire_time** is an object of type [`u64`]. The point in time, at least a day in the
-/// future, at which the value of the voting power will reach 0.
+/// * **expire_time** is a point in time, at least a day in the future, at which the value of the
+/// voting power will reach 0.
 ///
-/// * **token_id** is an object of type [`String`]. NFT token identifier.
+/// * **token_id** is an NFT identifier.
 ///
-/// * **recipient** is an object of type [`String`]. The account to receive the delegated
-/// voting power
-///
+/// * **recipient** is an account to receive the delegated voting power.
 #[allow(clippy::too_many_arguments)]
 pub fn create_delegation(
     deps: DepsMut,
@@ -287,31 +274,20 @@ pub fn create_delegation(
         })))
 }
 
-/// ## Description
 /// Extends a previously created delegation by a new specified parameters. Returns [`Response`] in
 /// case of success or [`ContractError`] in case of errors.
 ///
 /// ## Params
-/// * **deps** is an object of type [`DepsMut`].
+/// * **helper** is an object of type [`DelegationHelper`] which describes support delegation functions.
 ///
-/// * **env** is an object of type [`Env`].
+/// * **percentage** is a percentage value to determine the amount of voting power to delegate.
 ///
-/// * **info** is an object of type [`MessageInfo`].
+/// * **expire_time** is a point in time, at least a day in the future, at which the value of the
+/// voting power will reach 0.
 ///
-/// * **helper** is an object of type [`DelegationHelper`]. This instance describes support
-/// delegation functions.
+/// * **token_id** is an NFT identifier.
 ///
-/// * **percentage** is an object of type [`Uint128`]. Uses percentage to determine the amount of
-/// voting power to delegate
-///
-/// * **expire_time** is an object of type [`u64`]. The point in time, at least a day in the
-/// future, at which the value of the voting power will reach 0.
-///
-/// * **token_id** is an object of type [`String`]. NFT token identifier.
-///
-/// * **recipient** is an object of type [`String`]. The account to receive the delegated
-/// voting power
-///
+/// * **recipient** is an account to receive the delegated voting power.
 #[allow(clippy::too_many_arguments)]
 pub fn extend_delegation(
     deps: DepsMut,
@@ -367,15 +343,10 @@ pub fn extend_delegation(
     Ok(Response::default().add_attribute("action", "extend_delegation"))
 }
 
-/// ## Description
 /// Updates contract parameters.
 ///
 /// ## Params
-/// * **deps** is an object of type [`DepsMut`].
-///
-/// * **info** is an object of type [`MessageInfo`].
-///
-/// * **new_voting_escrow** is an optional object of type [`String`].
+/// * **new_voting_escrow** is a new address of Voting Escrow contract.
 fn update_config(
     deps: DepsMut,
     info: MessageInfo,
@@ -396,24 +367,13 @@ fn update_config(
     Ok(Response::default().add_attribute("action", "execute_update_config"))
 }
 
-/// # Description
 /// Expose available contract queries.
-///
-/// ## Params
-/// * **deps** is an object of type [`Deps`].
-///
-/// * **env** is an object of type [`Env`].
-///
-/// * **msg** is an object of type [`QueryMsg`].
 ///
 /// ## Queries
 /// * **QueryMsg::Config {}** Fetch contract config
 ///
-/// * **QueryMsg::AdjustedBalance { account }** Adjusted voting power balance after accounting
-/// for delegations.
-///
-/// * **QueryMsg::AdjustedBalanceAt { account, timestamp }** Adjusted voting power balance after
-/// accounting for delegations for specified block height.
+/// * **QueryMsg::AdjustedBalance { account, timestamp }** Adjusted voting power balance after
+/// accounting for delegations.
 ///
 /// * **QueryMsg::AlreadyDelegatedVP { account, timestamp }** Returns the amount of delegated
 /// voting power according to the given parameters.
@@ -439,23 +399,17 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     }
 }
 
-/// ## Description
 /// Returns an adjusted voting power balance after accounting for delegations. Returns [`Response`]
 /// in case of success or [`StdError`] in case of errors.
 ///
 /// ## Params
-/// * **deps** is an object of type [`Deps`].
-///
-/// * **env** is an object of type [`Env`].
-///
-/// * **helper** is an object of type [`DelegationHelper`]. This instance describes support
+/// * **helper** is an object of type [`DelegationHelper`] which describes support
 /// delegation functions.
 ///
-/// * **user** is an object of type [`String`]. The address of the account to return adjusted balance.
+/// * **account** is an address of the account to return adjusted balance.
 ///
-/// * **time** is an object of type [`Option<u64>`]. The point in time, at least a day in the
-/// future, at which the value of the voting power will reach 0.
-///
+/// * **timestamp** is a point in time, at least a day in the future, at which the value of
+/// the voting power will reach 0.
 fn adjusted_balance(
     deps: Deps,
     env: Env,
@@ -523,21 +477,16 @@ fn adjusted_balance(
     Ok(current_vp)
 }
 
-/// ## Description
 /// Returns an amount of delegated voting power.
 ///
 /// ## Params
-/// * **deps** is an object of type [`Deps`].
-///
-/// * **env** is an object of type [`Env`].
-///
-/// * **helper** is an object of type [`DelegationHelper`]. This instance describes support
+/// * **helper** is an object of type [`DelegationHelper`] which describes support
 /// delegation functions.
 ///
-/// * **account** is an object of type [`String`].
+/// * **account** is an address of the account to return adjusted balance.
 ///
-/// * **timestamp** is an object of type [`Option<u64>`]. This is an optional field that specifies
-/// the period for which the function returns voting power.
+/// * **timestamp** is an optional field that specifies the period for which the function
+/// returns voting power.
 fn already_delegated_vp(
     deps: Deps,
     env: Env,
