@@ -51,7 +51,7 @@ pub fn instantiate(
     };
     CONFIG.save(deps.storage, &config)?;
 
-    // Create an Astroport NFT token
+    // Create an Astroport NFT
     let sub_msg = vec![SubMsg {
         msg: WasmMsg::Instantiate {
             admin: Some(String::from(config.owner)),
@@ -177,7 +177,7 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
     Ok(Response::new())
 }
 
-/// Creates NFT token with specified parameters and connect it with delegated voting power
+/// Creates NFT with specified parameters and connect it with delegated voting power
 /// in percent into other account. Returns [`Response`] in case of success or
 /// [`ContractError`] in case of errors.
 ///
@@ -209,7 +209,7 @@ pub fn create_delegation(
     let user = info.sender;
     let cfg = CONFIG.load(deps.storage)?;
 
-    // We can create only one NFT token for specify token ID
+    // We can create only one NFT for specify token ID
     if DELEGATED
         .may_load(deps.storage, (user.clone(), token_id.clone()))?
         .is_some()
