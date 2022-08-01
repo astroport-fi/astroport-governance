@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use astroport_governance::astroport::common::OwnershipProposal;
 use cosmwasm_std::{Addr, Uint128};
-use cw_storage_plus::{Item, SnapshotMap, Strategy};
+use cw_storage_plus::{Item, Map};
 
 /// Contains a proposal to change contract ownership
 pub const OWNERSHIP_PROPOSAL: Item<OwnershipProposal> = Item::new("ownership_proposal");
@@ -35,17 +35,7 @@ pub struct Token {
 }
 
 /// Stores all user delegate history
-pub const DELEGATED: SnapshotMap<(Addr, String), Token> = SnapshotMap::new(
-    "delegated",
-    "delegated__checkpoints",
-    "delegated__changelog",
-    Strategy::EveryBlock,
-);
+pub const DELEGATED: Map<(Addr, String), Token> = Map::new("delegated");
 
 /// Stores all token history
-pub const TOKENS: SnapshotMap<String, Token> = SnapshotMap::new(
-    "tokens",
-    "tokens__checkpoints",
-    "tokens__changelog",
-    Strategy::EveryBlock,
-);
+pub const TOKENS: Map<String, Token> = Map::new("tokens");

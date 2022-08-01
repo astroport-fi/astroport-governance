@@ -28,9 +28,6 @@ pub enum ContractError {
     #[error("The percentage range must be from 0 to 100.")]
     PercentageError {},
 
-    #[error("Cancel time cannot be greater then expire time.")]
-    CancelTimeWrong {},
-
     #[error("A delegation with a token {0} already exists.")]
     DelegateTokenAlreadyExists(String),
 }

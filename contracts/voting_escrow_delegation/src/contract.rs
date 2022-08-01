@@ -14,6 +14,7 @@ use cosmwasm_std::{
     Response, StdError, StdResult, SubMsg, Uint128, WasmMsg,
 };
 use cw2::set_contract_version;
+use cw721::NftInfoResponse;
 use cw_utils::parse_reply_instantiate_data;
 
 use crate::helpers::DelegationHelper;
@@ -208,12 +209,14 @@ pub fn create_delegation(
     let recipient_addr = addr_validate_to_lower(deps.api, recipient)?;
     let user = info.sender;
     let cfg = CONFIG.load(deps.storage)?;
+    let block_period = get_period(env.block.time.seconds())?;
+    let exp_period = block_period + get_periods_count(expire_time);
 
     // We can create only one NFT for specify token ID
-    if DELEGATED
-        .may_load(deps.storage, (user.clone(), token_id.clone()))?
-        .is_some()
-    {
+    let nft_helper = cw721_helpers::Cw721Contract(cfg.nft_addr.clone());
+    let nft_instance: StdResult<NftInfoResponse<Extension>> =
+        nft_helper.nft_info(&deps.querier, token_id.clone());
+    if nft_instance.is_ok() {
         return Err(ContractError::DelegateTokenAlreadyExists(token_id));
     }
 
@@ -221,9 +224,6 @@ pub fn create_delegation(
     if balance.is_zero() {
         return Err(ContractError::ZeroVotingPower {});
     }
-
-    let block_period = get_period(env.block.time.seconds())?;
-    let exp_period = block_period + get_periods_count(expire_time);
 
     helper.validates_parameters(
         &deps,
@@ -238,19 +238,8 @@ pub fn create_delegation(
     let new_balance = helper.calc_new_balance(&deps, &user, balance, block_period)?;
     let delegation = helper.calc_delegate_vp(new_balance, block_period, exp_period, percentage)?;
 
-    DELEGATED.save(
-        deps.storage,
-        (user, token_id.clone()),
-        &delegation,
-        env.block.height,
-    )?;
-
-    TOKENS.save(
-        deps.storage,
-        token_id.clone(),
-        &delegation,
-        env.block.height,
-    )?;
+    DELEGATED.save(deps.storage, (user, token_id.clone()), &delegation)?;
+    TOKENS.save(deps.storage, token_id.clone(), &delegation)?;
 
     Ok(Response::default()
         .add_attribute("action", "create_delegation")
@@ -329,16 +318,12 @@ pub fn extend_delegation(
     DELEGATED.update(
         deps.storage,
         (user, token_id.clone()),
-        env.block.height,
         |_| -> StdResult<Token> { Ok(Token { ..new_delegation }) },
     )?;
 
-    TOKENS.update(
-        deps.storage,
-        token_id,
-        env.block.height,
-        |_| -> StdResult<Token> { Ok(Token { ..new_delegation }) },
-    )?;
+    TOKENS.update(deps.storage, token_id, |_| -> StdResult<Token> {
+        Ok(Token { ..new_delegation })
+    })?;
 
     Ok(Response::default().add_attribute("action", "extend_delegation"))
 }

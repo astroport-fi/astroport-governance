@@ -31,13 +31,13 @@ schemars = "0.8"
 serde = { version = "1.0.137", default-features = false, features = ["derive"] }
 thiserror = { version = "1.0.31" }
 astroport-governance = { path = "../../packages/astroport-governance" }
+cw721 = "0.13"
 cw721-base = { version = "0.13", features = ["library"] }
 
 [dev-dependencies]
 cosmwasm-schema = "1.0.0"
 cw-multi-test = "0.13"
 prost = "0.9"
-cw721 = "0.13"
 cw20 = "0.13"
 astroport-tests = {path = "../../packages/astroport-tests"}
 astroport-nft = { path = "../nft"}
