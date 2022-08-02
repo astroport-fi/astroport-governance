@@ -432,7 +432,7 @@ fn adjusted_balance(
         .tokens(&deps.querier, account.clone(), None, Some(MAX_LIMIT))?
         .tokens;
 
-    // we need to take all tokens
+    // we need to take all tokens for specified account
     if account_tokens.len().eq(&(MAX_LIMIT as usize)) {
         loop {
             let mut tokens_resp = nft_helper.tokens(
