@@ -8,8 +8,8 @@ use astroport_governance::voting_escrow_delegation::{
     ExecuteMsg, QueryMsg, DELEGATION_MAX_PERCENT, DELEGATION_MIN_PERCENT,
 };
 use cosmwasm_std::{
-    to_binary, Addr, CosmosMsg, Deps, DepsMut, Order, QuerierWrapper, StdResult, Uint128, WasmMsg,
-    WasmQuery,
+    to_binary, Addr, CosmosMsg, Deps, DepsMut, Order, QuerierWrapper, StdError, StdResult, Uint128,
+    WasmMsg, WasmQuery,
 };
 use serde::de::DeserializeOwned;
 
@@ -85,13 +85,19 @@ impl DelegationHelper {
         let delegates = DELEGATED
             .prefix(account.clone())
             .range(deps.storage, None, None, Order::Ascending)
-            .collect::<StdResult<Vec<_>>>()?;
+            .filter_map(|pair| {
+                let (_, token) = pair.ok()?;
+                if token.start <= block_period && token.expire_period >= block_period {
+                    Some(Ok(token))
+                } else {
+                    None
+                }
+            })
+            .collect::<Result<Vec<Token>, StdError>>()?;
 
         let mut total_delegated_vp = Uint128::zero();
         for delegate in delegates {
-            if delegate.1.start <= block_period && delegate.1.expire_period >= block_period {
-                total_delegated_vp += self.calc_vp(&delegate.1, block_period)?;
-            }
+            total_delegated_vp += self.calc_vp(&delegate, block_period)?;
         }
 
         Ok(total_delegated_vp)
