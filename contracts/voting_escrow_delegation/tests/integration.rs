@@ -218,6 +218,37 @@ mod tests {
                 )
                 .unwrap_err();
             assert_eq!("token_id already claimed", err.root_cause().to_string());
+
+            // try to burn nft by token ID
+            let err = app
+                .execute_contract(
+                    delegator_helper.delegation_instance.clone(),
+                    delegator_helper.nft_instance.clone(),
+                    &ExecuteMsgNFT::<Extension>::Burn {
+                        token_id: "token_1".to_string(),
+                    },
+                    &[],
+                )
+                .unwrap_err();
+            assert_eq!(
+                "Generic error: Operation non supported",
+                err.root_cause().to_string()
+            );
+
+            // check if token exists
+            let resp = app
+                .wrap()
+                .query::<TokensResponse>(&QueryRequest::Wasm(WasmQuery::Smart {
+                    contract_addr: delegator_helper.nft_instance.to_string(),
+                    msg: to_binary(&QueryMsgNFT::Tokens {
+                        owner: USER.to_string(),
+                        start_after: None,
+                        limit: None,
+                    })
+                    .unwrap(),
+                }))
+                .unwrap();
+            assert_eq!(vec!["token_1",], resp.tokens);
         }
 
         #[test]

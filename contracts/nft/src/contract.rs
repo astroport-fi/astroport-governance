@@ -1,5 +1,5 @@
 use cosmwasm_std::{
-    entry_point, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response, StdResult,
+    entry_point, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response, StdError, StdResult,
 };
 
 use astroport_governance::astroport::asset::addr_validate_to_lower;
@@ -47,8 +47,15 @@ pub fn execute(
     info: MessageInfo,
     msg: ExecuteMsg<Extension>,
 ) -> Result<Response, ContractError> {
-    let tract = Cw721Contract::<Extension, Empty>::default();
-    tract.execute(deps, env, info, msg)
+    match msg {
+        ExecuteMsg::Burn { .. } => Err(ContractError::Std(StdError::generic_err(
+            "Operation non supported",
+        ))),
+        _ => {
+            let tract = Cw721Contract::<Extension, Empty>::default();
+            tract.execute(deps, env, info, msg)
+        }
+    }
 }
 
 /// Exposes queries available in the contract.
