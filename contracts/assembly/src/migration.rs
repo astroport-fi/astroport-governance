@@ -1,14 +1,18 @@
-use crate::state::PROPOSALS;
+use crate::astroport::asset::addr_validate_to_lower;
+use crate::state::{CONFIG, PROPOSALS};
 use astroport_governance::assembly::{Config, Proposal, ProposalMessage, ProposalStatus};
 use astroport_governance::U64Key;
-use cosmwasm_std::{Addr, DepsMut, StdError, StdResult, Uint128, Uint64};
-use cw_storage_plus::Map;
+use cosmwasm_std::{Addr, Decimal, DepsMut, StdError, StdResult, Uint128, Uint64};
+use cw_storage_plus::{Item, Map};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// This structure describes a migration message.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct MigrateMsg {}
+pub struct MigrateMsg {
+    voting_escrow_delegator_addr: Option<String>,
+    vxastro_token_addr: Option<String>,
+}
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ProposalV100 {
@@ -46,8 +50,37 @@ pub struct ProposalV100 {
 
 pub const PROPOSALS_V100: Map<U64Key, ProposalV100> = Map::new("proposals");
 
+/// This structure stores general parameters for the Assembly contract(v1.0.0).
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct ConfigV100 {
+    /// xASTRO token address
+    pub xastro_token_addr: Addr,
+    /// vxASTRO token address
+    pub vxastro_token_addr: Option<Addr>,
+    /// Voting Escrow delegator address
+    pub voting_escrow_delegator_addr: Option<Addr>,
+    /// Builder unlock contract address
+    pub builder_unlock_addr: Addr,
+    /// Proposal voting period
+    pub proposal_voting_period: u64,
+    /// Proposal effective delay
+    pub proposal_effective_delay: u64,
+    /// Proposal expiration period
+    pub proposal_expiration_period: u64,
+    /// Proposal required deposit
+    pub proposal_required_deposit: Uint128,
+    /// Proposal required quorum
+    pub proposal_required_quorum: Decimal,
+    /// Proposal required threshold
+    pub proposal_required_threshold: Decimal,
+    /// Whitelisted links
+    pub whitelisted_links: Vec<String>,
+}
+
+pub const CONFIG_V100: Item<ConfigV100> = Item::new("config");
+
 /// Migrate proposals to V1.1.1
-pub(crate) fn migrate_proposals_to_v111(deps: &mut DepsMut, cfg: &Config) -> StdResult<()> {
+pub(crate) fn migrate_proposals_to_v111(deps: &mut DepsMut, cfg: &ConfigV100) -> StdResult<()> {
     let proposals_v100 = PROPOSALS_V100
         .range(deps.storage, None, None, cosmwasm_std::Order::Ascending {})
         .collect::<Result<Vec<_>, StdError>>()?;
@@ -79,6 +112,44 @@ pub(crate) fn migrate_proposals_to_v111(deps: &mut DepsMut, cfg: &Config) -> Std
             },
         )?;
     }
+
+    Ok(())
+}
+
+/// Migrate contract config to V1.3.0
+pub(crate) fn migrate_config_to_130(
+    deps: &mut DepsMut,
+    cfg_v100: ConfigV100,
+    msg: MigrateMsg,
+) -> StdResult<()> {
+    let mut cfg = Config {
+        xastro_token_addr: cfg_v100.xastro_token_addr,
+        vxastro_token_addr: cfg_v100.vxastro_token_addr,
+        voting_escrow_delegator_addr: None,
+        builder_unlock_addr: cfg_v100.builder_unlock_addr,
+        proposal_voting_period: cfg_v100.proposal_voting_period,
+        proposal_effective_delay: cfg_v100.proposal_effective_delay,
+        proposal_expiration_period: cfg_v100.proposal_expiration_period,
+        proposal_required_deposit: cfg_v100.proposal_required_deposit,
+        proposal_required_quorum: cfg_v100.proposal_required_quorum,
+        proposal_required_threshold: cfg_v100.proposal_required_threshold,
+        whitelisted_links: cfg_v100.whitelisted_links,
+    };
+
+    if let Some(vxastro_token_addr) = msg.vxastro_token_addr {
+        cfg.vxastro_token_addr = Some(addr_validate_to_lower(deps.api, vxastro_token_addr)?);
+    }
+
+    if let Some(voting_escrow_delegator_addr) = msg.voting_escrow_delegator_addr {
+        cfg.voting_escrow_delegator_addr = Some(addr_validate_to_lower(
+            deps.api,
+            voting_escrow_delegator_addr,
+        )?);
+    }
+
+    cfg.validate()?;
+
+    CONFIG.save(deps.storage, &cfg)?;
 
     Ok(())
 }
