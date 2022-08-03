@@ -33,6 +33,8 @@ pub struct InstantiateMsg {
     pub xastro_token_addr: String,
     /// Address of vxASTRO token
     pub vxastro_token_addr: Option<String>,
+    /// Voting Escrow delegator address
+    pub voting_escrow_delegator_addr: Option<String>,
     /// Address of the builder unlock contract
     pub builder_unlock_addr: String,
     /// Proposal voting period
@@ -146,6 +148,8 @@ pub struct Config {
     pub xastro_token_addr: Addr,
     /// vxASTRO token address
     pub vxastro_token_addr: Option<Addr>,
+    /// Voting Escrow delegator address
+    pub voting_escrow_delegator_addr: Option<Addr>,
     /// Builder unlock contract address
     pub builder_unlock_addr: Addr,
     /// Proposal voting period
@@ -221,6 +225,12 @@ impl Config {
             )));
         }
 
+        if self.voting_escrow_delegator_addr.is_some() && self.vxastro_token_addr.is_none() {
+            return Err(StdError::generic_err(
+                "The Voting Escrow contract should be specified to use the Voting Escrow Delegator contract."
+            ));
+        }
+
         Ok(())
     }
 }
@@ -232,6 +242,8 @@ pub struct UpdateConfig {
     pub xastro_token_addr: Option<String>,
     /// vxASTRO token address
     pub vxastro_token_addr: Option<String>,
+    /// Voting Escrow delegator address
+    pub voting_escrow_delegator_addr: Option<String>,
     /// Builder unlock contract address
     pub builder_unlock_addr: Option<String>,
     /// Proposal voting period

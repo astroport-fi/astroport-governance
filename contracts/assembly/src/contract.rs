@@ -20,11 +20,13 @@ use astroport::xastro_token::QueryMsg as XAstroTokenQueryMsg;
 use astroport_governance::builder_unlock::msg::{
     AllocationResponse, QueryMsg as BuilderUnlockQueryMsg, StateResponse,
 };
+use astroport_governance::utils::WEEK;
 use astroport_governance::voting_escrow::{QueryMsg as VotingEscrowQueryMsg, VotingPowerResponse};
+use astroport_governance::voting_escrow_delegation::QueryMsg::AdjustedBalance;
 use astroport_governance::U64Key;
 
 use crate::error::ContractError;
-use crate::migration::{migrate_proposals_to_v111, MigrateMsg};
+use crate::migration::{migrate_config_to_130, migrate_proposals_to_v111, MigrateMsg, CONFIG_V100};
 use crate::state::{CONFIG, PROPOSALS, PROPOSAL_COUNT};
 
 // Contract name and version used for migration.
@@ -67,6 +69,7 @@ pub fn instantiate(
     let mut config = Config {
         xastro_token_addr: addr_validate_to_lower(deps.api, &msg.xastro_token_addr)?,
         vxastro_token_addr: None,
+        voting_escrow_delegator_addr: None,
         builder_unlock_addr: addr_validate_to_lower(deps.api, &msg.builder_unlock_addr)?,
         proposal_voting_period: msg.proposal_voting_period,
         proposal_effective_delay: msg.proposal_effective_delay,
@@ -78,6 +81,8 @@ pub fn instantiate(
     };
 
     config.vxastro_token_addr = addr_opt_validate(deps.api, &msg.vxastro_token_addr)?;
+    config.voting_escrow_delegator_addr =
+        addr_opt_validate(deps.api, &msg.voting_escrow_delegator_addr)?;
 
     config.validate()?;
 
@@ -830,16 +835,29 @@ pub fn calc_voting_power(deps: Deps, sender: String, proposal: &Proposal) -> Std
     }
 
     if let Some(vxastro_token_addr) = config.vxastro_token_addr {
-        let vxastro_amount: VotingPowerResponse = deps.querier.query_wasm_smart(
-            &vxastro_token_addr,
-            &VotingEscrowQueryMsg::UserVotingPowerAt {
-                user: sender.clone(),
-                time: proposal.start_time - 1,
-            },
-        )?;
+        let vxastro_amount: Uint128 =
+            if let Some(voting_escrow_delegator_addr) = config.voting_escrow_delegator_addr {
+                deps.querier.query_wasm_smart(
+                    &voting_escrow_delegator_addr,
+                    &AdjustedBalance {
+                        account: sender.clone(),
+                        timestamp: Some(proposal.start_time - WEEK),
+                    },
+                )?
+            } else {
+                let res: VotingPowerResponse = deps.querier.query_wasm_smart(
+                    &vxastro_token_addr,
+                    &VotingEscrowQueryMsg::UserVotingPowerAt {
+                        user: sender.clone(),
+                        time: proposal.start_time - WEEK,
+                    },
+                )?;
 
-        if !vxastro_amount.voting_power.is_zero() {
-            total = total.checked_add(vxastro_amount.voting_power)?;
+                res.voting_power
+            };
+
+        if !vxastro_amount.is_zero() {
+            total = total.checked_add(vxastro_amount)?;
         }
 
         let locked_xastro: Uint128 = deps.querier.query_wasm_smart(
@@ -888,7 +906,7 @@ pub fn calc_total_voting_power_at(deps: Deps, proposal: &Proposal) -> StdResult<
         let vxastro: VotingPowerResponse = deps.querier.query_wasm_smart(
             &vxastro_token_addr,
             &VotingEscrowQueryMsg::TotalVotingPowerAt {
-                time: proposal.start_time - 1,
+                time: proposal.start_time - WEEK,
             },
         )?;
         if !vxastro.voting_power.is_zero() {
@@ -908,16 +926,20 @@ pub fn calc_total_voting_power_at(deps: Deps, proposal: &Proposal) -> StdResult<
 ///
 /// * **msg** is an object of type [`MigrateMsg`].
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(mut deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
+pub fn migrate(mut deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
     let contract_version = get_contract_version(deps.storage)?;
 
     match contract_version.contract.as_ref() {
         "astro-assembly" => match contract_version.version.as_ref() {
             "1.0.2" | "1.1.0" => {
-                let config = CONFIG.load(deps.storage)?;
+                let config = CONFIG_V100.load(deps.storage)?;
                 migrate_proposals_to_v111(&mut deps, &config)?;
+                migrate_config_to_130(&mut deps, config, msg)?;
             }
-            "1.1.1" => {}
+            "1.1.1" | "1.2.0" => {
+                let config = CONFIG_V100.load(deps.storage)?;
+                migrate_config_to_130(&mut deps, config, msg)?;
+            }
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),
