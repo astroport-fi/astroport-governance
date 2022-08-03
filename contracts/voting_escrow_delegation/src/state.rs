@@ -25,7 +25,7 @@ pub const CONFIG: Item<Config> = Item::new("config");
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema)]
 pub struct Token {
     /// The amount of voting power to be delegated
-    pub bias: Uint128,
+    pub power: Uint128,
     /// Weekly voting power decay
     pub slope: Uint128,
     /// The start period when the delegated voting power start to decrease
@@ -34,8 +34,8 @@ pub struct Token {
     pub expire_period: u64,
 }
 
-/// Stores all user delegate history
-pub const DELEGATED: Map<(Addr, String), Token> = Map::new("delegated");
+/// Delegated voting power are stored using a (contract_addr => token_ID) key
+pub const DELEGATED: Map<(&Addr, String), Token> = Map::new("delegated");
 
-/// Stores all token history
+/// Delegated token history are stored using a token ID key
 pub const TOKENS: Map<String, Token> = Map::new("tokens");

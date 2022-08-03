@@ -49,7 +49,7 @@ pub enum QueryMsg {
         account: String,
         timestamp: Option<u64>,
     },
-    AlreadyDelegatedVP {
+    DelegatedVotingPower {
         account: String,
         timestamp: Option<u64>,
     },

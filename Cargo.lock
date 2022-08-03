@@ -125,14 +125,11 @@ dependencies = [
  "astroport-governance 1.1.0",
  "cosmwasm-schema",
  "cosmwasm-std 1.0.0",
- "cw-storage-plus",
- "cw-utils",
  "cw2",
  "cw721",
  "cw721-base",
  "schemars",
  "serde",
- "thiserror",
 ]
 
 [[package]]
@@ -1505,10 +1502,8 @@ dependencies = [
  "cw-storage-plus",
  "cw-utils",
  "cw2",
- "cw20",
  "cw721",
  "cw721-base",
- "prost",
  "schemars",
  "serde",
  "thiserror",

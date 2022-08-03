@@ -49,7 +49,7 @@ pub fn execute(
 ) -> Result<Response, ContractError> {
     match msg {
         ExecuteMsg::Burn { .. } => Err(ContractError::Std(StdError::generic_err(
-            "Operation non supported",
+            "Operation is not supported",
         ))),
         _ => {
             let tract = Cw721Contract::<Extension, Empty>::default();

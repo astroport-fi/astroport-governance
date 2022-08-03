@@ -1,18 +1,13 @@
 [package]
 name = "astroport-nft"
 version = "1.0.0"
-authors = ["Astroport"]
+authors = ["CosmWasm", "Astroport"]
 edition = "2021"
 description = "Expanded implementation of cw721 NFTs compliant token for the Astroport NFT"
 license = "Apache-2.0"
 repository = "https://github.com/CosmWasm/cw-nfts"
 homepage = "https://cosmwasm.com"
 documentation = "https://docs.cosmwasm.com"
-
-exclude = [
-  # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
-  "artifacts/*",
-]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [lib]
@@ -25,15 +20,12 @@ backtraces = ["cosmwasm-std/backtraces"]
 library = []
 
 [dependencies]
-cw-utils = "0.13"
 cw2 = "0.13"
 cw721 = "0.13"
 cw721-base = { version = "0.13", features = ["library"] }
-cw-storage-plus = "0.13"
 cosmwasm-std = "1.0"
 schemars = "0.8"
 serde = { version = "1.0", default-features = false, features = ["derive"] }
-thiserror = { version = "1.0" }
 astroport-governance = { path = "../../packages/astroport-governance" }
 
 [dev-dependencies]

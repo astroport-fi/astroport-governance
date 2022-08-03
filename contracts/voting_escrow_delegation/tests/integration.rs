@@ -1,4 +1,3 @@
-#[cfg(test)]
 mod tests {
     use astroport_governance::utils::EPOCH_START;
     use astroport_governance::voting_escrow_delegation::{InstantiateMsg, QueryMsg};
@@ -68,12 +67,11 @@ mod tests {
     }
 
     fn mock_app() -> App {
-        let mut app = App::new(|_router, _, _| {});
+        let mut app = App::default();
 
         app.update_block(|bi| {
             bi.time = bi.time.plus_seconds(EPOCH_START);
             bi.height += 1;
-            bi.chain_id = "cosm-wasm-test".to_string();
         });
 
         app
@@ -231,7 +229,7 @@ mod tests {
                 )
                 .unwrap_err();
             assert_eq!(
-                "Generic error: Operation non supported",
+                "Generic error: Operation is not supported",
                 err.root_cause().to_string()
             );
 
@@ -258,7 +256,7 @@ mod tests {
             let nft_helper =
                 cw721_base::helpers::Cw721Contract(delegator_helper.nft_instance.clone());
 
-            // try to mint from user
+            // try to create delegation from user with zero voting power
             let err = router_ref
                 .execute_contract(
                     Addr::unchecked("user"),
@@ -323,6 +321,46 @@ mod tests {
                 200,
             );
 
+            // check user's adjusted balance before create a delegation
+            let resp = router_ref
+                .wrap()
+                .query::<Uint128>(&QueryRequest::Wasm(WasmQuery::Smart {
+                    contract_addr: delegator_helper.delegation_instance.to_string(),
+                    msg: to_binary(&QueryMsg::AdjustedBalance {
+                        account: "user".to_string(),
+                        timestamp: None,
+                    })
+                    .unwrap(),
+                }))
+                .unwrap();
+            assert_eq!(Uint128::new(102_884_614), resp);
+
+            // check user's nft tokens before create a delegation
+            let resp = nft_helper
+                .tokens(&router_ref.wrap().into(), "user", None, None)
+                .unwrap();
+            assert_eq!(EMPTY_TOKENS, resp.tokens);
+
+            // check user2's adjusted balance before create a delegation
+            let user_vp_before_delegation = router_ref
+                .wrap()
+                .query::<Uint128>(&QueryRequest::Wasm(WasmQuery::Smart {
+                    contract_addr: delegator_helper.delegation_instance.to_string(),
+                    msg: to_binary(&QueryMsg::AdjustedBalance {
+                        account: "user2".to_string(),
+                        timestamp: None,
+                    })
+                    .unwrap(),
+                }))
+                .unwrap();
+            assert_eq!(Uint128::new(102_884_614), user_vp_before_delegation);
+
+            // check user2's nft tokens before create a delegation
+            let resp = nft_helper
+                .tokens(&router_ref.wrap().into(), "user2", None, None)
+                .unwrap();
+            assert_eq!(EMPTY_TOKENS, resp.tokens);
+
             // create delegation for one week
             router_ref
                 .execute_contract(
@@ -383,7 +421,7 @@ mod tests {
             assert_eq!(EMPTY_TOKENS, resp.tokens);
 
             // check user's adjusted balance
-            let resp = router_ref
+            let user_vp_after_delegation = router_ref
                 .wrap()
                 .query::<Uint128>(&QueryRequest::Wasm(WasmQuery::Smart {
                     contract_addr: delegator_helper.delegation_instance.to_string(),
@@ -394,9 +432,9 @@ mod tests {
                     .unwrap(),
                 }))
                 .unwrap();
-            assert_eq!(Uint128::new(0), resp);
+            assert_eq!(Uint128::new(0), user_vp_after_delegation);
 
-            // check user2's received nft tokens
+            // check user2's nft tokens
             let resp = nft_helper
                 .tokens(&router_ref.wrap().into(), "user2", None, None)
                 .unwrap();
@@ -415,6 +453,25 @@ mod tests {
                 }))
                 .unwrap();
             assert_eq!(Uint128::new(205_769_228), resp);
+
+            // check user's delegated voting power
+            let user_delegated_vp = router_ref
+                .wrap()
+                .query::<Uint128>(&QueryRequest::Wasm(WasmQuery::Smart {
+                    contract_addr: delegator_helper.delegation_instance.to_string(),
+                    msg: to_binary(&QueryMsg::DelegatedVotingPower {
+                        account: "user".to_string(),
+                        timestamp: None,
+                    })
+                    .unwrap(),
+                }))
+                .unwrap();
+
+            // check user's user_vp_after_delegation + user_delegated_vp = user_vp_before_delegation
+            assert_eq!(
+                user_vp_before_delegation,
+                user_delegated_vp + user_vp_after_delegation
+            );
 
             router_ref.update_block(|block_info| {
                 block_info.time = block_info.time.plus_seconds(WEEK);
@@ -601,7 +658,7 @@ mod tests {
                 )
                 .unwrap();
 
-            // check user's nft tokens
+            // check the user's NFT.
             let resp = nft_helper
                 .tokens(&router_ref.wrap().into(), "user", None, None)
                 .unwrap();
@@ -621,7 +678,7 @@ mod tests {
                 .unwrap();
             assert_eq!(Uint128::new(86_499_999), resp);
 
-            // check user2's received nft tokens
+            // check the user2's NFT.
             let resp = nft_helper
                 .tokens(&router_ref.wrap().into(), "user2", None, None)
                 .unwrap();
@@ -641,7 +698,7 @@ mod tests {
                 .unwrap();
             assert_eq!(Uint128::new(141_538_456), resp);
 
-            // check user3's received nft tokens
+            // check user3's nft tokens
             let resp = nft_helper
                 .tokens(&router_ref.wrap().into(), "user3", None, None)
                 .unwrap();
@@ -754,19 +811,19 @@ mod tests {
                 )
                 .unwrap();
 
-            // check user1's received nft tokens
+            // check the user's NFT.
             let resp = nft_helper
                 .tokens(&router_ref.wrap().into(), "user", None, None)
                 .unwrap();
             assert_eq!(vec!["token_3"], resp.tokens);
 
-            // check user2's received nft tokens
+            // check the user2's NFT.
             let resp = nft_helper
                 .tokens(&router_ref.wrap().into(), "user2", None, None)
                 .unwrap();
             assert_eq!(EMPTY_TOKENS, resp.tokens);
 
-            // check user3's received nft tokens
+            // check the user3's NFT.
             let resp = nft_helper
                 .tokens(&router_ref.wrap().into(), "user3", None, None)
                 .unwrap();
@@ -819,19 +876,19 @@ mod tests {
                 block_info.height += 1;
             });
 
-            // check user1's received nft tokens
+            // check the user's NFT.
             let resp = nft_helper
                 .tokens(&router_ref.wrap().into(), "user", None, None)
                 .unwrap();
             assert_eq!(vec!["token_3"], resp.tokens);
 
-            // check user2's received nft tokens
+            // check the user2's NFT.
             let resp = nft_helper
                 .tokens(&router_ref.wrap().into(), "user2", None, None)
                 .unwrap();
             assert_eq!(EMPTY_TOKENS, resp.tokens);
 
-            // check user3's received nft tokens
+            // check the user3's NFT.
             let resp = nft_helper
                 .tokens(&router_ref.wrap().into(), "user3", None, None)
                 .unwrap();
