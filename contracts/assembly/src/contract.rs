@@ -66,10 +66,13 @@ pub fn instantiate(
 
     validate_links(&msg.whitelisted_links)?;
 
-    let mut config = Config {
+    let config = Config {
         xastro_token_addr: addr_validate_to_lower(deps.api, &msg.xastro_token_addr)?,
-        vxastro_token_addr: None,
-        voting_escrow_delegator_addr: None,
+        vxastro_token_addr: addr_opt_validate(deps.api, &msg.vxastro_token_addr)?,
+        voting_escrow_delegator_addr: addr_opt_validate(
+            deps.api,
+            &msg.voting_escrow_delegator_addr,
+        )?,
         builder_unlock_addr: addr_validate_to_lower(deps.api, &msg.builder_unlock_addr)?,
         proposal_voting_period: msg.proposal_voting_period,
         proposal_effective_delay: msg.proposal_effective_delay,
@@ -79,10 +82,6 @@ pub fn instantiate(
         proposal_required_threshold: Decimal::from_str(&msg.proposal_required_threshold)?,
         whitelisted_links: msg.whitelisted_links,
     };
-
-    config.vxastro_token_addr = addr_opt_validate(deps.api, &msg.vxastro_token_addr)?;
-    config.voting_escrow_delegator_addr =
-        addr_opt_validate(deps.api, &msg.voting_escrow_delegator_addr)?;
 
     config.validate()?;
 
