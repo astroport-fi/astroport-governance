@@ -125,7 +125,10 @@ pub(crate) fn migrate_config_to_130(
     let mut cfg = Config {
         xastro_token_addr: cfg_v100.xastro_token_addr,
         vxastro_token_addr: cfg_v100.vxastro_token_addr,
-        voting_escrow_delegator_addr: None,
+        voting_escrow_delegator_addr: addr_opt_validate(
+            deps.api,
+            &msg.voting_escrow_delegator_addr,
+        )?,
         builder_unlock_addr: cfg_v100.builder_unlock_addr,
         proposal_voting_period: cfg_v100.proposal_voting_period,
         proposal_effective_delay: cfg_v100.proposal_effective_delay,
@@ -139,9 +142,6 @@ pub(crate) fn migrate_config_to_130(
     if let Some(vxastro_token_addr) = msg.vxastro_token_addr {
         cfg.vxastro_token_addr = Some(addr_validate_to_lower(deps.api, vxastro_token_addr)?);
     }
-
-    cfg.voting_escrow_delegator_addr =
-        addr_opt_validate(deps.api, &msg.voting_escrow_delegator_addr)?;
 
     cfg.validate()?;
 
