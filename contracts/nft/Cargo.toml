@@ -1,7 +1,7 @@
 [package]
 name = "astroport-nft"
 version = "1.0.0"
-authors = ["CosmWasm", "Astroport"]
+authors = ["Ethan Frey <ethanfrey@users.noreply.github.com>", "Orkun Külçe <orkun@deuslabs.fi>", "Astroport"]
 edition = "2021"
 description = "Expanded implementation of cw721 NFTs compliant token for the Astroport NFT"
 license = "Apache-2.0"
