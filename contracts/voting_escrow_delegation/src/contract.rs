@@ -182,9 +182,6 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
 /// [`ContractError`] in case of errors.
 ///
 /// ## Params
-/// * **helper** is an object of type [`DelegationHelper`] which describes support
-/// delegation functions.
-///
 /// * **percentage** is a percentage value to determine the amount of
 /// voting power to delegate
 ///
@@ -194,7 +191,6 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
 /// * **token_id** is an NFT identifier.
 ///
 /// * **recipient** is an account to receive the delegated voting power.
-#[allow(clippy::too_many_arguments)]
 pub fn create_delegation(
     deps: DepsMut,
     env: Env,
@@ -257,8 +253,6 @@ pub fn create_delegation(
 /// case of success or [`ContractError`] in case of errors.
 ///
 /// ## Params
-/// * **helper** is an object of type [`DelegationHelper`] which describes support delegation functions.
-///
 /// * **percentage** is a percentage value to determine the amount of voting power to delegate.
 ///
 /// * **expire_time** is a point in time, at least a day in the future, at which the value of the
@@ -267,7 +261,6 @@ pub fn create_delegation(
 /// * **token_id** is an NFT identifier.
 ///
 /// * **recipient** is an account to receive the delegated voting power.
-#[allow(clippy::too_many_arguments)]
 pub fn extend_delegation(
     deps: DepsMut,
     env: Env,
@@ -367,9 +360,6 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 /// in case of success or [`StdError`] in case of errors.
 ///
 /// ## Params
-/// * **helper** is an object of type [`DelegationHelper`] which describes support
-/// delegation functions.
-///
 /// * **account** is an address of the account to return adjusted balance.
 ///
 /// * **timestamp** is a point in time, at least a day in the future, at which the value of
@@ -398,12 +388,7 @@ fn adjusted_balance(
     let total_delegated_vp = calc_total_delegated_vp(deps, &account, block_period)?;
 
     // we must to subtract the delegated voting power
-    if current_vp >= total_delegated_vp {
-        current_vp -= total_delegated_vp;
-    } else {
-        // to be sure that we did not delegate more than we had
-        current_vp = Uint128::zero();
-    }
+    current_vp = current_vp.checked_sub(total_delegated_vp)?;
 
     let nft_helper = cw721_helpers::Cw721Contract(config.nft_addr);
     let mut account_tokens = nft_helper
@@ -443,9 +428,6 @@ fn adjusted_balance(
 /// Returns an amount of delegated voting power.
 ///
 /// ## Params
-/// * **helper** is an object of type [`DelegationHelper`] which describes support
-/// delegation functions.
-///
 /// * **account** is an address of the account to return adjusted balance.
 ///
 /// * **timestamp** is an optional field that specifies the period for which the function
