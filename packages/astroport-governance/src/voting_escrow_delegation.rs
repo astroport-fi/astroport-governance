@@ -1,4 +1,5 @@
-use cosmwasm_std::Uint128;
+use crate::voting_escrow_delegation::QueryMsg::AdjustedBalance;
+use cosmwasm_std::{QuerierWrapper, StdResult, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -53,4 +54,17 @@ pub enum QueryMsg {
         account: String,
         timestamp: Option<u64>,
     },
+}
+
+/// Queries current user's adjusted voting power from the voting escrow delegation contract.
+pub fn get_adjusted_balance(
+    querier: &QuerierWrapper,
+    escrow_delegation_addr: String,
+    account: String,
+    timestamp: Option<u64>,
+) -> StdResult<Uint128> {
+    querier.query_wasm_smart(
+        escrow_delegation_addr,
+        &AdjustedBalance { account, timestamp },
+    )
 }
