@@ -33,3 +33,5 @@ cosmwasm-schema = "1.0.0"
 cw-multi-test = "0.13"
 astroport-tests = {path = "../../packages/astroport-tests"}
 astroport-nft = { path = "../nft"}
+anyhow = "1"
+proptest = "1.0.0"
