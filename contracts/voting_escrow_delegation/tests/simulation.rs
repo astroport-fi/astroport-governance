@@ -99,7 +99,7 @@ use proptest::prelude::*;
 const MAX_PERIOD: usize = 10;
 const MAX_USERS: usize = 6;
 const MAX_TOKENS: usize = 10;
-const MAX_EVENTS: usize = 2;
+const MAX_EVENTS: usize = 100;
 
 fn events_strategy() -> impl Strategy<Value = Event> {
     prop_oneof![
@@ -181,6 +181,7 @@ proptest! {
                         .adjusted_balance(&mut simulator.router, user, None)
                         .unwrap();
 
+                    // check user's delegated balance before the delegation
                     let user_delegated_balance_before = simulator
                         .helper
                         .delegated_balance(&mut simulator.router, user, None)
@@ -190,6 +191,12 @@ proptest! {
                     let recipient_balance_before = simulator
                         .helper
                         .adjusted_balance(&mut simulator.router, recipient, None)
+                        .unwrap();
+
+                    // check recipient's delegated balance before the delegation
+                    let recipient_delegated_balance_before = simulator
+                        .helper
+                        .delegated_balance(&mut simulator.router, recipient, None)
                         .unwrap();
 
                     // try to execute user's event
@@ -213,6 +220,12 @@ proptest! {
                         .adjusted_balance(&mut simulator.router, recipient, None)
                         .unwrap();
 
+                     // check recipient's delegated balance after the delegation
+                    let recipient_delegated_balance_after = simulator
+                        .helper
+                        .delegated_balance(&mut simulator.router, recipient, None)
+                        .unwrap();
+
                     // check user's balance
                     assert_eq!(
                         user_balance_after,
@@ -224,7 +237,7 @@ proptest! {
                     assert_eq!(
                         recipient_balance_after,
                         recipient_balance_before
-                            + (user_delegated_balance_after - user_delegated_balance_before)
+                            - (recipient_delegated_balance_after - recipient_delegated_balance_before)
                     );
                 }
             }
