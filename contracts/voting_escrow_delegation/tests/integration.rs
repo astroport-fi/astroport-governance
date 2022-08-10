@@ -130,10 +130,7 @@ fn mint() {
             &[],
         )
         .unwrap_err();
-    assert_eq!(
-        "Generic error: Operation is not supported",
-        err.root_cause().to_string()
-    );
+    assert_eq!("Unauthorized", err.root_cause().to_string());
 
     // check if token exists
     let resp = router_ref
