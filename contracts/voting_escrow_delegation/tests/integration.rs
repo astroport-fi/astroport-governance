@@ -46,8 +46,8 @@ fn mint() {
             msg: to_binary(&QueryMsgNFT::ContractInfo {}).unwrap(),
         }))
         .unwrap();
-    assert_eq!("Astroport NFT", resp.name);
-    assert_eq!("ASTRO-NFT", resp.symbol);
+    assert_eq!("Delegated VP NFT", resp.name);
+    assert_eq!("VP-NFT", resp.symbol);
 
     // try to mint from random
     let err = router_ref
@@ -735,8 +735,8 @@ fn extend_delegation() {
         .create_delegation(
             router_ref,
             "user",
-            Uint128::new(100),
-            WEEK,
+            Uint128::new(50),
+            WEEK * 3,
             "token_1".to_string(),
             "user2".to_string(),
         )
@@ -760,13 +760,13 @@ fn extend_delegation() {
     let resp = delegator_helper
         .adjusted_balance(router_ref, "user", None)
         .unwrap();
-    assert_eq!(Uint128::new(0), resp);
+    assert_eq!(Uint128::new(53_605_768), resp);
 
     // check user2's adjusted balance
     let resp = delegator_helper
         .adjusted_balance(router_ref, "user2", None)
         .unwrap();
-    assert_eq!(Uint128::new(210_096_149), resp);
+    assert_eq!(Uint128::new(156_490_381), resp);
 
     router_ref.update_block(|block_info| {
         block_info.time = block_info.time.plus_seconds(WEEK);
@@ -791,20 +791,35 @@ fn extend_delegation() {
     let resp = delegator_helper
         .adjusted_balance(router_ref, "user", None)
         .unwrap();
-    assert_eq!(Uint128::new(85_769_228), resp);
+    assert_eq!(Uint128::new(50_032_050), resp);
 
     // check user2's adjusted balance
     let resp = delegator_helper
         .adjusted_balance(router_ref, "user2", None)
         .unwrap();
-    assert_eq!(Uint128::new(51_442_307), resp);
+    assert_eq!(Uint128::new(87_179_485), resp);
+
+    // check's that we cannot create a delegation for a smaller amount
+    let err = delegator_helper
+        .extend_delegation(
+            router_ref,
+            "user",
+            Uint128::new(40),
+            WEEK * 3,
+            "token_1".to_string(),
+        )
+        .unwrap_err();
+    assert_eq!(
+        "The number of new delegation voting power cannot be less than the existing one.",
+        err.root_cause().to_string()
+    );
 
     // try to extend delegation period
     delegator_helper
         .extend_delegation(
             router_ref,
             "user",
-            Uint128::new(90),
+            Uint128::new(60),
             WEEK * 3,
             "token_1".to_string(),
         )
@@ -828,13 +843,13 @@ fn extend_delegation() {
     let resp = delegator_helper
         .adjusted_balance(router_ref, "user", None)
         .unwrap();
-    assert_eq!(Uint128::new(8_576_924), resp);
+    assert_eq!(Uint128::new(34_307_693), resp);
 
     // check user2's adjusted balance
     let resp = delegator_helper
         .adjusted_balance(router_ref, "user2", None)
         .unwrap();
-    assert_eq!(Uint128::new(128_634_611), resp);
+    assert_eq!(Uint128::new(102_903_842), resp);
 
     router_ref.update_block(|block_info| {
         block_info.time = block_info.time.plus_seconds(WEEK * 3);

@@ -8,18 +8,22 @@ use astroport_governance::voting_escrow_delegation::{
 use cosmwasm_std::{Addr, Deps, Order, QuerierWrapper, StdError, StdResult, Uint128};
 
 /// Adjusting voting power according to the slope by specified percentage.
-pub fn calc_delegate_vp(
-    balance: Uint128,
+pub fn calc_delegation(
+    not_delegated_vp: Uint128,
     block_period: u64,
     exp_period: u64,
     percentage: Uint128,
 ) -> Result<Token, ContractError> {
-    let delegated_balance = balance.multiply_ratio(percentage, DELEGATION_MAX_PERCENT);
+    let vp_to_delegate = not_delegated_vp.multiply_ratio(percentage, DELEGATION_MAX_PERCENT);
     let dt = Uint128::from(exp_period - block_period);
-    let slope = delegated_balance
+    let slope = vp_to_delegate
         .checked_div(dt)
         .map_err(|e| ContractError::Std(e.into()))?;
     let power = slope * dt;
+
+    if power.is_zero() {
+        return Err(ContractError::DelegationVotingPowerError {});
+    }
 
     Ok(Token {
         power,
@@ -32,14 +36,17 @@ pub fn calc_delegate_vp(
 /// Calculates the total delegated voting power for specified account.
 pub(crate) fn calc_total_delegated_vp(
     deps: Deps,
-    account: &Addr,
+    delegator: &Addr,
     block_period: u64,
 ) -> StdResult<Uint128> {
     let delegates = DELEGATED
-        .prefix(account)
+        .prefix(delegator)
         .range(deps.storage, None, None, Order::Ascending)
         .filter_map(|pair| {
-            let (_, token) = pair.ok()?;
+            let (_, token) = match pair {
+                Ok(v) => v,
+                Err(e) => return Some(Err(e)),
+            };
             if token.start <= block_period && token.expire_period > block_period {
                 Some(Ok(token))
             } else {
@@ -61,13 +68,13 @@ pub(crate) fn calc_total_delegated_vp(
 pub fn validate_parameters(
     querier: &QuerierWrapper,
     cfg: &Config,
-    user: &Addr,
+    delegator: &Addr,
     block_period: u64,
     exp_period: u64,
     percentage: Uint128,
     old_delegate: Option<&Token>,
 ) -> Result<(), ContractError> {
-    let user_lock = get_lock_info(querier, &cfg.voting_escrow_addr, user)?;
+    let user_lock = get_lock_info(querier, &cfg.voting_escrow_addr, delegator)?;
 
     // vxASTRO delegation must be at least WEEK and no more then lock end period
     if (exp_period <= block_period) || (exp_period > user_lock.end) {
@@ -88,44 +95,64 @@ pub fn validate_parameters(
 }
 
 /// Calculates available balance for a new delegation.
-pub fn calc_new_balance(
+pub fn calc_not_delegated_vp(
     deps: Deps,
-    user: &Addr,
-    balance: Uint128,
+    delegator: &Addr,
+    vp: Uint128,
     block_period: u64,
 ) -> Result<Uint128, ContractError> {
-    let total_delegated_vp = calc_total_delegated_vp(deps, user, block_period)?;
+    let total_delegated_vp = calc_total_delegated_vp(deps, delegator, block_period)?;
 
-    if balance <= total_delegated_vp {
+    if vp <= total_delegated_vp {
         return Err(ContractError::DelegationVotingPowerNotAllowed {});
     }
 
-    Ok(balance - total_delegated_vp)
+    Ok(vp - total_delegated_vp)
 }
 
 /// Calculates the available balance for the specified delegation.
-pub fn calc_extend_balance(
+pub fn calc_extend_delegation(
     deps: Deps,
-    user: &Addr,
-    balance: Uint128,
+    delegator: &Addr,
+    vp: Uint128,
     old_delegation: &Token,
     block_period: u64,
-) -> Result<Uint128, ContractError> {
-    let mut delegated_vp = calc_total_delegated_vp(deps, user, block_period)?;
+    exp_period: u64,
+    percentage: Uint128,
+) -> Result<Token, ContractError> {
+    let not_delegated_vp = calc_not_delegated_vp(deps, delegator, vp, block_period)?;
 
     // we should deduct the previous delegation balance and assign a new delegation data
-    if old_delegation.expire_period > block_period {
-        delegated_vp -= calc_voting_power(
+    let new_delegation = if old_delegation.expire_period > block_period {
+        let old_delegation_vp = calc_voting_power(
             old_delegation.slope,
             old_delegation.power,
             old_delegation.start,
             block_period,
         );
-    }
 
-    if balance <= delegated_vp {
-        return Err(ContractError::DelegationVotingPowerNotAllowed {});
-    }
+        let new_delegation = calc_delegation(
+            not_delegated_vp + old_delegation_vp,
+            block_period,
+            exp_period,
+            percentage,
+        )?;
 
-    Ok(balance - delegated_vp)
+        let new_delegation_vp = calc_voting_power(
+            new_delegation.slope,
+            new_delegation.power,
+            new_delegation.start,
+            block_period,
+        );
+
+        if old_delegation_vp >= new_delegation_vp {
+            return Err(ContractError::DelegationExtendVotingPowerError {});
+        }
+
+        new_delegation
+    } else {
+        calc_delegation(not_delegated_vp, block_period, exp_period, percentage)?
+    };
+
+    Ok(new_delegation)
 }
