@@ -35,5 +35,5 @@ pub enum ContractError {
     DelegationTokenAlreadyExists(String),
 
     #[error("New delegated voting power can not be less than it was previously.")]
-    DelegationExtendVotingPowerError {},
+    DecreasedDelegatedVotingPower {},
 }

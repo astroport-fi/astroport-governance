@@ -40,8 +40,7 @@ Extends a previously created delegation by a new specified parameters.
   "extend_delegation": {
     "percent": "50",
     "expire_time": 12345,
-    "token_id": "123",
-    "recipient": "terra..."
+    "token_id": "123"
   }
 }
 ```
@@ -117,7 +116,7 @@ Returns an adjusted voting power balance after accounting for delegations at spe
 }
 ```
 
-### `already_delegated_vp`
+### `delegated_voting_power`
 
 Returns an amount of delegated voting power.
 
@@ -125,7 +124,7 @@ Request:
 
 ```json
 {
-  "already_delegated_vp": {
+  "delegated_voting_power": {
     "account": "terra...",
     "timestamp": 1234
   }

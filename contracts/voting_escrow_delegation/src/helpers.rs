@@ -146,7 +146,7 @@ pub fn calc_extend_delegation(
         );
 
         if old_delegation_vp > new_delegation_vp {
-            return Err(ContractError::DelegationExtendVotingPowerError {});
+            return Err(ContractError::DecreasedDelegatedVotingPower {});
         }
 
         new_delegation

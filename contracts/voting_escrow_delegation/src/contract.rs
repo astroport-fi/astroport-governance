@@ -243,6 +243,7 @@ pub fn create_delegation(
             attr("recipient", recipient),
             attr("token_id", token_id.clone()),
             attr("expire_time", expire_time.to_string()),
+            attr("percentage", percentage.to_string()),
             attr("delegated_voting_power", delegation.power.to_string()),
         ])
         .add_submessage(SubMsg::new(WasmMsg::Execute {
@@ -321,6 +322,7 @@ pub fn extend_delegation(
         attr("action", "extend_delegation"),
         attr("token_id", token_id),
         attr("expire_time", expire_time.to_string()),
+        attr("percentage", percentage.to_string()),
         attr("delegated_voting_power", new_delegation.power.to_string()),
     ]))
 }
