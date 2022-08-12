@@ -19,6 +19,10 @@ use astroport_governance::builder_unlock::msg::{
 };
 use astroport_governance::builder_unlock::{AllocationParams, Schedule};
 use astroport_governance::utils::{EPOCH_START, WEEK};
+use astroport_governance::voting_escrow_delegation::{
+    ExecuteMsg as DelegatorExecuteMsg, InstantiateMsg as DelegatorInstantiateMsg,
+    QueryMsg as DelegatorQueryMsg,
+};
 use cosmwasm_std::{
     testing::{mock_env, MockApi, MockStorage},
     to_binary, Addr, Binary, CosmosMsg, Decimal, QueryRequest, StdResult, Timestamp, Uint128,
@@ -59,6 +63,7 @@ fn test_contract_instantiation() {
     let assembly_default_instantiate_msg = InstantiateMsg {
         xastro_token_addr: xastro_token_addr.to_string(),
         vxastro_token_addr: Some(vxastro_token_addr.to_string()),
+        voting_escrow_delegator_addr: None,
         builder_unlock_addr: builder_unlock_addr.to_string(),
         proposal_voting_period: PROPOSAL_VOTING_PERIOD,
         proposal_effective_delay: PROPOSAL_EFFECTIVE_DELAY,
@@ -211,8 +216,8 @@ fn test_proposal_submitting() {
     let owner = Addr::unchecked("owner");
     let user = Addr::unchecked("user1");
 
-    let (_, staking_instance, xastro_addr, _, _, assembly_addr) =
-        instantiate_contracts(&mut app, owner);
+    let (_, staking_instance, xastro_addr, _, _, assembly_addr, _) =
+        instantiate_contracts(&mut app, owner, false);
 
     let proposals: ProposalListResponse = app
         .wrap()
@@ -471,6 +476,7 @@ fn test_proposal_submitting() {
                         msg: to_binary(&ExecuteMsg::UpdateConfig(UpdateConfig {
                             xastro_token_addr: None,
                             vxastro_token_addr: None,
+                            voting_escrow_delegator_addr: None,
                             builder_unlock_addr: None,
                             proposal_voting_period: Some(750),
                             proposal_effective_delay: None,
@@ -520,6 +526,7 @@ fn test_proposal_submitting() {
                 msg: to_binary(&ExecuteMsg::UpdateConfig(UpdateConfig {
                     xastro_token_addr: None,
                     vxastro_token_addr: None,
+                    voting_escrow_delegator_addr: None,
                     builder_unlock_addr: None,
                     proposal_voting_period: Some(750),
                     proposal_effective_delay: None,
@@ -554,7 +561,8 @@ fn test_successful_proposal() {
         vxastro_addr,
         builder_unlock_addr,
         assembly_addr,
-    ) = instantiate_contracts(&mut app, owner);
+        _,
+    ) = instantiate_contracts(&mut app, owner, false);
 
     // Init voting power for users
     let balances: Vec<(&str, u128, u128)> = vec![
@@ -639,8 +647,11 @@ fn test_successful_proposal() {
 
     create_allocations(&mut app, token_addr, builder_unlock_addr, locked_balances);
 
-    // Skip block
-    app.update_block(next_block);
+    // Skip period
+    app.update_block(|mut block| {
+        block.time = block.time.plus_seconds(WEEK);
+        block.height += WEEK / 5;
+    });
 
     // Create default proposal
     create_proposal(
@@ -655,6 +666,7 @@ fn test_successful_proposal() {
                 msg: to_binary(&ExecuteMsg::UpdateConfig(UpdateConfig {
                     xastro_token_addr: None,
                     vxastro_token_addr: None,
+                    voting_escrow_delegator_addr: None,
                     builder_unlock_addr: None,
                     proposal_voting_period: Some(PROPOSAL_VOTING_PERIOD + 1000),
                     proposal_effective_delay: None,
@@ -940,8 +952,8 @@ fn test_voting_power_changes() {
 
     let owner = Addr::unchecked("owner");
 
-    let (_, staking_instance, xastro_addr, _, _, assembly_addr) =
-        instantiate_contracts(&mut app, owner);
+    let (_, staking_instance, xastro_addr, _, _, assembly_addr, _) =
+        instantiate_contracts(&mut app, owner, false);
 
     // Mint tokens for submitting proposal
     mint_tokens(
@@ -961,7 +973,10 @@ fn test_voting_power_changes() {
         40000_000000,
     );
 
-    app.update_block(next_block);
+    app.update_block(|mut block| {
+        block.time = block.time.plus_seconds(WEEK);
+        block.height += WEEK / 5;
+    });
 
     // Create proposal
     create_proposal(
@@ -976,6 +991,7 @@ fn test_voting_power_changes() {
                 msg: to_binary(&ExecuteMsg::UpdateConfig(UpdateConfig {
                     xastro_token_addr: None,
                     vxastro_token_addr: None,
+                    voting_escrow_delegator_addr: None,
                     builder_unlock_addr: None,
                     proposal_voting_period: Some(750),
                     proposal_effective_delay: None,
@@ -1073,8 +1089,8 @@ fn test_block_height_selection() {
     let user2 = Addr::unchecked("user2");
     let user3 = Addr::unchecked("user3");
 
-    let (_, staking_instance, xastro_addr, _, _, assembly_addr) =
-        instantiate_contracts(&mut app, owner);
+    let (_, staking_instance, xastro_addr, _, _, assembly_addr, _) =
+        instantiate_contracts(&mut app, owner, false);
 
     // Mint tokens for submitting proposal
     mint_tokens(
@@ -1100,8 +1116,11 @@ fn test_block_height_selection() {
         4000_000000,
     );
 
-    // Move to the next block(12346)
-    app.update_block(next_block);
+    // Skip to the next period
+    app.update_block(|mut block| {
+        block.time = block.time.plus_seconds(WEEK);
+        block.height += WEEK / 5;
+    });
 
     // Create proposal
     create_proposal(
@@ -1189,8 +1208,8 @@ fn test_unsuccessful_proposal() {
 
     let owner = Addr::unchecked("owner");
 
-    let (_, staking_instance, xastro_addr, _, _, assembly_addr) =
-        instantiate_contracts(&mut app, owner);
+    let (_, staking_instance, xastro_addr, _, _, assembly_addr, _) =
+        instantiate_contracts(&mut app, owner, false);
 
     // Init voting power for users
     let xastro_balances: Vec<(&str, u128)> = vec![
@@ -1218,8 +1237,11 @@ fn test_unsuccessful_proposal() {
         );
     }
 
-    // Skip block
-    app.update_block(next_block);
+    // Skip period
+    app.update_block(|mut block| {
+        block.time = block.time.plus_seconds(WEEK);
+        block.height += WEEK / 5;
+    });
 
     // Create proposal
     create_proposal(
@@ -1325,7 +1347,8 @@ fn test_unsuccessful_proposal() {
 fn test_check_messages() {
     let mut app = mock_app();
     let owner = Addr::unchecked("owner");
-    let (_, _, _, vxastro_addr, _, assembly_addr) = instantiate_contracts(&mut app, owner);
+    let (_, _, _, vxastro_addr, _, assembly_addr, _) =
+        instantiate_contracts(&mut app, owner, false);
 
     change_owner(&mut app, &vxastro_addr, &assembly_addr);
     let user = Addr::unchecked("user");
@@ -1409,6 +1432,183 @@ fn test_check_messages() {
     assert_eq!(config_before, config_after);
 }
 
+#[test]
+fn test_delegated_vp() {
+    let mut app = mock_app();
+
+    let owner = Addr::unchecked("owner");
+
+    let (_, staking_instance, xastro_addr, vxastro_addr, _, assembly_addr, delegator) =
+        instantiate_contracts(&mut app, owner, true);
+    let delegator = delegator.unwrap();
+
+    let users = vec![
+        (
+            "user1",
+            103_000_000_000u128,
+            10u64,
+            "user4",
+            177_278_846_150u128,
+        ),
+        (
+            "user2",
+            612_000_000_000u128,
+            20u64,
+            "user5",
+            1_053_346_153_800u128,
+        ),
+        (
+            "user3",
+            205_000_000_000u128,
+            30u64,
+            "user6",
+            352_836_538_450u128,
+        ),
+    ];
+
+    // Mint tokens for submitting proposal
+    mint_tokens(
+        &mut app,
+        &staking_instance,
+        &xastro_addr,
+        &Addr::unchecked("user0"),
+        PROPOSAL_REQUIRED_DEPOSIT,
+    );
+
+    // Mint vxASTRO and delegate it to the other users
+    for (from, amount, percentage, to, exp_vp) in users {
+        mint_vxastro(
+            &mut app,
+            &staking_instance,
+            xastro_addr.clone(),
+            &vxastro_addr,
+            Addr::unchecked(from),
+            amount,
+        );
+        delegate_vxastro(
+            &mut app,
+            delegator.clone(),
+            Addr::unchecked(from),
+            Addr::unchecked(to),
+            percentage,
+        );
+
+        let from_amount: Uint128 = app
+            .wrap()
+            .query_wasm_smart(
+                &delegator,
+                &DelegatorQueryMsg::AdjustedBalance {
+                    account: from.to_string(),
+                    timestamp: None,
+                },
+            )
+            .unwrap();
+
+        let to_amount: Uint128 = app
+            .wrap()
+            .query_wasm_smart(
+                &delegator,
+                &DelegatorQueryMsg::AdjustedBalance {
+                    account: to.to_string(),
+                    timestamp: None,
+                },
+            )
+            .unwrap();
+
+        assert_eq!(from_amount + to_amount, Uint128::from(exp_vp));
+    }
+
+    app.update_block(|mut block| {
+        block.time = block.time.plus_seconds(WEEK);
+        block.height += WEEK / 5;
+    });
+
+    // Create proposal
+    create_proposal(
+        &mut app,
+        &xastro_addr,
+        &assembly_addr,
+        Addr::unchecked("user0"),
+        Some(vec![ProposalMessage {
+            order: Uint64::from(0u32),
+            msg: CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr: assembly_addr.to_string(),
+                msg: to_binary(&ExecuteMsg::UpdateConfig(UpdateConfig {
+                    xastro_token_addr: None,
+                    vxastro_token_addr: None,
+                    voting_escrow_delegator_addr: None,
+                    builder_unlock_addr: None,
+                    proposal_voting_period: Some(750),
+                    proposal_effective_delay: None,
+                    proposal_expiration_period: None,
+                    proposal_required_deposit: None,
+                    proposal_required_quorum: None,
+                    proposal_required_threshold: None,
+                    whitelist_add: None,
+                    whitelist_remove: None,
+                }))
+                .unwrap(),
+                funds: vec![],
+            }),
+        }]),
+    );
+
+    let votes: Vec<(&str, ProposalVoteOption)> = vec![
+        ("user1", ProposalVoteOption::Against),
+        ("user2", ProposalVoteOption::For),
+        ("user3", ProposalVoteOption::Against),
+        ("user4", ProposalVoteOption::For),
+        ("user5", ProposalVoteOption::Against),
+        ("user6", ProposalVoteOption::For),
+    ];
+
+    for (user, vote) in votes {
+        cast_vote(
+            &mut app,
+            assembly_addr.clone(),
+            1u64,
+            Addr::unchecked(user),
+            vote,
+        )
+        .unwrap();
+    }
+
+    let proposal: ProposalResponse = app
+        .wrap()
+        .query_wasm_smart(
+            assembly_addr.clone(),
+            &QueryMsg::Proposal { proposal_id: 1 },
+        )
+        .unwrap();
+
+    assert_eq!(proposal.for_power, Uint128::from(1_578_255_769_188u128));
+    assert_eq!(proposal.against_power, Uint128::from(925_205_769_212u128));
+
+    // Skip voting period
+    app.update_block(|bi| {
+        bi.height += PROPOSAL_VOTING_PERIOD + 1;
+        bi.time = bi.time.plus_seconds(5 * (PROPOSAL_VOTING_PERIOD + 1));
+    });
+
+    app.execute_contract(
+        Addr::unchecked("user0"),
+        assembly_addr.clone(),
+        &ExecuteMsg::EndProposal { proposal_id: 1 },
+        &[],
+    )
+    .unwrap();
+
+    let proposal: ProposalResponse = app
+        .wrap()
+        .query_wasm_smart(
+            assembly_addr.clone(),
+            &QueryMsg::Proposal { proposal_id: 1 },
+        )
+        .unwrap();
+
+    assert_eq!(proposal.status, ProposalStatus::Passed);
+}
+
 fn mock_app() -> App {
     let mut env = mock_env();
     env.block.time = Timestamp::from_seconds(EPOCH_START);
@@ -1424,33 +1624,49 @@ fn mock_app() -> App {
         .build(|_, _, _| {})
 }
 
-fn instantiate_contracts(router: &mut App, owner: Addr) -> (Addr, Addr, Addr, Addr, Addr, Addr) {
+fn instantiate_contracts(
+    router: &mut App,
+    owner: Addr,
+    with_delegator: bool,
+) -> (Addr, Addr, Addr, Addr, Addr, Addr, Option<Addr>) {
     let token_addr = instantiate_astro_token(router, &owner);
-    let (staking_instance, xastro_token_addr) =
-        instantiate_xastro_token(router, &owner, &token_addr);
+    let (staking_addr, xastro_token_addr) = instantiate_xastro_token(router, &owner, &token_addr);
     let vxastro_token_addr = instantiate_vxastro_token(router, &owner, &xastro_token_addr);
     let builder_unlock_addr = instantiate_builder_unlock_contract(router, &owner, &token_addr);
+
+    let mut delegator_addr = None;
+
+    if with_delegator {
+        delegator_addr = Some(instantiate_delegator_contract(
+            router,
+            &owner,
+            &vxastro_token_addr,
+        ));
+    }
+
     let assembly_addr = instantiate_assembly_contract(
         router,
         &owner,
         &xastro_token_addr,
         &vxastro_token_addr,
         &builder_unlock_addr,
+        delegator_addr.clone().map(String::from),
     );
 
     assert_eq!(Addr::unchecked("contract0"), token_addr);
+    assert_eq!(Addr::unchecked("contract1"), staking_addr);
     assert_eq!(Addr::unchecked("contract2"), xastro_token_addr);
     assert_eq!(Addr::unchecked("contract3"), vxastro_token_addr);
     assert_eq!(Addr::unchecked("contract4"), builder_unlock_addr);
-    assert_eq!(Addr::unchecked("contract5"), assembly_addr);
 
     (
         token_addr,
-        staking_instance,
+        staking_addr,
         xastro_token_addr,
         vxastro_token_addr,
         builder_unlock_addr,
         assembly_addr,
+        delegator_addr,
     )
 }
 
@@ -1598,6 +1814,7 @@ fn instantiate_assembly_contract(
     xastro: &Addr,
     vxastro: &Addr,
     builder: &Addr,
+    delegator: Option<String>,
 ) -> Addr {
     let assembly_contract = Box::new(ContractWrapper::new_with_empty(
         astro_assembly::contract::execute,
@@ -1610,6 +1827,7 @@ fn instantiate_assembly_contract(
     let msg = InstantiateMsg {
         xastro_token_addr: xastro.to_string(),
         vxastro_token_addr: Some(vxastro.to_string()),
+        voting_escrow_delegator_addr: delegator,
         builder_unlock_addr: builder.to_string(),
         proposal_voting_period: PROPOSAL_VOTING_PERIOD,
         proposal_effective_delay: PROPOSAL_EFFECTIVE_DELAY,
@@ -1627,6 +1845,44 @@ fn instantiate_assembly_contract(
             &msg,
             &[],
             "Assembly".to_string(),
+            Some(owner.to_string()),
+        )
+        .unwrap()
+}
+
+fn instantiate_delegator_contract(router: &mut App, owner: &Addr, vxastro: &Addr) -> Addr {
+    let nft_contract = Box::new(ContractWrapper::new_with_empty(
+        astroport_nft::contract::execute,
+        astroport_nft::contract::instantiate,
+        astroport_nft::contract::query,
+    ));
+
+    let nft_code_id = router.store_code(nft_contract);
+
+    let delegator_contract = Box::new(
+        ContractWrapper::new_with_empty(
+            voting_escrow_delegation::contract::execute,
+            voting_escrow_delegation::contract::instantiate,
+            voting_escrow_delegation::contract::query,
+        )
+        .with_reply_empty(voting_escrow_delegation::contract::reply),
+    );
+
+    let delegator_code_id = router.store_code(delegator_contract);
+
+    let msg = DelegatorInstantiateMsg {
+        owner: owner.to_string(),
+        nft_code_id,
+        voting_escrow_addr: vxastro.to_string(),
+    };
+
+    router
+        .instantiate_contract(
+            delegator_code_id,
+            owner.clone(),
+            &msg,
+            &[],
+            "Voting Escrow Delegator",
             Some(owner.to_string()),
         )
         .unwrap()
@@ -1665,6 +1921,18 @@ fn mint_vxastro(
     };
 
     app.execute_contract(recipient, xastro, &msg, &[]).unwrap();
+}
+
+fn delegate_vxastro(app: &mut App, delegator_addr: Addr, from: Addr, to: Addr, percentage: u64) {
+    let msg = DelegatorExecuteMsg::CreateDelegation {
+        percentage: Uint128::from(percentage),
+        expire_time: 2 * 7 * 86400,
+        token_id: format!("{}-{}-{}", from, to, percentage),
+        recipient: to.to_string(),
+    };
+
+    app.execute_contract(from.clone(), delegator_addr, &msg, &[])
+        .unwrap();
 }
 
 fn create_allocations(
