@@ -17,16 +17,16 @@ pub enum ContractError {
     ZeroVotingPower {},
 
     #[error("You have already delegated all the voting power.")]
-    DelegationVotingPowerNotAllowed {},
+    AllVotingPowerIsDelegated {},
 
     #[error("The delegation period must be at least a week and not more than a user lock period.")]
     DelegationPeriodError {},
 
-    #[error("The extended delegation period must be greater than previously set and no longer than the user's lockout period.")]
+    #[error("New expiration date must be greater than previously set and less than or equal to user's end of voting power lock.")]
     DelegationExtendPeriodError {},
 
-    #[error("You can't create a delegation with zero voting power")]
-    DelegationVotingPowerError {},
+    #[error("Not enough voting power to proceed")]
+    NotEnoughVotingPower {},
 
     #[error("The percentage range must be from 0 to 100.")]
     PercentageError {},
@@ -34,6 +34,6 @@ pub enum ContractError {
     #[error("A delegation with a token {0} already exists.")]
     DelegationTokenAlreadyExists(String),
 
-    #[error("The number of new delegation voting power cannot be less than the existing one.")]
+    #[error("New delegated voting power can not be less than it was previously.")]
     DelegationExtendVotingPowerError {},
 }

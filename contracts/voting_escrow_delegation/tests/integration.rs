@@ -810,7 +810,7 @@ fn extend_delegation() {
         )
         .unwrap_err();
     assert_eq!(
-        "The number of new delegation voting power cannot be less than the existing one.",
+        "New delegated voting power can not be less than it was previously.",
         err.root_cause().to_string()
     );
 

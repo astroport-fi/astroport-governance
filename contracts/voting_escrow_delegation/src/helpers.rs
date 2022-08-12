@@ -22,7 +22,7 @@ pub fn calc_delegation(
     let power = slope * dt;
 
     if power.is_zero() {
-        return Err(ContractError::DelegationVotingPowerError {});
+        return Err(ContractError::NotEnoughVotingPower {});
     }
 
     Ok(Token {
@@ -104,7 +104,7 @@ pub fn calc_not_delegated_vp(
     let total_delegated_vp = calc_total_delegated_vp(deps, delegator, block_period)?;
 
     if vp <= total_delegated_vp {
-        return Err(ContractError::DelegationVotingPowerNotAllowed {});
+        return Err(ContractError::AllVotingPowerIsDelegated {});
     }
 
     Ok(vp - total_delegated_vp)
@@ -145,7 +145,7 @@ pub fn calc_extend_delegation(
             block_period,
         );
 
-        if old_delegation_vp >= new_delegation_vp {
+        if old_delegation_vp > new_delegation_vp {
             return Err(ContractError::DelegationExtendVotingPowerError {});
         }
 
