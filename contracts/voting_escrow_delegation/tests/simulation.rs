@@ -4,6 +4,7 @@ use astroport_governance::utils::WEEK;
 use crate::test_helper::{mock_app, Helper};
 use cosmwasm_std::{Addr, Uint128};
 use cw_multi_test::{next_block, App, AppResponse};
+
 mod test_helper;
 
 #[derive(Clone, Debug)]
@@ -20,7 +21,7 @@ struct Simulator {
 }
 
 impl Simulator {
-    fn new<T: Clone + Into<String>>(_users: &[T]) -> Self {
+    fn new() -> Self {
         let mut router = mock_app();
         Self {
             helper: Helper::init(&mut router, Addr::unchecked("owner")),
@@ -163,7 +164,7 @@ proptest! {
             events[period].push((user.to_string(), recipient.to_string(), event));
         }
 
-        let mut simulator = Simulator::new(&users);
+        let mut simulator = Simulator::new();
         for user in users {
             simulator.mint(user.as_str(), 10000);
             simulator.create_lock(user.as_str(), 500 as f64, WEEK * 11).unwrap();
@@ -328,7 +329,7 @@ fn exact_simulation() {
         events[period].push((user.to_string(), recipient.to_string(), event));
     }
 
-    let mut simulator = Simulator::new(&users);
+    let mut simulator = Simulator::new();
     for user in users {
         simulator.mint(user, 10000);
         simulator.create_lock(user, 500 as f64, WEEK * 10).unwrap();

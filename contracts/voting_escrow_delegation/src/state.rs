@@ -37,5 +37,5 @@ pub struct Token {
 /// Delegated voting power are stored using a (contract_addr => token_ID) key
 pub const DELEGATED: Map<(&Addr, String), Token> = Map::new("delegated");
 
-/// Delegated token history are stored using a token ID key
+/// Delegated token history is stored using a token ID key
 pub const TOKENS: Map<String, Token> = Map::new("tokens");

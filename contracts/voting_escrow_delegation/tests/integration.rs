@@ -342,7 +342,7 @@ fn create_delegation() {
     assert_eq!(Uint128::new(51_442_307), resp);
 
     // try to transfer NFT to user2
-    router_ref
+    let err = router_ref
         .execute_contract(
             Addr::unchecked("user"),
             delegator_helper.nft_instance.clone(),
@@ -353,6 +353,7 @@ fn create_delegation() {
             &[],
         )
         .unwrap_err();
+    assert_eq!("Unauthorized", err.root_cause().to_string());
 }
 
 #[test]
