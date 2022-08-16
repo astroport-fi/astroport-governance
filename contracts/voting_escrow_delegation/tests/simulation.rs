@@ -2,15 +2,15 @@ use anyhow::Result;
 use astroport_governance::utils::WEEK;
 
 use crate::test_helper::{mock_app, Helper};
-use cosmwasm_std::{Addr, Uint128};
+use cosmwasm_std::Addr;
 use cw_multi_test::{next_block, App, AppResponse};
 
 mod test_helper;
 
 #[derive(Clone, Debug)]
 enum Event {
-    CreateDelegation(Uint128, u64, String, String),
-    ExtendDelegation(Uint128, u64, String),
+    CreateDelegation(u16, u64, String, String),
+    ExtendDelegation(u16, u64, String),
 }
 
 use Event::*;
@@ -50,7 +50,7 @@ impl Simulator {
     fn create_delegation(
         &mut self,
         user: &str,
-        percentage: Uint128,
+        bps: u16,
         expire_time: u64,
         token_id: String,
         recipient: String,
@@ -58,7 +58,7 @@ impl Simulator {
         self.helper.create_delegation(
             &mut self.router,
             user,
-            percentage,
+            bps,
             expire_time,
             token_id,
             recipient,
@@ -68,20 +68,20 @@ impl Simulator {
     fn extend_delegation(
         &mut self,
         user: &str,
-        percentage: Uint128,
+        bps: u16,
         expire_time: u64,
         token_id: String,
     ) -> Result<AppResponse> {
         self.helper
-            .extend_delegation(&mut self.router, user, percentage, expire_time, token_id)
+            .extend_delegation(&mut self.router, user, bps, expire_time, token_id)
     }
 
     fn event_router(&mut self, user: &str, event: Event) {
         println!("User {} Event {:?}", user, event);
         match event {
-            Event::CreateDelegation(percentage, expire_time, token_id, recipient) => {
+            Event::CreateDelegation(bps, expire_time, token_id, recipient) => {
                 if let Err(err) =
-                    self.create_delegation(user, percentage, expire_time, token_id, recipient)
+                    self.create_delegation(user, bps, expire_time, token_id, recipient)
                 {
                     dbg!(err);
                 }
@@ -105,30 +105,26 @@ const MAX_EVENTS: usize = 100;
 fn events_strategy() -> impl Strategy<Value = Event> {
     prop_oneof![
         (
-            1u64..=100u64,
+            1u16..=100u16,
             1..MAX_PERIOD,
             prop::collection::vec("[a-z]{4,32}", 1..MAX_USERS),
             prop::collection::vec("[t-z]{6,32}", 1..MAX_TOKENS)
         )
             .prop_map(|(a, b, c, d)| {
                 Event::CreateDelegation(
-                    Uint128::from(a),
+                    a,
                     WEEK * b as u64,
                     c.iter().next().unwrap().to_string(),
                     d.iter().next().unwrap().to_string(),
                 )
             }),
         (
-            1u64..=100u64,
+            1u16..=100u16,
             1..MAX_PERIOD,
             prop::collection::vec("[t-z]{2,32}", 1..MAX_TOKENS)
         )
             .prop_map(|(a, b, c)| {
-                Event::ExtendDelegation(
-                    Uint128::from(a),
-                    WEEK * b as u64,
-                    c.iter().next().unwrap().to_string(),
-                )
+                Event::ExtendDelegation(a, WEEK * b as u64, c.iter().next().unwrap().to_string())
             }),
     ]
 }
@@ -257,68 +253,43 @@ fn exact_simulation() {
                 1,
                 "user1",
                 "user2",
-                CreateDelegation(
-                    Uint128::new(100),
-                    WEEK * 2,
-                    "token_1".to_string(),
-                    "user2".to_string(),
-                ),
+                CreateDelegation(10000, WEEK * 2, "token_1".to_string(), "user2".to_string()),
             ),
             (
                 1,
                 "user2",
                 "user1",
-                CreateDelegation(
-                    Uint128::new(50),
-                    WEEK * 2,
-                    "token_2".to_string(),
-                    "user1".to_string(),
-                ),
+                CreateDelegation(5000, WEEK * 2, "token_2".to_string(), "user1".to_string()),
             ),
             (
                 2,
                 "user2",
                 "user1",
-                CreateDelegation(
-                    Uint128::new(30),
-                    WEEK * 2,
-                    "token_3".to_string(),
-                    "user1".to_string(),
-                ),
+                CreateDelegation(3000, WEEK * 2, "token_3".to_string(), "user1".to_string()),
             ),
             (
                 3,
                 "user2",
                 "user1",
-                ExtendDelegation(Uint128::new(70), WEEK * 5, "token_2".to_string()),
+                ExtendDelegation(7000, WEEK * 5, "token_2".to_string()),
             ),
             (
                 4,
                 "user1",
                 "user2",
-                ExtendDelegation(Uint128::new(60), WEEK * 4, "token_1".to_string()),
+                ExtendDelegation(6000, WEEK * 4, "token_1".to_string()),
             ),
             (
                 5,
                 "user1",
                 "user3",
-                CreateDelegation(
-                    Uint128::new(100),
-                    WEEK * 4,
-                    "token_4".to_string(),
-                    "user3".to_string(),
-                ),
+                CreateDelegation(10000, WEEK * 4, "token_4".to_string(), "user3".to_string()),
             ),
             (
                 6,
                 "user2",
                 "user1",
-                CreateDelegation(
-                    Uint128::new(100),
-                    WEEK * 4,
-                    "token_5".to_string(),
-                    "user1".to_string(),
-                ),
+                CreateDelegation(10000, WEEK * 4, "token_5".to_string(), "user1".to_string()),
             ),
         ],
     );

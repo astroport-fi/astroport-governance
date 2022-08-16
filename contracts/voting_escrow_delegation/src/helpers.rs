@@ -1,20 +1,31 @@
 use crate::state::{Config, Token, DELEGATED};
 use crate::ContractError;
+use astroport_governance::astroport::DecimalCheckedOps;
 use astroport_governance::utils::calc_voting_power;
 use astroport_governance::voting_escrow::get_lock_info;
-use astroport_governance::voting_escrow_delegation::{
-    DELEGATION_MAX_PERCENT, DELEGATION_MIN_PERCENT,
-};
-use cosmwasm_std::{Addr, Deps, Order, QuerierWrapper, StdError, StdResult, Uint128};
+use cosmwasm_std::{Addr, Decimal, Deps, Order, QuerierWrapper, StdError, StdResult, Uint128};
+
+pub(crate) const MAX_BPS_AMOUNT: u16 = 10000u16;
+pub(crate) const MIN_BPS_AMOUNT: u16 = 1u16;
 
 /// Adjusting voting power according to the slope by specified percentage.
 pub fn calc_delegation(
     not_delegated_vp: Uint128,
     block_period: u64,
     exp_period: u64,
-    percentage: Uint128,
+    bps: u16,
 ) -> Result<Token, ContractError> {
-    let vp_to_delegate = not_delegated_vp.multiply_ratio(percentage, DELEGATION_MAX_PERCENT);
+    // convert bps to percentage
+    let percent = Decimal::from_ratio(
+        Uint128::from(bps) * Uint128::new(100),
+        Uint128::new(MAX_BPS_AMOUNT as u128),
+    );
+
+    let vp_to_delegate = percent
+        .checked_mul_uint128(not_delegated_vp)
+        .map_err(|e| ContractError::Std(e.into()))?
+        / Uint128::new(100);
+
     let dt = Uint128::from(exp_period - block_period);
     let slope = vp_to_delegate
         .checked_div(dt)
@@ -71,7 +82,7 @@ pub fn validate_parameters(
     delegator: &Addr,
     block_period: u64,
     exp_period: u64,
-    percentage: Uint128,
+    bps: u16,
     old_delegate: Option<&Token>,
 ) -> Result<(), ContractError> {
     let user_lock = get_lock_info(querier, &cfg.voting_escrow_addr, delegator)?;
@@ -81,8 +92,8 @@ pub fn validate_parameters(
         return Err(ContractError::DelegationPeriodError {});
     }
 
-    if percentage.lt(&DELEGATION_MIN_PERCENT) || percentage.gt(&DELEGATION_MAX_PERCENT) {
-        return Err(ContractError::PercentageError {});
+    if !(MIN_BPS_AMOUNT..=MAX_BPS_AMOUNT).contains(&bps) {
+        return Err(ContractError::BPSConversionError(bps));
     }
 
     if let Some(old_token) = old_delegate {
@@ -118,7 +129,7 @@ pub fn calc_extend_delegation(
     old_delegation: &Token,
     block_period: u64,
     exp_period: u64,
-    percentage: Uint128,
+    bps: u16,
 ) -> Result<Token, ContractError> {
     let not_delegated_vp = calc_not_delegated_vp(deps, delegator, vp, block_period)?;
 
@@ -135,7 +146,7 @@ pub fn calc_extend_delegation(
             not_delegated_vp + old_delegation_vp,
             block_period,
             exp_period,
-            percentage,
+            bps,
         )?;
 
         let new_delegation_vp = calc_voting_power(
@@ -151,7 +162,7 @@ pub fn calc_extend_delegation(
 
         new_delegation
     } else {
-        calc_delegation(not_delegated_vp, block_period, exp_period, percentage)?
+        calc_delegation(not_delegated_vp, block_period, exp_period, bps)?
     };
 
     Ok(new_delegation)

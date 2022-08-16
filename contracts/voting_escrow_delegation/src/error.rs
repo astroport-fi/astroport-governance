@@ -36,4 +36,7 @@ pub enum ContractError {
 
     #[error("New delegated voting power can not be less than it was previously.")]
     DecreasedDelegatedVotingPower {},
+
+    #[error("Basic points conversion error. The basic points must be from 1 to 10000: {0}")]
+    BPSConversionError(u16),
 }

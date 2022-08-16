@@ -1446,21 +1446,21 @@ fn test_delegated_vp() {
         (
             "user1",
             103_000_000_000u128,
-            10u64,
+            1000u16,
             "user4",
             177_278_846_150u128,
         ),
         (
             "user2",
             612_000_000_000u128,
-            20u64,
+            2000u16,
             "user5",
             1_053_346_153_800u128,
         ),
         (
             "user3",
             205_000_000_000u128,
-            30u64,
+            3000u16,
             "user6",
             352_836_538_450u128,
         ),
@@ -1476,7 +1476,7 @@ fn test_delegated_vp() {
     );
 
     // Mint vxASTRO and delegate it to the other users
-    for (from, amount, percentage, to, exp_vp) in users {
+    for (from, amount, bps, to, exp_vp) in users {
         mint_vxastro(
             &mut app,
             &staking_instance,
@@ -1490,7 +1490,7 @@ fn test_delegated_vp() {
             delegator.clone(),
             Addr::unchecked(from),
             Addr::unchecked(to),
-            percentage,
+            bps,
         );
 
         let from_amount: Uint128 = app
@@ -1923,11 +1923,11 @@ fn mint_vxastro(
     app.execute_contract(recipient, xastro, &msg, &[]).unwrap();
 }
 
-fn delegate_vxastro(app: &mut App, delegator_addr: Addr, from: Addr, to: Addr, percentage: u64) {
+fn delegate_vxastro(app: &mut App, delegator_addr: Addr, from: Addr, to: Addr, bps: u16) {
     let msg = DelegatorExecuteMsg::CreateDelegation {
-        percentage: Uint128::from(percentage),
+        bps,
         expire_time: 2 * 7 * 86400,
-        token_id: format!("{}-{}-{}", from, to, percentage),
+        token_id: format!("{}-{}-{}", from, to, bps),
         recipient: to.to_string(),
     };
 

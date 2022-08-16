@@ -160,7 +160,7 @@ fn create_delegation() {
         .create_delegation(
             router_ref,
             "user",
-            Uint128::new(50),
+            5000,
             WEEK,
             "token_1".to_string(),
             "user2".to_string(),
@@ -243,12 +243,44 @@ fn create_delegation() {
         .unwrap();
     assert_eq!(EMPTY_TOKENS, resp.tokens);
 
+    // try to create delegation with the 10_001 bps
+    let err = delegator_helper
+        .create_delegation(
+            router_ref,
+            "user",
+            10001,
+            WEEK,
+            "token_1".to_string(),
+            "user2".to_string(),
+        )
+        .unwrap_err();
+    assert_eq!(
+        "Basic points conversion error. The basic points must be from 1 to 10000: 10001",
+        err.root_cause().to_string()
+    );
+
+    // try to create delegation with the 10_001 bps
+    let err = delegator_helper
+        .create_delegation(
+            router_ref,
+            "user",
+            0,
+            WEEK,
+            "token_1".to_string(),
+            "user2".to_string(),
+        )
+        .unwrap_err();
+    assert_eq!(
+        "Basic points conversion error. The basic points must be from 1 to 10000: 0",
+        err.root_cause().to_string()
+    );
+
     // create delegation for one week
     delegator_helper
         .create_delegation(
             router_ref,
             "user",
-            Uint128::new(100),
+            10000,
             WEEK,
             "token_1".to_string(),
             "user2".to_string(),
@@ -260,7 +292,7 @@ fn create_delegation() {
         .create_delegation(
             router_ref,
             "user",
-            Uint128::new(100),
+            10000,
             WEEK,
             "token_1".to_string(),
             "user2".to_string(),
@@ -276,7 +308,7 @@ fn create_delegation() {
         .create_delegation(
             router_ref,
             "user",
-            Uint128::new(30),
+            3000,
             WEEK,
             "token_2".to_string(),
             "user2".to_string(),
@@ -439,7 +471,7 @@ fn create_multiple_delegation() {
         .create_delegation(
             router_ref,
             "user",
-            Uint128::new(30),
+            3000,
             WEEK,
             "token_1".to_string(),
             "user2".to_string(),
@@ -451,7 +483,7 @@ fn create_multiple_delegation() {
         .create_delegation(
             router_ref,
             "user",
-            Uint128::new(30),
+            3000,
             WEEK * 3,
             "token_2".to_string(),
             "user3".to_string(),
@@ -463,7 +495,7 @@ fn create_multiple_delegation() {
         .create_delegation(
             router_ref,
             "user3",
-            Uint128::new(30),
+            3000,
             WEEK * 2,
             "token_3".to_string(),
             "user".to_string(),
@@ -480,7 +512,7 @@ fn create_multiple_delegation() {
         .create_delegation(
             router_ref,
             "user3",
-            Uint128::new(30),
+            3000,
             WEEK,
             "token_3".to_string(),
             "user".to_string(),
@@ -536,7 +568,7 @@ fn create_multiple_delegation() {
         .create_delegation(
             router_ref,
             "user3",
-            Uint128::new(30),
+            3000,
             WEEK,
             "token_4".to_string(),
             "user2".to_string(),
@@ -736,7 +768,7 @@ fn extend_delegation() {
         .create_delegation(
             router_ref,
             "user",
-            Uint128::new(50),
+            5000,
             WEEK * 3,
             "token_1".to_string(),
             "user2".to_string(),
@@ -802,13 +834,7 @@ fn extend_delegation() {
 
     // check's that we cannot create a delegation for a smaller amount
     let err = delegator_helper
-        .extend_delegation(
-            router_ref,
-            "user",
-            Uint128::new(40),
-            WEEK * 3,
-            "token_1".to_string(),
-        )
+        .extend_delegation(router_ref, "user", 4000, WEEK * 3, "token_1".to_string())
         .unwrap_err();
     assert_eq!(
         "New delegated voting power can not be less than it was previously.",
@@ -817,13 +843,7 @@ fn extend_delegation() {
 
     // try to extend delegation period
     delegator_helper
-        .extend_delegation(
-            router_ref,
-            "user",
-            Uint128::new(60),
-            WEEK * 3,
-            "token_1".to_string(),
-        )
+        .extend_delegation(router_ref, "user", 6000, WEEK * 3, "token_1".to_string())
         .unwrap();
 
     // check user's nft token
@@ -885,13 +905,7 @@ fn extend_delegation() {
 
     // try to extend delegation period
     let err = delegator_helper
-        .extend_delegation(
-            router_ref,
-            "user",
-            Uint128::new(90),
-            WEEK * 3,
-            "token_1".to_string(),
-        )
+        .extend_delegation(router_ref, "user", 9000, WEEK * 3, "token_1".to_string())
         .unwrap_err();
     assert_eq!(
         "The delegation period must be at least a week and not more than a user lock period.",

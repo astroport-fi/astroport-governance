@@ -3,9 +3,6 @@ use cosmwasm_std::{QuerierWrapper, StdResult, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-pub const DELEGATION_MAX_PERCENT: Uint128 = Uint128::new(100);
-pub const DELEGATION_MIN_PERCENT: Uint128 = Uint128::new(1);
-
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema)]
 pub struct InstantiateMsg {
     /// The contract owner address
@@ -20,13 +17,15 @@ pub struct InstantiateMsg {
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
     CreateDelegation {
-        percentage: Uint128,
+        /// The amount of voting power (in bps) that will be delegated to the recipient
+        bps: u16,
         expire_time: u64,
         token_id: String,
         recipient: String,
     },
     ExtendDelegation {
-        percentage: Uint128,
+        /// The amount of voting power (in bps) that will be delegated to the recipient
+        bps: u16,
         expire_time: u64,
         token_id: String,
     },

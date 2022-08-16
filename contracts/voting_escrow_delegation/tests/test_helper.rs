@@ -97,7 +97,7 @@ impl Helper {
         &self,
         router: &mut App,
         user: &str,
-        percentage: Uint128,
+        bps: u16,
         expire_time: u64,
         token_id: String,
         recipient: String,
@@ -106,7 +106,7 @@ impl Helper {
             Addr::unchecked(user),
             self.delegation_instance.clone(),
             &ExecuteMsg::CreateDelegation {
-                percentage,
+                bps,
                 expire_time,
                 token_id,
                 recipient,
@@ -119,7 +119,7 @@ impl Helper {
         &self,
         router: &mut App,
         user: &str,
-        percentage: Uint128,
+        bps: u16,
         expire_time: u64,
         token_id: String,
     ) -> Result<AppResponse> {
@@ -127,7 +127,7 @@ impl Helper {
             Addr::unchecked(user),
             self.delegation_instance.clone(),
             &ExecuteMsg::ExtendDelegation {
-                percentage,
+                bps,
                 expire_time,
                 token_id,
             },

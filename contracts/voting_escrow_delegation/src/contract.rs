@@ -103,24 +103,16 @@ pub fn execute(
 ) -> Result<Response, ContractError> {
     match msg {
         ExecuteMsg::CreateDelegation {
-            percentage,
+            bps,
             expire_time,
             token_id,
             recipient,
-        } => create_delegation(
-            deps,
-            env,
-            info,
-            percentage,
-            expire_time,
-            token_id,
-            recipient,
-        ),
+        } => create_delegation(deps, env, info, bps, expire_time, token_id, recipient),
         ExecuteMsg::ExtendDelegation {
-            percentage,
+            bps,
             expire_time,
             token_id,
-        } => extend_delegation(deps, env, info, percentage, expire_time, token_id),
+        } => extend_delegation(deps, env, info, bps, expire_time, token_id),
         ExecuteMsg::UpdateConfig { new_voting_escrow } => {
             update_config(deps, info, new_voting_escrow)
         }
@@ -195,7 +187,7 @@ pub fn create_delegation(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    percentage: Uint128,
+    bps: u16,
     expire_time: u64,
     token_id: String,
     recipient: String,
@@ -227,12 +219,12 @@ pub fn create_delegation(
         &delegator,
         block_period,
         exp_period,
-        percentage,
+        bps,
         None,
     )?;
 
     let not_delegated_vp = calc_not_delegated_vp(deps.as_ref(), &delegator, vp, block_period)?;
-    let delegation = calc_delegation(not_delegated_vp, block_period, exp_period, percentage)?;
+    let delegation = calc_delegation(not_delegated_vp, block_period, exp_period, bps)?;
 
     DELEGATED.save(deps.storage, (&delegator, token_id.clone()), &delegation)?;
     TOKENS.save(deps.storage, token_id.clone(), &delegation)?;
@@ -243,7 +235,7 @@ pub fn create_delegation(
             attr("recipient", recipient),
             attr("token_id", token_id.clone()),
             attr("expire_time", expire_time.to_string()),
-            attr("percentage", percentage.to_string()),
+            attr("bps", bps.to_string()),
             attr("delegated_voting_power", delegation.power.to_string()),
         ])
         .add_submessage(SubMsg::new(WasmMsg::Execute {
@@ -274,7 +266,7 @@ pub fn extend_delegation(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    percentage: Uint128,
+    bps: u16,
     expire_time: u64,
     token_id: String,
 ) -> Result<Response, ContractError> {
@@ -297,7 +289,7 @@ pub fn extend_delegation(
         &delegator,
         block_period,
         exp_period,
-        percentage,
+        bps,
         Some(&old_delegation),
     )?;
 
@@ -308,7 +300,7 @@ pub fn extend_delegation(
         &old_delegation,
         block_period,
         exp_period,
-        percentage,
+        bps,
     )?;
 
     DELEGATED.save(
@@ -322,7 +314,7 @@ pub fn extend_delegation(
         attr("action", "extend_delegation"),
         attr("token_id", token_id),
         attr("expire_time", expire_time.to_string()),
-        attr("percentage", percentage.to_string()),
+        attr("bps", bps.to_string()),
         attr("delegated_voting_power", new_delegation.power.to_string()),
     ]))
 }
