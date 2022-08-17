@@ -1,9 +1,8 @@
 use crate::state::{Config, Token, DELEGATED};
 use crate::ContractError;
-use astroport_governance::astroport::DecimalCheckedOps;
 use astroport_governance::utils::calc_voting_power;
 use astroport_governance::voting_escrow::get_lock_info;
-use cosmwasm_std::{Addr, Decimal, Deps, Order, QuerierWrapper, StdError, StdResult, Uint128};
+use cosmwasm_std::{Addr, Deps, Order, QuerierWrapper, StdError, StdResult, Uint128};
 
 pub(crate) const MAX_BPS_AMOUNT: u16 = 10000u16;
 pub(crate) const MIN_BPS_AMOUNT: u16 = 1u16;
@@ -15,13 +14,13 @@ pub fn calc_delegation(
     exp_period: u64,
     bps: u16,
 ) -> Result<Token, ContractError> {
-    let share = Uint128::from(bps)
+    let vp_to_delegate = Uint128::from(bps)
         .checked_mul(not_delegated_vp)
         .map_err(|e| ContractError::Std(e.into()))?
         / Uint128::from(MAX_BPS_AMOUNT);
 
     let dt = Uint128::from(exp_period - block_period);
-    let slope = share
+    let slope = vp_to_delegate
         .checked_div(dt)
         .map_err(|e| ContractError::Std(e.into()))?;
     let power = slope * dt;
