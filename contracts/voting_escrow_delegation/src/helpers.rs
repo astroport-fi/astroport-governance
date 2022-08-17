@@ -15,18 +15,13 @@ pub fn calc_delegation(
     exp_period: u64,
     bps: u16,
 ) -> Result<Token, ContractError> {
-    let share = Decimal::from_ratio(
-        Uint128::from(bps) * Uint128::new(100),
-        Uint128::new(MAX_BPS_AMOUNT as u128),
-    );
-
-    let vp_to_delegate = share
-        .checked_mul_uint128(not_delegated_vp)
+    let share = Uint128::from(bps)
+        .checked_mul(not_delegated_vp)
         .map_err(|e| ContractError::Std(e.into()))?
-        / Uint128::new(100);
+        / Uint128::from(MAX_BPS_AMOUNT);
 
     let dt = Uint128::from(exp_period - block_period);
-    let slope = vp_to_delegate
+    let slope = share
         .checked_div(dt)
         .map_err(|e| ContractError::Std(e.into()))?;
     let power = slope * dt;
