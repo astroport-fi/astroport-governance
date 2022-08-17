@@ -23,7 +23,7 @@ Delegates the voting power to another account, according to the specified parame
 ```json
 {
   "create_delegation": {
-    "bps": 50,
+    "bps": 5000,
     "expire_time": 12345,
     "token_id": "123",
     "recipient": "terra..."
@@ -38,7 +38,7 @@ Extends a previously created delegation by a new specified parameters.
 ```json
 {
   "extend_delegation": {
-    "bps": 50,
+    "bps": 5000,
     "expire_time": 12345,
     "token_id": "123"
   }

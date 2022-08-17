@@ -17,14 +17,14 @@ pub struct InstantiateMsg {
 #[serde(rename_all = "snake_case")]
 pub enum ExecuteMsg {
     CreateDelegation {
-        /// The amount of voting power (in bps) that will be delegated to the recipient
+        /// The share of voting power (in bps) that will be delegated to the recipient
         bps: u16,
         expire_time: u64,
         token_id: String,
         recipient: String,
     },
     ExtendDelegation {
-        /// The amount of voting power (in bps) that will be delegated to the recipient
+        /// The share of voting power (in bps) that will be delegated to the recipient
         bps: u16,
         expire_time: u64,
         token_id: String,

@@ -15,13 +15,12 @@ pub fn calc_delegation(
     exp_period: u64,
     bps: u16,
 ) -> Result<Token, ContractError> {
-    // convert bps to percentage
-    let percent = Decimal::from_ratio(
+    let share = Decimal::from_ratio(
         Uint128::from(bps) * Uint128::new(100),
         Uint128::new(MAX_BPS_AMOUNT as u128),
     );
 
-    let vp_to_delegate = percent
+    let vp_to_delegate = share
         .checked_mul_uint128(not_delegated_vp)
         .map_err(|e| ContractError::Std(e.into()))?
         / Uint128::new(100);
