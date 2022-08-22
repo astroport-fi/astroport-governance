@@ -32,3 +32,8 @@ Run the following from the repository root
 ```
 
 The optimized contracts are generated in the artifacts/ directory.
+
+## Branches
+
+We use [main](https://github.com/astroport-fi/astroport-governance/tree/main) branch for new features development whereas [release/terra1](https://github.com/astroport-fi/astroport-governance/tree/release/terra1) and [release/terra2](https://github.com/astroport-fi/astroport-governance/tree/release/terra2) branches are for stable releases.
+You can find actual deployed code in release/* branches.
