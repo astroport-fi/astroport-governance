@@ -35,9 +35,9 @@ async function deployVotingEscrowDelegation(terra: LCDClient, wallet: any) {
         "assemblyAddress",
     ])
 
-    if (!network.nftTokenCodeID) {
+    if (!network.nftCodeID) {
         console.log('Register Astroport NFT Contract...')
-        network.nftTokenCodeID = await uploadContract(terra, wallet, join(ARTIFACTS_PATH, 'nft.wasm')!)
+        network.nftCodeID = await uploadContract(terra, wallet, join(ARTIFACTS_PATH, 'astroport_nft.wasm')!)
     }
 
     if (network.votingEscrowDelegationAddress) {
@@ -54,7 +54,7 @@ async function deployVotingEscrowDelegation(terra: LCDClient, wallet: any) {
         {
             "owner": network.assemblyAddress,
             "voting_escrow_addr": network.votingEscrowAddress,
-            "nft_token_code_id": network.nftTokenCodeID,
+            "nft_code_id": network.nftCodeID,
         },
         "Astroport Voting Escrow Delegation Contract"
     )
@@ -294,4 +294,4 @@ function checkParams(network:any, required_params: any) {
     }
 }
 
-main().catch(console.log)
+await main()
