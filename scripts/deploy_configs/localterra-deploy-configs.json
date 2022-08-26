@@ -1,17 +1,17 @@
 {
   "generalInfo": {
     "multisig": "terra17lmam6zguazs5q5u6z5mmx76uj63gldnse2pdp",
-    "astro_token": "terra1kn3r2zkkc3rurptlp7g3j7yl7ekeqjqugkdmc29skfj87gmayl3spmwad8",
-    "xastro_token": "terra1wz4u5hsqmueu7d3s3scf4w5s7stss23vsl5hn50dmy43ltyqunnsx0h0pl",
-    "factory_addr": "terra1jdesk73zzxvjxtqx0ahqw0zq3y7u934l6drxkkdrlem6crvfeyas6npwwc",
-    "generator_addr": "terra1qqsp5wj650vpnf50rvvpamluckvj77gpc48549ls45xdpkuuzdlqq0mm5h"
+    "astro_token": "terra1wn625s4jcmvk0szpl85rj5azkfc6suyvf75q6vrddscjdphtve8stalnth",
+    "xastro_token": "terra1g4xlpqy29m50j5y69reguae328tc9y83l4299pf2wmjn0xczq5jsnem6vt",
+    "factory_addr": "terra1xx3aupmgv3ce537c0yce8zzd3sz567syaltr2tdehu3y803yz6gsyz99er",
+    "generator_addr": "terra123gcwlskafnxw4lvkjeacmd5tqzl27gd8xxxnrghe2qhdxtluskqhjcwgd"
   },
   "teamUnlock": {
     "admin": null,
     "initMsg": {
       "owner": null,
       "astro_token": null,
-      "max_allocations_amount": "300000000000000"
+      "max_allocations_amount": "2000000000"
     },
     "label": "Astroport Builder Unlocking Contract",
     "change_owner": false,

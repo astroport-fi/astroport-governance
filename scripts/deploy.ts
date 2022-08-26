@@ -180,14 +180,12 @@ function checkAllocationAmount(allocations: Allocations[]) {
 
     if (sum != parseInt(deployConfigs.teamUnlock.initMsg.max_allocations_amount)) {
         throw new Error(`Sum of allocations is ${sum}, but should be ${deployConfigs.teamUnlock.initMsg.max_allocations_amount}`);
-    } else {
-        console.log("Sum of allocations is correct");
     }
 }
 
 async function create_allocations(terra: LocalTerra | LCDClient, wallet: Wallet, network: any, allocations: Allocations[]) {
     let from = 0;
-    let till = 5;
+    let till = allocations.length > 5 ? 5: allocations.length;
 
     do {
         if (!network[`allocations_created_${from}_${till}`]) {
@@ -195,7 +193,7 @@ async function create_allocations(terra: LocalTerra | LCDClient, wallet: Wallet,
             let allocations_to_create = [];
 
             for (let i=from; i<till; i++) {
-                astro_to_transfer += Number(allocations[i][1]["amount"]);
+                astro_to_transfer += Number(allocations[i][1].amount);
                 allocations_to_create.push(allocations[i]);
             }
 
