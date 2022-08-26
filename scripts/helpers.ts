@@ -284,3 +284,7 @@ export function extract_astroport_pool_info(response: any) {
 
   return { pool_address: pool_address, lp_token_address: lp_token_address };
 }
+
+export function delay(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}

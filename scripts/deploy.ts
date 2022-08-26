@@ -3,13 +3,14 @@ import {
     newClient,
     writeArtifact,
     readArtifact,
-    deployContract, executeContract, uploadContract, toEncodedBinary,
+    deployContract, executeContract, uploadContract, delay,
 } from './helpers.js'
 import { join } from 'path'
-import {LCDClient} from '@terra-money/terra.js';
+import {LCDClient, LocalTerra, Wallet} from '@terra-money/terra.js';
 import {deployConfigs} from "./types.d/deploy_configs.js";
 
 const ARTIFACTS_PATH = '../artifacts'
+const SECONDS_DIVIDER: number = 60 * 60 * 24 // min, hour, da
 
 async function main() {
     const { terra, wallet } = newClient()
@@ -32,6 +33,8 @@ async function main() {
     await deployFeeDistributor(terra, wallet)
     await deployGeneratorController(terra, wallet)
     await deployVotingEscrowDelegation(terra, wallet)
+
+    console.log("FINISH");
 }
 
 async function deployVotingEscrowDelegation(terra: LCDClient, wallet: any) {
@@ -152,23 +155,85 @@ async function deployTeamUnlock(terra: LCDClient, wallet: any) {
             deployConfigs.teamUnlock.initMsg,
             deployConfigs.teamUnlock.label
         )
-
         console.log(`Builder unlock contract address: ${network.builderUnlockAddress}`)
-        let tx = await executeContract(terra, wallet, deployConfigs.generalInfo.astro_token,
-            {
-                send: {
-                    contract: network.builderUnlockAddress,
-                    amount: deployConfigs.teamUnlock.setup_allocations.total_allocation_amount,
-                    msg: toEncodedBinary(deployConfigs.teamUnlock.setup_allocations.allocations)
-                },
-            },
-            [],
-            deployConfigs.teamUnlock.setup_allocations.memo
-        );
 
-        console.log(tx)
-        writeArtifact(network, terra.config.chainID)
+        checkAllocationAmount(deployConfigs.teamUnlock.setup_allocations.allocations.create_allocations.allocations);
+        await create_allocations(terra, wallet, network, deployConfigs.teamUnlock.setup_allocations.allocations.create_allocations.allocations);
+
+        // Set new owner for builder unlock
+        if (deployConfigs.teamUnlock.change_owner) {
+            console.log('Propose owner for builder unlock. Ownership has to be claimed within %s days',
+                Number(deployConfigs.teamUnlock.propose_new_owner.expires_in) / SECONDS_DIVIDER)
+            await executeContract(terra, wallet, network.builderUnlockAddress, {
+                "propose_new_owner": deployConfigs.teamUnlock.propose_new_owner
+            })
+        }
     }
+}
+
+function checkAllocationAmount(allocations: Allocations[]) {
+    let sum = 0;
+
+    for (let builder of allocations) {
+        sum += parseInt(builder[1].amount);
+    }
+
+    if (sum != parseInt(deployConfigs.teamUnlock.initMsg.max_allocations_amount)) {
+        throw new Error(`Sum of allocations is ${sum}, but should be ${deployConfigs.teamUnlock.initMsg.max_allocations_amount}`);
+    } else {
+        console.log("Sum of allocations is correct");
+    }
+}
+
+async function create_allocations(terra: LocalTerra | LCDClient, wallet: Wallet, network: any, allocations: Allocations[]) {
+    let from = 0;
+    let till = 5;
+
+    do {
+        if (!network[`allocations_created_${from}_${till}`]) {
+            let astro_to_transfer = 0;
+            let allocations_to_create = [];
+
+            for (let i=from; i<till; i++) {
+                astro_to_transfer += Number(allocations[i][1]["amount"]);
+                allocations_to_create.push(allocations[i]);
+            }
+
+            console.log(`from ${from} to ${till}:  ${astro_to_transfer / 1000000} ASTRO to transfer.`);
+
+            // Create allocations : TX
+            let tx = await executeContract(terra, wallet, deployConfigs.generalInfo.astro_token,
+                {
+                    send: {
+                        contract: network.builderUnlockAddress,
+                        amount: String(astro_to_transfer),
+                        msg: Buffer.from(
+                            JSON.stringify({
+                                create_allocations: {
+                                    allocations: allocations_to_create,
+                                },
+                            })
+                        ).toString("base64")
+                    },
+                },
+                [],
+                deployConfigs.teamUnlock.setup_allocations.memo
+            );
+
+            console.log(
+                `Creating ASTRO Unlocking schedules ::: ${from} - ${till}, ASTRO sent : ${
+                    astro_to_transfer / 1000000
+                }, \n Tx hash --> ${tx.txhash} \n`
+            );
+
+            network[`allocations_created_${from}_${till}`] = true;
+            writeArtifact(network, terra.config.chainID);
+            await delay(1000);
+        }
+
+        from = till;
+        till += 5;
+    } while (from<allocations.length);
 }
 
 async function deployAssembly(terra: LCDClient, wallet: any) {

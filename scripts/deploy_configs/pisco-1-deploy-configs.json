@@ -14,6 +14,11 @@
       "max_allocations_amount": "300000000000000"
     },
     "label": "Astroport Builder Unlocking Contract",
+    "change_owner": false,
+    "propose_new_owner": {
+      "owner": "terra174gu7kg8ekk5gsxdma5jlfcedm653tyg6ayppw",
+      "expires_in": 604800
+    },
     "setup_allocations": {
       "allocations": {
         "create_allocations": {
@@ -43,7 +48,6 @@
           ]
         }
       },
-      "total_allocation_amount": "2000000000",
       "memo": "Setting ASTRO Unlocking schedules"
     }
   },

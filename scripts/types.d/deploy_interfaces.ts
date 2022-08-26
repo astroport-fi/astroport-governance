@@ -38,6 +38,11 @@ interface TeamUnlock {
         max_allocations_amount: string
     },
     label: string,
+    change_owner: boolean,
+    propose_new_owner: {
+        owner: string,
+        expires_in: number
+    },
     setup_allocations: {
         allocations: {
             create_allocations: {
