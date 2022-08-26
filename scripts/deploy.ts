@@ -46,7 +46,7 @@ async function deployVotingEscrowDelegation(terra: LCDClient, wallet: any) {
     }
 
     if (!network.votingEscrowDelegationAddress) {
-        deployConfigs.votingEscrowDelegation.admin ||= wallet.key.accAddress
+        deployConfigs.votingEscrowDelegation.admin ||= deployConfigs.generalInfo.multisig
         deployConfigs.votingEscrowDelegation.initMsg.nft_code_id ||= network.nftCodeID
         deployConfigs.votingEscrowDelegation.initMsg.owner ||= network.assemblyAddress
         deployConfigs.votingEscrowDelegation.initMsg.voting_escrow_addr ||= network.votingEscrowAddress
@@ -55,7 +55,7 @@ async function deployVotingEscrowDelegation(terra: LCDClient, wallet: any) {
         network.votingEscrowDelegationAddress = await deployContract(
             terra,
             wallet,
-            network.multisigAddress,
+            deployConfigs.votingEscrowDelegation.admin,
             join(ARTIFACTS_PATH, 'voting_escrow_delegation.wasm'),
             deployConfigs.votingEscrowDelegation.initMsg,
             deployConfigs.votingEscrowDelegation.label
@@ -74,6 +74,7 @@ async function deployGeneratorController(terra: LCDClient, wallet: any) {
         deployConfigs.generatorController.initMsg.escrow_addr ||= network.votingEscrowAddress
         deployConfigs.generatorController.initMsg.generator_addr ||= deployConfigs.generalInfo.generator_addr
         deployConfigs.generatorController.initMsg.factory_addr ||= deployConfigs.generalInfo.factory_addr
+        deployConfigs.generatorController.admin ||= deployConfigs.generalInfo.multisig
 
         console.log('Deploying generator controller...')
         network.generatorControllerAddress = await deployContract(
@@ -94,7 +95,7 @@ async function deployFeeDistributor(terra: LCDClient, wallet: any) {
     let network = readArtifact(terra.config.chainID)
 
     if (!network.feeDistributorAddress) {
-        deployConfigs.feeDistributor.admin ||= wallet.key.accAddress
+        deployConfigs.feeDistributor.admin ||= deployConfigs.generalInfo.multisig
         deployConfigs.feeDistributor.initMsg.owner ||= network.assemblyAddress
         deployConfigs.feeDistributor.initMsg.astro_token ||= deployConfigs.generalInfo.astro_token
         deployConfigs.feeDistributor.initMsg.voting_escrow_addr ||= network.votingEscrowAddress
@@ -119,7 +120,7 @@ async function deployVotingEscrow(terra: LCDClient, wallet: any) {
 
     if (!network.votingEscrowAddress) {
         checkParams(network, ["assemblyAddress"])
-        deployConfigs.votingEscrow.admin ||= wallet.key.accAddress
+        deployConfigs.votingEscrow.admin ||= deployConfigs.generalInfo.multisig
         deployConfigs.votingEscrow.initMsg.owner ||= network.assemblyAddress
         deployConfigs.votingEscrow.initMsg.deposit_token_addr ||= deployConfigs.generalInfo.xastro_token
 
@@ -142,7 +143,7 @@ async function deployTeamUnlock(terra: LCDClient, wallet: any) {
     let network = readArtifact(terra.config.chainID)
 
     if (!network.builderUnlockAddress) {
-        deployConfigs.teamUnlock.admin ||= wallet.key.accAddress
+        deployConfigs.teamUnlock.admin ||= deployConfigs.generalInfo.multisig
         deployConfigs.teamUnlock.initMsg.owner ||= wallet.key.accAddress
         deployConfigs.teamUnlock.initMsg.astro_token ||= deployConfigs.generalInfo.astro_token
 
@@ -241,7 +242,7 @@ async function deployAssembly(terra: LCDClient, wallet: any) {
         checkParams(network, ["builderUnlockAddress"])
         deployConfigs.assembly.initMsg.xastro_token_addr ||= deployConfigs.generalInfo.xastro_token
         deployConfigs.assembly.initMsg.builder_unlock_addr ||= network.builderUnlockAddress
-        deployConfigs.assembly.admin ||= wallet.key.accAddress
+        deployConfigs.assembly.admin ||= deployConfigs.generalInfo.multisig
 
         console.log('Deploying Assembly Contract...')
         network.assemblyAddress = await deployContract(
