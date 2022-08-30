@@ -7,18 +7,18 @@ import {
 } from './helpers.js'
 import { join } from 'path'
 import {LCDClient, LocalTerra, Wallet} from '@terra-money/terra.js';
-import {deployConfigs} from "./types.d/deploy_configs.js";
+import {chainConfigs} from "./types.d/chain_configs.js";
 
 const ARTIFACTS_PATH = '../artifacts'
-const SECONDS_DIVIDER: number = 60 * 60 * 24 // min, hour, da
+const SECONDS_IN_DAY: number = 60 * 60 * 24 // min, hour, da
 
 async function main() {
     const { terra, wallet } = newClient()
     console.log(`chainID: ${terra.config.chainID} wallet: ${wallet.key.accAddress}`)
 
     let property: keyof GeneralInfo;
-    for (property in deployConfigs.generalInfo){
-        if (!deployConfigs.generalInfo[property]) {
+    for (property in chainConfigs.generalInfo){
+        if (!chainConfigs.generalInfo[property]) {
             throw new Error(`Set required param: ${property}`)
         }
     }
@@ -46,19 +46,19 @@ async function deployVotingEscrowDelegation(terra: LCDClient, wallet: any) {
     }
 
     if (!network.votingEscrowDelegationAddress) {
-        deployConfigs.votingEscrowDelegation.admin ||= deployConfigs.generalInfo.multisig
-        deployConfigs.votingEscrowDelegation.initMsg.nft_code_id ||= network.nftCodeID
-        deployConfigs.votingEscrowDelegation.initMsg.owner ||= network.assemblyAddress
-        deployConfigs.votingEscrowDelegation.initMsg.voting_escrow_addr ||= network.votingEscrowAddress
+        chainConfigs.votingEscrowDelegation.admin ||= chainConfigs.generalInfo.multisig
+        chainConfigs.votingEscrowDelegation.initMsg.nft_code_id ||= network.nftCodeID
+        chainConfigs.votingEscrowDelegation.initMsg.owner ||= network.assemblyAddress
+        chainConfigs.votingEscrowDelegation.initMsg.voting_escrow_addr ||= network.votingEscrowAddress
 
         console.log('Deploying voting escrow delegation...')
         network.votingEscrowDelegationAddress = await deployContract(
             terra,
             wallet,
-            deployConfigs.votingEscrowDelegation.admin,
+            chainConfigs.votingEscrowDelegation.admin,
             join(ARTIFACTS_PATH, 'voting_escrow_delegation.wasm'),
-            deployConfigs.votingEscrowDelegation.initMsg,
-            deployConfigs.votingEscrowDelegation.label
+            chainConfigs.votingEscrowDelegation.initMsg,
+            chainConfigs.votingEscrowDelegation.label
         )
 
         console.log("Voting Escrow Delegation: ", network.votingEscrowDelegationAddress)
@@ -70,20 +70,20 @@ async function deployGeneratorController(terra: LCDClient, wallet: any) {
     let network = readArtifact(terra.config.chainID)
 
     if (!network.generatorControllerAddress) {
-        deployConfigs.generatorController.initMsg.owner ||= network.assemblyAddress
-        deployConfigs.generatorController.initMsg.escrow_addr ||= network.votingEscrowAddress
-        deployConfigs.generatorController.initMsg.generator_addr ||= deployConfigs.generalInfo.generator_addr
-        deployConfigs.generatorController.initMsg.factory_addr ||= deployConfigs.generalInfo.factory_addr
-        deployConfigs.generatorController.admin ||= deployConfigs.generalInfo.multisig
+        chainConfigs.generatorController.initMsg.owner ||= network.assemblyAddress
+        chainConfigs.generatorController.initMsg.escrow_addr ||= network.votingEscrowAddress
+        chainConfigs.generatorController.initMsg.generator_addr ||= chainConfigs.generalInfo.generator_addr
+        chainConfigs.generatorController.initMsg.factory_addr ||= chainConfigs.generalInfo.factory_addr
+        chainConfigs.generatorController.admin ||= chainConfigs.generalInfo.multisig
 
         console.log('Deploying generator controller...')
         network.generatorControllerAddress = await deployContract(
             terra,
             wallet,
-            deployConfigs.generatorController.admin,
+            chainConfigs.generatorController.admin,
             join(ARTIFACTS_PATH, 'generator_controller.wasm'),
-            deployConfigs.generatorController.initMsg,
-            deployConfigs.generatorController.label
+            chainConfigs.generatorController.initMsg,
+            chainConfigs.generatorController.label
         )
 
         console.log("Generator controller: ", network.generatorControllerAddress)
@@ -95,19 +95,19 @@ async function deployFeeDistributor(terra: LCDClient, wallet: any) {
     let network = readArtifact(terra.config.chainID)
 
     if (!network.feeDistributorAddress) {
-        deployConfigs.feeDistributor.admin ||= deployConfigs.generalInfo.multisig
-        deployConfigs.feeDistributor.initMsg.owner ||= network.assemblyAddress
-        deployConfigs.feeDistributor.initMsg.astro_token ||= deployConfigs.generalInfo.astro_token
-        deployConfigs.feeDistributor.initMsg.voting_escrow_addr ||= network.votingEscrowAddress
+        chainConfigs.feeDistributor.admin ||= chainConfigs.generalInfo.multisig
+        chainConfigs.feeDistributor.initMsg.owner ||= network.assemblyAddress
+        chainConfigs.feeDistributor.initMsg.astro_token ||= chainConfigs.generalInfo.astro_token
+        chainConfigs.feeDistributor.initMsg.voting_escrow_addr ||= network.votingEscrowAddress
 
         console.log('Deploying fee distributor...')
         network.feeDistributorAddress = await deployContract(
             terra,
             wallet,
-            deployConfigs.feeDistributor.admin,
+            chainConfigs.feeDistributor.admin,
             join(ARTIFACTS_PATH, 'astroport_escrow_fee_distributor.wasm'),
-            deployConfigs.feeDistributor.initMsg,
-            deployConfigs.feeDistributor.label,
+            chainConfigs.feeDistributor.initMsg,
+            chainConfigs.feeDistributor.label,
         )
 
         console.log("Fee distributor: ", network.feeDistributorAddress)
@@ -120,18 +120,18 @@ async function deployVotingEscrow(terra: LCDClient, wallet: any) {
 
     if (!network.votingEscrowAddress) {
         checkParams(network, ["assemblyAddress"])
-        deployConfigs.votingEscrow.admin ||= deployConfigs.generalInfo.multisig
-        deployConfigs.votingEscrow.initMsg.owner ||= network.assemblyAddress
-        deployConfigs.votingEscrow.initMsg.deposit_token_addr ||= deployConfigs.generalInfo.xastro_token
+        chainConfigs.votingEscrow.admin ||= chainConfigs.generalInfo.multisig
+        chainConfigs.votingEscrow.initMsg.owner ||= network.assemblyAddress
+        chainConfigs.votingEscrow.initMsg.deposit_token_addr ||= chainConfigs.generalInfo.xastro_token
 
         console.log('Deploying votingEscrow...')
         network.votingEscrowAddress = await deployContract(
             terra,
             wallet,
-            deployConfigs.votingEscrow.admin,
+            chainConfigs.votingEscrow.admin,
             join(ARTIFACTS_PATH, 'voting_escrow.wasm'),
-            deployConfigs.votingEscrow.initMsg,
-            deployConfigs.votingEscrow.label
+            chainConfigs.votingEscrow.initMsg,
+            chainConfigs.votingEscrow.label
         )
 
         console.log("votingEscrow", network.votingEscrowAddress)
@@ -143,30 +143,30 @@ async function deployTeamUnlock(terra: LCDClient, wallet: any) {
     let network = readArtifact(terra.config.chainID)
 
     if (!network.builderUnlockAddress) {
-        deployConfigs.teamUnlock.admin ||= deployConfigs.generalInfo.multisig
-        deployConfigs.teamUnlock.initMsg.owner ||= wallet.key.accAddress
-        deployConfigs.teamUnlock.initMsg.astro_token ||= deployConfigs.generalInfo.astro_token
+        chainConfigs.teamUnlock.admin ||= chainConfigs.generalInfo.multisig
+        chainConfigs.teamUnlock.initMsg.owner ||= wallet.key.accAddress
+        chainConfigs.teamUnlock.initMsg.astro_token ||= chainConfigs.generalInfo.astro_token
 
         console.log("Builder Unlock Contract deploying...")
         network.builderUnlockAddress = await deployContract(
             terra,
             wallet,
-            deployConfigs.teamUnlock.admin,
+            chainConfigs.teamUnlock.admin,
             join(ARTIFACTS_PATH, 'builder_unlock.wasm'),
-            deployConfigs.teamUnlock.initMsg,
-            deployConfigs.teamUnlock.label
+            chainConfigs.teamUnlock.initMsg,
+            chainConfigs.teamUnlock.label
         )
         console.log(`Builder unlock contract address: ${network.builderUnlockAddress}`)
 
-        checkAllocationAmount(deployConfigs.teamUnlock.setup_allocations.allocations.create_allocations.allocations);
-        await create_allocations(terra, wallet, network, deployConfigs.teamUnlock.setup_allocations.allocations.create_allocations.allocations);
+        checkAllocationAmount(chainConfigs.teamUnlock.setup_allocations.allocations.create_allocations.allocations);
+        await create_allocations(terra, wallet, network, chainConfigs.teamUnlock.setup_allocations.allocations.create_allocations.allocations);
 
         // Set new owner for builder unlock
-        if (deployConfigs.teamUnlock.change_owner) {
+        if (chainConfigs.teamUnlock.change_owner) {
             console.log('Propose owner for builder unlock. Ownership has to be claimed within %s days',
-                Number(deployConfigs.teamUnlock.propose_new_owner.expires_in) / SECONDS_DIVIDER)
+                Number(chainConfigs.teamUnlock.propose_new_owner.expires_in) / SECONDS_IN_DAY)
             await executeContract(terra, wallet, network.builderUnlockAddress, {
-                "propose_new_owner": deployConfigs.teamUnlock.propose_new_owner
+                "propose_new_owner": chainConfigs.teamUnlock.propose_new_owner
             })
         }
     }
@@ -179,8 +179,8 @@ function checkAllocationAmount(allocations: Allocations[]) {
         sum += parseInt(builder[1].amount);
     }
 
-    if (sum != parseInt(deployConfigs.teamUnlock.initMsg.max_allocations_amount)) {
-        throw new Error(`Sum of allocations is ${sum}, but should be ${deployConfigs.teamUnlock.initMsg.max_allocations_amount}`);
+    if (sum != parseInt(chainConfigs.teamUnlock.initMsg.max_allocations_amount)) {
+        throw new Error(`Sum of allocations is ${sum}, but should be ${chainConfigs.teamUnlock.initMsg.max_allocations_amount}`);
     }
 }
 
@@ -189,46 +189,42 @@ async function create_allocations(terra: LocalTerra | LCDClient, wallet: Wallet,
     let till = allocations.length > 5 ? 5: allocations.length;
 
     do {
-        if (!network[`allocations_created_${from}_${till}`]) {
-            let astro_to_transfer = 0;
-            let allocations_to_create = [];
+        let astro_to_transfer = 0;
+        let allocations_to_create = [];
 
-            for (let i=from; i<till; i++) {
-                astro_to_transfer += Number(allocations[i][1].amount);
-                allocations_to_create.push(allocations[i]);
-            }
-
-            console.log(`from ${from} to ${till}:  ${astro_to_transfer / 1000000} ASTRO to transfer.`);
-
-            // Create allocations : TX
-            let tx = await executeContract(terra, wallet, deployConfigs.generalInfo.astro_token,
-                {
-                    send: {
-                        contract: network.builderUnlockAddress,
-                        amount: String(astro_to_transfer),
-                        msg: Buffer.from(
-                            JSON.stringify({
-                                create_allocations: {
-                                    allocations: allocations_to_create,
-                                },
-                            })
-                        ).toString("base64")
-                    },
-                },
-                [],
-                deployConfigs.teamUnlock.setup_allocations.memo
-            );
-
-            console.log(
-                `Creating ASTRO Unlocking schedules ::: ${from} - ${till}, ASTRO sent : ${
-                    astro_to_transfer / 1000000
-                }, \n Tx hash --> ${tx.txhash} \n`
-            );
-
-            network[`allocations_created_${from}_${till}`] = true;
-            writeArtifact(network, terra.config.chainID);
-            await delay(1000);
+        for (let i=from; i<till; i++) {
+            astro_to_transfer += Number(allocations[i][1].amount);
+            allocations_to_create.push(allocations[i]);
         }
+
+        console.log(`from ${from} to ${till}:  ${astro_to_transfer / 1000000} ASTRO to transfer.`);
+
+        // Create allocations : TX
+        let tx = await executeContract(terra, wallet, chainConfigs.generalInfo.astro_token,
+            {
+                send: {
+                    contract: network.builderUnlockAddress,
+                    amount: String(astro_to_transfer),
+                    msg: Buffer.from(
+                        JSON.stringify({
+                            create_allocations: {
+                                allocations: allocations_to_create,
+                            },
+                        })
+                    ).toString("base64")
+                },
+            },
+            [],
+            chainConfigs.teamUnlock.setup_allocations.memo
+        );
+
+        console.log(
+            `Creating ASTRO Unlocking schedules ::: ${from} - ${till}, ASTRO sent : ${
+                astro_to_transfer / 1000000
+            }, \n Tx hash --> ${tx.txhash} \n`
+        );
+
+        await delay(1000);
 
         from = till;
         till += 5;
@@ -240,18 +236,18 @@ async function deployAssembly(terra: LCDClient, wallet: any) {
 
     if (!network.assemblyAddress) {
         checkParams(network, ["builderUnlockAddress"])
-        deployConfigs.assembly.initMsg.xastro_token_addr ||= deployConfigs.generalInfo.xastro_token
-        deployConfigs.assembly.initMsg.builder_unlock_addr ||= network.builderUnlockAddress
-        deployConfigs.assembly.admin ||= deployConfigs.generalInfo.multisig
+        chainConfigs.assembly.initMsg.xastro_token_addr ||= chainConfigs.generalInfo.xastro_token
+        chainConfigs.assembly.initMsg.builder_unlock_addr ||= network.builderUnlockAddress
+        chainConfigs.assembly.admin ||= chainConfigs.generalInfo.multisig
 
         console.log('Deploying Assembly Contract...')
         network.assemblyAddress = await deployContract(
             terra,
             wallet,
-            deployConfigs.assembly.admin,
+            chainConfigs.assembly.admin,
             join(ARTIFACTS_PATH, 'astro_assembly.wasm'),
-            deployConfigs.assembly.initMsg,
-            deployConfigs.assembly.label
+            chainConfigs.assembly.initMsg,
+            chainConfigs.assembly.label
         )
 
         console.log("assemblyAddress", network.assemblyAddress)

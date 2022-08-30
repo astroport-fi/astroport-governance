@@ -49,8 +49,7 @@ interface TeamUnlock {
                 allocations: Allocations[]
             }
         },
-        memo: string,
-        total_allocation_amount: string
+        memo: string
     }
 }
 
@@ -74,7 +73,7 @@ interface VotingEscrow {
     admin: string,
     initMsg: {
         owner: string,
-        guardian_addr: string,
+        guardian_addr?: string,
         deposit_token_addr: string,
         marketing: Marketing,
         logo_urls_whitelist: string[]
