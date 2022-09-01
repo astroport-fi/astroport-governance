@@ -186,7 +186,8 @@ function checkAllocationAmount(allocations: Allocations[]) {
 
 async function create_allocations(terra: LocalTerra | LCDClient, wallet: Wallet, network: any, allocations: Allocations[]) {
     let from = 0;
-    let till = allocations.length > 5 ? 5: allocations.length;
+    let step = 5;
+    let till = allocations.length > step ? step: allocations.length;
 
     do {
         let astro_to_transfer = 0;
@@ -225,7 +226,8 @@ async function create_allocations(terra: LocalTerra | LCDClient, wallet: Wallet,
         await delay(1000);
 
         from = till;
-        till += 5;
+        step = allocations.length > (till + step) ? step : allocations.length - till
+        till += step;
     } while (from<allocations.length);
 }
 
