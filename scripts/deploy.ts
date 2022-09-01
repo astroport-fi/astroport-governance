@@ -213,9 +213,7 @@ async function create_allocations(terra: LocalTerra | LCDClient, wallet: Wallet,
                         })
                     ).toString("base64")
                 },
-            },
-            [],
-            chainConfigs.teamUnlock.setup_allocations.memo
+            }
         );
 
         console.log(

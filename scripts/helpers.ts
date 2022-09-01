@@ -125,8 +125,7 @@ export async function executeContract(
   wallet: Wallet,
   contractAddress: string,
   msg: object,
-  coins?: any,
-  memo?: string
+  coins?: any
 ) {
   const executeMsg = new MsgExecuteContract(
     wallet.key.accAddress,

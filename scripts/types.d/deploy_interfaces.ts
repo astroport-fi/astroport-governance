@@ -48,8 +48,7 @@ interface TeamUnlock {
             create_allocations: {
                 allocations: Allocations[]
             }
-        },
-        memo: string
+        }
     }
 }
 
