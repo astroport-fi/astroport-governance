@@ -185,50 +185,54 @@ function checkAllocationAmount(allocations: Allocations[]) {
 }
 
 async function create_allocations(terra: LocalTerra | LCDClient, wallet: Wallet, network: any, allocations: Allocations[]) {
-    let from = 0;
-    let step = 5;
-    let till = allocations.length > step ? step: allocations.length;
+    if (allocations.length > 0) {
+        let from = 0;
+        let step = 5;
+        let till = allocations.length > step ? step: allocations.length;
 
-    do {
-        let astro_to_transfer = 0;
-        let allocations_to_create = [];
+        do {
+            let astro_to_transfer = 0;
+            let allocations_to_create = [];
 
-        for (let i=from; i<till; i++) {
-            astro_to_transfer += Number(allocations[i][1].amount);
-            allocations_to_create.push(allocations[i]);
-        }
-
-        console.log(`from ${from} to ${till}:  ${astro_to_transfer / 1000000} ASTRO to transfer.`);
-
-        // Create allocations : TX
-        let tx = await executeContract(terra, wallet, chainConfigs.generalInfo.astro_token,
-            {
-                send: {
-                    contract: network.builderUnlockAddress,
-                    amount: String(astro_to_transfer),
-                    msg: Buffer.from(
-                        JSON.stringify({
-                            create_allocations: {
-                                allocations: allocations_to_create,
-                            },
-                        })
-                    ).toString("base64")
-                },
+            for (let i=from; i<till; i++) {
+                astro_to_transfer += Number(allocations[i][1].amount);
+                allocations_to_create.push(allocations[i]);
             }
-        );
 
-        console.log(
-            `Creating ASTRO Unlocking schedules ::: ${from} - ${till}, ASTRO sent : ${
-                astro_to_transfer / 1000000
-            }, \n Tx hash --> ${tx.txhash} \n`
-        );
+            console.log(`from ${from} to ${till}:  ${astro_to_transfer / 1000000} ASTRO to transfer.`);
 
-        await delay(1000);
+            // Create allocations : TX
+            let tx = await executeContract(terra, wallet, chainConfigs.generalInfo.astro_token,
+                {
+                    send: {
+                        contract: network.builderUnlockAddress,
+                        amount: String(astro_to_transfer),
+                        msg: Buffer.from(
+                            JSON.stringify({
+                                create_allocations: {
+                                    allocations: allocations_to_create,
+                                },
+                            })
+                        ).toString("base64")
+                    },
+                }
+            );
 
-        from = till;
-        step = allocations.length > (till + step) ? step : allocations.length - till
-        till += step;
-    } while (from<allocations.length);
+            console.log(
+                `Creating ASTRO Unlocking schedules ::: ${from} - ${till}, ASTRO sent : ${
+                    astro_to_transfer / 1000000
+                }, \n Tx hash --> ${tx.txhash} \n`
+            );
+
+            await delay(1000);
+
+            from = till;
+            step = allocations.length > (till + step) ? step : allocations.length - till
+            till += step;
+        } while (from<allocations.length);
+    } else {
+        console.log("Builder Unlock has no allocation points to install")
+    }
 }
 
 async function deployAssembly(terra: LCDClient, wallet: any) {
