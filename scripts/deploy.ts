@@ -123,6 +123,7 @@ async function deployVotingEscrow(terra: LCDClient, wallet: any) {
         chainConfigs.votingEscrow.admin ||= chainConfigs.generalInfo.multisig
         chainConfigs.votingEscrow.initMsg.owner ||= network.assemblyAddress
         chainConfigs.votingEscrow.initMsg.deposit_token_addr ||= chainConfigs.generalInfo.xastro_token
+        chainConfigs.votingEscrow.initMsg.marketing.marketing ||= chainConfigs.generalInfo.multisig
 
         console.log('Deploying votingEscrow...')
         network.votingEscrowAddress = await deployContract(
@@ -191,40 +192,44 @@ async function create_allocations(terra: LocalTerra | LCDClient, wallet: Wallet,
         let till = allocations.length > step ? step: allocations.length;
 
         do {
-            let astro_to_transfer = 0;
-            let allocations_to_create = [];
+            if (!network[`allocations_created_${from}_${till}`]) {
+                let astro_to_transfer = 0;
+                let allocations_to_create = [];
 
-            for (let i=from; i<till; i++) {
-                astro_to_transfer += Number(allocations[i][1].amount);
-                allocations_to_create.push(allocations[i]);
-            }
-
-            console.log(`from ${from} to ${till}:  ${astro_to_transfer / 1000000} ASTRO to transfer.`);
-
-            // Create allocations : TX
-            let tx = await executeContract(terra, wallet, chainConfigs.generalInfo.astro_token,
-                {
-                    send: {
-                        contract: network.builderUnlockAddress,
-                        amount: String(astro_to_transfer),
-                        msg: Buffer.from(
-                            JSON.stringify({
-                                create_allocations: {
-                                    allocations: allocations_to_create,
-                                },
-                            })
-                        ).toString("base64")
-                    },
+                for (let i = from; i < till; i++) {
+                    astro_to_transfer += Number(allocations[i][1].amount);
+                    allocations_to_create.push(allocations[i]);
                 }
-            );
 
-            console.log(
-                `Creating ASTRO Unlocking schedules ::: ${from} - ${till}, ASTRO sent : ${
-                    astro_to_transfer / 1000000
-                }, \n Tx hash --> ${tx.txhash} \n`
-            );
+                console.log(`from ${from} to ${till}:  ${astro_to_transfer / 1000000} ASTRO to transfer.`);
 
-            await delay(1000);
+                // Create allocations : TX
+                let tx = await executeContract(terra, wallet, chainConfigs.generalInfo.astro_token,
+                    {
+                        send: {
+                            contract: network.builderUnlockAddress,
+                            amount: String(astro_to_transfer),
+                            msg: Buffer.from(
+                                JSON.stringify({
+                                    create_allocations: {
+                                        allocations: allocations_to_create,
+                                    },
+                                })
+                            ).toString("base64")
+                        },
+                    }
+                );
+
+                console.log(
+                    `Creating ASTRO Unlocking schedules ::: ${from} - ${till}, ASTRO sent : ${
+                        astro_to_transfer / 1000000
+                    }, \n Tx hash --> ${tx.txhash} \n`
+                );
+
+                network[`allocations_created_${from}_${till}`] = true;
+                writeArtifact(network, terra.config.chainID);
+                await delay(1000);
+            }
 
             from = till;
             step = allocations.length > (till + step) ? step : allocations.length - till

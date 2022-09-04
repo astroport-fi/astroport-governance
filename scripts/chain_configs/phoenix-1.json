@@ -7,7 +7,7 @@
     "generator_addr": "terra1ksvlfex49desf4c452j6dewdjs6c48nafemetuwjyj6yexd7x3wqvwa7j9"
   },
   "teamUnlock": {
-    "admin": "terra174gu7kg8ekk5gsxdma5jlfcedm653tyg6ayppw",
+    "admin": null,
     "initMsg": {
       "owner": null,
       "astro_token": null,
@@ -326,7 +326,7 @@
     }
   },
   "assembly": {
-    "admin": "terra174gu7kg8ekk5gsxdma5jlfcedm653tyg6ayppw",
+    "admin": null,
     "initMsg": {
       "xastro_token_addr": null,
       "builder_unlock_addr": null,
@@ -341,7 +341,7 @@
     "label": "Astroport Assembly Contract"
   },
   "votingEscrow": {
-    "admin": "terra174gu7kg8ekk5gsxdma5jlfcedm653tyg6ayppw",
+    "admin": null,
     "initMsg": {
       "owner": null,
       "guardian_addr": "terra1vp629527wwvm9kxqsgn4fx2plgs4j5un0ea5yu",
@@ -349,7 +349,7 @@
       "marketing": {
         "project": "Astroport",
         "description": "Astroport is a neutral marketplace where anyone, from anywhere in the galaxy, can dock to trade their wares.",
-        "marketing": "terra1vp629527wwvm9kxqsgn4fx2plgs4j5un0ea5yu",
+        "marketing": null,
         "logo": {
           "url": "https://astroport.fi/vxastro_logo.png"
         }
@@ -359,7 +359,7 @@
     "label": "Astroport Voting Escrow Contract"
   },
   "feeDistributor": {
-    "admin": "terra174gu7kg8ekk5gsxdma5jlfcedm653tyg6ayppw",
+    "admin": null,
     "initMsg": {
       "owner": null,
       "astro_token": null,
@@ -370,7 +370,7 @@
     "label": "Astroport Escrow Fee Distributor Contract"
   },
   "generatorController": {
-    "admin": "terra174gu7kg8ekk5gsxdma5jlfcedm653tyg6ayppw",
+    "admin": null,
     "initMsg": {
       "owner": null,
       "escrow_addr": null,
@@ -381,7 +381,7 @@
     "label": "Astroport Generator Controller Contract"
   },
   "votingEscrowDelegation": {
-    "admin": "terra174gu7kg8ekk5gsxdma5jlfcedm653tyg6ayppw",
+    "admin": null,
     "initMsg": {
       "owner": null,
       "voting_escrow_addr": null,
