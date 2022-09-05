@@ -11,7 +11,7 @@
     "initMsg": {
       "owner": null,
       "astro_token": null,
-      "max_allocations_amount": "300000000000000"
+      "max_allocations_amount": "300000000000100"
     },
     "label": "Astroport Builder Unlocking Contract",
     "change_owner": false,
