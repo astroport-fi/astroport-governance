@@ -4,6 +4,10 @@
 
 This repo contains Astroport Governance related contracts.
 
+## Contracts diagram
+
+![contract diagram](./assets/sc_diagram.png "Contracts Diagram")
+
 ## Contracts
 
 | Name                           | Description                      |
