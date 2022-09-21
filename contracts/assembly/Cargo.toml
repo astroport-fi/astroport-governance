@@ -14,23 +14,23 @@ backtraces = ["cosmwasm-std/backtraces"]
 library = []
 
 [dependencies]
-cw2 = "0.13"
-cw20 = "0.13"
-cosmwasm-std = "1.0"
+cw2 = "0.15"
+cw20 = "0.15"
+cosmwasm-std = "1.1"
 cw-storage-plus = "0.13"
-schemars = "0.8.1"
+schemars = "0.8"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 astroport-governance = { path = "../../packages/astroport-governance" }
 thiserror = { version = "1.0.20" }
+cosmwasm-schema = "1.1"
 
 [dev-dependencies]
-cosmwasm-schema = "1.0"
-cw-multi-test = "0.13"
-astroport-token = {git = "https://github.com/astroport-fi/astroport-core.git", branch = "main" }
-astroport-xastro-token = {git = "https://github.com/astroport-fi/astroport-core.git", branch = "main"}
+cw-multi-test = "0.15"
+astroport-token = {git = "https://github.com/astroport-fi/astroport-core.git", branch = "feat/migrate-all-SC-to-std-1.1" }
+astroport-xastro-token = {git = "https://github.com/astroport-fi/astroport-core.git", branch = "feat/migrate-all-SC-to-std-1.1"}
 voting-escrow = { path= "../voting_escrow" }
 voting-escrow-delegation = { path="../voting_escrow_delegation" }
 astroport-nft = { path = "../nft"}
-astroport-staking = {git = "https://github.com/astroport-fi/astroport-core.git", branch = "main" }
+astroport-staking = {git = "https://github.com/astroport-fi/astroport-core.git", branch = "feat/migrate-all-SC-to-std-1.1" }
 builder-unlock = {path = "../builder_unlock" }
 anyhow = "1"
