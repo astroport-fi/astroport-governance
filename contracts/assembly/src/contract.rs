@@ -708,7 +708,7 @@ pub fn query_proposals(
     let proposal_count = PROPOSAL_COUNT.load(deps.storage)?;
 
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-    let start = start.map(|start| Bound::inclusive(start));
+    let start = start.map(Bound::inclusive);
 
     let proposal_list = PROPOSALS
         .range(deps.storage, start, None, Order::Ascending)

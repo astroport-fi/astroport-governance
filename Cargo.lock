@@ -35,7 +35,7 @@ dependencies = [
 [[package]]
 name = "astroport"
 version = "2.0.0"
-source = "git+https://github.com/astroport-fi/astroport-core.git?branch=feat/migrate-all-SC-to-std-1.1#c4018e1e3490186647d8c029a1cdd8501eb80687"
+source = "git+https://github.com/astroport-fi/astroport-core.git?branch=feat/migrate-all-SC-to-std-1.1#80be9604a270e899af592d09770284e5566ed950"
 dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -68,7 +68,7 @@ dependencies = [
 [[package]]
 name = "astroport-factory"
 version = "1.3.1"
-source = "git+https://github.com/astroport-fi/astroport-core.git?branch=feat/migrate-all-SC-to-std-1.1#c4018e1e3490186647d8c029a1cdd8501eb80687"
+source = "git+https://github.com/astroport-fi/astroport-core.git?branch=feat/migrate-all-SC-to-std-1.1#80be9604a270e899af592d09770284e5566ed950"
 dependencies = [
  "astroport",
  "cosmwasm-schema",
@@ -85,7 +85,7 @@ dependencies = [
 [[package]]
 name = "astroport-generator"
 version = "2.1.0"
-source = "git+https://github.com/astroport-fi/astroport-core.git?branch=feat/migrate-all-SC-to-std-1.1#c4018e1e3490186647d8c029a1cdd8501eb80687"
+source = "git+https://github.com/astroport-fi/astroport-core.git?branch=feat/migrate-all-SC-to-std-1.1#80be9604a270e899af592d09770284e5566ed950"
 dependencies = [
  "astroport",
  "astroport-governance 1.1.0 (git+https://github.com/astroport-fi/astroport-governance.git?branch=feat/migrate-to-cosmwasm-1.1)",
@@ -142,7 +142,7 @@ dependencies = [
 [[package]]
 name = "astroport-pair"
 version = "1.0.0"
-source = "git+https://github.com/astroport-fi/astroport-core.git?branch=feat/migrate-all-SC-to-std-1.1#c4018e1e3490186647d8c029a1cdd8501eb80687"
+source = "git+https://github.com/astroport-fi/astroport-core.git?branch=feat/migrate-all-SC-to-std-1.1#80be9604a270e899af592d09770284e5566ed950"
 dependencies = [
  "astroport",
  "cosmwasm-schema",
@@ -160,7 +160,7 @@ dependencies = [
 [[package]]
 name = "astroport-staking"
 version = "1.0.0"
-source = "git+https://github.com/astroport-fi/astroport-core.git?branch=feat/migrate-all-SC-to-std-1.1#c4018e1e3490186647d8c029a1cdd8501eb80687"
+source = "git+https://github.com/astroport-fi/astroport-core.git?branch=feat/migrate-all-SC-to-std-1.1#80be9604a270e899af592d09770284e5566ed950"
 dependencies = [
  "astroport",
  "cosmwasm-schema",
@@ -202,7 +202,7 @@ dependencies = [
 [[package]]
 name = "astroport-token"
 version = "1.0.0"
-source = "git+https://github.com/astroport-fi/astroport-core.git?branch=feat/migrate-all-SC-to-std-1.1#c4018e1e3490186647d8c029a1cdd8501eb80687"
+source = "git+https://github.com/astroport-fi/astroport-core.git?branch=feat/migrate-all-SC-to-std-1.1#80be9604a270e899af592d09770284e5566ed950"
 dependencies = [
  "astroport",
  "cosmwasm-schema",
@@ -218,7 +218,7 @@ dependencies = [
 [[package]]
 name = "astroport-whitelist"
 version = "1.0.0"
-source = "git+https://github.com/astroport-fi/astroport-core.git?branch=feat/migrate-all-SC-to-std-1.1#c4018e1e3490186647d8c029a1cdd8501eb80687"
+source = "git+https://github.com/astroport-fi/astroport-core.git?branch=feat/migrate-all-SC-to-std-1.1#80be9604a270e899af592d09770284e5566ed950"
 dependencies = [
  "astroport",
  "cosmwasm-schema",
@@ -233,7 +233,7 @@ dependencies = [
 [[package]]
 name = "astroport-xastro-token"
 version = "1.0.0"
-source = "git+https://github.com/astroport-fi/astroport-core.git?branch=feat/migrate-all-SC-to-std-1.1#c4018e1e3490186647d8c029a1cdd8501eb80687"
+source = "git+https://github.com/astroport-fi/astroport-core.git?branch=feat/migrate-all-SC-to-std-1.1#80be9604a270e899af592d09770284e5566ed950"
 dependencies = [
  "astroport",
  "cosmwasm-schema",

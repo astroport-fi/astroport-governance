@@ -13,7 +13,7 @@ pub struct Helper {
     pub escrow_helper: EscrowHelper,
     pub delegation_instance: Addr,
     pub nft_instance: Addr,
-    pub nft_helper: Cw721Contract,
+    pub nft_helper: Cw721Contract<Empty, Empty>,
 }
 
 impl Helper {
@@ -83,7 +83,11 @@ impl Helper {
             nft_id,
         );
 
-        let nft_helper = cw721_base::helpers::Cw721Contract(nft_addr.clone());
+        let nft_helper = cw721_base::helpers::Cw721Contract(
+            nft_addr.clone(),
+            Default::default(),
+            Default::default(),
+        );
 
         Helper {
             escrow_helper,
