@@ -25,18 +25,7 @@ use crate::state::{CONFIG, OWNERSHIP_PROPOSAL, PARAMS, STATE, STATUS};
 const CONTRACT_NAME: &str = "builder-unlock";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
-/// ## Description
 /// Creates a new contract with the specified parameters in the `msg` variable.
-/// Returns a [`Response`] with the specified attributes if the operation was successful,
-/// or a [`ContractError`] if the contract was not created.
-/// ## Params
-/// * **deps** is an object of type [`DepsMut`].
-///
-/// * **_env** is an object of type [`Env`]
-///
-/// * **_info** is an object of type [`MessageInfo`]
-///
-/// * **msg**  is a message of type [`InstantiateMsg`] which contains the parameters used for creating a contract.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
@@ -56,7 +45,6 @@ pub fn instantiate(
     Ok(Response::default())
 }
 
-/// ## Description
 /// Exposes all the execute functions available in the contract.
 ///
 /// ## Execute messages
@@ -149,16 +137,9 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
     }
 }
 
-/// ## Description
 /// Receives a message of type [`Cw20ReceiveMsg`] and processes it depending on the received template.
-/// If the template is not found in the received message, then a [`ContractError`] is returned,
-/// otherwise it returns a [`Response`] with the specified attributes if the operation was successful.
-/// ## Params
-/// * **deps** is an object of type [`DepsMut`].
 ///
-/// * **info** is an object of type [`MessageInfo`].
-///
-/// * **cw20_msg** is an object of type [`Cw20ReceiveMsg`]. This is the CW20 message to process.
+/// * **cw20_msg** CW20 message to process.
 fn execute_receive_cw20(
     deps: DepsMut,
     info: MessageInfo,
@@ -189,14 +170,7 @@ fn execute_receive_cw20(
     }
 }
 
-/// ## Description
 /// Expose available contract queries.
-/// ## Params
-/// * **deps** is an object of type [`Deps`].
-///
-/// * **_env** is an object of type [`Env`].
-///
-/// * **msg** is an object of type [`QueryMsg`].
 ///
 /// ## Queries
 /// * **QueryMsg::Config {}** Return the contract configuration.
@@ -223,18 +197,15 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     }
 }
 
-/// ## Description
 /// Admin function facilitating the creation of new allocations.
-/// ## Params
-/// * **deps** is an object of type [`DepsMut`].
 ///
-/// * **creator** is an object of type [`String`]. This is the allocations creator (the contract admin).
+/// * **creator** allocations creator (the contract admin).
 ///
-/// * **deposit_token** is an object of type [`Addr`]. This is the token being deposited (should be ASTRO).
+/// * **deposit_token** token being deposited (should be ASTRO).
 ///
-/// * **deposit_amount** is an object of type [`Uint128`]. This is the of tokens sent along with the call (should equal the sum of allocation amounts)
+/// * **deposit_amount** tokens sent along with the call (should equal the sum of allocation amounts)
 ///
-/// * **deposit_amount** is a vector of tuples of type [(`String`, `AllocationParams`)]. New allocations being created.
+/// * **deposit_amount** new allocations being created.
 fn execute_create_allocations(
     deps: DepsMut,
     creator: String,
@@ -296,14 +267,7 @@ fn execute_create_allocations(
     Ok(Response::default())
 }
 
-/// ## Description
 /// Allow allocation recipients to withdraw unlocked ASTRO.
-/// ## Params
-/// * **deps** is an object of type [`DepsMut`].
-///
-/// * **env** is an object of type [`Env`].
-///
-/// * **info** is an object of type [`MessageInfo`].
 fn execute_withdraw(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Response> {
     let config = CONFIG.load(deps.storage)?;
     let mut state = STATE.may_load(deps.storage)?.unwrap_or_default();
@@ -338,14 +302,9 @@ fn execute_withdraw(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Res
         .add_attribute("astro_withdrawn", astro_to_withdraw))
 }
 
-/// ## Description
 /// Allows the current allocation receiver to propose a new receiver.
-/// ## Params
-/// * **deps** is an object of type [`DepsMut`].
 ///
-/// * **info** is an object of type [`MessageInfo`].
-///
-/// * **new_receiver** is an object of type [`String`]. Newly proposed receiver for the allocation.
+/// * **new_receiver** new proposed receiver for the allocation.
 fn execute_propose_new_receiver(
     deps: DepsMut,
     info: MessageInfo,
@@ -382,12 +341,7 @@ fn execute_propose_new_receiver(
         .add_attribute("proposed_receiver", new_receiver))
 }
 
-/// ## Description
-/// Drop the newly proposed receiver for a specific allocation.
-/// ## Params
-/// * **deps** is an object of type [`DepsMut`].
-///
-/// * **info** is an object of type [`MessageInfo`].
+/// Drop the new proposed receiver for a specific allocation.
 fn execute_drop_new_receiver(deps: DepsMut, info: MessageInfo) -> StdResult<Response> {
     let mut alloc_params = PARAMS.load(deps.storage, &info.sender)?;
 
@@ -404,18 +358,11 @@ fn execute_drop_new_receiver(deps: DepsMut, info: MessageInfo) -> StdResult<Resp
     }
 }
 
-/// ## Description
 /// Decrease an address' ASTRO allocation.
-/// ## Params
-/// * **deps** is an object of type [`DepsMut`].
 ///
-/// * **env** is an object of type [`Env`].
+/// * **receiver** address that will have its allocation decreased.
 ///
-/// * **info** is an object of type [`MessageInfo`].
-///
-/// * **receiver** is an object of type [`String`]. The address that will have its allocation decreased.
-///
-/// * **amount** is an object of type [`Uint128`]. ASTRO amount to decrease the allocation by.
+/// * **amount** ASTRO amount to decrease the allocation by.
 fn execute_decrease_allocation(
     deps: DepsMut,
     env: Env,
@@ -467,18 +414,13 @@ fn execute_decrease_allocation(
     ]))
 }
 
-/// ## Description
 /// Increase an address' ASTRO allocation.
-/// ## Params
-/// * **deps** is an object of type [`DepsMut`].
 ///
-/// * **config** is an object of type [`Config`].
+/// * **receiver** address that will have its allocation incrased.
 ///
-/// * **receiver** is an object of type [`String`]. The address that will have its allocation incrased.
+/// * **amount** ASTRO amount to increase the allocation by.
 ///
-/// * **amount** is an object of type [`Uint128`]. ASTRO amount to increase the allocation by.
-///
-/// * **deposit_amount** is an [`Option`] of type [`Uint128`]. Amount of ASTRO to increase the allocation by using CW20 Receive.
+/// * **deposit_amount** iaAmount of ASTRO to increase the allocation by using CW20 Receive.
 fn execute_increase_allocation(
     deps: DepsMut,
     config: &Config,
@@ -530,16 +472,11 @@ fn execute_increase_allocation(
         .add_attribute("receiver", receiver))
 }
 
-/// ## Description
 /// Transfer unallocated ASTRO tokens to a recipient.
-/// ## Params
-/// * **deps** is an object of type [`DepsMut`].
 ///
-/// * **info** is an object of type [`MessageInfo`].
+/// * **amount** amount ASTRO to transfer.
 ///
-/// * **amount** is an object of type [`Uint128`]. Amount ASTRO to transfer.
-///
-/// * **recipient** is an [`Option`] of type [`u64`]. Transfer recipient.
+/// * **recipient** transfer recipient.
 fn execute_transfer_unallocated(
     deps: DepsMut,
     info: MessageInfo,
@@ -580,14 +517,9 @@ fn execute_transfer_unallocated(
         .add_attribute("amount", amount))
 }
 
-/// ## Description
 /// Allows a newly proposed allocation receiver to claim the ownership of that allocation.
-/// ## Params
-/// * **deps** is an object of type [`DepsMut`].
 ///
-/// * **info** is an object of type [`MessageInfo`].
-///
-/// * **prev_receiver** is an object of type [`String`]. This is the previous receiver for hte allocation.
+/// * **prev_receiver** this is the previous receiver for hte allocation.
 fn execute_claim_receiver(
     deps: DepsMut,
     info: MessageInfo,
@@ -644,14 +576,7 @@ fn execute_claim_receiver(
     ]))
 }
 
-/// ## Description
-/// Updates contract parameters.
-/// ## Params
-/// * **deps** is an object of type [`DepsMut`].
-///
-/// * **info** is an object of type [`MessageInfo`].
-///
-/// * **new_max_allocations_amount** is an object of type [`Uint128`].
+/// Updates max allocations amount.
 fn update_config(
     deps: DepsMut,
     info: MessageInfo,
@@ -673,10 +598,7 @@ fn update_config(
         .add_attribute("new_max_allocations_amount", new_max_allocations_amount))
 }
 
-/// ## Description
 /// Return the global distribution state.
-/// ## Params
-/// * **deps** is an object of type [`DepsMut`].
 pub fn query_state(deps: Deps) -> StdResult<StateResponse> {
     let state = STATE.may_load(deps.storage)?.unwrap_or_default();
     Ok(StateResponse {
@@ -686,12 +608,9 @@ pub fn query_state(deps: Deps) -> StdResult<StateResponse> {
     })
 }
 
-/// ## Description
 /// Return information about a specific allocation.
-/// ## Params
-/// * **deps** is an object of type [`DepsMut`].
 ///
-/// * **account** is an object of type [`String`]. This is the account whose allocation we query.
+/// * **account** account whose allocation we query.
 fn query_allocation(deps: Deps, account: String) -> StdResult<AllocationResponse> {
     let account_checked = addr_validate_to_lower(deps.api, &account)?;
 
@@ -705,14 +624,9 @@ fn query_allocation(deps: Deps, account: String) -> StdResult<AllocationResponse
     })
 }
 
-/// ## Description
 /// Return the total amount of unlocked tokens for a specific account.
-/// ## Params
-/// * **deps** is an object of type [`DepsMut`].
 ///
-/// * **env** is an object of type [`Env`].
-///
-/// * **account** is an object of type [`String`]. This is the account whose unlocked token amount we query.
+/// * **account** account whose unlocked token amount we query.
 fn query_tokens_unlocked(deps: Deps, env: Env, account: String) -> StdResult<Uint128> {
     let account_checked = addr_validate_to_lower(deps.api, &account)?;
 
@@ -727,16 +641,11 @@ fn query_tokens_unlocked(deps: Deps, env: Env, account: String) -> StdResult<Uin
     ))
 }
 
-/// ## Description
 /// Simulate a token withdrawal.
-/// ## Params
-/// * **deps** is an object of type [`DepsMut`].
 ///
-/// * **env** is an object of type [`Env`].
+/// * **account** account for which we simulate a withdrawal.
 ///
-/// * **account** is an object of type [`String`]. This is the account for which we simulate a withdrawal.
-///
-/// * **timestamp** is an [`Option`] of type [`u64`]. This is the timestamp where we assume the account would withdraw.
+/// * **timestamp** timestamp where we assume the account would withdraw.
 fn query_simulate_withdraw(
     deps: Deps,
     env: Env,
@@ -755,14 +664,7 @@ fn query_simulate_withdraw(
     ))
 }
 
-/// ## Description
-/// Used for contract migration. Returns a default object of type [`Response`].
-/// ## Params
-/// * **deps** is an object of type [`DepsMut`].
-///
-/// * **_env** is an object of type [`Env`].
-///
-/// * **msg** is an object of type [`Empty`].
+/// Manages contract migration
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> StdResult<Response> {
     let contract_version = get_contract_version(deps.storage)?;
@@ -829,7 +731,7 @@ mod helpers {
     use astroport_governance::builder_unlock::msg::SimulateWithdrawResponse;
     use astroport_governance::builder_unlock::{AllocationParams, AllocationStatus, Schedule};
 
-    // Computes number of tokens that are now unlocked for a given allocation
+    /// Computes number of tokens that are now unlocked for a given allocation
     pub fn compute_unlocked_amount(
         timestamp: u64,
         amount: Uint128,
@@ -861,7 +763,7 @@ mod helpers {
         }
     }
 
-    // Computes number of tokens that are withdrawable for a given allocation
+    /// Computes number of tokens that are withdrawable for a given allocation
     pub fn compute_withdraw_amount(
         timestamp: u64,
         params: &AllocationParams,
