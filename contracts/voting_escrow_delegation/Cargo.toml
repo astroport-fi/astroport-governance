@@ -16,7 +16,7 @@ backtraces = ["cosmwasm-std/backtraces"]
 
 [dependencies]
 cosmwasm-std = "1.1"
-cw-storage-plus = "0.13"
+cw-storage-plus = "0.15"
 cw-utils = "0.15"
 cw2 = "0.15"
 schemars = "0.8"

@@ -31,7 +31,7 @@ pub fn instantiate(
         name: msg.name,
         symbol: msg.symbol,
     };
-    let tract = Cw721Contract::<Extension, Empty>::default();
+    let tract = Cw721Contract::<Extension, Empty, Empty, Empty>::default();
     tract.contract_info.save(deps.storage, &info)?;
 
     let minter = addr_validate_to_lower(deps.api, msg.minter)?;
@@ -45,16 +45,16 @@ pub fn execute(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    msg: ExecuteMsg<Extension>,
+    msg: ExecuteMsg<Extension, Empty>,
 ) -> Result<Response, ContractError> {
-    let tract = Cw721Contract::<Extension, Empty>::default();
+    let tract = Cw721Contract::<Extension, Empty, Empty, Empty>::default();
     tract.execute(deps, env, info, msg)
 }
 
 /// Exposes queries available in the contract.
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
-    let tract = Cw721Contract::<Extension, Empty>::default();
+pub fn query(deps: Deps, env: Env, msg: QueryMsg<Empty>) -> StdResult<Binary> {
+    let tract = Cw721Contract::<Extension, Empty, Empty, Empty>::default();
     tract.query(deps, env, msg)
 }
 
