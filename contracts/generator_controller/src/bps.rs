@@ -5,7 +5,6 @@ use serde::{Deserialize, Serialize};
 use std::convert::{TryFrom, TryInto};
 use std::ops::Mul;
 
-/// ## Description
 /// BasicPoints struct implementation. BasicPoints value is within [0, 10000] interval.
 /// Technically BasicPoints is wrapper over [`u16`] with additional limit checks and
 /// several implementations of math functions so BasicPoints object

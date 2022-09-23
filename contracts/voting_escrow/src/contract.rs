@@ -307,7 +307,6 @@ fn checkpoint_total(
 /// period in [`HISTORY`] (using the user's address).
 /// If a user already checkpointed themselves for the current period, then this function uses the current checkpoint as the latest
 /// available one.
-/// ## Params
 ///
 /// * **addr** staker for which we checkpoint the voting power.
 ///
@@ -716,7 +715,6 @@ fn execute_update_config(
     Ok(Response::default().add_attribute("action", "execute_update_config"))
 }
 
-/// ## Description
 /// Expose available contract queries.
 ///
 /// ## Queries

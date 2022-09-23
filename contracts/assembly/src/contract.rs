@@ -149,7 +149,6 @@ pub fn receive_cw20(
     }
 }
 
-/// ## Description
 /// Submit a brand new proposal and locks some xASTRO as an anti-spam mechanism.
 ///
 /// * **sender** proposal submitter.
