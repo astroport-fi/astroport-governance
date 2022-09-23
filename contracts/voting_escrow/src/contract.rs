@@ -276,7 +276,7 @@ fn checkpoint_total(
     let add_voting_power = add_voting_power.unwrap_or_default();
 
     // Get last checkpoint
-    let last_checkpoint = fetch_last_checkpoint(storage, &contract_addr, &cur_period_key)?;
+    let last_checkpoint = fetch_last_checkpoint(storage, &contract_addr, cur_period_key)?;
     let new_point = if let Some((_, mut point)) = last_checkpoint {
         let last_slope_change = LAST_SLOPE_CHANGE.may_load(storage)?.unwrap_or(0);
         if last_slope_change < cur_period {
@@ -347,7 +347,7 @@ fn checkpoint(
     let mut add_voting_power = Uint128::zero();
 
     // Get the last user checkpoint
-    let last_checkpoint = fetch_last_checkpoint(deps.storage, &addr, &cur_period_key)?;
+    let last_checkpoint = fetch_last_checkpoint(deps.storage, &addr, cur_period_key)?;
     let new_point = if let Some((_, point)) = last_checkpoint {
         let end = new_end.unwrap_or(point.end);
         let dt = end.saturating_sub(cur_period);
@@ -688,7 +688,7 @@ fn update_blacklist(
     let mut old_slopes = Uint128::zero(); // accumulator for old slopes
 
     for addr in append.iter() {
-        let last_checkpoint = fetch_last_checkpoint(deps.storage, addr, &cur_period_key)?;
+        let last_checkpoint = fetch_last_checkpoint(deps.storage, addr, cur_period_key)?;
         if let Some((_, point)) = last_checkpoint {
             // We need to checkpoint with zero power and zero slope
             HISTORY.save(
@@ -935,7 +935,7 @@ fn get_user_lock_info(deps: Deps, env: Env, user: String) -> StdResult<LockInfoR
     let addr = addr_validate_to_lower(deps.api, &user)?;
     if let Some(lock) = LOCKED.may_load(deps.storage, addr.clone())? {
         let cur_period = get_period(env.block.time.seconds())?;
-        let slope = fetch_last_checkpoint(deps.storage, &addr, &cur_period)?
+        let slope = fetch_last_checkpoint(deps.storage, &addr, cur_period)?
             .map(|(_, point)| point.slope)
             .unwrap_or_default();
         let resp = LockInfoResponse {
@@ -1004,9 +1004,7 @@ fn get_user_voting_power_at_period(
     period: u64,
 ) -> StdResult<VotingPowerResponse> {
     let user = addr_validate_to_lower(deps.api, &user)?;
-    let period_key = period;
-
-    let last_checkpoint = fetch_last_checkpoint(deps.storage, &user, &period_key)?;
+    let last_checkpoint = fetch_last_checkpoint(deps.storage, &user, period)?;
 
     if let Some(point) = last_checkpoint.map(|(_, point)| point) {
         // The voting power point at the specified `time` was found
@@ -1071,9 +1069,7 @@ fn get_total_voting_power_at_period(
     env: Env,
     period: u64,
 ) -> StdResult<VotingPowerResponse> {
-    let period_key = period;
-
-    let last_checkpoint = fetch_last_checkpoint(deps.storage, &env.contract.address, &period_key)?;
+    let last_checkpoint = fetch_last_checkpoint(deps.storage, &env.contract.address, period)?;
 
     let point = last_checkpoint.map_or(
         Point {

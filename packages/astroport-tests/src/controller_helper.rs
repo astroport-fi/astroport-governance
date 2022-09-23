@@ -85,6 +85,7 @@ impl ControllerHelper {
             vesting_contract: "vesting_placeholder".to_string(),
             whitelist_code_id,
             voting_escrow: None,
+            voting_escrow_delegation: None,
         };
 
         let generator = router
@@ -135,6 +136,7 @@ impl ControllerHelper {
                     guardian: None,
                     checkpoint_generator_limit: None,
                     voting_escrow: None,
+                    voting_escrow_delegation: None,
                 },
                 &[],
             )

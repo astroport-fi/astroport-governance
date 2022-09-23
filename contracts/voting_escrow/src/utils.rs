@@ -1,6 +1,6 @@
 use crate::error::ContractError;
 use astroport_governance::utils::{get_periods_count, MAX_LOCK_TIME, WEEK};
-use astroport_governance::U64Key;
+
 use cosmwasm_std::{Addr, Decimal, Order, StdResult, Storage, Uint128};
 use cw_storage_plus::Bound;
 
@@ -71,7 +71,7 @@ pub(crate) fn calc_coefficient(interval: u64) -> Decimal {
 pub(crate) fn fetch_last_checkpoint(
     storage: &dyn Storage,
     addr: &Addr,
-    period_key: &U64Key,
+    period_key: u64,
 ) -> StdResult<Option<(u64, Point)>> {
     HISTORY
         .prefix(addr.clone())

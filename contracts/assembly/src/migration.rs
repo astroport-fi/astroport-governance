@@ -1,7 +1,7 @@
 use crate::astroport::asset::{addr_opt_validate, addr_validate_to_lower};
 use crate::state::{CONFIG, PROPOSALS};
 use astroport_governance::assembly::{Config, Proposal, ProposalMessage, ProposalStatus};
-use astroport_governance::U64Key;
+
 use cosmwasm_std::{Addr, Decimal, DepsMut, StdError, StdResult, Uint128, Uint64};
 use cw_storage_plus::{Item, Map};
 use schemars::JsonSchema;
@@ -48,7 +48,7 @@ pub struct ProposalV100 {
     pub deposit_amount: Uint128,
 }
 
-pub const PROPOSALS_V100: Map<U64Key, ProposalV100> = Map::new("proposals");
+pub const PROPOSALS_V100: Map<u64, ProposalV100> = Map::new("proposals");
 
 /// This structure stores general parameters for the Assembly contract(v1.0.0).
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
