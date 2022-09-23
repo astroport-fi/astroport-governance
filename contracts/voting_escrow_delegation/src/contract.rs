@@ -36,8 +36,6 @@ const TOKEN_NAME: &str = "Delegated VP NFT";
 const TOKEN_SYMBOL: &str = "VP-NFT";
 
 /// Creates a new contract with the specified parameters in the [`InstantiateMsg`].
-/// Returns the default object of type [`Response`] if the operation was successful,
-/// or a [`ContractError`] if the contract was not created.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
@@ -170,10 +168,8 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
 }
 
 /// Creates NFT with specified parameters and connect it with delegated voting power
-/// in percent into other account. Returns [`Response`] in case of success or
-/// [`ContractError`] in case of errors.
+/// in percent into other account.
 ///
-/// ## Params
 /// * **percentage** is a percentage value to determine the amount of
 /// voting power to delegate
 ///
@@ -250,10 +246,8 @@ pub fn create_delegation(
         })))
 }
 
-/// Extends a previously created delegation by a new specified parameters. Returns [`Response`] in
-/// case of success or [`ContractError`] in case of errors.
+/// Extends a previously created delegation by a new specified parameters.
 ///
-/// ## Params
 /// * **percentage** is a percentage value to determine the amount of voting power to delegate.
 ///
 /// * **expire_time** is a point in time, at least a day in the future, at which the value of the
@@ -321,7 +315,6 @@ pub fn extend_delegation(
 
 /// Updates contract parameters.
 ///
-/// ## Params
 /// * **new_voting_escrow** is a new address of Voting Escrow contract.
 fn update_config(
     deps: DepsMut,
@@ -366,10 +359,8 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     }
 }
 
-/// Returns an adjusted voting power balance after accounting for delegations. Returns [`Response`]
-/// in case of success or [`StdError`] in case of errors.
+/// Returns an adjusted voting power balance after accounting for delegations.
 ///
-/// ## Params
 /// * **account** is an address of the account to return adjusted balance.
 ///
 /// * **timestamp** is a point in time, at least a day in the future, at which the value of
@@ -430,7 +421,6 @@ fn adjusted_balance(
 
 /// Returns an amount of delegated voting power.
 ///
-/// ## Params
 /// * **account** is an address of the account to return adjusted balance.
 ///
 /// * **timestamp** is an optional field that specifies the period for which the function
