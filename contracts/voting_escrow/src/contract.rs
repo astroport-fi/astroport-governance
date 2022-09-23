@@ -2,7 +2,7 @@ use crate::astroport;
 use astroport::asset::addr_validate_to_lower;
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport_governance::astroport::DecimalCheckedOps;
-use astroport_governance::U64Key;
+
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
@@ -95,7 +95,7 @@ pub fn instantiate(
     };
     HISTORY.save(
         deps.storage,
-        (env.contract.address.clone(), U64Key::new(cur_period)),
+        (env.contract.address.clone(), cur_period),
         &point,
     )?;
     BLACKLIST.save(deps.storage, &vec![])?;
@@ -271,7 +271,7 @@ fn checkpoint_total(
     new_slope: Uint128,
 ) -> StdResult<()> {
     let cur_period = get_period(env.block.time.seconds())?;
-    let cur_period_key = U64Key::new(cur_period);
+    let cur_period_key = cur_period;
     let contract_addr = env.contract.address;
     let add_voting_power = add_voting_power.unwrap_or_default();
 
@@ -290,11 +290,7 @@ fn checkpoint_total(
                     slope: point.slope - scheduled_change,
                     ..point
                 };
-                HISTORY.save(
-                    storage,
-                    (contract_addr.clone(), U64Key::new(recalc_period)),
-                    &point,
-                )?
+                HISTORY.save(storage, (contract_addr.clone(), recalc_period), &point)?
             }
 
             LAST_SLOPE_CHANGE.save(storage, &cur_period)?
@@ -345,7 +341,7 @@ fn checkpoint(
     new_end: Option<u64>,
 ) -> StdResult<()> {
     let cur_period = get_period(env.block.time.seconds())?;
-    let cur_period_key = U64Key::new(cur_period);
+    let cur_period_key = cur_period;
     let add_amount = add_amount.unwrap_or_default();
     let mut old_slope = Default::default();
     let mut add_voting_power = Uint128::zero();
@@ -578,7 +574,7 @@ fn withdraw(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, Cont
         // We need to checkpoint and eliminate the slope influence on a future lock
         HISTORY.save(
             deps.storage,
-            (sender, U64Key::new(cur_period)),
+            (sender, cur_period),
             &Point {
                 power: Uint128::zero(),
                 start: cur_period,
@@ -687,7 +683,7 @@ fn update_blacklist(
     }
 
     let cur_period = get_period(env.block.time.seconds())?;
-    let cur_period_key = U64Key::new(cur_period);
+    let cur_period_key = cur_period;
     let mut reduce_total_vp = Uint128::zero(); // accumulator for decreasing total voting power
     let mut old_slopes = Uint128::zero(); // accumulator for old slopes
 
@@ -697,7 +693,7 @@ fn update_blacklist(
             // We need to checkpoint with zero power and zero slope
             HISTORY.save(
                 deps.storage,
-                (addr.clone(), cur_period_key.clone()),
+                (addr.clone(), cur_period_key),
                 &Point {
                     power: Uint128::zero(),
                     slope: Default::default(),
@@ -939,7 +935,7 @@ fn get_user_lock_info(deps: Deps, env: Env, user: String) -> StdResult<LockInfoR
     let addr = addr_validate_to_lower(deps.api, &user)?;
     if let Some(lock) = LOCKED.may_load(deps.storage, addr.clone())? {
         let cur_period = get_period(env.block.time.seconds())?;
-        let slope = fetch_last_checkpoint(deps.storage, &addr, &U64Key::new(cur_period))?
+        let slope = fetch_last_checkpoint(deps.storage, &addr, &cur_period)?
             .map(|(_, point)| point.slope)
             .unwrap_or_default();
         let resp = LockInfoResponse {
@@ -1008,7 +1004,7 @@ fn get_user_voting_power_at_period(
     period: u64,
 ) -> StdResult<VotingPowerResponse> {
     let user = addr_validate_to_lower(deps.api, &user)?;
-    let period_key = U64Key::new(period);
+    let period_key = period;
 
     let last_checkpoint = fetch_last_checkpoint(deps.storage, &user, &period_key)?;
 
@@ -1075,7 +1071,7 @@ fn get_total_voting_power_at_period(
     env: Env,
     period: u64,
 ) -> StdResult<VotingPowerResponse> {
-    let period_key = U64Key::new(period);
+    let period_key = period;
 
     let last_checkpoint = fetch_last_checkpoint(deps.storage, &env.contract.address, &period_key)?;
 

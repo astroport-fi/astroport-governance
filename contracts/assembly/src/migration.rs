@@ -88,7 +88,7 @@ pub(crate) fn migrate_proposals_to_v111(deps: &mut DepsMut, cfg: &ConfigV100) ->
     for (key, proposal) in proposals_v100 {
         PROPOSALS.save(
             deps.storage,
-            U64Key::new(key),
+            key,
             &Proposal {
                 proposal_id: proposal.proposal_id,
                 submitter: proposal.submitter,

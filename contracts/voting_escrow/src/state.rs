@@ -1,5 +1,4 @@
 use crate::astroport::common::OwnershipProposal;
-use astroport_governance::U64Key;
 use cosmwasm_std::{Addr, Uint128};
 use cw_storage_plus::{Item, Map, SnapshotMap, Strategy};
 use schemars::JsonSchema;
@@ -62,10 +61,10 @@ pub const LOCKED: SnapshotMap<Addr, Lock> = SnapshotMap::new(
 
 /// Stores the checkpoint history for every staker (addr => period)
 /// Total voting power checkpoints are stored using a (contract_addr => period) key
-pub const HISTORY: Map<(Addr, U64Key), Point> = Map::new("history");
+pub const HISTORY: Map<(Addr, u64), Point> = Map::new("history");
 
 /// Scheduled slope changes per period (week)
-pub const SLOPE_CHANGES: Map<U64Key, Uint128> = Map::new("slope_changes");
+pub const SLOPE_CHANGES: Map<u64, Uint128> = Map::new("slope_changes");
 
 /// Last period when a scheduled slope change was applied
 pub const LAST_SLOPE_CHANGE: Item<u64> = Item::new("last_slope_change");

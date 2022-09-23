@@ -3,7 +3,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::astroport::common::OwnershipProposal;
 
-use astroport_governance::U64Key;
 use cosmwasm_std::{Addr, Uint128};
 use cw_storage_plus::{Item, Map};
 
@@ -25,7 +24,7 @@ pub struct Config {
 /// Stores the contract config at the given key.
 pub const CONFIG: Item<Config> = Item::new("config");
 /// Contains information about weekly distributed rewards.
-pub const REWARDS_PER_WEEK: Map<U64Key, Uint128> = Map::new("rewards_per_week");
+pub const REWARDS_PER_WEEK: Map<u64, Uint128> = Map::new("rewards_per_week");
 /// Contains information about the last week of reward issuance.
 pub const LAST_CLAIM_PERIOD: Map<&Addr, u64> = Map::new("last_claim_period");
 /// Contains the proposal to change contract ownership.
