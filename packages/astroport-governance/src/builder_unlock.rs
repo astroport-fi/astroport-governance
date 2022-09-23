@@ -132,21 +132,21 @@ pub mod msg {
     #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
     #[serde(rename_all = "snake_case")]
     pub enum QueryMsg {
-        // Config returns the configuration for this contract
+        /// Config returns the configuration for this contract
         Config {},
-        // State returns the state of this contract
+        /// State returns the state of this contract
         State {},
-        // Allocation returns the parameters and current status of an allocation
+        /// Allocation returns the parameters and current status of an allocation
         Allocation {
             /// Account whose allocation status we query
             account: String,
         },
-        // UnlockedTokens returns the unlocked tokens from an allocation
+        /// UnlockedTokens returns the unlocked tokens from an allocation
         UnlockedTokens {
             /// Account whose amount of unlocked ASTRO we query for
             account: String,
         },
-        // SimulateWithdraw simulates how many ASTRO will be released if a withdrawal is attempted
+        /// SimulateWithdraw simulates how many ASTRO will be released if a withdrawal is attempted
         SimulateWithdraw {
             /// Account for which we simulate a withdrawal
             account: String,
