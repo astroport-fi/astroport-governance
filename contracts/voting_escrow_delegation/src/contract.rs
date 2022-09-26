@@ -200,16 +200,14 @@ pub fn create_delegation(
     let exp_period = block_period + get_periods_count(expire_time);
 
     // We can create only one NFT for a specific token ID
-    // let nft_helper =
-    //     cw721_helpers::Cw721Contract::<Empty, Empty>(cfg.nft_addr, PhantomData, PhantomData).nft_info();
+    let nft_helper = cw721_helpers::Cw721Contract::<Empty, Empty>(
+        cfg.nft_addr.clone(),
+        PhantomData,
+        PhantomData,
+    );
 
     let nft_instance: StdResult<NftInfoResponse<Extension>> =
-        cw721_helpers::Cw721Contract::<Empty, Empty>(
-            cfg.nft_addr.clone(),
-            PhantomData,
-            PhantomData,
-        )
-        .nft_info(&deps.querier, &token_id);
+        nft_helper.nft_info(&deps.querier, &token_id);
 
     if nft_instance.is_ok() {
         return Err(ContractError::DelegationTokenAlreadyExists(token_id));
@@ -409,18 +407,17 @@ fn adjusted_balance(
     // we must to subtract the delegated voting power
     current_vp = current_vp.checked_sub(total_delegated_vp)?;
 
+    let nft_helper =
+        cw721_helpers::Cw721Contract::<Empty, Empty>(config.nft_addr, PhantomData, PhantomData);
+
     let mut account_tokens = vec![];
     let mut start_after = None;
 
     // we need to take all tokens for specified account
     loop {
-        let tokens = cw721_helpers::Cw721Contract::<Empty, Empty>(
-            config.nft_addr.clone(),
-            PhantomData,
-            PhantomData,
-        )
-        .tokens(&deps.querier, account.clone(), start_after, Some(MAX_LIMIT))?
-        .tokens;
+        let tokens = nft_helper
+            .tokens(&deps.querier, account.clone(), start_after, Some(MAX_LIMIT))?
+            .tokens;
         if tokens.is_empty() {
             break;
         }
