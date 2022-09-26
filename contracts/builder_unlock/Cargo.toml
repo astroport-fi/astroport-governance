@@ -20,10 +20,10 @@ cw20 = "0.15"
 cosmwasm-std = "1.1"
 cw-storage-plus = "0.15"
 schemars = "0.8.1"
-serde = { version = "1.0.103", default-features = false, features = ["derive"] }
+serde = { version = "1.0", default-features = false, features = ["derive"] }
 astroport-governance = { path = "../../packages/astroport-governance" }
 astroport = {git = "https://github.com/astroport-fi/astroport-core.git", branch = "feat/migrate-all-SC-to-std-1.1"}
-thiserror = { version = "1.0.20" }
+thiserror = { version = "1.0" }
 cosmwasm-schema = "1.1"
 
 [dev-dependencies]

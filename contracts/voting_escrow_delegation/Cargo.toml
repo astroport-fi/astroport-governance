@@ -20,11 +20,11 @@ cw-storage-plus = "0.15"
 cw-utils = "0.15"
 cw2 = "0.15"
 schemars = "0.8"
-serde = { version = "1.0", features = ["derive"] }
-thiserror = { version = "1.0.31" }
+serde = { version = "1.0", default-features = false, features = ["derive"] }
+thiserror = { version = "1.0" }
 astroport-governance = { path = "../../packages/astroport-governance" }
 cw721 = "0.15"
-cw721-base = { version = "0.15.0", features = ["library"] }
+cw721-base = { version = "0.15", features = ["library"] }
 cosmwasm-schema = "1.1"
 
 [dev-dependencies]
@@ -32,4 +32,4 @@ cw-multi-test = "0.15"
 astroport-tests = {path = "../../packages/astroport-tests"}
 astroport-nft = { path = "../nft"}
 anyhow = "1"
-proptest = "1.0.0"
+proptest = "1.0"

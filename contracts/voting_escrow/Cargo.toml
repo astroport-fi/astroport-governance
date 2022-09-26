@@ -28,9 +28,9 @@ cw20 = "0.15"
 cw20-base = { version = "0.15", features = ["library"] }
 cosmwasm-std = "1.1"
 cw-storage-plus = "0.15"
-schemars = "0.8.1"
-serde = { version = "1.0.103", default-features = false, features = ["derive"] }
-thiserror = { version = "1.0.20" }
+schemars = "0.8"
+serde = { version = "1.0", default-features = false, features = ["derive"] }
+thiserror = { version = "1.0" }
 astroport-governance = { path = "../../packages/astroport-governance" }
 cosmwasm-schema = "1.1"
 
@@ -40,4 +40,4 @@ astroport-token = { git = "https://github.com/astroport-fi/astroport-core.git", 
 astroport-staking = { git = "https://github.com/astroport-fi/astroport-core.git", branch = "feat/migrate-all-SC-to-std-1.1" }
 astroport-escrow-fee-distributor = { path = "../escrow_fee_distributor" }
 anyhow = "1"
-proptest = "1.0.0"
+proptest = "1.0"
