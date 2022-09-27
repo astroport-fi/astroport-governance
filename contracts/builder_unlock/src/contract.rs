@@ -420,7 +420,7 @@ fn execute_decrease_allocation(
 ///
 /// * **amount** ASTRO amount to increase the allocation by.
 ///
-/// * **deposit_amount** iaAmount of ASTRO to increase the allocation by using CW20 Receive.
+/// * **deposit_amount** is amount of ASTRO to increase the allocation by using CW20 Receive.
 fn execute_increase_allocation(
     deps: DepsMut,
     config: &Config,
@@ -519,7 +519,7 @@ fn execute_transfer_unallocated(
 
 /// Allows a newly proposed allocation receiver to claim the ownership of that allocation.
 ///
-/// * **prev_receiver** this is the previous receiver for hte allocation.
+/// * **prev_receiver** this is the previous receiver for the allocation.
 fn execute_claim_receiver(
     deps: DepsMut,
     info: MessageInfo,
