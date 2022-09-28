@@ -1,10 +1,10 @@
 use anyhow::Result;
 use astroport_governance::utils::EPOCH_START;
+use astroport_governance::voting_escrow_delegation::Config;
 use astroport_governance::voting_escrow_delegation::{InstantiateMsg, QueryMsg};
 use astroport_tests::escrow_helper::EscrowHelper;
 use cosmwasm_std::{to_binary, Addr, Empty, QueryRequest, StdResult, Uint128, WasmQuery};
 use cw_multi_test::{App, AppResponse, Contract, ContractWrapper, Executor};
-use voting_escrow_delegation::state;
 
 use astroport_governance::voting_escrow_delegation::ExecuteMsg;
 use cw721_base::helpers::Cw721Contract;
@@ -60,7 +60,7 @@ impl Helper {
 
         let res = router
             .wrap()
-            .query::<state::Config>(&QueryRequest::Wasm(WasmQuery::Smart {
+            .query::<Config>(&QueryRequest::Wasm(WasmQuery::Smart {
                 contract_addr: delegation_addr.to_string(),
                 msg: to_binary(&QueryMsg::Config {}).unwrap(),
             }))

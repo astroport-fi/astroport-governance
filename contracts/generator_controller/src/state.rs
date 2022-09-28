@@ -4,10 +4,9 @@ use crate::bps::BasicPoints;
 use astroport_governance::generator_controller::{
     ConfigResponse, GaugeInfoResponse, UserInfoResponse, VotedPoolInfoResponse,
 };
+use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Uint128};
 use cw_storage_plus::{Item, Map};
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
 
 /// This structure describes the main control config of generator controller contract.
 pub type Config = ConfigResponse;
@@ -17,7 +16,8 @@ pub type VotedPoolInfo = VotedPoolInfoResponse;
 pub type TuneInfo = GaugeInfoResponse;
 
 /// The struct describes last user's votes parameters.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Default)]
+#[cw_serde]
+#[derive(Default)]
 pub struct UserInfo {
     pub vote_ts: u64,
     pub voting_power: Uint128,

@@ -1,11 +1,10 @@
 use crate::astroport::common::OwnershipProposal;
+use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Uint128};
 use cw_storage_plus::{Item, Map, SnapshotMap, Strategy};
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
 
 /// This structure stores the main parameters for the voting escrow contract.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[cw_serde]
 pub struct Config {
     /// Address that's allowed to change contract parameters
     pub owner: Addr,
@@ -22,7 +21,7 @@ pub struct Config {
 }
 
 /// This structure stores points along the checkpoint history for every vxASTRO staker.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[cw_serde]
 pub struct Point {
     /// The staker's vxASTRO voting power
     pub power: Uint128,
@@ -35,7 +34,7 @@ pub struct Point {
 }
 
 /// This structure stores data about the lockup position for a specific vxASTRO staker.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[cw_serde]
 pub struct Lock {
     /// The total amount of xASTRO tokens that were deposited in the vxASTRO position
     pub amount: Uint128,

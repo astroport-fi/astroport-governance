@@ -1,9 +1,9 @@
 use astroport_governance::utils::WEEK;
+use astroport_governance::voting_escrow_delegation::Config;
 use astroport_governance::voting_escrow_delegation::QueryMsg;
 use cosmwasm_std::{to_binary, Addr, Empty, QueryRequest, Uint128, WasmQuery};
 use cw721_base::{ExecuteMsg as ExecuteMsgNFT, Extension, MintMsg, QueryMsg as QueryMsgNFT};
 use cw_multi_test::Executor;
-use voting_escrow_delegation::state;
 
 use cw721::{ContractInfoResponse, Cw721ExecuteMsg, NumTokensResponse, TokensResponse};
 
@@ -23,7 +23,7 @@ fn config() {
 
     let res = router
         .wrap()
-        .query::<state::Config>(&QueryRequest::Wasm(WasmQuery::Smart {
+        .query::<Config>(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: helper.delegation_instance.to_string(),
             msg: to_binary(&QueryMsg::Config {}).unwrap(),
         }))

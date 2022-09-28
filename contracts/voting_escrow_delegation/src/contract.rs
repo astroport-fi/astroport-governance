@@ -4,11 +4,13 @@ use astroport_governance::voting_escrow::{get_voting_power, get_voting_power_at,
 use std::marker::PhantomData;
 
 use crate::error::ContractError;
-use crate::state::{Config, CONFIG, DELEGATED, OWNERSHIP_PROPOSAL, TOKENS};
+use crate::state::{CONFIG, DELEGATED, OWNERSHIP_PROPOSAL, TOKENS};
 use astroport_governance::astroport::common::{
     claim_ownership, drop_ownership_proposal, propose_new_owner,
 };
-use astroport_governance::voting_escrow_delegation::{ExecuteMsg, InstantiateMsg, QueryMsg};
+use astroport_governance::voting_escrow_delegation::{
+    Config, ExecuteMsg, InstantiateMsg, QueryMsg,
+};
 
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;

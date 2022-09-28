@@ -1,9 +1,31 @@
 use crate::voting_escrow_delegation::QueryMsg::AdjustedBalance;
-use cosmwasm_std::{QuerierWrapper, StdResult, Uint128};
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
+use cosmwasm_schema::{cw_serde, QueryResponses};
+use cosmwasm_std::{Addr, QuerierWrapper, StdResult, Uint128};
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema)]
+/// This structure stores the main parameters for the voting escrow delegation contract.
+#[cw_serde]
+pub struct Config {
+    /// Address that's allowed to change contract parameters
+    pub owner: Addr,
+    /// Astroport NFT contract address
+    pub nft_addr: Addr,
+    /// vxASTRO contract address
+    pub voting_escrow_addr: Addr,
+}
+
+#[cw_serde]
+pub struct Token {
+    /// The amount of voting power to be delegated
+    pub power: Uint128,
+    /// Weekly voting power decay
+    pub slope: Uint128,
+    /// The start period when the delegated voting power start to decrease
+    pub start: u64,
+    /// The period when the delegated voting power should expire
+    pub expire_period: u64,
+}
+
+#[cw_serde]
 pub struct InstantiateMsg {
     /// The contract owner address
     pub owner: String,
@@ -13,8 +35,7 @@ pub struct InstantiateMsg {
     pub voting_escrow_addr: String,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[cw_serde]
 pub enum ExecuteMsg {
     CreateDelegation {
         /// The share of voting power (in bps) that will be delegated to the recipient
@@ -41,14 +62,17 @@ pub enum ExecuteMsg {
     ClaimOwnership {},
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[cw_serde]
+#[derive(QueryResponses)]
 pub enum QueryMsg {
+    #[returns(Config)]
     Config {},
+    #[returns(Uint128)]
     AdjustedBalance {
         account: String,
         timestamp: Option<u64>,
     },
+    #[returns(Uint128)]
     DelegatedVotingPower {
         account: String,
         timestamp: Option<u64>,

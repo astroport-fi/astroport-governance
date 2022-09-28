@@ -15,8 +15,6 @@ backtraces = ["cosmwasm-std/backtraces"]
 cw2 = "0.15"
 cw20 = "0.15"
 cosmwasm-std = "1.1"
-schemars = "0.8"
-serde = { version = "1.0", default-features = false, features = ["derive"] }
 
 cosmwasm-schema = "1.1"
 cw-multi-test = "0.15"

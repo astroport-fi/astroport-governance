@@ -2,19 +2,18 @@ use crate::astroport::asset::{addr_opt_validate, addr_validate_to_lower};
 use crate::state::{CONFIG, PROPOSALS};
 use astroport_governance::assembly::{Config, Proposal, ProposalMessage, ProposalStatus};
 
+use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Decimal, DepsMut, StdError, StdResult, Uint128, Uint64};
 use cw_storage_plus::{Item, Map};
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
 
 /// This structure describes a migration message.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[cw_serde]
 pub struct MigrateMsg {
     voting_escrow_delegator_addr: Option<String>,
     vxastro_token_addr: Option<String>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[cw_serde]
 pub struct ProposalV100 {
     /// Unique proposal ID
     pub proposal_id: Uint64,
@@ -51,7 +50,7 @@ pub struct ProposalV100 {
 pub const PROPOSALS_V100: Map<u64, ProposalV100> = Map::new("proposals");
 
 /// This structure stores general parameters for the Assembly contract(v1.0.0).
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[cw_serde]
 pub struct ConfigV100 {
     /// xASTRO token address
     pub xastro_token_addr: Addr,
