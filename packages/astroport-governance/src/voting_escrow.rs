@@ -1,9 +1,12 @@
 use crate::voting_escrow::QueryMsg::{
     LockInfo, TotalVotingPower, TotalVotingPowerAt, UserVotingPower, UserVotingPowerAt,
 };
-use cosmwasm_schema::cw_serde;
+use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Addr, Binary, Decimal, QuerierWrapper, StdResult, Uint128};
-use cw20::{Cw20ReceiveMsg, Logo};
+use cw20::{
+    BalanceResponse, Cw20ReceiveMsg, DownloadLogoResponse, Logo, MarketingInfoResponse,
+    TokenInfoResponse,
+};
 use std::fmt;
 
 /// ## Pagination settings
@@ -179,7 +182,7 @@ pub enum QueryMsg {
     #[returns(Uint128)]
     UserDepositAtHeight { user: String, height: u64 },
     /// Return the  vxASTRO contract configuration
-    #[returns(Config)]
+    #[returns(ConfigResponse)]
     Config {},
 }
 

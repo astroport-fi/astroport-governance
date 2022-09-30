@@ -308,7 +308,7 @@ fn handle_vote(
                 }
             }
             // Check an address is a lp token
-            pair_info_by_pool(&deps.querier, &addr)
+            pair_info_by_pool(deps.as_ref(), addr.clone())
                 .map_err(|_| ContractError::InvalidLPTokenAddress(addr.to_string()))?;
             let bps: BasicPoints = bps.try_into()?;
             Ok((addr, bps))
@@ -416,7 +416,7 @@ fn tune_pools(deps: DepsMut, env: Env) -> ExecuteResult {
         .collect();
 
     tune_info.pool_alloc_points = filter_pools(
-        &deps.querier,
+        deps.as_ref(),
         &config.generator_addr,
         &config.factory_addr,
         pool_votes,

@@ -21,7 +21,6 @@ use astroport_governance::voting_escrow::{
 };
 use cw20::Cw20ReceiveMsg;
 
-use astroport_governance::U64Key;
 use cw2::set_contract_version;
 use cw_storage_plus::Bound;
 
@@ -164,17 +163,13 @@ fn receive_cw20(
 
     let curr_period = get_period(env.block.time.seconds())?;
 
-    REWARDS_PER_WEEK.update(
-        deps.storage,
-        U64Key::new(curr_period),
-        |period| -> StdResult<_> {
-            if let Some(tokens_amount) = period {
-                Ok(tokens_amount.checked_add(cw20_msg.amount)?)
-            } else {
-                Ok(cw20_msg.amount)
-            }
-        },
-    )?;
+    REWARDS_PER_WEEK.update(deps.storage, curr_period, |period| -> StdResult<_> {
+        if let Some(tokens_amount) = period {
+            Ok(tokens_amount.checked_add(cw20_msg.amount)?)
+        } else {
+            Ok(cw20_msg.amount)
+        }
+    })?;
 
     Ok(Response::new())
 }
@@ -368,7 +363,7 @@ fn calculate_reward(
     total_vp: Uint128,
 ) -> StdResult<Uint128> {
     let rewards_per_week = REWARDS_PER_WEEK
-        .may_load(deps.storage, U64Key::from(period))?
+        .may_load(deps.storage, period)?
         .unwrap_or_default();
 
     Ok(user_vp.multiply_ratio(rewards_per_week, total_vp))
@@ -477,7 +472,7 @@ fn query_available_reward_per_week(
 ) -> StdResult<Vec<Uint128>> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
     let start = if let Some(timestamp) = start_after {
-        Some(Bound::exclusive(U64Key::from(get_period(timestamp)?)))
+        Some(Bound::exclusive(get_period(timestamp)?))
     } else {
         None
     };

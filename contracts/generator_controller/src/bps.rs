@@ -9,7 +9,7 @@ use std::ops::Mul;
 /// several implementations of math functions so BasicPoints object
 /// can be used in formulas along with [`Uint128`] and [`Decimal`].
 #[cw_serde]
-#[derive(Default)]
+#[derive(Copy, Default)]
 pub struct BasicPoints(u16);
 
 impl BasicPoints {

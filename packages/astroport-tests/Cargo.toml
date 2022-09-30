@@ -22,7 +22,7 @@ astroport = { git = "https://github.com/astroport-fi/astroport-core.git", branch
 astroport-escrow-fee-distributor = { path = "../../contracts/escrow_fee_distributor" }
 astroport-governance = { path = "../astroport-governance" }
 voting-escrow = { path = "../../contracts/voting_escrow" }
-# generator-controller = { path = "../../contracts/generator_controller" }
+generator-controller = { path = "../../contracts/generator_controller" }
 astroport-generator = { git = "https://github.com/astroport-fi/astroport-core.git", branch = "feat/miggrate-to-cosmwasm-1.1-release/terra2" }
 astroport-pair = { git = "https://github.com/astroport-fi/astroport-core.git", branch = "feat/miggrate-to-cosmwasm-1.1-release/terra2" }
 astroport-factory = { git = "https://github.com/astroport-fi/astroport-core.git", branch = "feat/miggrate-to-cosmwasm-1.1-release/terra2" }

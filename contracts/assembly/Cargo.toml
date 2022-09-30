@@ -19,9 +19,9 @@ cw-storage-plus = {version = "0.15"}
 astroport-governance = { path = "../../packages/astroport-governance", default-features = false}
 astroport = {git = "https://github.com/astroport-fi/astroport.git", branch = "feat/miggrate-to-cosmwasm-1.1-release/terra2"}
 thiserror = { version = "1.0" }
+cosmwasm-schema = "1.1"
 
 [dev-dependencies]
-cosmwasm-schema = { version = "1.0", default-features = false }
 cw-multi-test = "0.15"
 astroport-token = {git = "https://github.com/astroport-fi/astroport.git", branch = "feat/miggrate-to-cosmwasm-1.1-release/terra2"}
 astroport-xastro-token = {git = "https://github.com/astroport-fi/astroport.git", branch = "feat/miggrate-to-cosmwasm-1.1-release/terra2"}

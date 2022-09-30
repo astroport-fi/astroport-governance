@@ -1,4 +1,4 @@
-use cosmwasm_schema::cw_serde;
+use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Addr, Decimal, Uint128};
 
 /// The maximum amount of voters that can be kicked at once from
@@ -66,16 +66,16 @@ pub enum QueryMsg {
     #[returns(UserInfoResponse)]
     UserInfo { user: String },
     /// TuneInfo returns information about the latest generators that were voted to receive ASTRO emissions
-    #[returns(BlacklistedVotersResponse)]
+    #[returns(GaugeInfoResponse)]
     TuneInfo {},
     /// Config returns the contract configuration
-    #[returns(BlacklistedVotersResponse)]
+    #[returns(ConfigResponse)]
     Config {},
     /// PoolInfo returns the latest voting power allocated to a specific pool (generator)
-    #[returns(BlacklistedVotersResponse)]
+    #[returns(VotedPoolInfoResponse)]
     PoolInfo { pool_addr: String },
     /// PoolInfo returns the voting power allocated to a specific pool (generator) at a specific period
-    #[returns(BlacklistedVotersResponse)]
+    #[returns(VotedPoolInfoResponse)]
     PoolInfoAtPeriod { pool_addr: String, period: u64 },
 }
 

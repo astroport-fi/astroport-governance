@@ -1,14 +1,14 @@
-use cosmwasm_schema::cw_serde;
+use cosmwasm_schema::schemars::JsonSchema;
+use cosmwasm_schema::serde::{Deserialize, Serialize};
 use cosmwasm_std::{from_binary, DepsMut, Env, StdResult};
 
 use astroport_governance::voting_escrow::MigrateMsg;
 
 pub(crate) mod v110;
 
-#[cw_serde]
 pub(crate) trait Migration<T>
 where
-    T: Clone + PartialEq,
+    T: Serialize + for<'de> Deserialize<'de> + Clone + PartialEq + JsonSchema,
 {
     fn handle_migration(deps: DepsMut, env: Env, params: T) -> StdResult<()>;
     fn migrate(deps: DepsMut, env: Env, msg: MigrateMsg) -> StdResult<()> {

@@ -1,5 +1,5 @@
 use crate::assembly::helpers::is_safe_link;
-use cosmwasm_schema::cw_serde;
+use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Addr, CosmosMsg, Decimal, StdError, StdResult, Uint128, Uint64};
 use cw20::Cw20ReceiveMsg;
 use std::fmt::{Display, Formatter, Result};

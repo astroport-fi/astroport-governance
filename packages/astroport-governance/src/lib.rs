@@ -6,7 +6,3 @@ pub mod utils;
 pub mod voting_escrow;
 
 pub use astroport;
-
-use cw_storage_plus::IntKeyOld;
-
-pub type U64Key = IntKeyOld<u64>;
