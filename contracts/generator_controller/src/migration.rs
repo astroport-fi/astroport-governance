@@ -1,11 +1,10 @@
 use astroport_governance::generator_controller::MigrateMsg;
+use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, DepsMut, StdError};
 use cw_storage_plus::Item;
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
 
 /// This structure describes the main control config of generator controller.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[cw_serde]
 pub struct ConfigV100 {
     /// contract address that used for settings control
     pub owner: Addr,
@@ -23,7 +22,7 @@ pub struct ConfigV100 {
 pub const CONFIGV100: Item<ConfigV100> = Item::new("config");
 
 /// This structure stores the core parameters for the Generator contract.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[cw_serde]
 pub struct ConfigV110 {
     /// contract address that used for settings control
     pub owner: Addr,

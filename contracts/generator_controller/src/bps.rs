@@ -1,7 +1,6 @@
 use crate::error::ContractError;
+use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Decimal, Fraction, StdError, StdResult, Uint128, Uint256};
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
 use std::convert::{TryFrom, TryInto};
 use std::ops::Mul;
 
@@ -9,7 +8,8 @@ use std::ops::Mul;
 /// Technically BasicPoints is wrapper over [`u16`] with additional limit checks and
 /// several implementations of math functions so BasicPoints object
 /// can be used in formulas along with [`Uint128`] and [`Decimal`].
-#[derive(Serialize, Deserialize, Copy, Clone, Debug, PartialEq, JsonSchema, Default)]
+#[cw_serde]
+#[derive(Default)]
 pub struct BasicPoints(u16);
 
 impl BasicPoints {

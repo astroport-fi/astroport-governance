@@ -12,25 +12,21 @@ repository = "https://github.com/astroport-fi/astroport-governance"
 backtraces = ["cosmwasm-std/backtraces"]
 
 [dependencies]
-cw2 = "0.13"
-cw20 = "0.13"
-terra-cosmwasm = { version = "2.2.0" }
-cosmwasm-std = "1.0"
-schemars = "0.8.1"
-serde = { version = "1.0.103", default-features = false, features = ["derive"] }
-
-cosmwasm-schema = "1.0"
-cw-multi-test = "0.13"
-astroport = { git = "https://github.com/astroport-fi/astroport-core.git", branch = "release/terra2" }
+cw2 = "0.15"
+cw20 = "0.15"
+cosmwasm-std = "1.1"
+cosmwasm-schema = "1.1"
+cw-multi-test = "0.15"
+astroport = { git = "https://github.com/astroport-fi/astroport-core.git", branch = "feat/miggrate-to-cosmwasm-1.1-release/terra2" }
 
 astroport-escrow-fee-distributor = { path = "../../contracts/escrow_fee_distributor" }
 astroport-governance = { path = "../astroport-governance" }
 voting-escrow = { path = "../../contracts/voting_escrow" }
 # generator-controller = { path = "../../contracts/generator_controller" }
-astroport-generator = { git = "https://github.com/astroport-fi/astroport-core.git", branch = "release/terra2" }
-astroport-pair = { git = "https://github.com/astroport-fi/astroport-core.git", branch = "release/terra2" }
-astroport-factory = { git = "https://github.com/astroport-fi/astroport-core.git", branch = "release/terra2" }
-astroport-token = { git = "https://github.com/astroport-fi/astroport-core.git", branch = "release/terra2" }
-astroport-staking = { git = "https://github.com/astroport-fi/astroport-core.git", branch = "release/terra2" }
-astroport-whitelist = { git = "https://github.com/astroport-fi/astroport-core.git", branch = "release/terra2" }
+astroport-generator = { git = "https://github.com/astroport-fi/astroport-core.git", branch = "feat/miggrate-to-cosmwasm-1.1-release/terra2" }
+astroport-pair = { git = "https://github.com/astroport-fi/astroport-core.git", branch = "feat/miggrate-to-cosmwasm-1.1-release/terra2" }
+astroport-factory = { git = "https://github.com/astroport-fi/astroport-core.git", branch = "feat/miggrate-to-cosmwasm-1.1-release/terra2" }
+astroport-token = { git = "https://github.com/astroport-fi/astroport-core.git", branch = "feat/miggrate-to-cosmwasm-1.1-release/terra2" }
+astroport-staking = { git = "https://github.com/astroport-fi/astroport-core.git", branch = "feat/miggrate-to-cosmwasm-1.1-release/terra2" }
+astroport-whitelist = { git = "https://github.com/astroport-fi/astroport-core.git", branch = "feat/miggrate-to-cosmwasm-1.1-release/terra2" }
 anyhow = "1"

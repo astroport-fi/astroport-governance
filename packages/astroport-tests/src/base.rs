@@ -1,5 +1,4 @@
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
+use cosmwasm_schema::cw_serde;
 use std::str::FromStr;
 
 use astroport::staking;
@@ -17,15 +16,13 @@ use cw_multi_test::{App, AppResponse, ContractWrapper, Executor};
 
 pub const MULTIPLIER: u64 = 1_000_000;
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[cw_serde]
 pub struct ContractInfo {
     pub address: Addr,
     pub code_id: u64,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[cw_serde]
 pub struct BaseAstroportTestPackage {
     pub owner: Addr,
     pub astro_token: Option<ContractInfo>,
@@ -34,8 +31,7 @@ pub struct BaseAstroportTestPackage {
     pub voting_escrow: Option<ContractInfo>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[cw_serde]
 pub struct BaseAstroportTestInitMessage {
     pub owner: Addr,
 }
