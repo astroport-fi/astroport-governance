@@ -27,6 +27,8 @@ pub struct InstantiateMsg {
     pub xastro_token_addr: String,
     /// Address of vxASTRO token
     pub vxastro_token_addr: Option<String>,
+    /// Astroport IBC controller contract
+    pub ibc_controller: Option<String>,
     /// Address of the builder unlock contract
     pub builder_unlock_addr: String,
     /// Proposal voting period
@@ -83,6 +85,13 @@ pub enum ExecuteMsg {
     /// ## Executor
     /// Only the Assembly contract is allowed to update its own parameters
     UpdateConfig(UpdateConfig),
+    /// Update proposal status InProgress -> Executed or Failed.
+    /// ## Executor
+    /// Only the IBC controller contract is allowed to call this method.
+    IBCProposalCompleted {
+        proposal_id: u64,
+        status: ProposalStatus,
+    },
 }
 
 /// Thie enum describes all the queries available in the contract.
@@ -123,6 +132,8 @@ pub enum Cw20HookMsg {
         description: String,
         link: Option<String>,
         messages: Option<Vec<ProposalMessage>>,
+        /// If proposal should be executed on a remote chain this field should specify governance channel
+        ibc_channel: Option<String>,
     },
 }
 
@@ -133,6 +144,8 @@ pub struct Config {
     pub xastro_token_addr: Addr,
     /// vxASTRO token address
     pub vxastro_token_addr: Option<Addr>,
+    /// Astroport IBC controller contract
+    pub ibc_controller: Option<Addr>,
     /// Builder unlock contract address
     pub builder_unlock_addr: Addr,
     /// Proposal voting period
@@ -199,6 +212,8 @@ pub struct UpdateConfig {
     pub xastro_token_addr: Option<String>,
     /// vxASTRO token address
     pub vxastro_token_addr: Option<String>,
+    /// Astroport IBC controller contract
+    pub ibc_controller: Option<String>,
     /// Builder unlock contract address
     pub builder_unlock_addr: Option<String>,
     /// Proposal voting period
@@ -252,6 +267,8 @@ pub struct Proposal {
     pub messages: Option<Vec<ProposalMessage>>,
     /// Amount of xASTRO deposited in order to post the proposal
     pub deposit_amount: Uint128,
+    /// IBC channel
+    pub ibc_channel: Option<String>,
 }
 
 impl Proposal {
@@ -310,10 +327,13 @@ impl Proposal {
 
 /// This enum describes available statuses/states for a Proposal.
 #[cw_serde]
+#[derive(PartialEq)]
 pub enum ProposalStatus {
     Active,
     Passed,
     Rejected,
+    InProgress,
+    Failed,
     Executed,
     Expired,
 }
@@ -324,6 +344,8 @@ impl Display for ProposalStatus {
             ProposalStatus::Active {} => fmt.write_str("active"),
             ProposalStatus::Passed {} => fmt.write_str("passed"),
             ProposalStatus::Rejected {} => fmt.write_str("rejected"),
+            ProposalStatus::InProgress => fmt.write_str("in_progress"),
+            ProposalStatus::Failed => fmt.write_str("failed"),
             ProposalStatus::Executed {} => fmt.write_str("executed"),
             ProposalStatus::Expired {} => fmt.write_str("expired"),
         }

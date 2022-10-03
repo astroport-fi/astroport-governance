@@ -1,63 +1,86 @@
+use astroport::asset::addr_validate_to_lower;
+use astroport_governance::{
+    assembly::{Config, Proposal, ProposalMessage, ProposalStatus},
+    U64Key,
+};
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, Decimal, Uint128};
-use cw_storage_plus::Item;
+use cosmwasm_std::{DepsMut, StdError, StdResult, Storage};
+
+use crate::state::{CONFIG, PROPOSALS};
 
 /// This structure describes a migration message.
 #[cw_serde]
 pub struct MigrateMsg {
-    pub proposal_voting_period: Option<u64>,
-    pub proposal_effective_delay: Option<u64>,
-    pub whitelisted_links: Option<Vec<String>>,
+    ibc_controller: Option<String>,
 }
 
-/// This structure stores general parameters for the Assembly contract.
-#[cw_serde]
-pub struct ConfigV100 {
-    /// xASTRO token address
-    pub xastro_token_addr: Addr,
-    /// vxASTRO token address
-    pub vxastro_token_addr: Addr,
-    /// Builder unlock contract address
-    pub builder_unlock_addr: Addr,
-    /// Proposal voting period
-    pub proposal_voting_period: u64,
-    /// Proposal effective delay
-    pub proposal_effective_delay: u64,
-    /// Proposal expiration period
-    pub proposal_expiration_period: u64,
-    /// Proposal required deposit
-    pub proposal_required_deposit: Uint128,
-    /// Proposal required quorum
-    pub proposal_required_quorum: Decimal,
-    /// Proposal required threshold
-    pub proposal_required_threshold: Decimal,
+pub fn migrate_config(deps: &mut DepsMut, msg: &MigrateMsg) -> StdResult<()> {
+    let config = astro_assembly110::state::CONFIG.load(deps.storage)?;
+    let mut config = Config {
+        builder_unlock_addr: config.builder_unlock_addr,
+        ibc_controller: None,
+        proposal_effective_delay: config.proposal_effective_delay,
+        proposal_expiration_period: config.proposal_expiration_period,
+        proposal_required_deposit: config.proposal_required_deposit,
+        proposal_required_quorum: config.proposal_required_quorum,
+        proposal_required_threshold: config.proposal_required_threshold,
+        proposal_voting_period: config.proposal_voting_period,
+        vxastro_token_addr: config.vxastro_token_addr,
+        whitelisted_links: config.whitelisted_links,
+        xastro_token_addr: config.xastro_token_addr,
+    };
+
+    if let Some(ref ibc_controller) = msg.ibc_controller {
+        config.ibc_controller = Some(addr_validate_to_lower(deps.api, ibc_controller)?);
+    }
+
+    CONFIG.save(deps.storage, &config)?;
+
+    Ok(())
 }
 
-pub const CONFIGV100: Item<ConfigV100> = Item::new("config");
+pub fn migrate_proposals(storage: &mut dyn Storage) -> StdResult<()> {
+    let proposals = astro_assembly110::state::PROPOSALS
+        .range(storage, None, None, cosmwasm_std::Order::Ascending {})
+        .collect::<Result<Vec<_>, StdError>>()?;
 
-/// This structure stores general parameters for the Assembly contract.
-#[cw_serde]
-pub struct ConfigV101 {
-    /// xASTRO token address
-    pub xastro_token_addr: Addr,
-    /// vxASTRO token address
-    pub vxastro_token_addr: Addr,
-    /// Builder unlock contract address
-    pub builder_unlock_addr: Addr,
-    /// Proposal voting period
-    pub proposal_voting_period: u64,
-    /// Proposal effective delay
-    pub proposal_effective_delay: u64,
-    /// Proposal expiration period
-    pub proposal_expiration_period: u64,
-    /// Proposal required deposit
-    pub proposal_required_deposit: Uint128,
-    /// Proposal required quorum
-    pub proposal_required_quorum: Decimal,
-    /// Proposal required threshold
-    pub proposal_required_threshold: Decimal,
-    /// Whitelisted links
-    pub whitelisted_links: Vec<String>,
+    for (key, proposal) in proposals {
+        use astroport_governance110::assembly::ProposalStatus as ProposalStatus110;
+        PROPOSALS.save(
+            storage,
+            U64Key::new(key),
+            &Proposal {
+                proposal_id: proposal.proposal_id,
+                submitter: proposal.submitter,
+                status: match proposal.status {
+                    ProposalStatus110::Active => ProposalStatus::Active,
+                    ProposalStatus110::Executed => ProposalStatus::Executed,
+                    ProposalStatus110::Expired => ProposalStatus::Expired,
+                    ProposalStatus110::Passed => ProposalStatus::Passed,
+                    ProposalStatus110::Rejected => ProposalStatus::Rejected,
+                },
+                for_power: proposal.for_power,
+                against_power: proposal.against_power,
+                for_voters: proposal.for_voters,
+                against_voters: proposal.against_voters,
+                start_block: proposal.start_block,
+                start_time: proposal.start_time,
+                end_block: proposal.end_block,
+                title: proposal.title,
+                description: proposal.description,
+                link: proposal.link,
+                messages: proposal.messages.map(|v| {
+                    v.into_iter()
+                        .map(|m| ProposalMessage {
+                            msg: m.msg,
+                            order: m.order,
+                        })
+                        .collect()
+                }),
+                deposit_amount: proposal.deposit_amount,
+                ibc_channel: None,
+            },
+        )?;
+    }
+    Ok(())
 }
-
-pub const CONFIGV101: Item<ConfigV101> = Item::new("config");

@@ -8,6 +8,9 @@ members = [
     "contracts/generator_controller",
 ]
 
+[patch."https://github.com/astroport-fi/hidden_astroport_governance.git"]
+astroport-governance = { path = "packages/astroport-governance" }
+
 [profile.release]
 opt-level = "z"
 debug = false
