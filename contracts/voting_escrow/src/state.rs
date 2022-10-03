@@ -51,7 +51,6 @@ pub struct Lock {
 /// Stores the contract config at the given key
 pub const CONFIG: Item<Config> = Item::new("config");
 
-/// ## Description
 /// Stores all user lock history
 pub const LOCKED: SnapshotMap<Addr, Lock> = SnapshotMap::new(
     "locked",

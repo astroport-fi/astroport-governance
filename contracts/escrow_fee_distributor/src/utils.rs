@@ -14,12 +14,12 @@ use crate::error::ContractError;
 use crate::state::{LAST_CLAIM_PERIOD, REWARDS_PER_WEEK};
 
 /// Transfer tokens to another address.
-/// ## Params
-/// * **contract_addr** is an object of type [`Addr`]. This is the address of the token conract.
 ///
-/// * **recipient** is an object of type [`Addr`]. This is the address of the token recipient.
+/// * **contract_addr** address of the token contract.
 ///
-/// * **amount** is an object of type [`Uint128`]. This is the token amount to transfer.
+/// * **recipient** address of the token recipient.
+///
+/// * **amount** token amount to transfer.
 pub(crate) fn transfer_token_amount(
     contract_addr: &Addr,
     recipient: &Addr,
@@ -41,16 +41,13 @@ pub(crate) fn transfer_token_amount(
     Ok(messages)
 }
 
-/// ## Description
 /// Returns the amount of rewards distributed to a user for a specific period.
-/// ## Params
-/// * **storage** is a reference of type [`Storage`].
 ///
-/// * **period** is a parameter of type [`u64`]. This is the period for which we calculate the user's reward.
+/// * **period** period for which we calculate the user's reward.
 ///
-/// * **user_vp** is an object of type [`Uint128`]. This is the user's voting power for the specified period.
+/// * **user_vp** user's voting power for the specified period.
 ///
-/// * **total_vp** is an object of type [`Uint128`]. This is the total voting power for the specified period.
+/// * **total_vp** total voting power for the specified period.
 pub(crate) fn calculate_reward(
     storage: &dyn Storage,
     period: u64,
@@ -66,18 +63,15 @@ pub(crate) fn calculate_reward(
         .map_err(|e| StdError::generic_err(format!("{:?}", e)))
 }
 
-/// ## Description
 /// Calculates the amount of ASTRO available to claim by a specific address.
-/// ## Params
-/// * **deps** is an object of type [`DepsMut`].
 ///
-/// * **current_period** is a value of type [`u64`]. This is the current epoch number.
+/// * **current_period** current epoch number.
 ///
-/// * **account** is an object of type [`Addr`]. This is the account for which we calculate the amount of ASTRO rewards available to claim.
+/// * **account** account for which we calculate the amount of ASTRO rewards available to claim.
 ///
-/// * **voting_escrow_addr** is an object of type [`Addr`]. This is the vxASTRO contract address.
+/// * **voting_escrow_addr** vxASTRO contract address.
 ///
-/// * **max_periods** is an [`Option`] of type [`u64`]. This is the maximum number of periods to claim.
+/// * **max_periods** maximum number of periods to claim.
 pub(crate) fn calc_claim_amount(
     deps: DepsMut,
     current_period: u64,

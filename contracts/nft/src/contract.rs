@@ -16,8 +16,6 @@ const CONTRACT_NAME: &str = "astroport-nft";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Creates a new contract with the specified parameters in the [`InstantiateMsg`].
-/// Returns a default object of type [`Response`] if the operation was successful,
-/// or a [`ContractError`] if the contract was not created.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,

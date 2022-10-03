@@ -15,7 +15,6 @@ pub(crate) fn time_limits_check(time: u64) -> Result<(), ContractError> {
     }
 }
 
-/// ## Description
 /// Checks that the sender is the xASTRO token.
 pub(crate) fn xastro_token_check(storage: &dyn Storage, sender: Addr) -> Result<(), ContractError> {
     let config = CONFIG.load(storage)?;
@@ -26,7 +25,6 @@ pub(crate) fn xastro_token_check(storage: &dyn Storage, sender: Addr) -> Result<
     }
 }
 
-/// ## Description
 /// Checks if the blacklist contains a specific address.
 pub(crate) fn blacklist_check(storage: &dyn Storage, addr: &Addr) -> Result<(), ContractError> {
     let blacklist = BLACKLIST.load(storage)?;
@@ -37,7 +35,6 @@ pub(crate) fn blacklist_check(storage: &dyn Storage, addr: &Addr) -> Result<(), 
     }
 }
 
-/// ## Description
 /// Adjusting voting power according to the slope. The maximum loss is 103/104 * 104 which is
 /// 0.000103 vxASTRO.
 pub(crate) fn adjust_vp_and_slope(vp: &mut Uint128, dt: u64) -> StdResult<Uint128> {
@@ -46,7 +43,6 @@ pub(crate) fn adjust_vp_and_slope(vp: &mut Uint128, dt: u64) -> StdResult<Uint12
     Ok(slope)
 }
 
-/// ## Description
 /// Main function used to calculate a user's voting power at a specific period as: previous_power - slope*(x - previous_x).
 pub(crate) fn calc_voting_power(point: &Point, period: u64) -> Uint128 {
     let shift = point
@@ -59,14 +55,12 @@ pub(crate) fn calc_voting_power(point: &Point, period: u64) -> Uint128 {
         .unwrap_or_else(|_| Uint128::zero())
 }
 
-/// ## Description
 /// Coefficient calculation where 0 [`WEEK`] is equal to 1 and [`MAX_LOCK_TIME`] is 2.5.
 pub(crate) fn calc_coefficient(interval: u64) -> Decimal {
     // coefficient = 1 + 1.5 * (end - start) / MAX_LOCK_TIME
     Decimal::one() + Decimal::from_ratio(15_u64 * interval, get_periods_count(MAX_LOCK_TIME) * 10)
 }
 
-/// ## Description
 /// Fetches the last checkpoint in [`HISTORY`] for the given address.
 pub(crate) fn fetch_last_checkpoint(
     storage: &dyn Storage,
@@ -85,7 +79,6 @@ pub(crate) fn fetch_last_checkpoint(
         .transpose()
 }
 
-/// ## Description
 /// Cancels scheduled slope change of total voting power only if the given period is in future.
 /// Removes scheduled slope change if it became zero.
 pub(crate) fn cancel_scheduled_slope(
@@ -110,7 +103,6 @@ pub(crate) fn cancel_scheduled_slope(
     }
 }
 
-/// ## Description
 /// Schedules slope change of total voting power in the given period.
 pub(crate) fn schedule_slope_change(
     storage: &mut dyn Storage,
@@ -136,7 +128,6 @@ pub(crate) fn schedule_slope_change(
     }
 }
 
-/// ## Description
 /// Fetches all slope changes between `last_slope_change` and `period`.
 pub(crate) fn fetch_slope_changes(
     storage: &dyn Storage,

@@ -235,7 +235,7 @@ impl Config {
     }
 }
 
-/// This structure sotres the params used when updating the main Assembly contract params.
+/// This structure stores the params used when updating the main Assembly contract params.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct UpdateConfig {
     /// xASTRO token address
