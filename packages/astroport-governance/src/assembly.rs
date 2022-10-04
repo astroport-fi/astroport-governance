@@ -239,7 +239,7 @@ impl Config {
     }
 }
 
-/// This structure sotres the params used when updating the main Assembly contract params.
+/// This structure stores the params used when updating the main Assembly contract params.
 #[cw_serde]
 pub struct UpdateConfig {
     /// xASTRO token address

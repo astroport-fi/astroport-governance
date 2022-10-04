@@ -46,10 +46,7 @@ const TUNE_COOLDOWN: u64 = WEEK * 2;
 
 type ExecuteResult = Result<Response, ContractError>;
 
-/// ## Description
 /// Creates a new contract with the specified parameters in the [`InstantiateMsg`].
-/// Returns the default object of type [`Response`] if the operation was successful,
-/// or a [`ContractError`] if the contract was not created.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
@@ -85,7 +82,6 @@ pub fn instantiate(
     Ok(Response::default())
 }
 
-/// ## Description
 /// Exposes all the execute functions available in the contract.
 ///
 /// ## Execute messages
@@ -164,17 +160,9 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> E
     }
 }
 
-/// ## Description
-/// This function removes all votes applied by blacklisted voters. Returns [`Response`] in case
-/// of success or [`ContractError`] in case of errors.
+/// This function removes all votes applied by blacklisted voters.
 ///
-/// ## Params
-/// * **deps** is an object of type [`DepsMut`].
-///
-/// * **env** is an object of type [`Env`].
-///
-/// * **holders** is a vector of type [`String`]. Contains blacklisted holders whose votes will be
-/// removed.
+/// * **holders** list with blacklisted holders whose votes will be removed.
 fn kick_blacklisted_voters(deps: DepsMut, env: Env, voters: Vec<String>) -> ExecuteResult {
     let block_period = get_period(env.block.time.seconds())?;
     let config = CONFIG.load(deps.storage)?;
@@ -241,7 +229,6 @@ fn kick_blacklisted_voters(deps: DepsMut, env: Env, voters: Vec<String>) -> Exec
     Ok(Response::new().add_attribute("action", "kick_holders"))
 }
 
-/// ## Description
 /// The function checks that:
 /// * the user voting power is > 0,
 /// * user didn't vote for last 10 days,
@@ -253,13 +240,6 @@ fn kick_blacklisted_voters(deps: DepsMut, env: Env, voters: Vec<String>) -> Exec
 /// New vote parameters are saved in [`USER_INFO`].
 ///
 /// The function returns [`Response`] in case of success or [`ContractError`] in case of errors.
-///
-/// ## Params
-/// * **deps** is an object of type [`DepsMut`].
-///
-/// * **env** is an object of type [`Env`].
-///
-/// * **info** is an object of type [`MessageInfo`].
 ///
 /// * **votes** is a vector of pairs ([`String`], [`u16`]).
 /// Tuple consists of pool address and percentage of user's voting power for a given pool.
@@ -373,18 +353,11 @@ fn handle_vote(
     Ok(Response::new().add_attribute("action", "vote"))
 }
 
-/// ## Description
 /// The function checks that the last pools tuning happened >= 14 days ago.
 /// Then it calculates voting power for each pool at the current period, filters all pools which
 /// are not eligible to receive allocation points,
 /// takes top X pools by voting power, where X is 'config.pools_limit', calculates allocation points
 /// for these pools and applies allocation points in generator contract.
-/// The function returns [`Response`] in case of success or [`ContractError`] in case of errors.
-///
-/// ## Params
-/// * **deps** is an object of type [`DepsMut`].
-///
-/// * **env** is an object of type [`Env`].
 fn tune_pools(deps: DepsMut, env: Env) -> ExecuteResult {
     let mut tune_info = TUNE_INFO.load(deps.storage)?;
     let config = CONFIG.load(deps.storage)?;
@@ -484,14 +457,8 @@ fn tune_pools(deps: DepsMut, env: Env) -> ExecuteResult {
         .add_attribute("action", "tune_pools"))
 }
 
-/// ## Description
 /// Only contract owner can call this function.  
 /// The function sets a new limit of blacklisted voters that can be kicked at once.
-///
-/// ## Params
-/// * **deps** is an object of type [`DepsMut`].
-///
-/// * **info** is an object of type [`MessageInfo`].
 ///
 /// * **blacklisted_voters_limit** is a new limit of blacklisted voters which can be kicked at once
 ///
@@ -543,14 +510,8 @@ fn update_config(
     Ok(Response::default().add_attribute("action", "update_config"))
 }
 
-/// ## Description
 /// Only contract owner can call this function.
 /// The function sets new limit of pools which are eligible to receive allocation points.
-///
-/// ## Params
-/// * **deps** is an object of type [`DepsMut`].
-///
-/// * **info** is an object of type [`MessageInfo`].
 ///
 /// * **limit** is a new limit of pools which are eligible to receive allocation points.
 fn change_pools_limit(deps: DepsMut, info: MessageInfo, limit: u64) -> ExecuteResult {
@@ -566,14 +527,8 @@ fn change_pools_limit(deps: DepsMut, info: MessageInfo, limit: u64) -> ExecuteRe
     Ok(Response::default().add_attribute("action", "change_pools_limit"))
 }
 
-/// # Description
 /// Expose available contract queries.
-/// ## Params
-/// * **deps** is an object of type [`Deps`].
 ///
-/// * **env** is an object of type [`Env`].
-///
-/// * **msg** is an object of type [`QueryMsg`].
 /// ## Queries
 /// * **QueryMsg::UserInfo { user }** Fetch user information
 ///
@@ -597,8 +552,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     }
 }
 
-/// # Description
-/// Returns user information using a [`UserInfoResponse`] object.
+/// Returns user information.
 fn user_info(deps: Deps, user: String) -> StdResult<UserInfoResponse> {
     let user_addr = addr_validate_to_lower(deps.api, &user)?;
     USER_INFO
@@ -607,8 +561,7 @@ fn user_info(deps: Deps, user: String) -> StdResult<UserInfoResponse> {
         .ok_or_else(|| StdError::generic_err("User not found"))
 }
 
-/// # Description
-/// Returns pool's voting information using a [`VotedPoolInfo`] object at a specified period.
+/// Returns pool's voting information at a specified period.
 fn pool_info(
     deps: Deps,
     env: Env,
@@ -621,8 +574,7 @@ fn pool_info(
     get_pool_info(deps.storage, period, &pool_addr)
 }
 
-/// ## Description
-/// Used for migration of contract. Returns the default object of type [`ContractError`].
+/// Manages contract migration
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
     Err(ContractError::MigrationError {})

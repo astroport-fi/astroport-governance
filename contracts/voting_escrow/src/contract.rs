@@ -43,18 +43,7 @@ const CONTRACT_NAME: &str = "astro-voting-escrow";
 /// Contract version that is used for migration.
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
-/// ## Description
 /// Creates a new contract with the specified parameters in [`InstantiateMsg`].
-/// Returns a default object of type [`Response`] if the operation was successful,
-/// or a [`ContractError`] if the contract was not created.
-/// ## Params
-/// * **deps** is an object of type [`DepsMut`].
-///
-/// * **env** is an object of type [`Env`].
-///
-/// * **_info** is an object of type [`MessageInfo`].
-///
-/// * **msg** is a message of type [`InstantiateMsg`] which contains the paramters used for creating a contract.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
@@ -149,7 +138,6 @@ pub fn instantiate(
     Ok(Response::default())
 }
 
-/// ## Description
 /// Exposes all the execute functions available in the contract.
 ///
 /// ## Execute messages
@@ -244,24 +232,17 @@ pub fn execute(
     }
 }
 
-/// ## Description
 /// Checkpoint the total voting power (total supply of vxASTRO).
 /// This function fetches the last available vxASTRO checkpoint, recalculates passed periods since the checkpoint and until now,
 /// applies slope changes and saves all recalculated periods in [`HISTORY`].
-/// The function returns Ok(()) in case of success or [`StdError`]
-/// in case of a serialization/deserialization error.
-/// ## Params
-/// * **storage** is a mutable reference of type [`Storage`].
 ///
-/// * **env** is an object of type [`Env`].
+/// * **add_voting_power** amount of vxASTRO to add to the total.
 ///
-/// * **add_voting_power** is an object of type [`Option<Uint128>`]. This is an amount of vxASTRO to add to the total.
+/// * **reduce_power** amount of vxASTRO to subtract from the total.
 ///
-/// * **reduce_power** is an object of type [`Option<Uint128>`]. This is an amount of vxASTRO to subtract from the total.
+/// * **old_slope** old slope applied to the total voting power (vxASTRO supply).
 ///
-/// * **old_slope** is an object of type [`Decimal`]. This is the old slope applied to the total voting power (vxASTRO supply).
-///
-/// * **new_slope** is an object of type [`Decimal`]. This is the new slope to be applied to the total voting power (vxASTRO supply).
+/// * **new_slope** new slope to be applied to the total voting power (vxASTRO supply).
 fn checkpoint_total(
     storage: &mut dyn Storage,
     env: Env,
@@ -316,23 +297,18 @@ fn checkpoint_total(
     HISTORY.save(storage, (contract_addr, cur_period_key), &new_point)
 }
 
-/// ## Description
 /// Checkpoint a user's voting power (vxASTRO balance).
 /// This function fetches the user's last available checkpoint, calculates the user's current voting power, applies slope changes based on
 /// `add_amount` and `new_end` parameters, schedules slope changes for total voting power and saves the new checkpoint for the current
 /// period in [`HISTORY`] (using the user's address).
 /// If a user already checkpointed themselves for the current period, then this function uses the current checkpoint as the latest
-/// available one. The function returns Ok(()) in case of success or [`StdError`] in case of a serialization/deserialization error.
-/// ## Params
-/// * **deps** is an object of type [`DepsMut`].
+/// available one.
 ///
-/// * **env** is an object of type [`Env`].
+/// * **addr** staker for which we checkpoint the voting power.
 ///
-/// * **addr** is an object of type [`Addr`]. This is the staker for which we checkpoint the voting power.
+/// * **add_amount** amount of vxASTRO to add to the staker's balance.
 ///
-/// * **add_amount** is an object of type [`Option<Uint128>`]. This is an amount of vxASTRO to add to the staker's balance.
-///
-/// * **new_end** is an object of type [`Option<u64>`]. This is a new lock time for the staker's vxASTRO position.
+/// * **new_end** new lock time for the staker's vxASTRO position.
 fn checkpoint(
     deps: DepsMut,
     env: Env,
@@ -417,18 +393,9 @@ fn checkpoint(
     )
 }
 
-/// ## Description
 /// Receives a message of type [`Cw20ReceiveMsg`] and processes it depending on the received template.
-/// If the template is not found in the received message, then a [`ContractError`] is returned,
-/// otherwise it returns a [`Response`] with the specified attributes if the operation was successful.
-/// ## Params
-/// * **deps** is an object of type [`DepsMut`].
 ///
-/// * **env** is an object of type [`Env`].
-///
-/// * **info** is an object of type [`MessageInfo`].
-///
-/// * **cw20_msg** is an object of type [`Cw20ReceiveMsg`]. This is the CW20 message to process.
+/// * **cw20_msg** CW20 message to process.
 fn receive_cw20(
     deps: DepsMut,
     env: Env,
@@ -450,23 +417,17 @@ fn receive_cw20(
     }
 }
 
-/// ## Description
 /// Creates a lock for the user that lasts for the specified time duration (in seconds).
 /// Checks that the user is locking xASTRO tokens.
 /// Checks that the lock time is within [`WEEK`]..[`MAX_LOCK_TIME`].
 /// Creates a lock if it doesn't exist and triggers a [`checkpoint`] for the staker.
-/// If a lock already exists, then a [`ContractError`] is returned,
-/// otherwise it returns a [`Response`] with the specified attributes if the operation was successful.
-/// ## Params
-/// * **deps** is an object of type [`DepsMut`].
+/// If a lock already exists, then a [`ContractError`] is returned.
 ///
-/// * **env** is an object of type [`Env`].
+/// * **user** staker for which we create a lock position.
 ///
-/// * **user** is an object of type [`Addr`]. This is the staker for which we create a lock position.
+/// * **amount** amount of xASTRO deposited in the lock position.
 ///
-/// * **amount** is an object of type [`Uint128`]. This is the amount of xASTRO deposited in the lock position.
-///
-/// * **time** is an object of type [`u64`]. This is the duration of the lock.
+/// * **time** duration of the lock.
 fn create_lock(
     deps: DepsMut,
     env: Env,
@@ -496,20 +457,14 @@ fn create_lock(
     Ok(Response::default().add_attribute("action", "create_lock"))
 }
 
-/// ## Description
 /// Deposits an 'amount' of xASTRO tokens into 'user''s lock.
 /// Checks that the user is transferring and locking xASTRO.
 /// Triggers a [`checkpoint`] for the user.
-/// If the user does not have a lock, then a [`ContractError`] is returned,
-/// otherwise it returns a [`Response`] with the specified attributes if the operation was successful.
-/// ## Params
-/// * **deps** is an object of type [`DepsMut`].
+/// If the user does not have a lock, then a [`ContractError`] is returned.
 ///
-/// * **env** is an object of type [`Env`].
+/// * **amount** amount of xASTRO to deposit.
 ///
-/// * **amount** is an object of type [`Uint128`]. This is the amount of xASTRO to deposit.
-///
-/// * **user** is an object of type [`Addr`]. This is the user who's lock amount will increase.
+/// * **user** user who's lock amount will increase.
 fn deposit_for(
     deps: DepsMut,
     env: Env,
@@ -537,16 +492,8 @@ fn deposit_for(
     Ok(Response::default().add_attribute("action", "deposit_for"))
 }
 
-/// ## Description
 /// Withdraws the whole amount of locked xASTRO from a specific user lock.
-/// If the user lock doesn't exist or if it has not yet expired, then a [`ContractError`] is returned,
-/// otherwise it returns a [`Response`] with the specified attributes if the operation was successful.
-/// ## Params
-/// * **deps** is an object of type [`DepsMut`].
-///
-/// * **env** is an object of type [`Env`].
-///
-/// * **info** is an object of type [`MessageInfo`]. This is the withdrawal message coming from a user.
+/// If the user lock doesn't exist or if it has not yet expired, then a [`ContractError`] is returned.
 fn withdraw(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, ContractError> {
     let sender = info.sender;
     // 'LockDoesNotExist' is thrown either when a lock does not exist in LOCKED or when a lock exists but lock.amount == 0
@@ -589,26 +536,17 @@ fn withdraw(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, Cont
     }
 }
 
-/// ## Description
 /// Increase the current lock time for a staker by a specified time period.
 /// Evaluates that the `time` is within [`WEEK`]..[`MAX_LOCK_TIME`]
 /// and then it triggers a [`checkpoint`].
-/// If the user lock doesn't exist or if it expired, then a [`ContractError`] is returned,
-/// otherwise it returns a [`Response`] with the specified attributes if the operation was successful
+/// If the user lock doesn't exist or if it expired, then a [`ContractError`] is returned.
 ///
 /// ## Note
 /// The time is added to the lock's `end`.
 /// For example, at period 0, the user has their xASTRO locked for 3 weeks.
 /// In 1 week, they increase their lock time by 10 weeks, thus the unlock period becomes 13 weeks.
 ///
-/// ## Params
-/// * **deps** is an object of type [`DepsMut`].
-///
-/// * **env** is an object of type [`Env`].
-///
-/// * **info** is an object of type [`MessageInfo`].
-///
-/// * **time** is an object of type [`u64`]. This is the increase in lock time applied to the staker's position.
+/// * **time** increase in lock time applied to the staker's position.
 fn extend_lock_time(
     deps: DepsMut,
     env: Env,
@@ -639,21 +577,13 @@ fn extend_lock_time(
     Ok(Response::default().add_attribute("action", "extend_lock_time"))
 }
 
-/// ## Description
 /// Update the staker blacklist. Whitelists addresses specified in 'remove_addrs'
 /// and blacklists new addresses specified in 'append_addrs'. Nullifies staker voting power and
 /// cancels their contribution in the total voting power (total vxASTRO supply).
-/// Returns a [`ContractError`] in case of a (de/ser)ialization or address validation error.
-/// ## Params
-/// * **deps** is an object of type [`DepsMut`].
 ///
-/// * **env** is an object of type [`Env`].
+/// * **append_addrs** array of addresses to blacklist.
 ///
-/// * **info** is an object of type [`MessageInfo`].
-///
-/// * **append_addrs** is an [`Option`] containing a [`Vec<String>`]. This is the array of addresses to blacklist.
-///
-/// * **remove_addrs** is an [`Option`] containing a [`Vec<String>`]. This is the array of addresses to whitelist.
+/// * **remove_addrs** array of addresses to whitelist.
 fn update_blacklist(
     mut deps: DepsMut,
     env: Env,
@@ -760,14 +690,7 @@ fn update_blacklist(
     Ok(Response::default().add_attributes(attrs))
 }
 
-/// ## Description
-/// Updates contract parameters.
-/// ## Params
-/// * **deps** is an object of type [`DepsMut`].
-///
-/// * **info** is an object of type [`MessageInfo`].
-///
-/// * **new_guardian** is an optional object of type [`String`].
+/// Updates contracts' guardian address.
 fn execute_update_config(
     deps: DepsMut,
     info: MessageInfo,
@@ -788,14 +711,7 @@ fn execute_update_config(
     Ok(Response::default().add_attribute("action", "execute_update_config"))
 }
 
-/// ## Description
 /// Expose available contract queries.
-/// ## Params
-/// * **deps** is an object of type [`Deps`].
-///
-/// * **_env** is an object of type [`Env`].
-///
-/// * **msg** is an object of type [`QueryMsg`].
 ///
 /// ## Queries
 /// * **QueryMsg::TotalVotingPower {}** Fetch the total voting power (vxASTRO supply) at the current block.
@@ -854,14 +770,9 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     }
 }
 
-/// ## Description
-/// Checks if specified addresses are blacklisted. Returns a [`Response`] with the specified
-/// attributes if the operation was successful, otherwise then a [`StdError`] is returned.
+/// Checks if specified addresses are blacklisted.
 ///
-/// ## Params
-/// * **deps** is an object of type [`Deps`].
-///
-/// * **voters** is a list of type [`String`]. Specifies addresses to check if they are blacklisted.
+/// * **voters** addresses to check if they are blacklisted.
 pub fn check_voters_are_blacklisted(
     deps: Deps,
     voters: Vec<String>,
@@ -878,18 +789,12 @@ pub fn check_voters_are_blacklisted(
     Ok(BlacklistedVotersResponse::VotersBlacklisted {})
 }
 
-/// ## Description
 /// Returns a list of blacklisted voters.
 ///
-/// ## Params
-/// * **deps** is an object of type [`Deps`].
+/// * **start_after** is an optional field that specifies whether the function should return
+/// a list of voters starting from a specific address onward.
 ///
-/// * **start_after** is an object of type [`Option<String>`]. This is an optional field
-/// that specifies whether the function should return a list of voters starting from a
-/// specific address onward.
-///
-/// * **limit** is an object of type [`Option<u32>`]. This is the max amount of voters
-/// addresses to return.
+/// * **limit** max amount of voters addresses to return.
 pub fn get_blacklisted_voters(
     deps: Deps,
     start_after: Option<String>,
@@ -925,12 +830,9 @@ pub fn get_blacklisted_voters(
     Ok(black_list[start_index..end_index].to_vec())
 }
 
-/// ## Description
-/// Return a user's lock information using a [`LockInfoResponse`] struct.
-/// ## Params
-/// * **deps** is an object of type [`Deps`].
+/// Return a user's lock information.
 ///
-/// * **user** is an object of type [`String`]. This is the address of the user for which we return lock information.
+/// * **user** user for which we return lock information.
 fn get_user_lock_info(deps: Deps, env: Env, user: String) -> StdResult<LockInfoResponse> {
     let addr = addr_validate_to_lower(deps.api, &user)?;
     if let Some(lock) = LOCKED.may_load(deps.storage, addr.clone())? {
@@ -951,14 +853,11 @@ fn get_user_lock_info(deps: Deps, env: Env, user: String) -> StdResult<LockInfoR
     }
 }
 
-/// ## Description
 /// Return a user's staked xASTRO amount at a given block height.
-/// ## Params
-/// * **deps** is an object of type [`Deps`].
 ///
-/// * **user** is an object of type String. This is the address of the user for which we return lock information.
+/// * **user** user for which we return lock information.
 ///
-/// * **block_height** is an object of type u64. This is the block height at which we return the staked xASTRO amount.
+/// * **block_height** block height at which we return the staked xASTRO amount.
 fn get_user_deposit_at_height(deps: Deps, user: String, block_height: u64) -> StdResult<Uint128> {
     let addr = addr_validate_to_lower(deps.api, &user)?;
     let locked_opt = LOCKED.may_load_at_height(deps.storage, addr, block_height)?;
@@ -969,17 +868,12 @@ fn get_user_deposit_at_height(deps: Deps, user: String, block_height: u64) -> St
     }
 }
 
-/// ## Description
 /// Calculates a user's voting power at a given timestamp.
 /// If time is None, then it calculates the user's voting power at the current block.
-/// ## Params
-/// * **deps** is an object of type [`Deps`].
 ///
-/// * **env** is an object of type [`Env`].
+/// * **user** user/staker for which we fetch the current voting power (vxASTRO balance).
 ///
-/// * **user** is an object of type String. This is the user/staker for which we fetch the current voting power (vxASTRO balance).
-///
-/// * **time** is an [`Option`] of type [`u64`]. This is the timestamp at which to fetch the user's voting power (vxASTRO balance).
+/// * **time** timestamp at which to fetch the user's voting power (vxASTRO balance).
 fn get_user_voting_power(
     deps: Deps,
     env: Env,
@@ -990,14 +884,11 @@ fn get_user_voting_power(
     get_user_voting_power_at_period(deps, user, period)
 }
 
-/// ## Description
 /// Calculates a user's voting power at a given period number.
-/// ## Params
-/// * **deps** is an object of type [`Deps`].
 ///
-/// * **user** is an object of type String. This is the user/staker for which we fetch the current voting power (vxASTRO balance).
+/// * **user** user/staker for which we fetch the current voting power (vxASTRO balance).
 ///
-/// * **period** is [`u64`]. This is the period number at which to fetch the user's voting power (vxASTRO balance).
+/// * **period** period number at which to fetch the user's voting power (vxASTRO balance).
 fn get_user_voting_power_at_period(
     deps: Deps,
     user: String,
@@ -1023,14 +914,9 @@ fn get_user_voting_power_at_period(
     }
 }
 
-/// ## Description
 /// Calculates a user's voting power at the current block.
-/// ## Params
-/// * **deps** is an object of type [`Deps`].
 ///
-/// * **env** is an object of type [`Env`].
-///
-/// * **user** is an object of type [`String`]. This is the user/staker for which we fetch the current voting power (vxASTRO balance).
+/// * **user** user/staker for which we fetch the current voting power (vxASTRO balance).
 fn get_user_balance(deps: Deps, env: Env, user: String) -> StdResult<BalanceResponse> {
     let vp_response = get_user_voting_power(deps, env, user, None)?;
     Ok(BalanceResponse {
@@ -1038,15 +924,10 @@ fn get_user_balance(deps: Deps, env: Env, user: String) -> StdResult<BalanceResp
     })
 }
 
-/// ## Description
 /// Calculates the total voting power (total vxASTRO supply) at the given timestamp.
 /// If `time` is None, then it calculates the total voting power at the current block.
-/// ## Params
-/// * **deps** is an object of type [`Deps`].
 ///
-/// * **env** is an object of type [`Env`].
-///
-/// * **time** is an [`Option`] of type [`u64`]. This is the timestamp at which we fetch the total voting power (vxASTRO supply).
+/// * **time** timestamp at which we fetch the total voting power (vxASTRO supply).
 fn get_total_voting_power(
     deps: Deps,
     env: Env,
@@ -1056,14 +937,9 @@ fn get_total_voting_power(
     get_total_voting_power_at_period(deps, env, period)
 }
 
-/// ## Description
 /// Calculates the total voting power (total vxASTRO supply) at the given period number.
-/// ## Params
-/// * **deps** is an object of type [`Deps`].
 ///
-/// * **env** is an object of type [`Env`].
-///
-/// * **period** is [`u64`]. This is the period number at which we fetch the total voting power (vxASTRO supply).
+/// * **period** period number at which we fetch the total voting power (vxASTRO supply).
 fn get_total_voting_power_at_period(
     deps: Deps,
     env: Env,
@@ -1100,12 +976,7 @@ fn get_total_voting_power_at_period(
     Ok(VotingPowerResponse { voting_power })
 }
 
-/// ## Description
 /// Fetch the vxASTRO token information, such as the token name, symbol, decimals and total supply (total voting power).
-/// ## Params
-/// * **deps** is an object of type [`Deps`].
-///
-/// * **env** is an object of type [`Env`].
 fn query_token_info(deps: Deps, env: Env) -> StdResult<TokenInfoResponse> {
     let info = TOKEN_INFO.load(deps.storage)?;
     let total_vp = get_total_voting_power(deps, env, None)?;
@@ -1118,14 +989,7 @@ fn query_token_info(deps: Deps, env: Env) -> StdResult<TokenInfoResponse> {
     Ok(res)
 }
 
-/// ## Description
-/// Used for contract migration. Returns a default object of type [`ContractError`].
-/// ## Params
-/// * **_deps** is an object of type [`DepsMut`].
-///
-/// * **_env** is an object of type [`Env`].
-///
-/// * **_msg** is an object of type [`MigrateMsg`].
+/// Manages contract migration.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
     Err(ContractError::MigrationError {})

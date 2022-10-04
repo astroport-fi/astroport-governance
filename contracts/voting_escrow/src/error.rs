@@ -2,8 +2,7 @@ use cosmwasm_std::StdError;
 use cw20_base::ContractError as cw20baseError;
 use thiserror::Error;
 
-/// ## Description
-/// This enum describes vxASTRO contract errors!
+/// This enum describes vxASTRO contract errors
 #[derive(Error, Debug)]
 pub enum ContractError {
     #[error("{0}")]

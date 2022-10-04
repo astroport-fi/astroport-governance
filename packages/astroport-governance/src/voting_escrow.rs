@@ -215,12 +215,8 @@ pub struct MigrateMsg {
 }
 
 /// Queries current user's voting power from the voting escrow contract.
-/// ## Params
-/// * **querier** is an object of type [`QuerierWrapper`].
 ///
-/// * **escrow_addr** is an object of type [`impl Into<String>`]. This is the vxASTRO contract address.
-///
-/// * **user** is an object of type [`impl Into<String>`]. This is the address of the staker for which we calculate the latest vxASTRO voting power.
+/// * **user** staker for which we calculate the latest vxASTRO voting power.
 pub fn get_voting_power(
     querier: &QuerierWrapper,
     escrow_addr: impl Into<String>,
@@ -232,14 +228,10 @@ pub fn get_voting_power(
 }
 
 /// Queries current user's voting power from the voting escrow contract by timestamp.
-/// ## Params
-/// * **querier** is an object of type [`QuerierWrapper`].
 ///
-/// * **escrow_addr** is an object of type [`impl Into<String>`]. This is the adress of the vxASTRO contract.
+/// * **user** staker for which we calculate the voting power at a specific time.
 ///
-/// * **user** is an object of type [`impl Into<String>`]. This is the address of the staker for which we calculate the voting power at a specific time.
-///
-/// * **timestamp** is a variable of type [`u64`]. This is the timestamp at which we calculate the staker's voting power.
+/// * **timestamp** timestamp at which we calculate the staker's voting power.
 pub fn get_voting_power_at(
     querier: &QuerierWrapper,
     escrow_addr: impl Into<String>,
@@ -258,10 +250,6 @@ pub fn get_voting_power_at(
 }
 
 /// Queries current total voting power from the voting escrow contract.
-/// ## Params
-/// * **querier** is an object of type [`QuerierWrapper`].
-///
-/// * **escrow_addr** is an object of type [`impl Into<String>`]. This is the adress of the vxASTRO contract.
 pub fn get_total_voting_power(
     querier: &QuerierWrapper,
     escrow_addr: impl Into<String>,
@@ -272,12 +260,8 @@ pub fn get_total_voting_power(
 }
 
 /// Queries total voting power from the voting escrow contract by timestamp.
-/// ## Params
-/// * **querier** is an object of type [`QuerierWrapper`].
 ///
-/// * **escrow_addr** is an object of type [`impl Into<String>`]. This is the adress of the vxASTRO contract.
-///
-/// * **timestamp** is a variable of type [`u64`]. This is the time at which we fetch the total voting power.
+/// * **timestamp** time at which we fetch the total voting power.
 pub fn get_total_voting_power_at(
     querier: &QuerierWrapper,
     escrow_addr: impl Into<String>,
@@ -290,12 +274,8 @@ pub fn get_total_voting_power_at(
 }
 
 /// Queries user's lockup information from the voting escrow contract.
-/// ## Params
-/// * **querier** is an object of type [`QuerierWrapper`].
 ///
-/// * **escrow_addr** is an object of type [`impl Into<String>`]. This is the adress of the vxASTRO contract.
-///
-/// * **user** is an object of type [`impl Into<String>`]. This is the staker for which we return lock position information.
+/// * **user** staker for which we return lock position information.
 pub fn get_lock_info(
     querier: &QuerierWrapper,
     escrow_addr: impl Into<String>,

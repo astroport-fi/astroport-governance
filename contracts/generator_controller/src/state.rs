@@ -27,7 +27,6 @@ pub struct UserInfo {
 }
 
 impl UserInfo {
-    /// ## Description
     /// The function converts [`UserInfo`] object into [`UserInfoResponse`].
     pub(crate) fn into_response(self) -> UserInfoResponse {
         let votes = self

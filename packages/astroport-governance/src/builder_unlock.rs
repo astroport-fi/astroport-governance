@@ -132,25 +132,25 @@ pub mod msg {
     #[cw_serde]
     #[derive(QueryResponses)]
     pub enum QueryMsg {
-        // Config returns the configuration for this contract
+        /// Config returns the configuration for this contract
         #[returns(Config)]
         Config {},
-        // State returns the state of this contract
+        /// State returns the state of this contract
         #[returns(StateResponse)]
         State {},
-        // Allocation returns the parameters and current status of an allocation
+        /// Allocation returns the parameters and current status of an allocation
         #[returns(AllocationResponse)]
         Allocation {
             /// Account whose allocation status we query
             account: String,
         },
-        // UnlockedTokens returns the unlocked tokens from an allocation
         #[returns(Uint128)]
+        /// UnlockedTokens returns the unlocked tokens from an allocation
         UnlockedTokens {
             /// Account whose amount of unlocked ASTRO we query for
             account: String,
         },
-        // SimulateWithdraw simulates how many ASTRO will be released if a withdrawal is attempted
+        /// SimulateWithdraw simulates how many ASTRO will be released if a withdrawal is attempted
         #[returns(SimulateWithdrawResponse)]
         SimulateWithdraw {
             /// Account for which we simulate a withdrawal

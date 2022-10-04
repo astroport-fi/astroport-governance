@@ -16,7 +16,6 @@ use crate::state::{VotedPoolInfo, POOLS, POOL_PERIODS, POOL_SLOPE_CHANGES, POOL_
 /// Pools limit should be within the range `[2, 100]`
 const POOL_NUMBER_LIMIT: RangeInclusive<u64> = 2..=100;
 
-/// ## Description
 /// The enum defines math operations with voting power and slope.
 #[derive(Debug)]
 pub(crate) enum Operation {
@@ -40,7 +39,6 @@ impl Operation {
     }
 }
 
-/// ## Description
 /// Enum wraps [`VotedPoolInfo`] so the contract can leverage storage operations efficiently.
 #[derive(Debug)]
 pub(crate) enum VotedPoolInfoResult {
@@ -48,7 +46,6 @@ pub(crate) enum VotedPoolInfoResult {
     New(VotedPoolInfo),
 }
 
-/// ## Description
 /// Filters pairs (LP token address, voting parameters) by criteria:
 /// * pool's pair is registered in Factory,
 /// * pool's pair type is not in blocked list,
@@ -91,7 +88,6 @@ pub(crate) fn filter_pools(
     Ok(pools)
 }
 
-/// ## Description
 /// Cancels user changes using old voting parameters for a given pool.  
 /// Firstly, it removes slope change scheduled for previous lockup end period.  
 /// Secondly, it updates voting parameters for the given period, but without user's vote.
@@ -126,7 +122,6 @@ pub(crate) fn cancel_user_changes(
     .map(|_| ())
 }
 
-/// ## Description
 /// Applies user's vote for a given pool.   
 /// Firstly, it schedules slope change for lockup end period.  
 /// Secondly, it updates voting parameters with applied user's vote.
@@ -156,7 +151,6 @@ pub(crate) fn vote_for_pool(
     .map(|_| ())
 }
 
-/// ## Description
 /// Fetches voting parameters for a given pool at specific period, applies new changes, saves it in storage
 /// and returns new voting parameters in [`VotedPoolInfo`] object.
 /// If there are no changes in 'changes' parameter
@@ -194,7 +188,6 @@ pub(crate) fn update_pool_info(
     Ok(pool_info)
 }
 
-/// ## Description
 /// Returns pool info at specified period or calculates it. Saves intermediate results in storage.
 pub(crate) fn get_pool_info_mut(
     storage: &mut dyn Storage,
@@ -248,7 +241,6 @@ pub(crate) fn get_pool_info_mut(
     Ok(pool_info_result)
 }
 
-/// ## Description
 /// Returns pool info at specified period or calculates it.
 pub(crate) fn get_pool_info(
     storage: &dyn Storage,
@@ -290,7 +282,6 @@ pub(crate) fn get_pool_info(
     Ok(pool_info)
 }
 
-/// ## Description
 /// Fetches last period for specified pool which has saved result in [`POOL_PERIODS`].
 pub(crate) fn fetch_last_pool_period(
     storage: &dyn Storage,
@@ -311,7 +302,6 @@ pub(crate) fn fetch_last_pool_period(
     Ok(period_opt)
 }
 
-/// ## Description
 /// Fetches all slope changes between `last_period` and `period` for specific pool.
 pub(crate) fn fetch_slope_changes(
     storage: &dyn Storage,
@@ -330,6 +320,7 @@ pub(crate) fn fetch_slope_changes(
         .collect()
 }
 
+/// Input validation for pools limit.
 pub(crate) fn validate_pools_limit(number: u64) -> Result<u64, ContractError> {
     if !POOL_NUMBER_LIMIT.contains(&number) {
         Err(ContractError::InvalidPoolNumber(number))
