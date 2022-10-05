@@ -5,6 +5,7 @@ members = [
     "contracts/builder_unlock",
     "contracts/escrow_fee_distributor",
     "contracts/voting_escrow",
+    "contracts/generator_controller",
 ]
 
 [profile.release]

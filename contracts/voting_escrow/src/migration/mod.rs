@@ -1,6 +1,6 @@
+use cosmwasm_schema::schemars::JsonSchema;
+use cosmwasm_schema::serde::{Deserialize, Serialize};
 use cosmwasm_std::{from_binary, DepsMut, Env, StdResult};
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
 
 use astroport_governance::voting_escrow::MigrateMsg;
 

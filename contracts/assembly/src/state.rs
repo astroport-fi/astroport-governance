@@ -1,5 +1,4 @@
 use astroport_governance::assembly::{Config, Proposal};
-use astroport_governance::U64Key;
 use cosmwasm_std::Uint64;
 use cw_storage_plus::{Item, Map};
 
@@ -13,4 +12,4 @@ pub const PROPOSAL_COUNT: Item<Uint64> = Item::new("proposal_count");
 
 /// ## Description
 /// This is a map that contains information about all proposals
-pub const PROPOSALS: Map<U64Key, Proposal> = Map::new("proposals");
+pub const PROPOSALS: Map<u64, Proposal> = Map::new("proposals");

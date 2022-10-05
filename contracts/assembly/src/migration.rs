@@ -1,10 +1,9 @@
+use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Decimal, Uint128};
 use cw_storage_plus::Item;
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
 
 /// This structure describes a migration message.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[cw_serde]
 pub struct MigrateMsg {
     pub proposal_voting_period: Option<u64>,
     pub proposal_effective_delay: Option<u64>,
@@ -12,7 +11,7 @@ pub struct MigrateMsg {
 }
 
 /// This structure stores general parameters for the Assembly contract.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[cw_serde]
 pub struct ConfigV100 {
     /// xASTRO token address
     pub xastro_token_addr: Addr,
@@ -37,7 +36,7 @@ pub struct ConfigV100 {
 pub const CONFIGV100: Item<ConfigV100> = Item::new("config");
 
 /// This structure stores general parameters for the Assembly contract.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[cw_serde]
 pub struct ConfigV101 {
     /// xASTRO token address
     pub xastro_token_addr: Addr,

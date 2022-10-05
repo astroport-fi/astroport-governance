@@ -1,14 +1,13 @@
 use crate::astroport::asset::addr_validate_to_lower;
+use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Decimal, DepsMut, Env, StdError, StdResult};
 use cw20::{Cw20QueryMsg, MinterResponse};
 use cw_storage_plus::Item;
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
 
 use crate::migration::Migration;
 use crate::state::{Config, CONFIG};
 
-#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema)]
+#[cw_serde]
 pub struct ConfigV100 {
     pub owner: Addr,
     pub guardian_addr: Addr,
@@ -17,7 +16,7 @@ pub struct ConfigV100 {
 
 pub const CONFIG_V100: Item<ConfigV100> = Item::new("config");
 
-#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema)]
+#[cw_serde]
 pub struct ParamsV110 {
     pub max_exit_penalty: Decimal,
     pub slashed_fund_receiver: Option<String>,
