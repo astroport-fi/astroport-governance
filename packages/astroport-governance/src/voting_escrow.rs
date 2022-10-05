@@ -1,10 +1,12 @@
 use crate::voting_escrow::QueryMsg::{
     LockInfo, TotalVotingPower, TotalVotingPowerAt, UserVotingPower, UserVotingPowerAt,
 };
+use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Addr, Binary, Decimal, QuerierWrapper, StdResult, Uint128};
-use cw20::{Cw20ReceiveMsg, Logo};
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
+use cw20::{
+    BalanceResponse, Cw20ReceiveMsg, DownloadLogoResponse, Logo, MarketingInfoResponse,
+    TokenInfoResponse,
+};
 use std::fmt;
 
 /// ## Pagination settings
@@ -17,7 +19,7 @@ pub const DEFAULT_LIMIT: u32 = 10;
 pub const DEFAULT_PERIODS_LIMIT: u64 = 20;
 
 /// This structure stores marketing information for vxASTRO.
-#[derive(Serialize, Deserialize, JsonSchema, Debug, Clone, PartialEq)]
+#[cw_serde]
 pub struct UpdateMarketingInfo {
     /// Project URL
     pub project: Option<String>,
@@ -30,7 +32,7 @@ pub struct UpdateMarketingInfo {
 }
 
 /// This structure stores general parameters for the vxASTRO contract.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[cw_serde]
 pub struct InstantiateMsg {
     /// The vxASTRO contract owner
     pub owner: String,
@@ -45,8 +47,7 @@ pub struct InstantiateMsg {
 }
 
 /// This structure describes the execute functions in the contract.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[cw_serde]
 pub enum ExecuteMsg {
     /// Extend the lockup time for your staked xASTRO
     ExtendLockTime { time: u64 },
@@ -84,8 +85,7 @@ pub enum ExecuteMsg {
 }
 
 /// This structure describes a CW20 hook message.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[cw_serde]
 pub enum Cw20HookMsg {
     /// Create a vxASTRO position and lock xASTRO for `time` amount of time
     CreateLock { time: u64 },
@@ -96,8 +96,7 @@ pub enum Cw20HookMsg {
 }
 
 /// This enum describes voters status.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[cw_serde]
 pub enum BlacklistedVotersResponse {
     /// Voters are blacklisted
     VotersBlacklisted {},
@@ -117,53 +116,68 @@ impl fmt::Display for BlacklistedVotersResponse {
 }
 
 /// This structure describes the query messages available in the contract.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[cw_serde]
+#[derive(QueryResponses)]
 pub enum QueryMsg {
     /// Checks if specified addresses are blacklisted
+    #[returns(BlacklistedVotersResponse)]
     CheckVotersAreBlacklisted { voters: Vec<String> },
     /// Return the blacklisted voters
+    #[returns(Vec<Addr>)]
     BlacklistedVoters {
         start_after: Option<String>,
         limit: Option<u32>,
     },
     /// Return the user's vxASTRO balance
+    #[returns(BalanceResponse)]
     Balance { address: String },
     /// Fetch the vxASTRO token information
+    #[returns(TokenInfoResponse)]
     TokenInfo {},
     /// Fetch vxASTRO's marketing information
+    #[returns(MarketingInfoResponse)]
     MarketingInfo {},
     /// Download the vxASTRO logo
+    #[returns(DownloadLogoResponse)]
     DownloadLogo {},
     /// Return the current total amount of vxASTRO
+    #[returns(VotingPowerResponse)]
     TotalVotingPower {},
     /// Return the total amount of vxASTRO at some point in the past
+    #[returns(VotingPowerResponse)]
     TotalVotingPowerAt { time: u64 },
     /// Return the total voting power at a specific period
+    #[returns(VotingPowerResponse)]
     TotalVotingPowerAtPeriod { period: u64 },
     /// Return the user's current voting power (vxASTRO balance)
+    #[returns(VotingPowerResponse)]
     UserVotingPower { user: String },
     /// Return the user's vxASTRO balance at some point in the past
+    #[returns(VotingPowerResponse)]
     UserVotingPowerAt { user: String, time: u64 },
     /// Return the user's voting power at a specific period
+    #[returns(VotingPowerResponse)]
     UserVotingPowerAtPeriod { user: String, period: u64 },
     /// Return information about a user's lock position
+    #[returns(LockInfoResponse)]
     LockInfo { user: String },
     /// Return user's locked xASTRO balance at the given block height
+    #[returns(Uint128)]
     UserDepositAtHeight { user: String, height: u64 },
     /// Return the  vxASTRO contract configuration
+    #[returns(ConfigResponse)]
     Config {},
 }
 
 /// This structure is used to return a user's amount of vxASTRO.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[cw_serde]
 pub struct VotingPowerResponse {
     /// The vxASTRO balance
     pub voting_power: Uint128,
 }
 
 /// This structure is used to return the lock information for a vxASTRO position.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[cw_serde]
 pub struct LockInfoResponse {
     /// The amount of xASTRO locked in the position
     pub amount: Uint128,
@@ -178,7 +192,7 @@ pub struct LockInfoResponse {
 }
 
 /// This structure stores the parameters returned when querying for a contract's configuration.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[cw_serde]
 pub struct ConfigResponse {
     /// Address that's allowed to change contract parameters
     pub owner: String,
@@ -195,7 +209,7 @@ pub struct ConfigResponse {
 }
 
 /// This structure describes a Migration message.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[cw_serde]
 pub struct MigrateMsg {
     pub params: Binary,
 }

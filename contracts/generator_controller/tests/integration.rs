@@ -550,7 +550,7 @@ fn check_bad_pools_filtering() {
     router.next_block(2 * WEEK);
 
     // Deregister first pair
-    let asset_infos = [
+    let asset_infos = vec![
         AssetInfo::Token {
             contract_addr: foo_token.clone(),
         },

@@ -13,7 +13,6 @@ use astroport_governance::escrow_fee_distributor::{
 };
 use astroport_governance::utils::{get_period, CLAIM_LIMIT, MIN_CLAIM_LIMIT};
 use astroport_governance::voting_escrow::{get_total_voting_power_at, get_voting_power_at};
-use astroport_governance::U64Key;
 
 use crate::astroport;
 use crate::astroport::asset::addr_opt_validate;
@@ -138,17 +137,13 @@ fn receive_cw20(
 
     let curr_period = get_period(env.block.time.seconds())?;
 
-    REWARDS_PER_WEEK.update(
-        deps.storage,
-        U64Key::new(curr_period),
-        |period| -> StdResult<_> {
-            if let Some(tokens_amount) = period {
-                Ok(tokens_amount.checked_add(cw20_msg.amount)?)
-            } else {
-                Ok(cw20_msg.amount)
-            }
-        },
-    )?;
+    REWARDS_PER_WEEK.update(deps.storage, curr_period, |period| -> StdResult<_> {
+        if let Some(tokens_amount) = period {
+            Ok(tokens_amount.checked_add(cw20_msg.amount)?)
+        } else {
+            Ok(cw20_msg.amount)
+        }
+    })?;
 
     Ok(Response::new())
 }
@@ -335,7 +330,7 @@ fn query_available_reward_per_week(
 ) -> StdResult<Vec<Uint128>> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
     let start = if let Some(timestamp) = start_after {
-        Some(Bound::exclusive(U64Key::from(get_period(timestamp)?)))
+        Some(Bound::exclusive(get_period(timestamp)?))
     } else {
         None
     };

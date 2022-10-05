@@ -1,9 +1,9 @@
 use astroport_governance::utils::WEEK;
+use astroport_governance::voting_escrow_delegation::Config;
 use astroport_governance::voting_escrow_delegation::QueryMsg;
-use cosmwasm_std::{to_binary, Addr, QueryRequest, Uint128, WasmQuery};
+use cosmwasm_std::{to_binary, Addr, Empty, QueryRequest, Uint128, WasmQuery};
 use cw721_base::{ExecuteMsg as ExecuteMsgNFT, Extension, MintMsg, QueryMsg as QueryMsgNFT};
 use cw_multi_test::Executor;
-use voting_escrow_delegation::state;
 
 use cw721::{ContractInfoResponse, Cw721ExecuteMsg, NumTokensResponse, TokensResponse};
 
@@ -23,7 +23,7 @@ fn config() {
 
     let res = router
         .wrap()
-        .query::<state::Config>(&QueryRequest::Wasm(WasmQuery::Smart {
+        .query::<Config>(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: helper.delegation_instance.to_string(),
             msg: to_binary(&QueryMsg::Config {}).unwrap(),
         }))
@@ -43,7 +43,7 @@ fn mint() {
         .wrap()
         .query::<ContractInfoResponse>(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: helper.nft_instance.to_string(),
-            msg: to_binary(&QueryMsgNFT::ContractInfo {}).unwrap(),
+            msg: to_binary(&QueryMsgNFT::<Empty>::ContractInfo {}).unwrap(),
         }))
         .unwrap();
     assert_eq!("Delegated VP NFT", resp.name);
@@ -54,7 +54,7 @@ fn mint() {
         .execute_contract(
             Addr::unchecked("random"),
             helper.nft_instance.clone(),
-            &ExecuteMsgNFT::Mint(MintMsg::<Extension> {
+            &ExecuteMsgNFT::<Extension, Empty>::Mint(MintMsg::<Extension> {
                 token_id: "token_1".to_string(),
                 owner: USER.to_string(),
                 token_uri: None,
@@ -70,7 +70,7 @@ fn mint() {
         .execute_contract(
             helper.delegation_instance.clone(),
             helper.nft_instance.clone(),
-            &ExecuteMsgNFT::Mint(MintMsg::<Extension> {
+            &ExecuteMsgNFT::<Extension, Empty>::Mint(MintMsg::<Extension> {
                 token_id: "token_1".to_string(),
                 owner: USER.to_string(),
                 token_uri: None,
@@ -84,7 +84,7 @@ fn mint() {
         .wrap()
         .query::<NumTokensResponse>(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: helper.nft_instance.to_string(),
-            msg: to_binary(&QueryMsgNFT::NumTokens {}).unwrap(),
+            msg: to_binary(&QueryMsgNFT::<Empty>::NumTokens {}).unwrap(),
         }))
         .unwrap();
     assert_eq!(1, resp.count);
@@ -93,7 +93,7 @@ fn mint() {
         .wrap()
         .query::<TokensResponse>(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: helper.nft_instance.to_string(),
-            msg: to_binary(&QueryMsgNFT::Tokens {
+            msg: to_binary(&QueryMsgNFT::<Empty>::Tokens {
                 owner: USER.to_string(),
                 start_after: None,
                 limit: None,
@@ -108,7 +108,7 @@ fn mint() {
         .execute_contract(
             helper.delegation_instance.clone(),
             helper.nft_instance.clone(),
-            &ExecuteMsgNFT::Mint(MintMsg::<Extension> {
+            &ExecuteMsgNFT::<Extension, Empty>::Mint(MintMsg::<Extension> {
                 token_id: "token_1".to_string(),
                 owner: USER.to_string(),
                 token_uri: None,
@@ -124,7 +124,7 @@ fn mint() {
         .execute_contract(
             helper.delegation_instance.clone(),
             helper.nft_instance.clone(),
-            &ExecuteMsgNFT::<Extension>::Burn {
+            &ExecuteMsgNFT::<Extension, Empty>::Burn {
                 token_id: "token_1".to_string(),
             },
             &[],
@@ -137,7 +137,7 @@ fn mint() {
         .wrap()
         .query::<TokensResponse>(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: helper.nft_instance.to_string(),
-            msg: to_binary(&QueryMsgNFT::Tokens {
+            msg: to_binary(&QueryMsgNFT::<Empty>::Tokens {
                 owner: USER.to_string(),
                 start_after: None,
                 limit: None,

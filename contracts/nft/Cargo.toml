@@ -20,13 +20,9 @@ backtraces = ["cosmwasm-std/backtraces"]
 library = []
 
 [dependencies]
-cw2 = "0.13"
-cw721 = "0.13"
-cw721-base = { version = "0.13", features = ["library"] }
-cosmwasm-std = "1.0"
-schemars = "0.8"
-serde = { version = "1.0", default-features = false, features = ["derive"] }
+cw2 = "0.15"
+cw721 = "0.15"
+cw721-base = { version = "0.15", features = ["library"] }
+cosmwasm-std = "1.1"
 astroport-governance = { path = "../../packages/astroport-governance" }
-
-[dev-dependencies]
-cosmwasm-schema = "1.0"
+cosmwasm-schema = "1.1"

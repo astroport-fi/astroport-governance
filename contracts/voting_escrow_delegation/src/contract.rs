@@ -1,19 +1,22 @@
 use astroport_governance::astroport::asset::addr_validate_to_lower;
 use astroport_governance::utils::{calc_voting_power, get_period, get_periods_count};
 use astroport_governance::voting_escrow::{get_voting_power, get_voting_power_at, MAX_LIMIT};
+use std::marker::PhantomData;
 
 use crate::error::ContractError;
-use crate::state::{Config, CONFIG, DELEGATED, OWNERSHIP_PROPOSAL, TOKENS};
+use crate::state::{CONFIG, DELEGATED, OWNERSHIP_PROPOSAL, TOKENS};
 use astroport_governance::astroport::common::{
     claim_ownership, drop_ownership_proposal, propose_new_owner,
 };
-use astroport_governance::voting_escrow_delegation::{ExecuteMsg, InstantiateMsg, QueryMsg};
+use astroport_governance::voting_escrow_delegation::{
+    Config, ExecuteMsg, InstantiateMsg, QueryMsg,
+};
 
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, to_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Reply, ReplyOn, Response,
-    StdError, StdResult, SubMsg, Uint128, WasmMsg,
+    attr, to_binary, Addr, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Reply, ReplyOn,
+    Response, StdError, StdResult, SubMsg, Uint128, WasmMsg,
 };
 use cw2::set_contract_version;
 use cw721::NftInfoResponse;
@@ -195,7 +198,11 @@ pub fn create_delegation(
     let exp_period = block_period + get_periods_count(expire_time);
 
     // We can create only one NFT for a specific token ID
-    let nft_helper = cw721_helpers::Cw721Contract(cfg.nft_addr.clone());
+    let nft_helper = cw721_helpers::Cw721Contract::<Empty, Empty>(
+        cfg.nft_addr.clone(),
+        PhantomData,
+        PhantomData,
+    );
 
     let nft_instance: StdResult<NftInfoResponse<Extension>> =
         nft_helper.nft_info(&deps.querier, &token_id);
@@ -236,7 +243,9 @@ pub fn create_delegation(
         ])
         .add_submessage(SubMsg::new(WasmMsg::Execute {
             contract_addr: cfg.nft_addr.to_string(),
-            msg: to_binary(&ExecuteMsgNFT::Mint(MintMsg::<Extension> {
+            msg: to_binary(&ExecuteMsgNFT::<Extension, Empty>::Mint(MintMsg::<
+                Extension,
+            > {
                 token_id,
                 owner: recipient_addr.to_string(),
                 token_uri: None,
@@ -391,7 +400,8 @@ fn adjusted_balance(
     // we must to subtract the delegated voting power
     current_vp = current_vp.checked_sub(total_delegated_vp)?;
 
-    let nft_helper = cw721_helpers::Cw721Contract(config.nft_addr);
+    let nft_helper =
+        cw721_helpers::Cw721Contract::<Empty, Empty>(config.nft_addr, PhantomData, PhantomData);
 
     let mut account_tokens = vec![];
     let mut start_after = None;

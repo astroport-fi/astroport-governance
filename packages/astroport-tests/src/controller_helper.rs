@@ -85,6 +85,7 @@ impl ControllerHelper {
             vesting_contract: "vesting_placeholder".to_string(),
             whitelist_code_id,
             voting_escrow: None,
+            voting_escrow_delegation: None,
         };
 
         let generator = router
@@ -135,6 +136,7 @@ impl ControllerHelper {
                     guardian: None,
                     checkpoint_generator_limit: None,
                     voting_escrow: None,
+                    voting_escrow_delegation: None,
                 },
                 &[],
             )
@@ -170,7 +172,7 @@ impl ControllerHelper {
     }
 
     pub fn create_pool(&self, router: &mut App, token1: &Addr, token2: &Addr) -> AnyResult<Addr> {
-        let asset_infos = [
+        let asset_infos = vec![
             AssetInfo::Token {
                 contract_addr: token1.clone(),
             },

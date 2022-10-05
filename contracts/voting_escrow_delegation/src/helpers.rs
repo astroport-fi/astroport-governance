@@ -1,7 +1,8 @@
-use crate::state::{Config, Token, DELEGATED};
+use crate::state::DELEGATED;
 use crate::ContractError;
 use astroport_governance::utils::calc_voting_power;
 use astroport_governance::voting_escrow::get_lock_info;
+use astroport_governance::voting_escrow_delegation::{Config, Token};
 use cosmwasm_std::{Addr, Deps, Order, QuerierWrapper, StdError, StdResult, Uint128};
 
 const MAX_BPS_AMOUNT: u16 = 10000u16;

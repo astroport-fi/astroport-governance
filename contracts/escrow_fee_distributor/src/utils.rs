@@ -1,6 +1,5 @@
 use std::cmp::min;
 
-use astroport_governance::U64Key;
 use cosmwasm_std::{
     to_binary, Addr, CosmosMsg, DepsMut, StdError, StdResult, Storage, Uint128, WasmMsg,
 };
@@ -55,7 +54,7 @@ pub(crate) fn calculate_reward(
     total_vp: Uint128,
 ) -> StdResult<Uint128> {
     let rewards_per_week = REWARDS_PER_WEEK
-        .may_load(storage, U64Key::from(period))?
+        .may_load(storage, period)?
         .unwrap_or_default();
 
     user_vp

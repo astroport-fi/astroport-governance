@@ -1,9 +1,8 @@
+use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Uint128};
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
 
 /// This structure stores general parameters for the builder unlock contract.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[cw_serde]
 pub struct Config {
     /// Account that can create new unlock schedules
     pub owner: Addr,
@@ -14,7 +13,8 @@ pub struct Config {
 }
 
 /// This structure stores the total and the remaining amount of ASTRO to be unlocked by all accounts.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Default)]
+#[cw_serde]
+#[derive(Default)]
 pub struct State {
     /// Amount of ASTRO tokens deposited into the contract
     pub total_astro_deposited: Uint128,
@@ -25,7 +25,8 @@ pub struct State {
 }
 
 /// This structure stores the parameters describing a typical unlock schedule.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Default)]
+#[cw_serde]
+#[derive(Default)]
 pub struct Schedule {
     /// Timestamp for the start of the unlock schedule (in seconds)
     pub start_time: u64,
@@ -36,7 +37,8 @@ pub struct Schedule {
 }
 
 /// This structure stores the parameters used to describe an ASTRO allocation.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Default)]
+#[cw_serde]
+#[derive(Default)]
 pub struct AllocationParams {
     /// Total amount of ASTRO tokens allocated to a specific account
     pub amount: Uint128,
@@ -47,7 +49,8 @@ pub struct AllocationParams {
 }
 
 /// This structure stores the parameters used to describe the status of an allocation.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Default)]
+#[cw_serde]
+#[derive(Default)]
 pub struct AllocationStatus {
     /// Amount of ASTRO already withdrawn
     pub astro_withdrawn: Uint128,
@@ -65,15 +68,14 @@ impl AllocationStatus {
 }
 
 pub mod msg {
+    use cosmwasm_schema::{cw_serde, QueryResponses};
     use cosmwasm_std::Uint128;
     use cw20::Cw20ReceiveMsg;
-    use schemars::JsonSchema;
-    use serde::{Deserialize, Serialize};
 
     use super::{AllocationParams, AllocationStatus, Config};
 
     /// This structure holds the initial parameters used to instantiate the contract.
-    #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+    #[cw_serde]
     pub struct InstantiateMsg {
         /// Account that can create new allocations
         pub owner: String,
@@ -84,8 +86,7 @@ pub mod msg {
     }
 
     /// This enum describes all the execute functions available in the contract.
-    #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-    #[serde(rename_all = "snake_case")]
+    #[cw_serde]
     pub enum ExecuteMsg {
         /// Receive is an implementation for the CW20 receive msg
         Receive(Cw20ReceiveMsg),
@@ -117,8 +118,7 @@ pub mod msg {
     }
 
     /// This enum describes receive msg templates.
-    #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-    #[serde(rename_all = "snake_case")]
+    #[cw_serde]
     pub enum ReceiveMsg {
         /// CreateAllocations creates new ASTRO allocations
         CreateAllocations {
@@ -129,24 +129,29 @@ pub mod msg {
     }
 
     /// Thie enum describes all the queries available in the contract.
-    #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-    #[serde(rename_all = "snake_case")]
+    #[cw_serde]
+    #[derive(QueryResponses)]
     pub enum QueryMsg {
         /// Config returns the configuration for this contract
+        #[returns(Config)]
         Config {},
         /// State returns the state of this contract
+        #[returns(StateResponse)]
         State {},
         /// Allocation returns the parameters and current status of an allocation
+        #[returns(AllocationResponse)]
         Allocation {
             /// Account whose allocation status we query
             account: String,
         },
+        #[returns(Uint128)]
         /// UnlockedTokens returns the unlocked tokens from an allocation
         UnlockedTokens {
             /// Account whose amount of unlocked ASTRO we query for
             account: String,
         },
         /// SimulateWithdraw simulates how many ASTRO will be released if a withdrawal is attempted
+        #[returns(SimulateWithdrawResponse)]
         SimulateWithdraw {
             /// Account for which we simulate a withdrawal
             account: String,
@@ -158,7 +163,7 @@ pub mod msg {
     pub type ConfigResponse = Config;
 
     /// This structure stores the parameters used to return the response when querying for an allocation data.
-    #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+    #[cw_serde]
     pub struct AllocationResponse {
         /// The allocation parameters
         pub params: AllocationParams,
@@ -167,14 +172,14 @@ pub mod msg {
     }
 
     /// This structure stores the parameters used to return a response when simulating a withdrawal.
-    #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+    #[cw_serde]
     pub struct SimulateWithdrawResponse {
         /// Amount of ASTRO to receive
         pub astro_to_withdraw: Uint128,
     }
 
     /// This structure stores parameters used to return the response when querying for the contract state.
-    #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+    #[cw_serde]
     pub struct StateResponse {
         /// ASTRO tokens deposited into the contract and that are meant to unlock
         pub total_astro_deposited: Uint128,

@@ -225,7 +225,12 @@ fn execute_create_allocations(
         return Err(StdError::generic_err("Only ASTRO can be deposited"));
     }
 
-    if deposit_amount != allocations.iter().map(|params| params.1.amount).sum() {
+    if deposit_amount
+        != allocations
+            .iter()
+            .map(|params| params.1.amount)
+            .sum::<Uint128>()
+    {
         return Err(StdError::generic_err("ASTRO deposit amount mismatch"));
     }
 

@@ -4,11 +4,9 @@ use crate::bps::BasicPoints;
 use astroport_governance::generator_controller::{
     ConfigResponse, GaugeInfoResponse, UserInfoResponse, VotedPoolInfoResponse,
 };
-use astroport_governance::U64Key;
+use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Uint128};
 use cw_storage_plus::{Item, Map};
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
 
 /// This structure describes the main control config of generator controller contract.
 pub type Config = ConfigResponse;
@@ -18,7 +16,8 @@ pub type VotedPoolInfo = VotedPoolInfoResponse;
 pub type TuneInfo = GaugeInfoResponse;
 
 /// The struct describes last user's votes parameters.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Default)]
+#[cw_serde]
+#[derive(Default)]
 pub struct UserInfo {
     pub vote_ts: u64,
     pub voting_power: Uint128,
@@ -50,17 +49,17 @@ impl UserInfo {
 pub const CONFIG: Item<Config> = Item::new("config");
 
 /// Stores voting parameters per pool at a specific period by key ( period -> pool_addr ).
-pub const POOL_VOTES: Map<(U64Key, &Addr), VotedPoolInfo> = Map::new("pool_votes");
+pub const POOL_VOTES: Map<(u64, &Addr), VotedPoolInfo> = Map::new("pool_votes");
 
 /// HashSet based on [`Map`]. It contains all pool addresses whose voting power > 0.
 pub const POOLS: Map<&Addr, ()> = Map::new("pools");
 
 /// Hashset based on [`Map`]. It stores null object by key ( pool_addr -> period ).
 /// This hashset contains all periods which have saved result in [`POOL_VOTES`] for a specific pool address.
-pub const POOL_PERIODS: Map<(&Addr, U64Key), ()> = Map::new("pool_periods");
+pub const POOL_PERIODS: Map<(&Addr, u64), ()> = Map::new("pool_periods");
 
 /// Slope changes for a specific pool address by key ( pool_addr -> period ).
-pub const POOL_SLOPE_CHANGES: Map<(&Addr, U64Key), Uint128> = Map::new("pool_slope_changes");
+pub const POOL_SLOPE_CHANGES: Map<(&Addr, u64), Uint128> = Map::new("pool_slope_changes");
 
 /// User's voting information.
 pub const USER_INFO: Map<&Addr, UserInfo> = Map::new("user_info");

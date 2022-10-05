@@ -1,10 +1,9 @@
-use cosmwasm_std::Addr;
+use cosmwasm_schema::{cw_serde, QueryResponses};
+use cosmwasm_std::{Addr, Uint128};
 use cw20::Cw20ReceiveMsg;
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
 
 /// This structure describes the basic settings for creating a contract.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[cw_serde]
 pub struct InstantiateMsg {
     /// Admin address
     pub owner: String,
@@ -19,8 +18,7 @@ pub struct InstantiateMsg {
 }
 
 /// This structure describes the execute messages available in the contract.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[cw_serde]
 pub enum ExecuteMsg {
     /// ProposeNewOwner creates a request to change contract ownership
     ProposeNewOwner {
@@ -52,14 +50,17 @@ pub enum ExecuteMsg {
 }
 
 /// This structure describes query messages available in the contract.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[cw_serde]
+#[derive(QueryResponses)]
 pub enum QueryMsg {
     /// Config returns control settings using a custom [`ConfigResponse`] structure
+    #[returns(ConfigResponse)]
     Config {},
     /// UserReward returns the reward amount that can be claimed by a staker in the form of ASTRO at a specified timestamp
+    #[returns(Uint128)]
     UserReward { user: String, timestamp: u64 },
     /// AvailableRewardPerWeek returns a vector that contains the total reward amount per week distributed to vxASTRO stakers
+    #[returns(Vec<Uint128>)]
     AvailableRewardPerWeek {
         start_after: Option<u64>,
         limit: Option<u64>,
@@ -67,7 +68,7 @@ pub enum QueryMsg {
 }
 
 /// This structure describes the parameters returned when querying for the contract configuration.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[cw_serde]
 pub struct ConfigResponse {
     /// Address that's allowed to change contract parameters
     pub owner: Addr,
@@ -82,12 +83,11 @@ pub struct ConfigResponse {
 }
 
 /// This structure describes a migration message.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[cw_serde]
 pub struct MigrateMsg {}
 
 /// This structure describes custom hooks for a CW20.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[cw_serde]
 pub enum Cw20HookMsg {
     /// ReceiveTokens receives tokens into the contract and triggers a vxASTRO checkpoint.
     ReceiveTokens {},

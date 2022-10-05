@@ -23,28 +23,25 @@ crate-type = ["cdylib", "rlib"]
 backtraces = ["cosmwasm-std/backtraces"]
 
 [dependencies]
-cw2 = "0.13"
-cw20 = "0.13"
-cosmwasm-std = "1.0"
-cw-storage-plus = "0.13"
-schemars = "0.8.1"
-serde = { version = "1.0.103", default-features = false, features = ["derive"] }
-thiserror = { version = "1.0.20" }
+cw2 = "0.15"
+cw20 = "0.15"
+cosmwasm-std = "1.1"
+cw-storage-plus = "0.15"
+thiserror = { version = "1.0" }
 itertools = "0.10"
 astroport-governance = { path = "../../packages/astroport-governance" }
+cosmwasm-schema = "1.1"
 
 [dev-dependencies]
-cosmwasm-schema = "1.0"
-cw-multi-test = "0.13"
+cw-multi-test = "0.15"
 astroport-tests = { path = "../../packages/astroport-tests" }
-
-astroport-generator = { git = "https://github.com/astroport-fi/astroport-core.git", branch = "main" }
-astroport-pair = { git = "https://github.com/astroport-fi/astroport-core.git", branch = "main" }
-astroport-factory = { git = "https://github.com/astroport-fi/astroport-core.git", branch = "main" }
-astroport-token = { git = "https://github.com/astroport-fi/astroport-core.git", branch = "main" }
-astroport-staking = { git = "https://github.com/astroport-fi/astroport-core.git", branch = "main" }
-astroport-whitelist = { git = "https://github.com/astroport-fi/astroport-core.git", branch = "main" }
-cw20 = "0.13"
+astroport-generator = { git = "https://github.com/astroport-fi/astroport-core.git", branch = "feat/migrate-all-SC-to-std-1.1" }
+astroport-pair = { git = "https://github.com/astroport-fi/astroport-core.git", branch = "feat/migrate-all-SC-to-std-1.1" }
+astroport-factory = { git = "https://github.com/astroport-fi/astroport-core.git", branch = "feat/migrate-all-SC-to-std-1.1" }
+astroport-token = { git = "https://github.com/astroport-fi/astroport-core.git", branch = "feat/migrate-all-SC-to-std-1.1" }
+astroport-staking = { git = "https://github.com/astroport-fi/astroport-core.git", branch = "feat/migrate-all-SC-to-std-1.1" }
+astroport-whitelist = { git = "https://github.com/astroport-fi/astroport-core.git", branch = "feat/migrate-all-SC-to-std-1.1" }
+cw20 = "0.15"
 voting-escrow = { path = "../voting_escrow" }
 anyhow = "1"
-proptest = "1.0.0"
+proptest = "1.0"

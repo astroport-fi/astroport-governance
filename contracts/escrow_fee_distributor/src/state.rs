@@ -1,14 +1,12 @@
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
+use cosmwasm_schema::cw_serde;
 
 use crate::astroport::common::OwnershipProposal;
 
-use astroport_governance::U64Key;
 use cosmwasm_std::{Addr, Uint128};
 use cw_storage_plus::{Item, Map};
 
 /// This structure stores the main parameters for the distributor contract.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[cw_serde]
 pub struct Config {
     /// Address that's allowed to change contract parameters
     pub owner: Addr,
@@ -25,7 +23,7 @@ pub struct Config {
 /// Stores the contract config at the given key.
 pub const CONFIG: Item<Config> = Item::new("config");
 /// Contains information about weekly distributed rewards.
-pub const REWARDS_PER_WEEK: Map<U64Key, Uint128> = Map::new("rewards_per_week");
+pub const REWARDS_PER_WEEK: Map<u64, Uint128> = Map::new("rewards_per_week");
 /// Contains information about the last week of reward issuance.
 pub const LAST_CLAIM_PERIOD: Map<&Addr, u64> = Map::new("last_claim_period");
 /// Contains the proposal to change contract ownership.

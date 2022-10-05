@@ -14,9 +14,8 @@ homepage = "https://astroport.fi"
 backtraces = ["cosmwasm-std/backtraces"]
 
 [dependencies]
-cw20 = "0.13"
-cosmwasm-std = "1.0"
-cw-storage-plus = "0.13"
-schemars = "0.8"
-serde = { version = "1.0", default-features = false, features = ["derive"] }
-astroport = { git = "https://github.com/astroport-fi/astroport-core.git", branch = "main" }
+cw20 = "0.15"
+cosmwasm-std = "1.1"
+cw-storage-plus = "0.15"
+astroport = { git = "https://github.com/astroport-fi/astroport-core.git", branch = "feat/migrate-all-SC-to-std-1.1" }
+cosmwasm-schema = "1.1"

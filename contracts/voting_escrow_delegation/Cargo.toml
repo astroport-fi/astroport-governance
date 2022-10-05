@@ -15,21 +15,19 @@ crate-type = ["cdylib", "rlib"]
 backtraces = ["cosmwasm-std/backtraces"]
 
 [dependencies]
-cosmwasm-std = "1.0"
-cw-storage-plus = "0.13"
-cw-utils = "0.13"
-cw2 = "0.13"
-schemars = "0.8"
-serde = { version = "1.0.137", default-features = false, features = ["derive"] }
-thiserror = { version = "1.0.31" }
+cosmwasm-std = "1.1"
+cw-storage-plus = "0.15"
+cw-utils = "0.15"
+cw2 = "0.15"
+thiserror = { version = "1.0" }
 astroport-governance = { path = "../../packages/astroport-governance" }
-cw721 = "0.13"
-cw721-base = { version = "0.13", features = ["library"] }
+cw721 = "0.15"
+cw721-base = { version = "0.15", features = ["library"] }
+cosmwasm-schema = "1.1"
 
 [dev-dependencies]
-cosmwasm-schema = "1.0.0"
-cw-multi-test = "0.13"
+cw-multi-test = "0.15"
 astroport-tests = {path = "../../packages/astroport-tests"}
 astroport-nft = { path = "../nft"}
 anyhow = "1"
-proptest = "1.0.0"
+proptest = "1.0"

@@ -1,6 +1,6 @@
 use crate::error::ContractError;
 use astroport_governance::utils::{get_periods_count, MAX_LOCK_TIME, WEEK};
-use astroport_governance::U64Key;
+
 use cosmwasm_std::{Addr, Decimal, Order, StdResult, Storage, Uint128};
 use cw_storage_plus::Bound;
 
@@ -65,14 +65,14 @@ pub(crate) fn calc_coefficient(interval: u64) -> Decimal {
 pub(crate) fn fetch_last_checkpoint(
     storage: &dyn Storage,
     addr: &Addr,
-    period_key: &U64Key,
+    period_key: u64,
 ) -> StdResult<Option<(u64, Point)>> {
     HISTORY
         .prefix(addr.clone())
         .range(
             storage,
             None,
-            Some(Bound::inclusive(period_key.clone())),
+            Some(Bound::inclusive(period_key)),
             Order::Descending,
         )
         .next()
@@ -86,9 +86,9 @@ pub(crate) fn cancel_scheduled_slope(
     slope: Uint128,
     period: u64,
 ) -> StdResult<()> {
-    let end_period_key = U64Key::new(period);
+    let end_period_key = period;
     let last_slope_change = LAST_SLOPE_CHANGE.may_load(storage)?.unwrap_or(0);
-    match SLOPE_CHANGES.may_load(storage, end_period_key.clone())? {
+    match SLOPE_CHANGES.may_load(storage, end_period_key)? {
         // We do not need to schedule a slope change in the past
         Some(old_scheduled_change) if period > last_slope_change => {
             let new_slope = old_scheduled_change - slope;
@@ -111,17 +111,13 @@ pub(crate) fn schedule_slope_change(
 ) -> StdResult<()> {
     if !slope.is_zero() {
         SLOPE_CHANGES
-            .update(
-                storage,
-                U64Key::new(period),
-                |slope_opt| -> StdResult<Uint128> {
-                    if let Some(pslope) = slope_opt {
-                        Ok(pslope + slope)
-                    } else {
-                        Ok(slope)
-                    }
-                },
-            )
+            .update(storage, period, |slope_opt| -> StdResult<Uint128> {
+                if let Some(pslope) = slope_opt {
+                    Ok(pslope + slope)
+                } else {
+                    Ok(slope)
+                }
+            })
             .map(|_| ())
     } else {
         Ok(())
@@ -137,8 +133,8 @@ pub(crate) fn fetch_slope_changes(
     SLOPE_CHANGES
         .range(
             storage,
-            Some(Bound::exclusive(U64Key::new(last_slope_change))),
-            Some(Bound::inclusive(U64Key::new(period))),
+            Some(Bound::exclusive(last_slope_change)),
+            Some(Bound::inclusive(period)),
             Order::Ascending,
         )
         .collect()
