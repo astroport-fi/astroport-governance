@@ -495,6 +495,17 @@ pub fn update_config(
         config.vxastro_token_addr = Some(addr_validate_to_lower(deps.api, &vxastro_token_addr)?);
     }
 
+    if let Some(voting_escrow_delegator_addr) = updated_config.voting_escrow_delegator_addr {
+        config.voting_escrow_delegator_addr = Some(addr_validate_to_lower(
+            deps.api,
+            voting_escrow_delegator_addr,
+        )?)
+    }
+
+    if let Some(ibc_controller) = updated_config.ibc_controller {
+        config.ibc_controller = Some(addr_validate_to_lower(deps.api, ibc_controller)?)
+    }
+
     if let Some(builder_unlock_addr) = updated_config.builder_unlock_addr {
         config.builder_unlock_addr = addr_validate_to_lower(deps.api, &builder_unlock_addr)?;
     }
