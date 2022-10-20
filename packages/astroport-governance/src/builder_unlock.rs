@@ -151,7 +151,7 @@ pub mod msg {
         },
         /// Allocations returns a vector that contains builder unlock allocations by specified
         /// parameters
-        #[returns(AllocationResponse)]
+        #[returns(Vec<(String, AllocationParams)>)]
         Allocations {
             start_after: Option<String>,
             limit: Option<u32>,
