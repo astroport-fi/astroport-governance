@@ -1,8 +1,10 @@
 [package]
 name = "builder-unlock"
-version = "1.1.0"
-authors = ["_astromartian"]
-edition = "2018"
+version = "1.2.0"
+authors = ["Astroport"]
+edition = "2021"
+repository = "https://github.com/astroport-fi/astroport-governance"
+homepage = "https://astroport.fi"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
@@ -17,12 +19,12 @@ cw2 = "0.15"
 cw20 = "0.15"
 cosmwasm-std = "1.1"
 cw-storage-plus = "0.15"
-astroport-governance = { path = "../../packages/astroport-governance", default-features = false}
-astroport = {git = "https://github.com/astroport-fi/astroport.git", branch = "feat/miggrate-to-cosmwasm-1.1-release/terra2"}
+astroport-governance = { path = "../../packages/astroport-governance" }
+astroport = {git = "https://github.com/astroport-fi/astroport-core.git", branch = "release/terra2"}
 thiserror = { version = "1.0" }
 cosmwasm-schema = "1.1"
 
 [dev-dependencies]
 
 cw-multi-test = "0.15"
-astroport-token = {git = "https://github.com/astroport-fi/astroport.git", branch = "feat/miggrate-to-cosmwasm-1.1-release/terra2" }
+astroport-token = {git = "https://github.com/astroport-fi/astroport-core.git", branch = "release/terra2"}

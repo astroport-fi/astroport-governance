@@ -82,7 +82,6 @@ impl ControllerHelper {
             astro_token: escrow_helper.astro_token.to_string(),
             tokens_per_block: Default::default(),
             start_block: Default::default(),
-            allowed_reward_proxies: vec![],
             vesting_contract: "vesting_placeholder".to_string(),
             whitelist_code_id,
             voting_escrow: None,
