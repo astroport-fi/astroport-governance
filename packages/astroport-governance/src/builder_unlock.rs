@@ -149,6 +149,13 @@ pub mod msg {
             /// Account whose allocation status we query
             account: String,
         },
+        /// Allocations returns a vector that contains builder unlock allocations by specified
+        /// parameters
+        #[returns(AllocationResponse)]
+        Allocations {
+            start_after: Option<String>,
+            limit: Option<u32>,
+        },
         #[returns(Uint128)]
         /// UnlockedTokens returns the unlocked tokens from an allocation
         UnlockedTokens {

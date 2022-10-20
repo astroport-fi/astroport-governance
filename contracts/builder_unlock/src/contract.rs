@@ -4,11 +4,12 @@ use astroport::asset::addr_validate_to_lower;
 use cosmwasm_std::entry_point;
 
 use cosmwasm_std::{
-    attr, from_binary, to_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Response,
+    attr, from_binary, to_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Order, Response,
     StdError, StdResult, Uint128, WasmMsg,
 };
 use cw2::{get_contract_version, set_contract_version};
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
+use cw_storage_plus::Bound;
 
 use crate::astroport::asset::addr_opt_validate;
 use crate::contract::helpers::compute_unlocked_amount;
@@ -20,6 +21,7 @@ use astroport_governance::builder_unlock::msg::{
 use astroport_governance::builder_unlock::{
     AllocationParams, AllocationStatus, Config, Schedule, State,
 };
+use astroport_governance::{DEFAULT_LIMIT, MAX_LIMIT};
 
 use crate::state::{CONFIG, OWNERSHIP_PROPOSAL, PARAMS, STATE, STATUS};
 
@@ -198,6 +200,9 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         }
         QueryMsg::SimulateWithdraw { account, timestamp } => {
             to_binary(&query_simulate_withdraw(deps, env, account, timestamp)?)
+        }
+        QueryMsg::Allocations { start_after, limit } => {
+            to_binary(&query_allocations(deps, start_after, limit)?)
         }
     }
 }
@@ -657,6 +662,32 @@ fn query_allocation(deps: Deps, account: String) -> StdResult<AllocationResponse
             .may_load(deps.storage, &account_checked)?
             .unwrap_or_default(),
     })
+}
+
+/// Return information about a specific allocation.
+///
+/// * **start_after** account from which to start querying.
+///
+/// * **limit** max amount of entries to return.
+fn query_allocations(
+    deps: Deps,
+    start_after: Option<String>,
+    limit: Option<u32>,
+) -> StdResult<Vec<(Addr, AllocationParams)>> {
+    let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
+    let default_start;
+
+    let start = if let Some(start_after) = start_after {
+        default_start = addr_validate_to_lower(deps.api, &start_after)?;
+        Some(Bound::exclusive(&default_start))
+    } else {
+        None
+    };
+
+    PARAMS
+        .range(deps.storage, start, None, Order::Ascending)
+        .take(limit)
+        .collect()
 }
 
 /// Return the total amount of unlocked tokens for a specific account.

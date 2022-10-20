@@ -1777,6 +1777,83 @@ fn test_update_schedules() {
         },
     )
     .unwrap();
+
+    // Query allocations
+    let resp: Vec<(Addr, AllocationParams)> = app
+        .wrap()
+        .query_wasm_smart(
+            &unlock_instance,
+            &QueryMsg::Allocations {
+                start_after: None,
+                limit: None,
+            },
+        )
+        .unwrap();
+
+    let comparing_values: Vec<(Addr, AllocationParams)> = vec![
+        (
+            Addr::unchecked("advisor_1"),
+            AllocationParams {
+                amount: Uint128::new(5000000000000),
+                unlock_schedule: Schedule {
+                    start_time: 123,
+                    cliff: 123,
+                    duration: 123,
+                },
+                proposed_receiver: None,
+            },
+        ),
+        (
+            Addr::unchecked("investor_1"),
+            AllocationParams {
+                amount: Uint128::new(5000000000000),
+                unlock_schedule: Schedule {
+                    start_time: 1642402274,
+                    cliff: 0,
+                    duration: 31536000,
+                },
+                proposed_receiver: None,
+            },
+        ),
+        (
+            Addr::unchecked("team_1"),
+            AllocationParams {
+                amount: Uint128::new(5000000000000),
+                unlock_schedule: Schedule {
+                    start_time: 123,
+                    cliff: 123,
+                    duration: 123,
+                },
+                proposed_receiver: None,
+            },
+        ),
+    ];
+    assert_eq!(comparing_values, resp);
+
+    // Query allocations by specified parameters
+    let resp: Vec<(Addr, AllocationParams)> = app
+        .wrap()
+        .query_wasm_smart(
+            &unlock_instance,
+            &QueryMsg::Allocations {
+                start_after: Some("investor_1".to_string()),
+                limit: None,
+            },
+        )
+        .unwrap();
+    let comparing_values: Vec<(Addr, AllocationParams)> = vec![(
+        Addr::unchecked("team_1"),
+        AllocationParams {
+            amount: Uint128::new(5000000000000),
+            unlock_schedule: Schedule {
+                start_time: 123,
+                cliff: 123,
+                duration: 123,
+            },
+            proposed_receiver: None,
+        },
+    )];
+    assert_eq!(comparing_values, resp);
 }
 
 fn check_allocation(
