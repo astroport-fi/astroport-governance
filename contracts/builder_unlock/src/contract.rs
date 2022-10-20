@@ -17,7 +17,9 @@ use astroport_governance::builder_unlock::msg::{
     AllocationResponse, ExecuteMsg, InstantiateMsg, QueryMsg, ReceiveMsg, SimulateWithdrawResponse,
     StateResponse,
 };
-use astroport_governance::builder_unlock::{AllocationParams, AllocationStatus, Config, State};
+use astroport_governance::builder_unlock::{
+    AllocationParams, AllocationStatus, Config, Schedule, State,
+};
 
 use crate::state::{CONFIG, OWNERSHIP_PROPOSAL, PARAMS, STATE, STATUS};
 
@@ -134,6 +136,9 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
         ExecuteMsg::UpdateConfig {
             new_max_allocations_amount,
         } => update_config(deps, info, new_max_allocations_amount),
+        ExecuteMsg::UpdateUnlockSchedules {
+            new_unlock_schedules,
+        } => update_unlock_schedules(deps, info, new_unlock_schedules),
     }
 }
 
@@ -581,7 +586,7 @@ fn execute_claim_receiver(
     ]))
 }
 
-/// Updates max allocations amount.
+/// Updates builder unlock contract parameters.
 fn update_config(
     deps: DepsMut,
     info: MessageInfo,
@@ -601,6 +606,31 @@ fn update_config(
     Ok(Response::new()
         .add_attribute("action", "update_config")
         .add_attribute("new_max_allocations_amount", new_max_allocations_amount))
+}
+
+/// Updates builder unlock schedules for specified accounts.
+fn update_unlock_schedules(
+    deps: DepsMut,
+    info: MessageInfo,
+    new_unlock_schedules: Vec<(String, Schedule)>,
+) -> StdResult<Response> {
+    let config = CONFIG.load(deps.storage)?;
+
+    if info.sender != config.owner {
+        return Err(StdError::generic_err(
+            "Only the contract owner can change config",
+        ));
+    }
+
+    for (account, schedule) in new_unlock_schedules {
+        let account_addr = addr_validate_to_lower(deps.api, &account)?;
+        let mut params = PARAMS.load(deps.storage, &account_addr)?;
+
+        params.unlock_schedule = schedule;
+        PARAMS.save(deps.storage, &account_addr, &params)?;
+    }
+
+    Ok(Response::new().add_attribute("action", "update_unlock_schedules"))
 }
 
 /// Return the global distribution state.
