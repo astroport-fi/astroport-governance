@@ -115,7 +115,7 @@ pub mod msg {
         ClaimOwnership {},
         /// Update parameters in the contract configuration
         UpdateConfig { new_max_allocations_amount: Uint128 },
-        /// Update allocation cliff for specified account
+        /// /// Update a schedule cliff of allocation for specified accounts
         IncreaseCliff { new_cliffs: Vec<(String, u64)> },
     }
 
