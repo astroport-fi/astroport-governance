@@ -3,16 +3,41 @@ use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Addr, CosmosMsg, Decimal, StdError, StdResult, Uint128, Uint64};
 use cw20::Cw20ReceiveMsg;
 use std::fmt::{Display, Formatter, Result};
-use std::ops::RangeInclusive;
+use std::str::FromStr;
 
-pub const MINIMUM_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE: u64 = 33;
-pub const MAX_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE: u64 = 100;
-pub const MAX_PROPOSAL_REQUIRED_QUORUM_PERCENTAGE: u64 = 100;
-pub const MINIMUM_PROPOSAL_REQUIRED_QUORUM_PERCENTAGE: u64 = 1;
-pub const VOTING_PERIOD_INTERVAL: RangeInclusive<u64> = 12342..=7 * 12342;
-pub const DELAY_INTERVAL: RangeInclusive<u64> = 6171..=12342; // from 0.5 to 1 day in blocks (7 seconds per block)
-pub const EXPIRATION_PERIOD_INTERVAL: RangeInclusive<u64> = 12342..=86_399;
-pub const DEPOSIT_INTERVAL: RangeInclusive<u128> = 10000000000..=60000000000; // from 10k to 60k $xASTRO
+#[cfg(not(feature = "testnet"))]
+mod proposal_constants {
+    use std::ops::RangeInclusive;
+
+    pub const MINIMUM_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE: u64 = 33;
+    pub const MAX_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE: u64 = 100;
+    pub const MAX_PROPOSAL_REQUIRED_QUORUM_PERCENTAGE: &str = "1";
+    pub const MINIMUM_PROPOSAL_REQUIRED_QUORUM_PERCENTAGE: &str = "0.01";
+    pub const VOTING_PERIOD_INTERVAL: RangeInclusive<u64> = 12342..=7 * 12342;
+    // from 0.5 to 1 day in blocks (7 seconds per block)
+    pub const DELAY_INTERVAL: RangeInclusive<u64> = 6171..=12342;
+    pub const EXPIRATION_PERIOD_INTERVAL: RangeInclusive<u64> = 12342..=86_399;
+    // from 10k to 60k $xASTRO
+    pub const DEPOSIT_INTERVAL: RangeInclusive<u128> = 10000000000..=60000000000;
+}
+
+#[cfg(feature = "testnet")]
+mod proposal_constants {
+    use std::ops::RangeInclusive;
+
+    pub const MINIMUM_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE: u64 = 33;
+    pub const MAX_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE: u64 = 100;
+    pub const MAX_PROPOSAL_REQUIRED_QUORUM_PERCENTAGE: &str = "1";
+    pub const MINIMUM_PROPOSAL_REQUIRED_QUORUM_PERCENTAGE: &str = "0.001";
+    pub const VOTING_PERIOD_INTERVAL: RangeInclusive<u64> = 200..=7 * 12342;
+    // from ~350 sec to 1 day in blocks (7 seconds per block)
+    pub const DELAY_INTERVAL: RangeInclusive<u64> = 50..=12342;
+    pub const EXPIRATION_PERIOD_INTERVAL: RangeInclusive<u64> = 400..=86_399;
+    // from 0.001 to 60k $xASTRO
+    pub const DEPOSIT_INTERVAL: RangeInclusive<u128> = 1000..=60000000000;
+}
+
+pub use proposal_constants::*;
 
 /// Proposal validation attributes
 const MIN_TITLE_LENGTH: usize = 4;
@@ -199,14 +224,14 @@ impl Config {
             )));
         }
 
-        if self.proposal_required_quorum > Decimal::percent(MAX_PROPOSAL_REQUIRED_QUORUM_PERCENTAGE)
-            || self.proposal_required_quorum
-                < Decimal::percent(MINIMUM_PROPOSAL_REQUIRED_QUORUM_PERCENTAGE)
+        let max_quorum = Decimal::from_str(MAX_PROPOSAL_REQUIRED_QUORUM_PERCENTAGE)?;
+        let min_quorum = Decimal::from_str(MINIMUM_PROPOSAL_REQUIRED_QUORUM_PERCENTAGE)?;
+        if self.proposal_required_quorum > max_quorum || self.proposal_required_quorum < min_quorum
         {
             return Err(StdError::generic_err(format!(
                 "The required quorum for a proposal cannot be lower than {}% or higher than {}%",
-                MINIMUM_PROPOSAL_REQUIRED_QUORUM_PERCENTAGE,
-                MAX_PROPOSAL_REQUIRED_QUORUM_PERCENTAGE
+                min_quorum * Decimal::from_ratio(100u8, 1u8),
+                max_quorum * Decimal::from_ratio(100u8, 1u8)
             )));
         }
 

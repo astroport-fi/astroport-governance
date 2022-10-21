@@ -40,6 +40,7 @@ const PROPOSAL_REQUIRED_DEPOSIT: u128 = *DEPOSIT_INTERVAL.start();
 const PROPOSAL_REQUIRED_QUORUM: &str = "0.50";
 const PROPOSAL_REQUIRED_THRESHOLD: &str = "0.60";
 
+#[cfg(not(feature = "testnet"))]
 #[test]
 fn test_contract_instantiation() {
     let mut app = mock_app();
@@ -561,6 +562,7 @@ fn test_proposal_submitting() {
     )
 }
 
+#[cfg(not(feature = "testnet"))]
 #[test]
 fn test_successful_proposal() {
     let mut app = mock_app();
@@ -1094,6 +1096,7 @@ fn test_voting_power_changes() {
     assert_eq!(proposal.status, ProposalStatus::Passed);
 }
 
+#[cfg(not(feature = "testnet"))]
 #[test]
 fn test_block_height_selection() {
     // Block height is 12345 after app initialization
@@ -1217,6 +1220,7 @@ fn test_block_height_selection() {
     assert_eq!(proposal.status, ProposalStatus::Passed);
 }
 
+#[cfg(not(feature = "testnet"))]
 #[test]
 fn test_unsuccessful_proposal() {
     let mut app = mock_app();
