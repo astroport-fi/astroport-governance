@@ -68,7 +68,6 @@ impl AllocationStatus {
 }
 
 pub mod msg {
-    use crate::builder_unlock::Schedule;
     use cosmwasm_schema::{cw_serde, QueryResponses};
     use cosmwasm_std::Uint128;
     use cw20::Cw20ReceiveMsg;
@@ -116,10 +115,8 @@ pub mod msg {
         ClaimOwnership {},
         /// Update parameters in the contract configuration
         UpdateConfig { new_max_allocations_amount: Uint128 },
-        /// Update unlock schedule for specified account
-        UpdateUnlockSchedules {
-            new_unlock_schedules: Vec<(String, Schedule)>,
-        },
+        /// Update allocation cliff for specified account
+        IncreaseCliff { new_cliffs: Vec<(String, u64)> },
     }
 
     /// This enum describes receive msg templates.

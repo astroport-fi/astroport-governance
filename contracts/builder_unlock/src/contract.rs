@@ -17,9 +17,7 @@ use astroport_governance::builder_unlock::msg::{
     AllocationResponse, ExecuteMsg, InstantiateMsg, QueryMsg, ReceiveMsg, SimulateWithdrawResponse,
     StateResponse,
 };
-use astroport_governance::builder_unlock::{
-    AllocationParams, AllocationStatus, Config, Schedule, State,
-};
+use astroport_governance::builder_unlock::{AllocationParams, AllocationStatus, Config, State};
 use astroport_governance::{DEFAULT_LIMIT, MAX_LIMIT};
 
 use crate::state::{CONFIG, OWNERSHIP_PROPOSAL, PARAMS, STATE, STATUS};
@@ -149,9 +147,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
         ExecuteMsg::UpdateConfig {
             new_max_allocations_amount,
         } => update_config(deps, info, new_max_allocations_amount),
-        ExecuteMsg::UpdateUnlockSchedules {
-            new_unlock_schedules,
-        } => update_unlock_schedules(deps, info, new_unlock_schedules),
+        ExecuteMsg::IncreaseCliff { new_cliffs } => increase_cliffs(deps, info, new_cliffs),
     }
 }
 
@@ -698,11 +694,11 @@ fn update_config(
         .add_attribute("new_max_allocations_amount", new_max_allocations_amount))
 }
 
-/// Updates builder unlock schedules for specified accounts.
-fn update_unlock_schedules(
+/// Increase a schedule cliff of allocations for specified accounts
+fn increase_cliffs(
     deps: DepsMut,
     info: MessageInfo,
-    new_unlock_schedules: Vec<(String, Schedule)>,
+    new_cliffs: Vec<(String, u64)>,
 ) -> StdResult<Response> {
     let config = CONFIG.load(deps.storage)?;
 
@@ -712,15 +708,21 @@ fn update_unlock_schedules(
         ));
     }
 
-    for (account, schedule) in new_unlock_schedules {
+    for (account, new_cliff) in new_cliffs {
         let account_addr = addr_validate_to_lower(deps.api, &account)?;
         let mut params = PARAMS.load(deps.storage, &account_addr)?;
 
-        params.unlock_schedule = schedule;
+        if new_cliff < params.unlock_schedule.cliff {
+            return Err(StdError::generic_err(format!(
+                "A new cliff value should be higher than an old cliff value: {} > {}",
+                new_cliff, params.unlock_schedule.cliff
+            )));
+        }
+        params.unlock_schedule.cliff = new_cliff;
         PARAMS.save(deps.storage, &account_addr, &params)?;
     }
 
-    Ok(Response::new().add_attribute("action", "update_unlock_schedules"))
+    Ok(Response::new().add_attribute("action", "increase_cliffs"))
 }
 
 /// ## Description
