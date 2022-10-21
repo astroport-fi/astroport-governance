@@ -1572,7 +1572,7 @@ fn test_increase_and_decrease_allocation() {
 }
 
 #[test]
-fn test_update_schedules() {
+fn test_increase_cliffs() {
     let mut app = mock_app();
     let (unlock_instance, astro_instance, _) = init_contracts(&mut app);
 
@@ -1702,15 +1702,11 @@ fn test_update_schedules() {
         .execute_contract(
             Addr::unchecked("not_owner".clone()),
             unlock_instance.clone(),
-            &ExecuteMsg::UpdateUnlockSchedules {
-                new_unlock_schedules: vec![(
-                    "team_1".to_string(),
-                    Schedule {
-                        start_time: 0,
-                        cliff: 0,
-                        duration: 0,
-                    },
-                )],
+            &ExecuteMsg::IncreaseCliff {
+                new_cliffs: vec![
+                    ("team_1".to_string(), 123u64),
+                    ("advisor_1".to_string(), 123u64),
+                ],
             },
             &[],
         )
@@ -1720,28 +1716,31 @@ fn test_update_schedules() {
         err.root_cause().to_string()
     );
 
-    // owner try to update configs
+    let err = app
+        .execute_contract(
+            Addr::unchecked(OWNER.clone()),
+            unlock_instance.clone(),
+            &ExecuteMsg::IncreaseCliff {
+                new_cliffs: vec![
+                    ("team_1".to_string(), 123u64),
+                    ("advisor_1".to_string(), 123u64),
+                ],
+            },
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(
+        "Generic error: A new cliff value should be higher than an old cliff value: 123 > 7776000",
+        err.root_cause().to_string()
+    );
+
     app.execute_contract(
         Addr::unchecked(OWNER.clone()),
         unlock_instance.clone(),
-        &ExecuteMsg::UpdateUnlockSchedules {
-            new_unlock_schedules: vec![
-                (
-                    "team_1".to_string(),
-                    Schedule {
-                        start_time: 123u64,
-                        cliff: 123u64,
-                        duration: 123u64,
-                    },
-                ),
-                (
-                    "advisor_1".to_string(),
-                    Schedule {
-                        start_time: 123u64,
-                        cliff: 123u64,
-                        duration: 123u64,
-                    },
-                ),
+        &ExecuteMsg::IncreaseCliff {
+            new_cliffs: vec![
+                ("team_1".to_string(), 8776000u64),
+                ("advisor_1".to_string(), 8776000u64),
             ],
         },
         &[],
@@ -1756,9 +1755,9 @@ fn test_update_schedules() {
         Uint128::from(5_000_000_000000u64),
         Uint128::from(0u64),
         Schedule {
-            start_time: 123u64,
-            cliff: 123u64,
-            duration: 123u64,
+            start_time: 1642402274u64,
+            cliff: 8776000u64,
+            duration: 31536000u64,
         },
     )
     .unwrap();
@@ -1771,9 +1770,9 @@ fn test_update_schedules() {
         Uint128::from(5_000_000_000000u64),
         Uint128::from(0u64),
         Schedule {
-            start_time: 123u64,
-            cliff: 123u64,
-            duration: 123u64,
+            start_time: 1642402274u64,
+            cliff: 8776000u64,
+            duration: 31536000u64,
         },
     )
     .unwrap();
@@ -1796,9 +1795,9 @@ fn test_update_schedules() {
             AllocationParams {
                 amount: Uint128::new(5000000000000),
                 unlock_schedule: Schedule {
-                    start_time: 123,
-                    cliff: 123,
-                    duration: 123,
+                    start_time: 1642402274u64,
+                    cliff: 8776000u64,
+                    duration: 31536000u64,
                 },
                 proposed_receiver: None,
             },
@@ -1820,9 +1819,9 @@ fn test_update_schedules() {
             AllocationParams {
                 amount: Uint128::new(5000000000000),
                 unlock_schedule: Schedule {
-                    start_time: 123,
-                    cliff: 123,
-                    duration: 123,
+                    start_time: 1642402274,
+                    cliff: 8776000u64,
+                    duration: 31536000u64,
                 },
                 proposed_receiver: None,
             },
@@ -1846,9 +1845,9 @@ fn test_update_schedules() {
         AllocationParams {
             amount: Uint128::new(5000000000000),
             unlock_schedule: Schedule {
-                start_time: 123,
-                cliff: 123,
-                duration: 123,
+                start_time: 1642402274,
+                cliff: 8776000u64,
+                duration: 31536000u64,
             },
             proposed_receiver: None,
         },
