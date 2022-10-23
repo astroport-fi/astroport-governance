@@ -714,8 +714,8 @@ fn increase_cliffs(
 
         if new_cliff < params.unlock_schedule.cliff {
             return Err(StdError::generic_err(format!(
-                "A new cliff value should be higher than an old cliff value: {} > {}",
-                new_cliff, params.unlock_schedule.cliff
+                "A new cliff value should be higher than an old cliff value: {} > {}. Account error: {}",
+                 new_cliff, params.unlock_schedule.cliff, account
             )));
         }
         params.unlock_schedule.cliff = new_cliff;
