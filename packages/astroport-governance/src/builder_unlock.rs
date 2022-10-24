@@ -115,6 +115,8 @@ pub mod msg {
         ClaimOwnership {},
         /// Update parameters in the contract configuration
         UpdateConfig { new_max_allocations_amount: Uint128 },
+        /// Update a schedule cliff of allocation for specified accounts
+        IncreaseCliff { new_cliffs: Vec<(String, u64)> },
     }
 
     /// This enum describes receive msg templates.
@@ -143,6 +145,13 @@ pub mod msg {
         Allocation {
             /// Account whose allocation status we query
             account: String,
+        },
+        /// Allocations returns a vector that contains builder unlock allocations by specified
+        /// parameters
+        #[returns(Vec<(String, AllocationParams)>)]
+        Allocations {
+            start_after: Option<String>,
+            limit: Option<u32>,
         },
         #[returns(Uint128)]
         /// UnlockedTokens returns the unlocked tokens from an allocation
