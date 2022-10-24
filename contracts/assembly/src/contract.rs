@@ -584,11 +584,9 @@ pub fn update_config(
     }
 
     if let Some(whitelist_remove) = updated_config.whitelist_remove {
-        config.whitelisted_links = config
+        config
             .whitelisted_links
-            .into_iter()
-            .filter(|link| !whitelist_remove.contains(link))
-            .collect();
+            .retain(|link| !whitelist_remove.contains(link));
 
         if config.whitelisted_links.is_empty() {
             return Err(ContractError::WhitelistEmpty {});
