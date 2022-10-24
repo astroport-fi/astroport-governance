@@ -9,6 +9,7 @@ crate-type = ["cdylib", "rlib"]
 
 [features]
 backtraces = ["cosmwasm-std/backtraces"]
+testnet = ["astroport-governance/testnet"]
 library = []
 
 [dependencies]

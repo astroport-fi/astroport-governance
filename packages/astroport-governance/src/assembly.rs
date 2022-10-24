@@ -4,10 +4,23 @@ use cosmwasm_std::{Addr, CosmosMsg, Decimal, StdError, StdResult, Uint128, Uint6
 use cw20::Cw20ReceiveMsg;
 use std::fmt::{Display, Formatter, Result};
 
-pub const MINIMUM_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE: u64 = 33;
-pub const MAX_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE: u64 = 100;
-pub const MINIMUM_DELAY: u64 = 14_400;
-pub const MINIMUM_EXPIRATION_PERIOD: u64 = 100_800;
+#[cfg(not(feature = "testnet"))]
+mod proposal_constants {
+    pub const MINIMUM_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE: u64 = 33;
+    pub const MAX_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE: u64 = 100;
+    pub const MINIMUM_DELAY: u64 = 14_400;
+    pub const MINIMUM_EXPIRATION_PERIOD: u64 = 100_800;
+}
+
+#[cfg(feature = "testnet")]
+mod proposal_constants {
+    pub const MINIMUM_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE: u64 = 33;
+    pub const MAX_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE: u64 = 100;
+    pub const MINIMUM_DELAY: u64 = 50;
+    pub const MINIMUM_EXPIRATION_PERIOD: u64 = 400;
+}
+
+pub use proposal_constants::*;
 
 /// Proposal validation attributes
 const MIN_TITLE_LENGTH: usize = 4;

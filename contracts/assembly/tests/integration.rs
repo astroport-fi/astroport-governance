@@ -35,6 +35,7 @@ const PROPOSAL_REQUIRED_DEPOSIT: u128 = 1000u128;
 const PROPOSAL_REQUIRED_QUORUM: &str = "0.50";
 const PROPOSAL_REQUIRED_THRESHOLD: &str = "0.60";
 
+#[cfg(not(feature = "testnet"))]
 #[test]
 fn test_contract_instantiation() {
     let mut app = mock_app();
