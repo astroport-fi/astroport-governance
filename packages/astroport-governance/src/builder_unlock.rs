@@ -115,6 +115,8 @@ pub mod msg {
         ClaimOwnership {},
         /// Update parameters in the contract configuration
         UpdateConfig { new_max_allocations_amount: Uint128 },
+        /// /// Update a schedule cliff of allocation for specified accounts
+        IncreaseCliff { new_cliffs: Vec<(String, u64)> },
     }
 
     /// This enum describes receive msg templates.
@@ -157,6 +159,13 @@ pub mod msg {
             account: String,
             /// Timestamp used to simulate how much ASTRO the account can withdraw
             timestamp: Option<u64>,
+        },
+        /// Allocations returns a vector that contains builder unlock allocations by specified
+        /// parameters
+        #[returns(Vec<(String, AllocationParams)>)]
+        Allocations {
+            start_after: Option<String>,
+            limit: Option<u32>,
         },
     }
 

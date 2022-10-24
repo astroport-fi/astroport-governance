@@ -4,11 +4,12 @@ use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_ow
 use cosmwasm_std::entry_point;
 
 use cosmwasm_std::{
-    from_binary, to_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdError,
-    StdResult, Uint128, WasmMsg,
+    from_binary, to_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Order, Response,
+    StdError, StdResult, Uint128, WasmMsg,
 };
 use cw2::{get_contract_version, set_contract_version};
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
+use cw_storage_plus::Bound;
 
 use crate::contract::helpers::compute_unlocked_amount;
 use crate::migration::{MigrateMsg, CONFIGV100, STATEV100, STATUSV100};
@@ -17,6 +18,7 @@ use astroport_governance::builder_unlock::msg::{
     StateResponse,
 };
 use astroport_governance::builder_unlock::{AllocationParams, AllocationStatus, Config, State};
+use astroport_governance::{DEFAULT_LIMIT, MAX_LIMIT};
 
 use crate::state::{CONFIG, OWNERSHIP_PROPOSAL, PARAMS, STATE, STATUS};
 
@@ -145,6 +147,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
         ExecuteMsg::UpdateConfig {
             new_max_allocations_amount,
         } => update_config(deps, info, new_max_allocations_amount),
+        ExecuteMsg::IncreaseCliff { new_cliffs } => increase_cliffs(deps, info, new_cliffs),
     }
 }
 
@@ -218,6 +221,9 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         }
         QueryMsg::SimulateWithdraw { account, timestamp } => {
             to_binary(&query_simulate_withdraw(deps, env, account, timestamp)?)
+        }
+        QueryMsg::Allocations { start_after, limit } => {
+            to_binary(&query_allocations(deps, start_after, limit)?)
         }
     }
 }
@@ -666,14 +672,7 @@ fn execute_claim_receiver(
         .add_attribute("new_receiver", info.sender.to_string()))
 }
 
-/// ## Description
-/// Updates contract parameters.
-/// ## Params
-/// * **deps** is an object of type [`DepsMut`].
-///
-/// * **info** is an object of type [`MessageInfo`].
-///
-/// * **new_max_allocations_amount** is an object of type [`Uint128`].
+/// Updates builder unlock contract parameters.
 fn update_config(
     deps: DepsMut,
     info: MessageInfo,
@@ -695,6 +694,37 @@ fn update_config(
         .add_attribute("new_max_allocations_amount", new_max_allocations_amount))
 }
 
+/// Increase a schedule cliff of allocations for specified accounts
+fn increase_cliffs(
+    deps: DepsMut,
+    info: MessageInfo,
+    new_cliffs: Vec<(String, u64)>,
+) -> StdResult<Response> {
+    let config = CONFIG.load(deps.storage)?;
+
+    if info.sender != config.owner {
+        return Err(StdError::generic_err(
+            "Only the contract owner can change config",
+        ));
+    }
+
+    for (account, new_cliff) in new_cliffs {
+        let account_addr = addr_validate_to_lower(deps.api, &account)?;
+        let mut params = PARAMS.load(deps.storage, &account_addr)?;
+
+        if new_cliff < params.unlock_schedule.cliff {
+            return Err(StdError::generic_err(format!(
+                "The new unlock cliff should be later than the old one: {} > {}. Account: {}",
+                new_cliff, params.unlock_schedule.cliff, account
+            )));
+        }
+        params.unlock_schedule.cliff = new_cliff;
+        PARAMS.save(deps.storage, &account_addr, &params)?;
+    }
+
+    Ok(Response::new().add_attribute("action", "increase_cliffs"))
+}
+
 /// ## Description
 /// Return the contract configuration.
 /// ## Params
@@ -703,7 +733,6 @@ fn query_config(deps: Deps) -> StdResult<Config> {
     CONFIG.load(deps.storage)
 }
 
-/// ## Description
 /// Return the global distribution state.
 /// ## Params
 /// * **deps** is an object of type [`DepsMut`].
@@ -733,6 +762,32 @@ fn query_allocation(deps: Deps, account: String) -> StdResult<AllocationResponse
             .may_load(deps.storage, &account_checked)?
             .unwrap_or_default(),
     })
+}
+
+/// Return information about a specific allocation.
+///
+/// * **start_after** account from which to start querying.
+///
+/// * **limit** max amount of entries to return.
+fn query_allocations(
+    deps: Deps,
+    start_after: Option<String>,
+    limit: Option<u32>,
+) -> StdResult<Vec<(Addr, AllocationParams)>> {
+    let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
+    let default_start;
+
+    let start = if let Some(start_after) = start_after {
+        default_start = addr_validate_to_lower(deps.api, &start_after)?;
+        Some(Bound::exclusive(&default_start))
+    } else {
+        None
+    };
+
+    PARAMS
+        .range(deps.storage, start, None, Order::Ascending)
+        .take(limit)
+        .collect()
 }
 
 /// ## Description
@@ -840,6 +895,7 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> StdResult<Response>
                     },
                 )?;
             }
+            "1.1.0" => {}
             _ => return Err(StdError::generic_err("Contract can't be migrated!")),
         },
         _ => return Err(StdError::generic_err("Contract can't be migrated!")),
