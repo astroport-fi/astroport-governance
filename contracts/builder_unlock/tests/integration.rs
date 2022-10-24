@@ -1730,7 +1730,7 @@ fn test_increase_cliffs() {
         )
         .unwrap_err();
     assert_eq!(
-        "Generic error: A new cliff value should be higher than an old cliff value: 123 > 7776000. Account error: team_1",
+        "Generic error: The new unlock cliff should be later than the old one: 123 > 7776000. Account: team_1",
         err.root_cause().to_string()
     );
 
