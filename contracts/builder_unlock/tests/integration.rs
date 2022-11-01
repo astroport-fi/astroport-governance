@@ -1,7 +1,7 @@
-use astroport::token::InstantiateMsg as TokenInstantiateMsg;
-use astroport_governance::builder_unlock::{AllocationParams, Schedule};
+use ap_builder_unlock::{AllocationParams, Schedule};
+use ap_token::InstantiateMsg as TokenInstantiateMsg;
 
-use astroport_governance::builder_unlock::msg::{
+use ap_builder_unlock::msg::{
     AllocationResponse, ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg, ReceiveMsg,
     SimulateWithdrawResponse, StateResponse,
 };
@@ -50,9 +50,9 @@ fn init_contracts(app: &mut App) -> (Addr, Addr, InstantiateMsg) {
 
     // Instantiate the contract
     let unlock_contract = Box::new(ContractWrapper::new(
-        builder_unlock::contract::execute,
-        builder_unlock::contract::instantiate,
-        builder_unlock::contract::query,
+        astroport_builder_unlock::contract::execute,
+        astroport_builder_unlock::contract::instantiate,
+        astroport_builder_unlock::contract::query,
     ));
 
     let unlock_code_id = app.store_code(unlock_contract);
@@ -557,7 +557,7 @@ fn test_withdraw() {
         .unwrap_err();
     assert_eq!(
         err.root_cause().to_string(),
-        "astroport_governance::builder_unlock::AllocationParams not found"
+        "ap_builder_unlock::AllocationParams not found"
     );
 
     // ######   SUCCESSFULLY WITHDRAWS ASTRO #1   ######
@@ -908,7 +908,7 @@ fn test_propose_new_receiver() {
         .unwrap_err();
     assert_eq!(
         err.root_cause().to_string(),
-        "astroport_governance::builder_unlock::AllocationParams not found"
+        "ap_builder_unlock::AllocationParams not found"
     );
 
     // ######    ERROR :: Invalid new_receiver    ######
@@ -1047,7 +1047,7 @@ fn test_drop_new_receiver() {
         .unwrap_err();
     assert_eq!(
         err.root_cause().to_string(),
-        "astroport_governance::builder_unlock::AllocationParams not found"
+        "ap_builder_unlock::AllocationParams not found"
     );
 
     // ######    ERROR ::"Proposed receiver not set"   ######
@@ -1188,7 +1188,7 @@ fn test_claim_receiver() {
         .unwrap_err();
     assert_eq!(
         err.root_cause().to_string(),
-        "astroport_governance::builder_unlock::AllocationParams not found"
+        "ap_builder_unlock::AllocationParams not found"
     );
 
     // ######    ERROR ::"Proposed receiver not set"   ######

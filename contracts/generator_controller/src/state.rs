@@ -1,7 +1,7 @@
-use crate::astroport::common::OwnershipProposal;
 use crate::bps::BasicPoints;
+use astroport::common::OwnershipProposal;
 
-use astroport_governance::generator_controller::{
+use ap_generator_controller::{
     ConfigResponse, GaugeInfoResponse, UserInfoResponse, VotedPoolInfoResponse,
 };
 use cosmwasm_schema::cw_serde;

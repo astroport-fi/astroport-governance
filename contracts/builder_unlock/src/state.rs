@@ -1,8 +1,21 @@
-use crate::astroport::common::OwnershipProposal;
-use cosmwasm_std::Addr;
+use astroport::common::OwnershipProposal;
+use cosmwasm_schema::cw_serde;
+use cosmwasm_std::{Addr, Uint128};
 use cw_storage_plus::{Item, Map};
 
-use astroport_governance::builder_unlock::{AllocationParams, AllocationStatus, Config, State};
+use ap_builder_unlock::{AllocationParams, AllocationStatus, Config};
+
+/// This structure stores the total and the remaining amount of ASTRO to be unlocked by all accounts.
+#[cw_serde]
+#[derive(Default)]
+pub struct State {
+    /// Amount of ASTRO tokens deposited into the contract
+    pub total_astro_deposited: Uint128,
+    /// Currently available ASTRO tokens that still need to be unlocked and/or withdrawn
+    pub remaining_astro_tokens: Uint128,
+    /// Amount of ASTRO tokens deposited into the contract but not assigned to an allocation
+    pub unallocated_tokens: Uint128,
+}
 
 /// Stores the contract configuration
 pub const CONFIG: Item<Config> = Item::new("config");

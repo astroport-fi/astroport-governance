@@ -1,24 +1,30 @@
 use astroport::asset::addr_validate_to_lower;
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
+#[cfg(not(feature = "library"))]
+use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, entry_point, to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Order, Response,
-    StdError, StdResult, Uint128,
+    attr, to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Order, Response, StdError, StdResult,
+    Uint128,
 };
-use cw2::set_contract_version;
+
+use cw2::{get_contract_version, set_contract_version};
 use cw20::Cw20ReceiveMsg;
 use cw_storage_plus::Bound;
 
-use astroport_governance::escrow_fee_distributor::{
-    ConfigResponse, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg,
-};
-use astroport_governance::utils::{get_period, CLAIM_LIMIT, MIN_CLAIM_LIMIT};
-use astroport_governance::voting_escrow::{get_total_voting_power_at, get_voting_power_at};
+use ap_escrow_fee_distributor::{ConfigResponse, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
+use ap_voting_escrow::{get_total_voting_power_at, get_voting_power_at};
+use astroport_governance::{get_period, DEFAULT_LIMIT, MAX_LIMIT};
 
-use crate::astroport;
-use crate::astroport::asset::addr_opt_validate;
 use crate::error::ContractError;
 use crate::state::{Config, CONFIG, OWNERSHIP_PROPOSAL, REWARDS_PER_WEEK};
 use crate::utils::{calc_claim_amount, calculate_reward, transfer_token_amount};
+use astroport::asset::addr_opt_validate;
+
+/// The constant describes the maximum number of accounts for which to claim accrued staking rewards in a single transaction.
+pub const CLAIM_LIMIT: u64 = 10;
+
+/// The constant describes the minimum number of accounts for claim.
+pub const MIN_CLAIM_LIMIT: u64 = 2;
 
 /// Contract name that is used for migration.
 const CONTRACT_NAME: &str = "astroport-escrow-fee-distributor";
@@ -311,13 +317,6 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     }
 }
 
-/// Pagination settings
-/// The maximum limit for reading pairs from [`PAIRS`].
-const MAX_LIMIT: u64 = 30;
-
-/// The default limit for reading pairs from [`PAIRS`].
-const DEFAULT_LIMIT: u64 = 10;
-
 /// Returns a vector of weekly rewards for current vxASTRO stakers.
 ///
 /// * **start_after** timestamp from which to start querying.
@@ -326,7 +325,7 @@ const DEFAULT_LIMIT: u64 = 10;
 fn query_available_reward_per_week(
     deps: Deps,
     start_after: Option<u64>,
-    limit: Option<u64>,
+    limit: Option<u32>,
 ) -> StdResult<Vec<Uint128>> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
     let start = if let Some(timestamp) = start_after {
@@ -385,6 +384,22 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
 
 /// Manages contract migration.
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
-    Ok(Response::default())
+pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
+    let contract_version = get_contract_version(deps.storage)?;
+
+    match contract_version.contract.as_ref() {
+        "astroport-escrow-fee-distributor" => match contract_version.version.as_ref() {
+            "1.0.0" => {}
+            _ => return Err(ContractError::MigrationError {}),
+        },
+        _ => return Err(ContractError::MigrationError {}),
+    };
+
+    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    Ok(Response::new()
+        .add_attribute("previous_contract_name", &contract_version.contract)
+        .add_attribute("previous_contract_version", &contract_version.version)
+        .add_attribute("new_contract_name", CONTRACT_NAME)
+        .add_attribute("new_contract_version", CONTRACT_VERSION))
 }

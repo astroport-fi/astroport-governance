@@ -1,4 +1,4 @@
-use astroport_governance::assembly::{Config, Proposal};
+use ap_assembly::{Config, Proposal};
 use cosmwasm_std::Uint64;
 use cw_storage_plus::{Item, Map};
 

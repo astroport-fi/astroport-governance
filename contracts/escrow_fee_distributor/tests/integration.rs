@@ -1,14 +1,10 @@
 use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
 use cosmwasm_std::{attr, to_binary, Addr, StdResult, Timestamp, Uint128};
 
-use astroport_governance::utils::{get_period, EPOCH_START, WEEK};
+use astroport_governance::{get_period, EPOCH_START, WEEK};
 
-use astroport_governance::escrow_fee_distributor::{
-    ConfigResponse, Cw20HookMsg, ExecuteMsg, QueryMsg,
-};
-use astroport_governance::voting_escrow::{
-    LockInfoResponse, QueryMsg as VotingEscrowQueryMsg, VotingPowerResponse,
-};
+use ap_escrow_fee_distributor::{ConfigResponse, Cw20HookMsg, ExecuteMsg, QueryMsg};
+use ap_voting_escrow::{LockInfoResponse, QueryMsg as VotingEscrowQueryMsg, VotingPowerResponse};
 
 use astroport_tests::base::{
     check_balance, mint, BaseAstroportTestInitMessage, BaseAstroportTestPackage, MULTIPLIER,

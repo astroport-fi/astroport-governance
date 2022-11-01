@@ -39,4 +39,7 @@ pub enum ContractError {
 
     #[error("Basic points conversion error. The basic points must be from 1 to 10000: {0}")]
     BPSConversionError(u16),
+
+    #[error("Contract can't be migrated!")]
+    MigrationError {},
 }

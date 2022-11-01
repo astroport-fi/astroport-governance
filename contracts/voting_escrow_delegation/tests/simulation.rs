@@ -1,5 +1,5 @@
 use anyhow::Result;
-use astroport_governance::utils::WEEK;
+use astroport_governance::WEEK;
 
 use crate::test_helper::{mock_app, Helper};
 use cosmwasm_std::Addr;

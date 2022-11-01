@@ -1,8 +1,7 @@
 use crate::test_utils::{mock_app, Helper, MULTIPLIER};
 use anyhow::Result;
-use astroport_governance::utils::{
-    get_period, get_periods_count, EPOCH_START, MAX_LOCK_TIME, WEEK,
-};
+use ap_voting_escrow::MAX_LOCK_TIME;
+use astroport_governance::{get_period, get_periods_count, EPOCH_START, WEEK};
 use cosmwasm_std::Addr;
 use cw_multi_test::{next_block, App, AppResponse};
 use std::collections::hash_map::Entry;

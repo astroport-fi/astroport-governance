@@ -1,7 +1,7 @@
-use crate::assembly::helpers::is_safe_link;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Addr, CosmosMsg, Decimal, StdError, StdResult, Uint128, Uint64};
 use cw20::Cw20ReceiveMsg;
+use helpers::is_safe_link;
 use std::fmt::{Display, Formatter, Result};
 use std::ops::RangeInclusive;
 
@@ -427,15 +427,6 @@ pub struct ProposalMessage {
     pub msg: CosmosMsg,
 }
 
-/// This structure describes a proposal vote.
-#[cw_serde]
-pub struct ProposalVote {
-    /// Voted option for the proposal
-    pub option: ProposalVoteOption,
-    /// Vote power
-    pub power: Uint128,
-}
-
 /// This enum describes available options for voting on a proposal.
 #[cw_serde]
 pub enum ProposalVoteOption {
@@ -496,4 +487,11 @@ pub mod helpers {
 
         Ok(())
     }
+}
+
+/// This structure describes a migration message.
+#[cw_serde]
+pub struct MigrateMsg {
+    pub voting_escrow_delegator_addr: Option<String>,
+    pub vxastro_token_addr: Option<String>,
 }

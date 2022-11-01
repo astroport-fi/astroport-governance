@@ -1,13 +1,11 @@
-use astroport::token as astro;
+use ap_token as astro;
 use cosmwasm_std::{attr, to_binary, Addr, Fraction, StdError, Uint128};
 use cw20::{Cw20ExecuteMsg, Logo, LogoInfo, MarketingInfoResponse, MinterResponse};
 use cw_multi_test::{next_block, ContractWrapper, Executor};
-use voting_escrow::astroport;
 
-use astroport_governance::utils::{get_period, MAX_LOCK_TIME, WEEK};
-use astroport_governance::voting_escrow::{
-    ConfigResponse, Cw20HookMsg, ExecuteMsg, LockInfoResponse, QueryMsg,
-};
+use ap_voting_escrow::MAX_LOCK_TIME;
+use ap_voting_escrow::{ConfigResponse, Cw20HookMsg, ExecuteMsg, LockInfoResponse, QueryMsg};
+use astroport_governance::{get_period, WEEK};
 
 use crate::test_utils::{mock_app, Helper, MULTIPLIER};
 

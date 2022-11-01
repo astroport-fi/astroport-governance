@@ -1,9 +1,8 @@
 use cosmwasm_schema::cw_serde;
 
-use astroport::staking;
-use astroport::token::InstantiateMsg as AstroTokenInstantiateMsg;
-use astroport_governance::escrow_fee_distributor::InstantiateMsg as EscrowFeeDistributorInstantiateMsg;
-use astroport_governance::voting_escrow::{
+use ap_escrow_fee_distributor::InstantiateMsg as EscrowFeeDistributorInstantiateMsg;
+use ap_token::InstantiateMsg as AstroTokenInstantiateMsg;
+use ap_voting_escrow::{
     Cw20HookMsg, ExecuteMsg, InstantiateMsg as AstroVotingEscrowInstantiateMsg, QueryMsg,
     VotingPowerResponse,
 };
@@ -102,7 +101,7 @@ impl BaseAstroportTestPackage {
 
         let staking_code_id = router.store_code(staking_contract);
 
-        let msg = staking::InstantiateMsg {
+        let msg = ap_staking::InstantiateMsg {
             owner: owner.to_string(),
             token_code_id: self.astro_token.clone().unwrap().code_id,
             deposit_token_addr: self.astro_token.clone().unwrap().address.to_string(),
@@ -129,9 +128,9 @@ impl BaseAstroportTestPackage {
     pub fn get_staking_xastro(&self, router: &App) -> Addr {
         let res = router
             .wrap()
-            .query::<staking::ConfigResponse>(&QueryRequest::Wasm(WasmQuery::Smart {
+            .query::<ap_staking::ConfigResponse>(&QueryRequest::Wasm(WasmQuery::Smart {
                 contract_addr: self.staking.clone().unwrap().address.to_string(),
-                msg: to_binary(&staking::QueryMsg::Config {}).unwrap(),
+                msg: to_binary(&ap_staking::QueryMsg::Config {}).unwrap(),
             }))
             .unwrap();
 
@@ -140,9 +139,9 @@ impl BaseAstroportTestPackage {
 
     fn init_voting_escrow(&mut self, router: &mut App, owner: Addr) {
         let voting_contract = Box::new(ContractWrapper::new_with_empty(
-            voting_escrow::contract::execute,
-            voting_escrow::contract::instantiate,
-            voting_escrow::contract::query,
+            astroport_voting_escrow::contract::execute,
+            astroport_voting_escrow::contract::instantiate,
+            astroport_voting_escrow::contract::query,
         ));
 
         let voting_code_id = router.store_code(voting_contract);

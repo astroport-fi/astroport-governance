@@ -1,0 +1,40 @@
+[package]
+name = "astroport-tests"
+version = "1.0.1"
+authors = ["Astroport"]
+edition = "2021"
+repository = "https://github.com/astroport-fi/astroport-governance"
+homepage = "https://astroport.fi"
+license = "GPL-3.0-only"
+
+[features]
+# for quicker tests, cargo test --lib
+# for more explicit tests, cargo test --features=backtraces
+backtraces = ["cosmwasm-std/backtraces"]
+
+[dependencies]
+cw20 = "0.15"
+cosmwasm-std = "1.1"
+cosmwasm-schema = "1.1"
+cw-multi-test = "0.15"
+astroport = { git = "https://github.com/astroport-fi/astroport-core.git", branch = "feat/separate_astroport_package" }
+ap-staking = { git = "https://github.com/astroport-fi/astroport-core.git", branch = "feat/separate_astroport_package" }
+ap-token = { git = "https://github.com/astroport-fi/astroport-core.git", branch = "feat/separate_astroport_package" }
+ap-pair = { git = "https://github.com/astroport-fi/astroport-core.git", branch = "feat/separate_astroport_package" }
+ap-factory = { git = "https://github.com/astroport-fi/astroport-core.git", branch = "feat/separate_astroport_package" }
+ap-generator = { git = "https://github.com/astroport-fi/astroport-core.git", branch = "feat/separate_astroport_package" }
+ap-voting-escrow = { path = "../voting_escrow" }
+ap-escrow-fee-distributor = { path = "../escrow_fee_distributor" }
+ap-generator-controller = { path = "../generator_controller" }
+
+astroport-governance = { path = "../astroport_governance" }
+astroport-voting-escrow = { path = "../../contracts/voting_escrow" }
+astroport-generator = { git = "https://github.com/astroport-fi/astroport-core.git", branch = "feat/separate_astroport_package" }
+astroport-pair = { git = "https://github.com/astroport-fi/astroport-core.git", branch = "feat/separate_astroport_package" }
+astroport-factory = { git = "https://github.com/astroport-fi/astroport-core.git", branch = "feat/separate_astroport_package" }
+astroport-token = { git = "https://github.com/astroport-fi/astroport-core.git", branch = "feat/separate_astroport_package" }
+astroport-staking = { git = "https://github.com/astroport-fi/astroport-core.git", branch = "feat/separate_astroport_package" }
+astroport-whitelist = { git = "https://github.com/astroport-fi/astroport-core.git", branch = "feat/separate_astroport_package" }
+astroport-escrow-fee-distributor = { path = "../../contracts/escrow_fee_distributor" }
+astroport-generator-controller = { path = "../../contracts/generator_controller" }
+anyhow = "1"

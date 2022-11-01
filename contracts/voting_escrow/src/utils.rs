@@ -1,5 +1,6 @@
 use crate::error::ContractError;
-use astroport_governance::utils::{get_periods_count, MAX_LOCK_TIME, WEEK};
+use ap_voting_escrow::MAX_LOCK_TIME;
+use astroport_governance::{get_periods_count, WEEK};
 
 use cosmwasm_std::{Addr, Decimal, Order, StdResult, Storage, Uint128};
 use cw_storage_plus::Bound;

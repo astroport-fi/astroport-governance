@@ -1,0 +1,19 @@
+[package]
+name = "ap-voting-escrow-delegation"
+version = "1.0.1"
+authors = ["Astroport"]
+edition = "2021"
+repository = "https://github.com/astroport-fi/astroport-governance"
+homepage = "https://astroport.fi"
+license = "GPL-3.0-only"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[features]
+# for quicker tests, cargo test --lib
+# for more explicit tests, cargo test --features=backtraces
+backtraces = ["cosmwasm-std/backtraces"]
+
+[dependencies]
+cosmwasm-std = "1.1"
+cosmwasm-schema = "1.1"

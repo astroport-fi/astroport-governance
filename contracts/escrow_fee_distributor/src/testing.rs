@@ -1,5 +1,5 @@
 use crate::contract::{instantiate, query};
-use astroport_governance::escrow_fee_distributor::{ConfigResponse, InstantiateMsg, QueryMsg};
+use ap_escrow_fee_distributor::{ConfigResponse, InstantiateMsg, QueryMsg};
 
 use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
 use cosmwasm_std::{from_binary, Addr};

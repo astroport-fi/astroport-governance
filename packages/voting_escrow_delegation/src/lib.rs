@@ -1,6 +1,6 @@
-use crate::voting_escrow_delegation::QueryMsg::AdjustedBalance;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Addr, QuerierWrapper, StdResult, Uint128};
+use QueryMsg::AdjustedBalance;
 
 /// This structure stores the main parameters for the voting escrow delegation contract.
 #[cw_serde]
@@ -11,18 +11,6 @@ pub struct Config {
     pub nft_addr: Addr,
     /// vxASTRO contract address
     pub voting_escrow_addr: Addr,
-}
-
-#[cw_serde]
-pub struct Token {
-    /// The amount of voting power to be delegated
-    pub power: Uint128,
-    /// Weekly voting power decay
-    pub slope: Uint128,
-    /// The start period when the delegated voting power start to decrease
-    pub start: u64,
-    /// The period when the delegated voting power should expire
-    pub expire_period: u64,
 }
 
 #[cw_serde]
@@ -78,6 +66,10 @@ pub enum QueryMsg {
         timestamp: Option<u64>,
     },
 }
+
+/// This structure describes a Migration message.
+#[cw_serde]
+pub struct MigrateMsg {}
 
 /// Queries current user's adjusted voting power from the voting escrow delegation contract.
 pub fn get_adjusted_balance(

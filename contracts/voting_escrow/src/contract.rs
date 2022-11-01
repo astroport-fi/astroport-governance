@@ -1,7 +1,6 @@
-use crate::astroport;
 use astroport::asset::addr_validate_to_lower;
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
-use astroport_governance::astroport::DecimalCheckedOps;
+use astroport::DecimalCheckedOps;
 
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
@@ -9,7 +8,7 @@ use cosmwasm_std::{
     attr, from_binary, to_binary, Addr, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo,
     Response, StdError, StdResult, Storage, Uint128, WasmMsg,
 };
-use cw2::set_contract_version;
+use cw2::{get_contract_version, set_contract_version};
 use cw20::{
     BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, Cw20ReceiveMsg, Logo, LogoInfo,
     MarketingInfoResponse, MinterResponse, TokenInfoResponse,
@@ -19,12 +18,14 @@ use cw20_base::contract::{
 };
 use cw20_base::state::{MinterData, TokenInfo, LOGO, MARKETING_INFO, TOKEN_INFO};
 
-use crate::astroport::asset::addr_opt_validate;
-use crate::astroport::common::validate_addresses;
-use astroport_governance::utils::{get_period, get_periods_count, EPOCH_START, WEEK};
-use astroport_governance::voting_escrow::{
+use ap_voting_escrow::{
     BlacklistedVotersResponse, ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg,
-    LockInfoResponse, MigrateMsg, QueryMsg, VotingPowerResponse, DEFAULT_LIMIT, MAX_LIMIT,
+    LockInfoResponse, MigrateMsg, QueryMsg, VotingPowerResponse,
+};
+use astroport::asset::addr_opt_validate;
+use astroport::common::validate_addresses;
+use astroport_governance::{
+    get_period, get_periods_count, DEFAULT_LIMIT, EPOCH_START, MAX_LIMIT, WEEK,
 };
 
 use crate::error::ContractError;
@@ -57,10 +58,9 @@ pub fn instantiate(
     let xastro_minter_resp: MinterResponse = deps
         .querier
         .query_wasm_smart(&deposit_token_addr, &Cw20QueryMsg::Minter {})?;
-    let staking_config: astroport::staking::ConfigResponse = deps.querier.query_wasm_smart(
-        &xastro_minter_resp.minter,
-        &astroport::staking::QueryMsg::Config {},
-    )?;
+    let staking_config: ap_staking::ConfigResponse = deps
+        .querier
+        .query_wasm_smart(&xastro_minter_resp.minter, &ap_staking::QueryMsg::Config {})?;
 
     validate_whitelist_links(&msg.logo_urls_whitelist)?;
     let guardian_addr = addr_opt_validate(deps.api, &msg.guardian_addr)?;
@@ -991,6 +991,22 @@ fn query_token_info(deps: Deps, env: Env) -> StdResult<TokenInfoResponse> {
 
 /// Manages contract migration.
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
-    Err(ContractError::MigrationError {})
+pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
+    let contract_version = get_contract_version(deps.storage)?;
+
+    match contract_version.contract.as_ref() {
+        "astro-voting-escrow" => match contract_version.version.as_ref() {
+            "1.3.0" => {}
+            _ => return Err(ContractError::MigrationError {}),
+        },
+        _ => return Err(ContractError::MigrationError {}),
+    };
+
+    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    Ok(Response::new()
+        .add_attribute("previous_contract_name", &contract_version.contract)
+        .add_attribute("previous_contract_version", &contract_version.version)
+        .add_attribute("new_contract_name", CONTRACT_NAME)
+        .add_attribute("new_contract_version", CONTRACT_VERSION))
 }

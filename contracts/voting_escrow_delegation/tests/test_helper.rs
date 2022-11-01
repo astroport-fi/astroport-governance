@@ -1,12 +1,12 @@
 use anyhow::Result;
-use astroport_governance::utils::EPOCH_START;
-use astroport_governance::voting_escrow_delegation::Config;
-use astroport_governance::voting_escrow_delegation::{InstantiateMsg, QueryMsg};
+use ap_voting_escrow_delegation::Config;
+use ap_voting_escrow_delegation::{InstantiateMsg, QueryMsg};
+use astroport_governance::EPOCH_START;
 use astroport_tests::escrow_helper::EscrowHelper;
 use cosmwasm_std::{to_binary, Addr, Empty, QueryRequest, StdResult, Uint128, WasmQuery};
 use cw_multi_test::{App, AppResponse, Contract, ContractWrapper, Executor};
 
-use astroport_governance::voting_escrow_delegation::ExecuteMsg;
+use ap_voting_escrow_delegation::ExecuteMsg;
 use cw721_base::helpers::Cw721Contract;
 
 pub struct Helper {
@@ -19,11 +19,11 @@ pub struct Helper {
 impl Helper {
     pub fn contract_escrow_delegation_template() -> Box<dyn Contract<Empty>> {
         let contract = ContractWrapper::new_with_empty(
-            voting_escrow_delegation::contract::execute,
-            voting_escrow_delegation::contract::instantiate,
-            voting_escrow_delegation::contract::query,
+            astroport_voting_escrow_delegation::contract::execute,
+            astroport_voting_escrow_delegation::contract::instantiate,
+            astroport_voting_escrow_delegation::contract::query,
         )
-        .with_reply_empty(voting_escrow_delegation::contract::reply);
+        .with_reply_empty(astroport_voting_escrow_delegation::contract::reply);
         Box::new(contract)
     }
 

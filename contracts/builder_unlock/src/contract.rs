@@ -1,5 +1,6 @@
-use crate::astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::asset::addr_validate_to_lower;
+use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
+use astroport_governance::{DEFAULT_LIMIT, MAX_LIMIT};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 
@@ -11,17 +12,16 @@ use cw2::{get_contract_version, set_contract_version};
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 use cw_storage_plus::Bound;
 
-use crate::astroport::asset::addr_opt_validate;
 use crate::contract::helpers::compute_unlocked_amount;
-use crate::migration::{MigrateMsg, CONFIGV100, STATEV100, STATUSV100};
-use astroport_governance::builder_unlock::msg::{
-    AllocationResponse, ExecuteMsg, InstantiateMsg, QueryMsg, ReceiveMsg, SimulateWithdrawResponse,
-    StateResponse,
+use crate::migration::{CONFIGV100, STATEV100, STATUSV100};
+use ap_builder_unlock::msg::{
+    AllocationResponse, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg, ReceiveMsg,
+    SimulateWithdrawResponse, StateResponse,
 };
-use astroport_governance::builder_unlock::{AllocationParams, AllocationStatus, Config, State};
-use astroport_governance::{DEFAULT_LIMIT, MAX_LIMIT};
+use ap_builder_unlock::{AllocationParams, AllocationStatus, Config};
+use astroport::asset::addr_opt_validate;
 
-use crate::state::{CONFIG, OWNERSHIP_PROPOSAL, PARAMS, STATE, STATUS};
+use crate::state::{State, CONFIG, OWNERSHIP_PROPOSAL, PARAMS, STATE, STATUS};
 
 // Version and name used for contract migration.
 const CONTRACT_NAME: &str = "builder-unlock";
@@ -797,8 +797,8 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> StdResult<Response>
 mod helpers {
     use cosmwasm_std::Uint128;
 
-    use astroport_governance::builder_unlock::msg::SimulateWithdrawResponse;
-    use astroport_governance::builder_unlock::{AllocationParams, AllocationStatus, Schedule};
+    use ap_builder_unlock::msg::SimulateWithdrawResponse;
+    use ap_builder_unlock::{AllocationParams, AllocationStatus, Schedule};
 
     /// Computes number of tokens that are now unlocked for a given allocation
     pub fn compute_unlocked_amount(

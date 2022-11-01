@@ -1,6 +1,5 @@
-use astroport_governance::utils::WEEK;
-use astroport_governance::voting_escrow_delegation::Config;
-use astroport_governance::voting_escrow_delegation::QueryMsg;
+use ap_voting_escrow_delegation::{Config, QueryMsg};
+use astroport_governance::WEEK;
 use cosmwasm_std::{to_binary, Addr, Empty, QueryRequest, Uint128, WasmQuery};
 use cw721_base::{ExecuteMsg as ExecuteMsgNFT, Extension, MintMsg, QueryMsg as QueryMsgNFT};
 use cw_multi_test::Executor;

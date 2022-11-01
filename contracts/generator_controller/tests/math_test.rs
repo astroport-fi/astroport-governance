@@ -7,9 +7,10 @@ use cw_multi_test::{App, AppResponse, Executor};
 use itertools::Itertools;
 use proptest::prelude::*;
 
-use astroport_governance::generator_controller::ExecuteMsg;
-use astroport_governance::utils::{calc_voting_power, MAX_LOCK_TIME, WEEK};
-use generator_controller::bps::BasicPoints;
+use ap_generator_controller::ExecuteMsg;
+use ap_voting_escrow::MAX_LOCK_TIME;
+use astroport_generator_controller::bps::BasicPoints;
+use astroport_governance::{calc_voting_power, WEEK};
 use Event::*;
 use VeEvent::*;
 

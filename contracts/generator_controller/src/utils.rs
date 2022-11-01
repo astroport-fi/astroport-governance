@@ -1,13 +1,12 @@
 use std::ops::RangeInclusive;
 
-use crate::astroport;
-use astroport::asset::{pair_info_by_pool, AssetInfo};
-use astroport::factory::PairType;
-use astroport::querier::query_pair_info;
+use ap_factory::query_pair_info;
+use ap_pair::{pair_info_by_lp_token, PairType};
+use astroport::asset::AssetInfo;
 use cosmwasm_std::{Addr, Order, QuerierWrapper, StdError, StdResult, Storage, Uint128};
 use cw_storage_plus::Bound;
 
-use astroport_governance::utils::calc_voting_power;
+use astroport_governance::calc_voting_power;
 
 use crate::bps::BasicPoints;
 use crate::error::ContractError;
@@ -59,18 +58,18 @@ pub(crate) fn filter_pools(
 ) -> StdResult<Vec<(String, Uint128)>> {
     let blocked_tokens: Vec<AssetInfo> = querier.query_wasm_smart(
         generator_addr.clone(),
-        &astroport::generator::QueryMsg::BlockedTokensList {},
+        &ap_generator::QueryMsg::BlockedTokensList {},
     )?;
     let blocklisted_pair_types: Vec<PairType> = querier.query_wasm_smart(
         factory_addr.clone(),
-        &astroport::factory::QueryMsg::BlacklistedPairTypes {},
+        &ap_factory::QueryMsg::BlacklistedPairTypes {},
     )?;
 
     let pools = pools
         .into_iter()
         .filter_map(|(pool_addr, vxastro_amount)| {
             // Check the address is a LP token and retrieve a pair info
-            let pair_info = pair_info_by_pool(querier, pool_addr).ok()?;
+            let pair_info = pair_info_by_lp_token(querier, pool_addr).ok()?;
             // Check a pair is registered in factory
             query_pair_info(querier, factory_addr.clone(), &pair_info.asset_infos).ok()?;
             let condition = !blocklisted_pair_types.contains(&pair_info.pair_type)

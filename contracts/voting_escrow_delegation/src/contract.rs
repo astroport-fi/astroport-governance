@@ -1,16 +1,12 @@
-use astroport_governance::astroport::asset::addr_validate_to_lower;
-use astroport_governance::utils::{calc_voting_power, get_period, get_periods_count};
-use astroport_governance::voting_escrow::{get_voting_power, get_voting_power_at, MAX_LIMIT};
+use ap_voting_escrow::{get_voting_power, get_voting_power_at};
+use astroport::asset::addr_validate_to_lower;
+use astroport_governance::{calc_voting_power, get_period, get_periods_count, MAX_LIMIT};
 use std::marker::PhantomData;
 
 use crate::error::ContractError;
 use crate::state::{CONFIG, DELEGATED, OWNERSHIP_PROPOSAL, TOKENS};
-use astroport_governance::astroport::common::{
-    claim_ownership, drop_ownership_proposal, propose_new_owner,
-};
-use astroport_governance::voting_escrow_delegation::{
-    Config, ExecuteMsg, InstantiateMsg, QueryMsg,
-};
+use ap_voting_escrow_delegation::{Config, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
+use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
@@ -18,7 +14,7 @@ use cosmwasm_std::{
     attr, to_binary, Addr, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Reply, ReplyOn,
     Response, StdError, StdResult, SubMsg, Uint128, WasmMsg,
 };
-use cw2::set_contract_version;
+use cw2::{get_contract_version, set_contract_version};
 use cw721::NftInfoResponse;
 use cw_utils::parse_reply_instantiate_data;
 
@@ -445,4 +441,26 @@ fn delegated_vp(
     let block_period = get_period(timestamp.unwrap_or_else(|| env.block.time.seconds()))?;
 
     calc_total_delegated_vp(deps, &account, block_period)
+}
+
+/// Manages contract migration.
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
+    let contract_version = get_contract_version(deps.storage)?;
+
+    match contract_version.contract.as_ref() {
+        "voting-escrow-delegation" => match contract_version.version.as_ref() {
+            "1.0.0" => {}
+            _ => return Err(ContractError::MigrationError {}),
+        },
+        _ => return Err(ContractError::MigrationError {}),
+    };
+
+    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    Ok(Response::new()
+        .add_attribute("previous_contract_name", &contract_version.contract)
+        .add_attribute("previous_contract_version", &contract_version.version)
+        .add_attribute("new_contract_name", CONTRACT_NAME)
+        .add_attribute("new_contract_version", CONTRACT_VERSION))
 }

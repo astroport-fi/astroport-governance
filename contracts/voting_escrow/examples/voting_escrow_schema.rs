@@ -1,4 +1,4 @@
-use astroport_governance::voting_escrow::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
+use ap_voting_escrow::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 use cosmwasm_schema::write_api;
 
 fn main() {

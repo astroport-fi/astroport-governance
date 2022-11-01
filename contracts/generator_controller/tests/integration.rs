@@ -1,18 +1,17 @@
+use ap_generator::PoolInfoResponse;
 use astroport::asset::AssetInfo;
-use astroport::generator::PoolInfoResponse;
 use cosmwasm_std::{attr, Addr, Decimal, Uint128};
 use cw_multi_test::Executor;
-use generator_controller::astroport;
 use std::str::FromStr;
 
-use astroport_governance::generator_controller::{
-    ConfigResponse, ExecuteMsg, QueryMsg, VOTERS_MAX_LIMIT,
-};
-use astroport_governance::utils::{get_period, MAX_LOCK_TIME, WEEK};
+use ap_generator_controller::GaugeInfoResponse as TuneInfo;
+use ap_generator_controller::{ConfigResponse, ExecuteMsg, QueryMsg};
+use ap_voting_escrow::MAX_LOCK_TIME;
+use astroport_generator_controller::contract::VOTERS_MAX_LIMIT;
+use astroport_governance::{get_period, WEEK};
 use astroport_tests::{
     controller_helper::ControllerHelper, escrow_helper::MULTIPLIER, mock_app, TerraAppExtension,
 };
-use generator_controller::state::TuneInfo;
 
 #[test]
 fn update_configs() {
@@ -472,7 +471,7 @@ fn check_tuning() {
             .wrap()
             .query_wasm_smart(
                 helper.generator.clone(),
-                &astroport::generator::QueryMsg::PoolInfo {
+                &ap_generator::QueryMsg::PoolInfo {
                     lp_token: pool_addr.to_string(),
                 },
             )
@@ -485,7 +484,7 @@ fn check_tuning() {
         .wrap()
         .query_wasm_smart(
             helper.generator.clone(),
-            &astroport::generator::QueryMsg::PoolInfo {
+            &ap_generator::QueryMsg::PoolInfo {
                 lp_token: pools[2].to_string(),
             },
         )
@@ -562,7 +561,7 @@ fn check_bad_pools_filtering() {
         .execute_contract(
             owner_addr.clone(),
             helper.factory.clone(),
-            &astroport::factory::ExecuteMsg::Deregister { asset_infos },
+            &ap_factory::ExecuteMsg::Deregister { asset_infos },
             &[],
         )
         .unwrap();
@@ -584,7 +583,7 @@ fn check_bad_pools_filtering() {
         .execute_contract(
             owner_addr.clone(),
             helper.generator.clone(),
-            &astroport::generator::ExecuteMsg::UpdateBlockedTokenslist {
+            &ap_generator::ExecuteMsg::UpdateBlockedTokenslist {
                 add: Some(vec![foo_asset_info]),
                 remove: None,
             },

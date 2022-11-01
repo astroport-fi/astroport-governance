@@ -5,12 +5,12 @@ use cosmwasm_std::{
 };
 use cw20::Cw20ExecuteMsg;
 
-use astroport_governance::voting_escrow::{
-    get_lock_info, QueryMsg as VotingQueryMsg, VotingPowerResponse, DEFAULT_PERIODS_LIMIT,
-};
+use ap_voting_escrow::{get_lock_info, QueryMsg as VotingQueryMsg, VotingPowerResponse};
 
 use crate::error::ContractError;
 use crate::state::{LAST_CLAIM_PERIOD, REWARDS_PER_WEEK};
+
+pub const DEFAULT_PERIODS_LIMIT: u64 = 20;
 
 /// Transfer tokens to another address.
 ///

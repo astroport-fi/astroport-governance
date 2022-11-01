@@ -1,40 +1,38 @@
+#[cfg(not(feature = "library"))]
+use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, entry_point, from_binary, to_binary, Addr, Binary, CosmosMsg, Decimal, Deps, DepsMut,
-    Env, MessageInfo, Order, Response, StdResult, Uint128, Uint64, WasmMsg,
+    attr, from_binary, to_binary, Addr, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env,
+    MessageInfo, Order, Response, StdResult, Uint128, Uint64, WasmMsg,
 };
+
 use cw2::{get_contract_version, set_contract_version};
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20ReceiveMsg};
 use cw_storage_plus::Bound;
 use std::str::FromStr;
 
-use crate::astroport;
-use astroport::asset::addr_validate_to_lower;
-use astroport_governance::assembly::{
-    helpers::validate_links, Config, Cw20HookMsg, ExecuteMsg, InstantiateMsg, Proposal,
+use ap_assembly::{
+    helpers::validate_links, Config, Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, Proposal,
     ProposalListResponse, ProposalMessage, ProposalResponse, ProposalStatus, ProposalVoteOption,
     ProposalVotesResponse, QueryMsg, UpdateConfig,
 };
+use astroport::asset::{addr_opt_validate, addr_validate_to_lower};
 
-use crate::astroport::asset::addr_opt_validate;
-use astroport::xastro_token::QueryMsg as XAstroTokenQueryMsg;
-use astroport_governance::builder_unlock::msg::{
+use ap_builder_unlock::msg::{
     AllocationResponse, QueryMsg as BuilderUnlockQueryMsg, StateResponse,
 };
-use astroport_governance::utils::WEEK;
-use astroport_governance::voting_escrow::{QueryMsg as VotingEscrowQueryMsg, VotingPowerResponse};
-use astroport_governance::voting_escrow_delegation::QueryMsg::AdjustedBalance;
+use ap_voting_escrow::{QueryMsg as VotingEscrowQueryMsg, VotingPowerResponse};
+use ap_voting_escrow_delegation::QueryMsg::AdjustedBalance;
+use ap_xastro_token::QueryMsg as XAstroTokenQueryMsg;
+use astroport_governance::{DEFAULT_LIMIT, MAX_LIMIT, WEEK};
 
 use crate::error::ContractError;
-use crate::migration::{migrate_config_to_130, migrate_proposals_to_v111, MigrateMsg, CONFIG_V100};
+use crate::migration::{migrate_config_to_130, migrate_proposals_to_v111, CONFIG_V100};
 use crate::state::{CONFIG, PROPOSALS, PROPOSAL_COUNT};
 
 // Contract name and version used for migration.
 const CONTRACT_NAME: &str = "astro-assembly";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
-// Default pagination constants
-const DEFAULT_LIMIT: u32 = 10;
-const MAX_LIMIT: u32 = 30;
 const DEFAULT_VOTERS_LIMIT: u32 = 100;
 const MAX_VOTERS_LIMIT: u32 = 250;
 
@@ -494,11 +492,9 @@ pub fn update_config(
     }
 
     if let Some(whitelist_remove) = updated_config.whitelist_remove {
-        config.whitelisted_links = config
+        config
             .whitelisted_links
-            .into_iter()
-            .filter(|link| !whitelist_remove.contains(link))
-            .collect();
+            .retain(|link| !whitelist_remove.contains(link));
 
         if config.whitelisted_links.is_empty() {
             return Err(ContractError::WhitelistEmpty {});

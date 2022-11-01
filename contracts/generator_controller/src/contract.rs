@@ -1,8 +1,8 @@
 use std::collections::HashSet;
 use std::convert::TryInto;
 
-use crate::astroport;
-use astroport::asset::{addr_validate_to_lower, pair_info_by_pool};
+use ap_pair::pair_info_by_lp_token;
+use astroport::asset::addr_validate_to_lower;
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
@@ -10,17 +10,13 @@ use cosmwasm_std::{
     to_binary, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env, Fraction, MessageInfo, Order,
     Response, StdError, StdResult, Uint128, WasmMsg,
 };
-use cw2::set_contract_version;
+use cw2::{get_contract_version, set_contract_version};
 use itertools::Itertools;
 
-use astroport_governance::generator_controller::{
-    ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg, UserInfoResponse, VOTERS_MAX_LIMIT,
-};
-use astroport_governance::utils::{calc_voting_power, get_period, WEEK};
-use astroport_governance::voting_escrow::QueryMsg::CheckVotersAreBlacklisted;
-use astroport_governance::voting_escrow::{
-    get_lock_info, get_voting_power, BlacklistedVotersResponse,
-};
+use ap_generator_controller::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg, UserInfoResponse};
+use ap_voting_escrow::QueryMsg::CheckVotersAreBlacklisted;
+use ap_voting_escrow::{get_lock_info, get_voting_power, BlacklistedVotersResponse};
+use astroport_governance::{calc_voting_power, get_period, WEEK};
 
 use crate::bps::BasicPoints;
 use crate::error::ContractError;
@@ -32,6 +28,9 @@ use crate::utils::{
     cancel_user_changes, filter_pools, get_pool_info, update_pool_info, validate_pools_limit,
     vote_for_pool,
 };
+
+/// The maximum amount of voters that can be kicked at once from
+pub const VOTERS_MAX_LIMIT: u32 = 30;
 
 /// Contract name that is used for migration.
 const CONTRACT_NAME: &str = "generator-controller";
@@ -287,7 +286,7 @@ fn handle_vote(
                 }
             }
             // Check an address is a lp token
-            pair_info_by_pool(&deps.querier, &addr)
+            pair_info_by_lp_token(&deps.querier, &addr)
                 .map_err(|_| ContractError::InvalidLPTokenAddress(addr.to_string()))?;
             let bps: BasicPoints = bps.try_into()?;
             Ok((addr, bps))
@@ -446,7 +445,7 @@ fn tune_pools(deps: DepsMut, env: Env) -> ExecuteResult {
     // Set new alloc points
     let setup_pools_msg = CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: config.generator_addr.to_string(),
-        msg: to_binary(&astroport::generator::ExecuteMsg::SetupPools {
+        msg: to_binary(&ap_generator::ExecuteMsg::SetupPools {
             pools: tune_info.pool_alloc_points,
         })?,
         funds: vec![],
@@ -574,8 +573,24 @@ fn pool_info(
     get_pool_info(deps.storage, period, &pool_addr)
 }
 
-/// Manages contract migration
+/// Manages contract migration.
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
-    Err(ContractError::MigrationError {})
+pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
+    let contract_version = get_contract_version(deps.storage)?;
+
+    match contract_version.contract.as_ref() {
+        "generator-controller" => match contract_version.version.as_ref() {
+            "1.1.0" => {}
+            _ => return Err(ContractError::MigrationError {}),
+        },
+        _ => return Err(ContractError::MigrationError {}),
+    };
+
+    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    Ok(Response::new()
+        .add_attribute("previous_contract_name", &contract_version.contract)
+        .add_attribute("previous_contract_version", &contract_version.version)
+        .add_attribute("new_contract_name", CONTRACT_NAME)
+        .add_attribute("new_contract_version", CONTRACT_VERSION))
 }

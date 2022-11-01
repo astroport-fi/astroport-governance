@@ -1,16 +1,16 @@
 use anyhow::Result;
-use astroport::{staking as xastro, token as astro};
-use astroport_governance::escrow_fee_distributor::InstantiateMsg as FeeDistributorInstantiateMsg;
-use astroport_governance::utils::EPOCH_START;
-use astroport_governance::voting_escrow::{
+use ap_escrow_fee_distributor::InstantiateMsg as FeeDistributorInstantiateMsg;
+use ap_staking as xastro;
+use ap_token as astro;
+use ap_voting_escrow::{
     BlacklistedVotersResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, QueryMsg,
     UpdateMarketingInfo, VotingPowerResponse,
 };
+use astroport_governance::EPOCH_START;
 use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
 use cosmwasm_std::{attr, to_binary, Addr, QueryRequest, StdResult, Timestamp, Uint128, WasmQuery};
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, Logo, MinterResponse};
 use cw_multi_test::{App, AppBuilder, AppResponse, BankKeeper, ContractWrapper, Executor};
-use voting_escrow::astroport;
 
 pub const MULTIPLIER: u64 = 1000000;
 
@@ -93,9 +93,9 @@ impl Helper {
             .unwrap();
 
         let voting_contract = Box::new(ContractWrapper::new_with_empty(
-            voting_escrow::contract::execute,
-            voting_escrow::contract::instantiate,
-            voting_escrow::contract::query,
+            astroport_voting_escrow::contract::execute,
+            astroport_voting_escrow::contract::instantiate,
+            astroport_voting_escrow::contract::query,
         ));
 
         let voting_code_id = router.store_code(voting_contract);

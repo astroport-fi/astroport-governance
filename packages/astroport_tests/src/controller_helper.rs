@@ -1,11 +1,13 @@
 use crate::escrow_helper::EscrowHelper;
 use anyhow::Result as AnyResult;
-use astroport::asset::{AssetInfo, PairInfo};
-use astroport::factory::{PairConfig, PairType};
-use astroport_governance::generator_controller::{ConfigResponse, ExecuteMsg, QueryMsg};
+use ap_factory::{PairConfig, PairType};
+use ap_generator_controller::{ConfigResponse, ExecuteMsg, QueryMsg};
+use ap_pair::PairInfo;
+use astroport::asset::AssetInfo;
+
+use astroport_generator_controller::state::{UserInfo, VotedPoolInfo};
 use cosmwasm_std::{Addr, Decimal, StdResult};
 use cw_multi_test::{App, AppResponse, ContractWrapper, Executor};
-use generator_controller::state::{UserInfo, VotedPoolInfo};
 
 pub struct ControllerHelper {
     pub owner: String,
@@ -43,7 +45,7 @@ impl ControllerHelper {
 
         let whitelist_code_id = store_whitelist_code(router);
 
-        let msg = astroport::factory::InstantiateMsg {
+        let msg = ap_factory::InstantiateMsg {
             pair_configs: vec![PairConfig {
                 code_id: pair_code_id,
                 pair_type: PairType::Xyk {},
@@ -73,7 +75,7 @@ impl ControllerHelper {
         );
 
         let generator_code_id = router.store_code(generator_contract);
-        let init_msg = astroport::generator::InstantiateMsg {
+        let init_msg = ap_generator::InstantiateMsg {
             owner: owner.to_string(),
             factory: factory.to_string(),
             generator_controller: None,
@@ -99,13 +101,13 @@ impl ControllerHelper {
             .unwrap();
 
         let controller_contract = Box::new(ContractWrapper::new_with_empty(
-            generator_controller::contract::execute,
-            generator_controller::contract::instantiate,
-            generator_controller::contract::query,
+            astroport_generator_controller::contract::execute,
+            astroport_generator_controller::contract::instantiate,
+            astroport_generator_controller::contract::query,
         ));
 
         let controller_code_id = router.store_code(controller_contract);
-        let init_msg = astroport_governance::generator_controller::InstantiateMsg {
+        let init_msg = ap_generator_controller::InstantiateMsg {
             owner: owner.to_string(),
             escrow_addr: escrow_helper.escrow_instance.to_string(),
             generator_addr: generator.to_string(),
@@ -129,7 +131,7 @@ impl ControllerHelper {
             .execute_contract(
                 owner.clone(),
                 generator.clone(),
-                &astroport::generator::ExecuteMsg::UpdateConfig {
+                &ap_generator::ExecuteMsg::UpdateConfig {
                     vesting_contract: None,
                     generator_controller: Some(controller.to_string()),
                     guardian: None,
@@ -151,7 +153,7 @@ impl ControllerHelper {
     }
 
     pub fn init_cw20_token(&self, router: &mut App, name: &str) -> AnyResult<Addr> {
-        let msg = astroport::token::InstantiateMsg {
+        let msg = ap_token::InstantiateMsg {
             name: name.to_string(),
             symbol: name.to_string(),
             decimals: 6,
@@ -183,7 +185,7 @@ impl ControllerHelper {
         router.execute_contract(
             Addr::unchecked(self.owner.clone()),
             self.factory.clone(),
-            &astroport::factory::ExecuteMsg::CreatePair {
+            &ap_factory::ExecuteMsg::CreatePair {
                 pair_type: PairType::Xyk {},
                 asset_infos: asset_infos.clone(),
                 init_params: None,
@@ -193,7 +195,7 @@ impl ControllerHelper {
 
         let res: PairInfo = router.wrap().query_wasm_smart(
             self.factory.clone(),
-            &astroport::factory::QueryMsg::Pair { asset_infos },
+            &ap_factory::QueryMsg::Pair { asset_infos },
         )?;
 
         Ok(res.liquidity_token)

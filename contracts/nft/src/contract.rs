@@ -1,10 +1,10 @@
-use cosmwasm_std::{
-    entry_point, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response, StdResult,
-};
+#[cfg(not(feature = "library"))]
+use cosmwasm_std::entry_point;
+use cosmwasm_std::{Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response, StdError, StdResult};
 
-use astroport_governance::astroport::asset::addr_validate_to_lower;
-use astroport_governance::nft::MigrateMsg;
-use cw2::set_contract_version;
+use ap_nft::MigrateMsg;
+use astroport::asset::addr_validate_to_lower;
+use cw2::{get_contract_version, set_contract_version};
 use cw721::ContractInfoResponse;
 use cw721_base::msg::{ExecuteMsg, InstantiateMsg};
 use cw721_base::state::Cw721Contract;
@@ -56,8 +56,24 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg<Empty>) -> StdResult<Binary> {
     tract.query(deps, env, msg)
 }
 
-/// Used for contract migration. Returns a default object of type [`Response`].
+/// Manages contract migration.
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
-    Ok(Response::default())
+pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+    let contract_version = get_contract_version(deps.storage)?;
+
+    match contract_version.contract.as_ref() {
+        "astroport-nft" => match contract_version.version.as_ref() {
+            "1.0.0" => {}
+            _ => return Err(StdError::generic_err("Contract can't be migrated!")),
+        },
+        _ => return Err(StdError::generic_err("Contract can't be migrated!")),
+    };
+
+    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    Ok(Response::new()
+        .add_attribute("previous_contract_name", &contract_version.contract)
+        .add_attribute("previous_contract_version", &contract_version.version)
+        .add_attribute("new_contract_name", CONTRACT_NAME)
+        .add_attribute("new_contract_version", CONTRACT_VERSION))
 }

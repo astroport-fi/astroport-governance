@@ -63,7 +63,7 @@ pub enum QueryMsg {
     #[returns(Vec<Uint128>)]
     AvailableRewardPerWeek {
         start_after: Option<u64>,
-        limit: Option<u64>,
+        limit: Option<u32>,
     },
 }
 

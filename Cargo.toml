@@ -1,8 +1,6 @@
 [workspace]
-members = [
-    "packages/*",
-    "contracts/*",
-]
+resolver = "2"
+members = ["packages/*", "contracts/*"]
 
 [profile.release]
 opt-level = "z"
@@ -14,3 +12,4 @@ codegen-units = 1
 panic = 'abort'
 incremental = false
 overflow-checks = true
+strip = true

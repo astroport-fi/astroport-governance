@@ -2,12 +2,6 @@ use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Uint128};
 use cw_storage_plus::{Item, Map};
 
-/// This structure describes a migration message.
-#[cw_serde]
-pub struct MigrateMsg {
-    pub max_allocations_amount: Uint128,
-}
-
 /// This structure stores the total and the remaining amount of ASTRO to be unlocked by all accounts.
 #[cw_serde]
 pub struct StateV100 {

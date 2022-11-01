@@ -1,6 +1,3 @@
-use crate::voting_escrow::QueryMsg::{
-    LockInfo, TotalVotingPower, TotalVotingPowerAt, UserVotingPower, UserVotingPowerAt,
-};
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Addr, Binary, Decimal, QuerierWrapper, StdResult, Uint128};
 use cw20::{
@@ -8,15 +5,12 @@ use cw20::{
     TokenInfoResponse,
 };
 use std::fmt;
+use QueryMsg::{
+    LockInfo, TotalVotingPower, TotalVotingPowerAt, UserVotingPower, UserVotingPowerAt,
+};
 
-/// ## Pagination settings
-/// The maximum amount of items that can be read at once from
-pub const MAX_LIMIT: u32 = 30;
-
-/// The default amount of items to read from
-pub const DEFAULT_LIMIT: u32 = 10;
-
-pub const DEFAULT_PERIODS_LIMIT: u64 = 20;
+/// Seconds in 2 years which is the maximum lock period.
+pub const MAX_LOCK_TIME: u64 = 2 * 365 * 86400; // 2 years (104 weeks)
 
 /// This structure stores marketing information for vxASTRO.
 #[cw_serde]

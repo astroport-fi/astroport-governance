@@ -1,10 +1,14 @@
 [package]
 name = "astroport-nft"
-version = "1.0.0"
-authors = ["Ethan Frey <ethanfrey@users.noreply.github.com>", "Orkun Külçe <orkun@deuslabs.fi>", "Astroport"]
+version = "1.0.1"
+authors = [
+    "Ethan Frey <ethanfrey@users.noreply.github.com>",
+    "Orkun Külçe <orkun@deuslabs.fi>",
+    "Astroport",
+]
 edition = "2021"
 description = "Expanded implementation of cw721 NFTs compliant token for the Astroport NFT"
-license = "Apache-2.0"
+license = "GPL-3.0-only"
 repository = "https://github.com/CosmWasm/cw-nfts"
 homepage = "https://cosmwasm.com"
 documentation = "https://docs.cosmwasm.com"
@@ -24,5 +28,6 @@ cw2 = "0.15"
 cw721 = "0.15"
 cw721-base = { version = "0.15", features = ["library"] }
 cosmwasm-std = "1.1"
-astroport-governance = { path = "../../packages/astroport-governance" }
+ap-nft = { path = "../../packages/nft" }
+astroport = { git = "https://github.com/astroport-fi/astroport-core.git", branch = "feat/separate_astroport_package" }
 cosmwasm-schema = "1.1"

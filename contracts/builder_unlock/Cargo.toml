@@ -1,10 +1,11 @@
 [package]
-name = "builder-unlock"
-version = "1.2.0"
+name = "astroport-builder-unlock"
+version = "1.2.1"
 authors = ["Astroport"]
 edition = "2021"
 repository = "https://github.com/astroport-fi/astroport-governance"
 homepage = "https://astroport.fi"
+license = "GPL-3.0-only"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
@@ -19,11 +20,12 @@ cw2 = "0.15"
 cw20 = "0.15"
 cosmwasm-std = "1.1"
 cw-storage-plus = "0.15"
-astroport-governance = { path = "../../packages/astroport-governance" }
-astroport = {git = "https://github.com/astroport-fi/astroport-core.git"}
-thiserror = { version = "1.0" }
+ap-builder-unlock = { path = "../../packages/builder_unlock" }
+astroport = { git = "https://github.com/astroport-fi/astroport-core.git", branch = "feat/separate_astroport_package" }
+astroport-governance = { path = "../../packages/astroport_governance" }
 cosmwasm-schema = "1.1"
 
 [dev-dependencies]
 cw-multi-test = "0.15"
-astroport-token = {git = "https://github.com/astroport-fi/astroport-core.git"}
+astroport-token = { git = "https://github.com/astroport-fi/astroport-core.git", branch = "feat/separate_astroport_package" }
+ap-token = { git = "https://github.com/astroport-fi/astroport-core.git", branch = "feat/separate_astroport_package" }

@@ -1,28 +1,27 @@
-use astro_assembly::astroport;
-use astroport::{
-    token::InstantiateMsg as TokenInstantiateMsg, xastro_token::QueryMsg as XAstroQueryMsg,
-};
+use ap_token::InstantiateMsg as TokenInstantiateMsg;
+use ap_xastro_token::QueryMsg as XAstroQueryMsg;
+
 use std::str::FromStr;
 
-use astroport_governance::assembly::{
+use ap_assembly::{
     Config, Cw20HookMsg, ExecuteMsg, InstantiateMsg, ProposalListResponse, ProposalMessage,
     ProposalResponse, ProposalStatus, ProposalVoteOption, ProposalVotesResponse, QueryMsg,
     UpdateConfig, DEPOSIT_INTERVAL, VOTING_PERIOD_INTERVAL,
 };
 
-use astroport_governance::voting_escrow::{
+use ap_voting_escrow::{
     Cw20HookMsg as VXAstroCw20HookMsg, InstantiateMsg as VXAstroInstantiateMsg,
 };
 
-use astroport_governance::builder_unlock::msg::{
+use ap_builder_unlock::msg::{
     InstantiateMsg as BuilderUnlockInstantiateMsg, ReceiveMsg as BuilderUnlockReceiveMsg,
 };
-use astroport_governance::builder_unlock::{AllocationParams, Schedule};
-use astroport_governance::utils::{EPOCH_START, WEEK};
-use astroport_governance::voting_escrow_delegation::{
+use ap_builder_unlock::{AllocationParams, Schedule};
+use ap_voting_escrow_delegation::{
     ExecuteMsg as DelegatorExecuteMsg, InstantiateMsg as DelegatorInstantiateMsg,
     QueryMsg as DelegatorQueryMsg,
 };
+use astroport_governance::{EPOCH_START, WEEK};
 use cosmwasm_std::{
     testing::{mock_env, MockApi, MockStorage},
     to_binary, Addr, Binary, CosmosMsg, Decimal, QueryRequest, StdResult, Timestamp, Uint128,
@@ -53,9 +52,9 @@ fn test_contract_instantiation() {
     let builder_unlock_addr = instantiate_builder_unlock_contract(&mut app, &owner, &token_addr);
 
     let assembly_contract = Box::new(ContractWrapper::new_with_empty(
-        astro_assembly::contract::execute,
-        astro_assembly::contract::instantiate,
-        astro_assembly::contract::query,
+        astroport_assembly::contract::execute,
+        astroport_assembly::contract::instantiate,
+        astroport_assembly::contract::query,
     ));
 
     let assembly_code = app.store_code(assembly_contract);
@@ -1368,20 +1367,14 @@ fn test_check_messages() {
         ExecuteMsg::CheckMessages { messages }
     };
 
-    let config_before: astroport_governance::voting_escrow::ConfigResponse = app
+    let config_before: ap_voting_escrow::ConfigResponse = app
         .wrap()
-        .query_wasm_smart(
-            &vxastro_addr,
-            &astroport_governance::voting_escrow::QueryMsg::Config {},
-        )
+        .query_wasm_smart(&vxastro_addr, &ap_voting_escrow::QueryMsg::Config {})
         .unwrap();
 
     let vxastro_blacklist_msg = vec![(
         vxastro_addr.to_string(),
-        to_binary(
-            &astroport_governance::voting_escrow::ExecuteMsg::UpdateConfig { new_guardian: None },
-        )
-        .unwrap(),
+        to_binary(&ap_voting_escrow::ExecuteMsg::UpdateConfig { new_guardian: None }).unwrap(),
     )];
     let err = app
         .execute_contract(
@@ -1396,12 +1389,9 @@ fn test_check_messages() {
         "Messages check passed. Nothing was committed to the blockchain"
     );
 
-    let config_after: astroport_governance::voting_escrow::ConfigResponse = app
+    let config_after: ap_voting_escrow::ConfigResponse = app
         .wrap()
-        .query_wasm_smart(
-            &vxastro_addr,
-            &astroport_governance::voting_escrow::QueryMsg::Config {},
-        )
+        .query_wasm_smart(&vxastro_addr, &ap_voting_escrow::QueryMsg::Config {})
         .unwrap();
     assert_eq!(config_before, config_after);
 }
@@ -1697,7 +1687,7 @@ fn instantiate_xastro_token(router: &mut App, owner: &Addr, astro_token: &Addr) 
 
     let staking_code_id = router.store_code(staking_contract);
 
-    let msg = astroport::staking::InstantiateMsg {
+    let msg = ap_staking::InstantiateMsg {
         owner: owner.to_string(),
         token_code_id: xastro_code_id,
         deposit_token_addr: astro_token.to_string(),
@@ -1716,9 +1706,9 @@ fn instantiate_xastro_token(router: &mut App, owner: &Addr, astro_token: &Addr) 
 
     let res = router
         .wrap()
-        .query::<astroport::staking::ConfigResponse>(&QueryRequest::Wasm(WasmQuery::Smart {
+        .query::<ap_staking::ConfigResponse>(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: staking_instance.to_string(),
-            msg: to_binary(&astroport::staking::QueryMsg::Config {}).unwrap(),
+            msg: to_binary(&ap_staking::QueryMsg::Config {}).unwrap(),
         }))
         .unwrap();
 
@@ -1727,9 +1717,9 @@ fn instantiate_xastro_token(router: &mut App, owner: &Addr, astro_token: &Addr) 
 
 fn instantiate_vxastro_token(router: &mut App, owner: &Addr, xastro: &Addr) -> Addr {
     let vxastro_token_contract = Box::new(ContractWrapper::new_with_empty(
-        voting_escrow::contract::execute,
-        voting_escrow::contract::instantiate,
-        voting_escrow::contract::query,
+        astroport_voting_escrow::contract::execute,
+        astroport_voting_escrow::contract::instantiate,
+        astroport_voting_escrow::contract::query,
     ));
 
     let vxastro_token_code_id = router.store_code(vxastro_token_contract);
@@ -1756,9 +1746,9 @@ fn instantiate_vxastro_token(router: &mut App, owner: &Addr, xastro: &Addr) -> A
 
 fn instantiate_builder_unlock_contract(router: &mut App, owner: &Addr, astro_token: &Addr) -> Addr {
     let builder_unlock_contract = Box::new(ContractWrapper::new_with_empty(
-        builder_unlock::contract::execute,
-        builder_unlock::contract::instantiate,
-        builder_unlock::contract::query,
+        astroport_builder_unlock::contract::execute,
+        astroport_builder_unlock::contract::instantiate,
+        astroport_builder_unlock::contract::query,
     ));
 
     let builder_unlock_code_id = router.store_code(builder_unlock_contract);
@@ -1790,9 +1780,9 @@ fn instantiate_assembly_contract(
     delegator: Option<String>,
 ) -> Addr {
     let assembly_contract = Box::new(ContractWrapper::new_with_empty(
-        astro_assembly::contract::execute,
-        astro_assembly::contract::instantiate,
-        astro_assembly::contract::query,
+        astroport_assembly::contract::execute,
+        astroport_assembly::contract::instantiate,
+        astroport_assembly::contract::query,
     ));
 
     let assembly_code = router.store_code(assembly_contract);
@@ -1834,11 +1824,11 @@ fn instantiate_delegator_contract(router: &mut App, owner: &Addr, vxastro: &Addr
 
     let delegator_contract = Box::new(
         ContractWrapper::new_with_empty(
-            voting_escrow_delegation::contract::execute,
-            voting_escrow_delegation::contract::instantiate,
-            voting_escrow_delegation::contract::query,
+            astroport_voting_escrow_delegation::contract::execute,
+            astroport_voting_escrow_delegation::contract::instantiate,
+            astroport_voting_escrow_delegation::contract::query,
         )
-        .with_reply_empty(voting_escrow_delegation::contract::reply),
+        .with_reply_empty(astroport_voting_escrow_delegation::contract::reply),
     );
 
     let delegator_code_id = router.store_code(delegator_contract);
@@ -2021,7 +2011,7 @@ fn cast_vote(
 }
 
 fn change_owner(app: &mut App, contract: &Addr, assembly: &Addr) {
-    let msg = astroport_governance::voting_escrow::ExecuteMsg::ProposeNewOwner {
+    let msg = ap_voting_escrow::ExecuteMsg::ProposeNewOwner {
         new_owner: assembly.to_string(),
         expires_in: 100,
     };
@@ -2031,7 +2021,7 @@ fn change_owner(app: &mut App, contract: &Addr, assembly: &Addr) {
     app.execute_contract(
         assembly.clone(),
         contract.clone(),
-        &astroport_governance::voting_escrow::ExecuteMsg::ClaimOwnership {},
+        &ap_voting_escrow::ExecuteMsg::ClaimOwnership {},
         &[],
     )
     .unwrap();

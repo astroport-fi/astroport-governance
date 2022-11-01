@@ -12,18 +12,6 @@ pub struct Config {
     pub max_allocations_amount: Uint128,
 }
 
-/// This structure stores the total and the remaining amount of ASTRO to be unlocked by all accounts.
-#[cw_serde]
-#[derive(Default)]
-pub struct State {
-    /// Amount of ASTRO tokens deposited into the contract
-    pub total_astro_deposited: Uint128,
-    /// Currently available ASTRO tokens that still need to be unlocked and/or withdrawn
-    pub remaining_astro_tokens: Uint128,
-    /// Amount of ASTRO tokens deposited into the contract but not assigned to an allocation
-    pub unallocated_tokens: Uint128,
-}
-
 /// This structure stores the parameters describing a typical unlock schedule.
 #[cw_serde]
 #[derive(Default)]
@@ -196,5 +184,11 @@ pub mod msg {
         pub remaining_astro_tokens: Uint128,
         /// Currently available ASTRO tokens to withdraw or increase allocations by the owner
         pub unallocated_astro_tokens: Uint128,
+    }
+
+    /// This structure describes a migration message.
+    #[cw_serde]
+    pub struct MigrateMsg {
+        pub max_allocations_amount: Uint128,
     }
 }

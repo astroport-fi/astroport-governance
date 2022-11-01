@@ -1,17 +1,10 @@
-use crate::astroport::asset::{addr_opt_validate, addr_validate_to_lower};
 use crate::state::{CONFIG, PROPOSALS};
-use astroport_governance::assembly::{Config, Proposal, ProposalMessage, ProposalStatus};
+use ap_assembly::{Config, MigrateMsg, Proposal, ProposalMessage, ProposalStatus};
+use astroport::asset::{addr_opt_validate, addr_validate_to_lower};
 
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Decimal, DepsMut, StdError, StdResult, Uint128, Uint64};
 use cw_storage_plus::{Item, Map};
-
-/// This structure describes a migration message.
-#[cw_serde]
-pub struct MigrateMsg {
-    voting_escrow_delegator_addr: Option<String>,
-    vxastro_token_addr: Option<String>,
-}
 
 #[cw_serde]
 pub struct ProposalV100 {
