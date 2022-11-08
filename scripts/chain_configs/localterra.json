@@ -19,7 +19,18 @@
       "owner": "",
       "expires_in": 604800
     },
-    "allocations": []
+    "allocations": [
+      "terra1x46rqay4d3cssq8gxxvqz8xt6nwlz4td20k38v",
+      {
+        "amount": "1000000000",
+        "unlock_schedule": {
+          "start_time": 0,
+          "cliff": 86400,
+          "duration": 94608000
+        },
+        "proposed_receiver": null
+      }
+    ]
   },
   "assembly": {
     "admin": null,
