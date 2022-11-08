@@ -11,7 +11,7 @@
     "initMsg": {
       "owner": null,
       "astro_token": null,
-      "max_allocations_amount": "0"
+      "max_allocations_amount": "1000000000"
     },
     "label": "Astroport Builder Unlocking Contract",
     "change_owner": false,
@@ -20,6 +20,7 @@
       "expires_in": 604800
     },
     "allocations": [
+      [
       "terra1x46rqay4d3cssq8gxxvqz8xt6nwlz4td20k38v",
       {
         "amount": "1000000000",
@@ -30,6 +31,7 @@
         },
         "proposed_receiver": null
       }
+      ]
     ]
   },
   "assembly": {
