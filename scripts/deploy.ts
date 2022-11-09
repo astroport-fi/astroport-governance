@@ -6,8 +6,8 @@ import {
     deployContract, executeContract, uploadContract, delay,
 } from './helpers.js'
 import { join } from 'path'
-import {LCDClient, LocalTerra, Wallet} from '@terra-money/terra.js';
-import {chainConfigs} from "./types.d/chain_configs.js";
+import { LCDClient, LocalTerra, Wallet } from '@terra-money/terra.js';
+import { chainConfigs } from "./types.d/chain_configs.js";
 
 const ARTIFACTS_PATH = '../artifacts'
 const SECONDS_IN_DAY: number = 60 * 60 * 24 // min, hour, da
@@ -17,7 +17,7 @@ async function main() {
     console.log(`chainID: ${terra.config.chainID} wallet: ${wallet.key.accAddress}`)
 
     let property: keyof GeneralInfo;
-    for (property in chainConfigs.generalInfo){
+    for (property in chainConfigs.generalInfo) {
         if (!chainConfigs.generalInfo[property]) {
             throw new Error(`Set required param: ${property}`)
         }
@@ -33,8 +33,6 @@ async function main() {
     await deployFeeDistributor(terra, wallet)
     await deployGeneratorController(terra, wallet)
     await deployVotingEscrowDelegation(terra, wallet)
-
-    console.log("FINISH");
 }
 
 async function deployVotingEscrowDelegation(terra: LCDClient, wallet: any) {
@@ -43,6 +41,7 @@ async function deployVotingEscrowDelegation(terra: LCDClient, wallet: any) {
     if (!network.nftCodeID) {
         console.log('Register Astroport NFT Contract...')
         network.nftCodeID = await uploadContract(terra, wallet, join(ARTIFACTS_PATH, 'astroport_nft.wasm')!)
+        writeArtifact(network, terra.config.chainID)
     }
 
     if (!network.votingEscrowDelegationAddress) {
@@ -159,8 +158,8 @@ async function deployTeamUnlock(terra: LCDClient, wallet: any) {
         )
         console.log(`Builder unlock contract address: ${network.builderUnlockAddress}`)
 
-        checkAllocationAmount(chainConfigs.teamUnlock.setup_allocations.allocations.create_allocations.allocations);
-        await create_allocations(terra, wallet, network, chainConfigs.teamUnlock.setup_allocations.allocations.create_allocations.allocations);
+        checkAllocationAmount(chainConfigs.teamUnlock.allocations);
+        await create_allocations(terra, wallet, network, chainConfigs.teamUnlock.allocations);
 
         // Set new owner for builder unlock
         if (chainConfigs.teamUnlock.change_owner) {
@@ -170,6 +169,7 @@ async function deployTeamUnlock(terra: LCDClient, wallet: any) {
                 "propose_new_owner": chainConfigs.teamUnlock.propose_new_owner
             })
         }
+        writeArtifact(network, terra.config.chainID)
     }
 }
 
@@ -189,7 +189,7 @@ async function create_allocations(terra: LocalTerra | LCDClient, wallet: Wallet,
     if (allocations.length > 0) {
         let from = 0;
         let step = 5;
-        let till = allocations.length > step ? step: allocations.length;
+        let till = allocations.length > step ? step : allocations.length;
 
         do {
             if (!network[`allocations_created_${from}_${till}`]) {
@@ -221,8 +221,7 @@ async function create_allocations(terra: LocalTerra | LCDClient, wallet: Wallet,
                 );
 
                 console.log(
-                    `Creating ASTRO Unlocking schedules ::: ${from} - ${till}, ASTRO sent : ${
-                        astro_to_transfer / 1000000
+                    `Creating ASTRO Unlocking schedules ::: ${from} - ${till}, ASTRO sent : ${astro_to_transfer / 1000000
                     }, \n Tx hash --> ${tx.txhash} \n`
                 );
 
@@ -234,7 +233,7 @@ async function create_allocations(terra: LocalTerra | LCDClient, wallet: Wallet,
             from = till;
             step = allocations.length > (till + step) ? step : allocations.length - till
             till += step;
-        } while (from<allocations.length);
+        } while (from < allocations.length);
     } else {
         console.log("Builder Unlock has no allocation points to install")
     }
@@ -264,7 +263,7 @@ async function deployAssembly(terra: LCDClient, wallet: any) {
     }
 }
 
-function checkParams(network:any, required_params: any) {
+function checkParams(network: any, required_params: any) {
     for (const k in required_params) {
         if (!network[required_params[k]]) {
             throw "Set required param: " + required_params[k]

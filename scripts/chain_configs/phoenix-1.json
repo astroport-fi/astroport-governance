@@ -19,311 +19,332 @@
       "owner": "terra174gu7kg8ekk5gsxdma5jlfcedm653tyg6ayppw",
       "expires_in": 604800
     },
-    "setup_allocations": {
-      "allocations": {
-        "create_allocations": {
-          "allocations": [
-            ["terra14zees4lwrdds0em258axe7d3lqqj9n4v7saq7e",
-              {
-                "amount": "1000000000",
-                "unlock_schedule": {
-                  "start_time": 1654646400,
-                  "cliff": 86400,
-                  "duration": 94608000
-                },
-                "proposed_receiver": null
-              }
-            ],
-            ["terra18wqkwdcz04upyg0eew3vyhepq9rgfl35aq6jw6",
-              {
-                "amount": "1000000000",
-                "unlock_schedule": {
-                  "start_time": 1654646400,
-                  "cliff": 86400,
-                  "duration": 94608000
-                },
-                "proposed_receiver": null
-              }
-            ],
-            ["terra1nj7umezl9xdqrsd5n0hzcct0kwadkuc726xpdt",
-              {
-                "amount": "112_383_407_330000",
-                "unlock_schedule": {
-                  "start_time": 1654646400,
-                  "cliff": 16329600,
-                  "duration": 63072000
-                },
-                "proposed_receiver": null
-              }
-            ],
-            ["terra1nupt9dl6sqhc6eve8dwqsrww2panvju4wxrulp",
-              {
-                "amount": "10_456_400_835900",
-                "unlock_schedule": {
-                  "start_time": 1654646400,
-                  "cliff": 16329600,
-                  "duration": 63072000
-                },
-                "proposed_receiver": null
-              }
-            ],
-            ["terra1kyndl58gmxnz859j9wm5k85lwzqyhc9jqw3fk6",
-              {
-                "amount": "10_343_900_835900",
-                "unlock_schedule": {
-                  "start_time": 1654646400,
-                  "cliff": 16329600,
-                  "duration": 63072000
-                },
-                "proposed_receiver": null
-              }
-            ],
-            ["terra1qyxz6nl2pqq8agnmtjdkp3xa90fdt53nndf4en",
-              {
-                "amount": "10_343_900_835900",
-                "unlock_schedule": {
-                  "start_time": 1654646400,
-                  "cliff": 16329600,
-                  "duration": 63072000
-                },
-                "proposed_receiver": null
-              }
-            ],
-            ["terra1ltryq9mrvk0esdhsrs7dgcehcv0uw5chd2smgn",
-              {
-                "amount": "7_428_306_375800",
-                "unlock_schedule": {
-                  "start_time": 1654646400,
-                  "cliff": 16329600,
-                  "duration": 63072000
-                },
-                "proposed_receiver": null
-              }
-            ],
-            ["terra1svlx2775tg2dlfwkpcvu49q4y4xgefp3ftyk0z",
-              {
-                "amount": "116_666_670000",
-                "unlock_schedule": {
-                  "start_time": 1654646400,
-                  "cliff": 16329600,
-                  "duration": 63072000
-                },
-                "proposed_receiver": null
-              }
-            ],
-            ["terra1zaqeperrwghqlsa9yykzsjaets54mtq0u6kl60",
-              {
-                "amount": "15_000_000_000000",
-                "unlock_schedule": {
-                  "start_time": 1654646400,
-                  "cliff": 16329600,
-                  "duration": 63072000
-                },
-                "proposed_receiver": null
-              }
-            ],
-            ["terra10yfjdgrj40yckeh5gju86fzyyrw46va48ajxg4",
-              {
-                "amount": "547_445_000000",
-                "unlock_schedule": {
-                  "start_time": 1654646400,
-                  "cliff": 16329600,
-                  "duration": 63072000
-                },
-                "proposed_receiver": null
-              }
-            ],
-            ["terra1frrme65c3rxngyry6j44ahwusha6mkkxefu0tr",
-              {
-                "amount": "182_481_000000",
-                "unlock_schedule": {
-                  "start_time": 1654646400,
-                  "cliff": 16329600,
-                  "duration": 63072000
-                },
-                "proposed_receiver": null
-              }
-            ],
-            ["terra19xmydpl3zdnw2ef2mnresrsurn3g23e07a8xya",
-              {
-                "amount": "200_000_000000",
-                "unlock_schedule": {
-                  "start_time": 1654646400,
-                  "cliff": 16329600,
-                  "duration": 63072000
-                },
-                "proposed_receiver": null
-              }
-            ],
-            ["terra1jy3vlu9x2fc2slundxz0kvj7n5y9hjlj6h0hkw",
-              {
-                "amount": "100_000_000000",
-                "unlock_schedule": {
-                  "start_time": 1654646400,
-                  "cliff": 16329600,
-                  "duration": 63072000
-                },
-                "proposed_receiver": null
-              }
-            ],
-            ["terra1cgdmn0n2x4jj4awnwehstfsy42stcrfqvxcf66",
-              {
-                "amount": "1_950_000_000000",
-                "unlock_schedule": {
-                  "start_time": 1654646400,
-                  "cliff": 16329600,
-                  "duration": 63072000
-                },
-                "proposed_receiver": null
-              }
-            ],
-            ["terra1pq02fnrm68x6kcv2lhgvyetjelps550w3pq6m2",
-              {
-                "amount": "6_000_000_000000",
-                "unlock_schedule": {
-                  "start_time": 1654646400,
-                  "cliff": 16329600,
-                  "duration": 63072000
-                },
-                "proposed_receiver": null
-              }
-            ],
-            ["terra1kkwklh7kyr20ktq29uctagkxc7rc27ymp2gf3h",
-              {
-                "amount": "1_500_000_000000",
-                "unlock_schedule": {
-                  "start_time": 1654646400,
-                  "cliff": 16329600,
-                  "duration": 63072000
-                },
-                "proposed_receiver": null
-              }
-            ],
-            ["terra14rg786jljcyt08mpfjqfe0tyqtkc5ku07u5cpl",
-              {
-                "amount": "1_550_000_000000",
-                "unlock_schedule": {
-                  "start_time": 1654646400,
-                  "cliff": 16329600,
-                  "duration": 63072000
-                },
-                "proposed_receiver": null
-              }
-            ],
-            ["terra1gn53cj0v8kvwxqg867e3mu9f3q9yzskmfgnvla",
-              {
-                "amount": "2_000_000_000000",
-                "unlock_schedule": {
-                  "start_time": 1654646400,
-                  "cliff": 16329600,
-                  "duration": 63072000
-                },
-                "proposed_receiver": null
-              }
-            ],
-            ["terra17j6tjl2zxd0lugwz3vvsvjcl0z34kh9hqaa63l",
-              {
-                "amount": "4_750_000_000000",
-                "unlock_schedule": {
-                  "start_time": 1654646400,
-                  "cliff": 16329600,
-                  "duration": 63072000
-                },
-                "proposed_receiver": null
-              }
-            ],
-            ["terra1630fz3hu9np4fwdqt42eduu69hdzv8yfd3mcdp",
-              {
-                "amount": "3_500_000_000000",
-                "unlock_schedule": {
-                  "start_time": 1654646400,
-                  "cliff": 16329600,
-                  "duration": 63072000
-                },
-                "proposed_receiver": null
-              }
-            ],
-            ["terra1lv845g7szf9m3082qn3eehv9ewkjjr2kdyz0t6",
-              {
-                "amount": "600_000_000000",
-                "unlock_schedule": {
-                  "start_time": 1654646400,
-                  "cliff": 16329600,
-                  "duration": 63072000
-                },
-                "proposed_receiver": null
-              }
-            ],
-            ["terra1a7rqwyn3zgymqjwhde27d3208muhy8zvgyng6l",
-              {
-                "amount": "300_000_000000",
-                "unlock_schedule": {
-                  "start_time": 1654646400,
-                  "cliff": 16329600,
-                  "duration": 63072000
-                },
-                "proposed_receiver": null
-              }
-            ],
-            ["terra1jjq6vyq5am5q7tzchc9252y0aczvjtj5ju5hu2",
-              {
-                "amount": "670_000_000000",
-                "unlock_schedule": {
-                  "start_time": 1654646400,
-                  "cliff": 16329600,
-                  "duration": 63072000
-                },
-                "proposed_receiver": null
-              }
-            ],
-            ["terra1h5cankw4vjf2q5cuepxww4cmefww0ds0qqgem7",
-              {
-                "amount": "15_672_765_538700",
-                "unlock_schedule": {
-                  "start_time": 1654646400,
-                  "cliff": 16329600,
-                  "duration": 63072000
-                },
-                "proposed_receiver": null
-              }
-            ],
-            ["terra1t2fj6czytujh22dwe8zx4sduqkrcpda758mn0q",
-              {
-                "amount": "14_821_821_827800",
-                "unlock_schedule": {
-                  "start_time": 1654646400,
-                  "cliff": 16329600,
-                  "duration": 63072000
-                },
-                "proposed_receiver": null
-              }
-            ],
-            ["terra1l750ue570u3xwm8008ncs5cw22pwrsz0yawztp",
-              {
-                "amount": "32_080_000_000000",
-                "unlock_schedule": {
-                  "start_time": 1654646400,
-                  "cliff": 16329600,
-                  "duration": 63072000
-                },
-                "proposed_receiver": null
-              }
-            ],
-            ["terra1q4pxqn3ytlt4wqkdpkt76mx6v4v8h2zakye4jn",
-              {
-                "amount": "43_300_000_000000",
-                "unlock_schedule": {
-                  "start_time": 1654646400,
-                  "cliff": 16329600,
-                  "duration": 63072000
-                },
-                "proposed_receiver": null
-              }
-            ]
-          ]
+    "allocations": [
+      [
+        "terra14zees4lwrdds0em258axe7d3lqqj9n4v7saq7e",
+        {
+          "amount": "1000000000",
+          "unlock_schedule": {
+            "start_time": 1654646400,
+            "cliff": 86400,
+            "duration": 94608000
+          },
+          "proposed_receiver": null
         }
-      }
-    }
+      ],
+      [
+        "terra18wqkwdcz04upyg0eew3vyhepq9rgfl35aq6jw6",
+        {
+          "amount": "1000000000",
+          "unlock_schedule": {
+            "start_time": 1654646400,
+            "cliff": 86400,
+            "duration": 94608000
+          },
+          "proposed_receiver": null
+        }
+      ],
+      [
+        "terra1nj7umezl9xdqrsd5n0hzcct0kwadkuc726xpdt",
+        {
+          "amount": "112_383_407_330000",
+          "unlock_schedule": {
+            "start_time": 1654646400,
+            "cliff": 16329600,
+            "duration": 63072000
+          },
+          "proposed_receiver": null
+        }
+      ],
+      [
+        "terra1nupt9dl6sqhc6eve8dwqsrww2panvju4wxrulp",
+        {
+          "amount": "10_456_400_835900",
+          "unlock_schedule": {
+            "start_time": 1654646400,
+            "cliff": 16329600,
+            "duration": 63072000
+          },
+          "proposed_receiver": null
+        }
+      ],
+      [
+        "terra1kyndl58gmxnz859j9wm5k85lwzqyhc9jqw3fk6",
+        {
+          "amount": "10_343_900_835900",
+          "unlock_schedule": {
+            "start_time": 1654646400,
+            "cliff": 16329600,
+            "duration": 63072000
+          },
+          "proposed_receiver": null
+        }
+      ],
+      [
+        "terra1qyxz6nl2pqq8agnmtjdkp3xa90fdt53nndf4en",
+        {
+          "amount": "10_343_900_835900",
+          "unlock_schedule": {
+            "start_time": 1654646400,
+            "cliff": 16329600,
+            "duration": 63072000
+          },
+          "proposed_receiver": null
+        }
+      ],
+      [
+        "terra1ltryq9mrvk0esdhsrs7dgcehcv0uw5chd2smgn",
+        {
+          "amount": "7_428_306_375800",
+          "unlock_schedule": {
+            "start_time": 1654646400,
+            "cliff": 16329600,
+            "duration": 63072000
+          },
+          "proposed_receiver": null
+        }
+      ],
+      [
+        "terra1svlx2775tg2dlfwkpcvu49q4y4xgefp3ftyk0z",
+        {
+          "amount": "116_666_670000",
+          "unlock_schedule": {
+            "start_time": 1654646400,
+            "cliff": 16329600,
+            "duration": 63072000
+          },
+          "proposed_receiver": null
+        }
+      ],
+      [
+        "terra1zaqeperrwghqlsa9yykzsjaets54mtq0u6kl60",
+        {
+          "amount": "15_000_000_000000",
+          "unlock_schedule": {
+            "start_time": 1654646400,
+            "cliff": 16329600,
+            "duration": 63072000
+          },
+          "proposed_receiver": null
+        }
+      ],
+      [
+        "terra10yfjdgrj40yckeh5gju86fzyyrw46va48ajxg4",
+        {
+          "amount": "547_445_000000",
+          "unlock_schedule": {
+            "start_time": 1654646400,
+            "cliff": 16329600,
+            "duration": 63072000
+          },
+          "proposed_receiver": null
+        }
+      ],
+      [
+        "terra1frrme65c3rxngyry6j44ahwusha6mkkxefu0tr",
+        {
+          "amount": "182_481_000000",
+          "unlock_schedule": {
+            "start_time": 1654646400,
+            "cliff": 16329600,
+            "duration": 63072000
+          },
+          "proposed_receiver": null
+        }
+      ],
+      [
+        "terra19xmydpl3zdnw2ef2mnresrsurn3g23e07a8xya",
+        {
+          "amount": "200_000_000000",
+          "unlock_schedule": {
+            "start_time": 1654646400,
+            "cliff": 16329600,
+            "duration": 63072000
+          },
+          "proposed_receiver": null
+        }
+      ],
+      [
+        "terra1jy3vlu9x2fc2slundxz0kvj7n5y9hjlj6h0hkw",
+        {
+          "amount": "100_000_000000",
+          "unlock_schedule": {
+            "start_time": 1654646400,
+            "cliff": 16329600,
+            "duration": 63072000
+          },
+          "proposed_receiver": null
+        }
+      ],
+      [
+        "terra1cgdmn0n2x4jj4awnwehstfsy42stcrfqvxcf66",
+        {
+          "amount": "1_950_000_000000",
+          "unlock_schedule": {
+            "start_time": 1654646400,
+            "cliff": 16329600,
+            "duration": 63072000
+          },
+          "proposed_receiver": null
+        }
+      ],
+      [
+        "terra1pq02fnrm68x6kcv2lhgvyetjelps550w3pq6m2",
+        {
+          "amount": "6_000_000_000000",
+          "unlock_schedule": {
+            "start_time": 1654646400,
+            "cliff": 16329600,
+            "duration": 63072000
+          },
+          "proposed_receiver": null
+        }
+      ],
+      [
+        "terra1kkwklh7kyr20ktq29uctagkxc7rc27ymp2gf3h",
+        {
+          "amount": "1_500_000_000000",
+          "unlock_schedule": {
+            "start_time": 1654646400,
+            "cliff": 16329600,
+            "duration": 63072000
+          },
+          "proposed_receiver": null
+        }
+      ],
+      [
+        "terra14rg786jljcyt08mpfjqfe0tyqtkc5ku07u5cpl",
+        {
+          "amount": "1_550_000_000000",
+          "unlock_schedule": {
+            "start_time": 1654646400,
+            "cliff": 16329600,
+            "duration": 63072000
+          },
+          "proposed_receiver": null
+        }
+      ],
+      [
+        "terra1gn53cj0v8kvwxqg867e3mu9f3q9yzskmfgnvla",
+        {
+          "amount": "2_000_000_000000",
+          "unlock_schedule": {
+            "start_time": 1654646400,
+            "cliff": 16329600,
+            "duration": 63072000
+          },
+          "proposed_receiver": null
+        }
+      ],
+      [
+        "terra17j6tjl2zxd0lugwz3vvsvjcl0z34kh9hqaa63l",
+        {
+          "amount": "4_750_000_000000",
+          "unlock_schedule": {
+            "start_time": 1654646400,
+            "cliff": 16329600,
+            "duration": 63072000
+          },
+          "proposed_receiver": null
+        }
+      ],
+      [
+        "terra1630fz3hu9np4fwdqt42eduu69hdzv8yfd3mcdp",
+        {
+          "amount": "3_500_000_000000",
+          "unlock_schedule": {
+            "start_time": 1654646400,
+            "cliff": 16329600,
+            "duration": 63072000
+          },
+          "proposed_receiver": null
+        }
+      ],
+      [
+        "terra1lv845g7szf9m3082qn3eehv9ewkjjr2kdyz0t6",
+        {
+          "amount": "600_000_000000",
+          "unlock_schedule": {
+            "start_time": 1654646400,
+            "cliff": 16329600,
+            "duration": 63072000
+          },
+          "proposed_receiver": null
+        }
+      ],
+      [
+        "terra1a7rqwyn3zgymqjwhde27d3208muhy8zvgyng6l",
+        {
+          "amount": "300_000_000000",
+          "unlock_schedule": {
+            "start_time": 1654646400,
+            "cliff": 16329600,
+            "duration": 63072000
+          },
+          "proposed_receiver": null
+        }
+      ],
+      [
+        "terra1jjq6vyq5am5q7tzchc9252y0aczvjtj5ju5hu2",
+        {
+          "amount": "670_000_000000",
+          "unlock_schedule": {
+            "start_time": 1654646400,
+            "cliff": 16329600,
+            "duration": 63072000
+          },
+          "proposed_receiver": null
+        }
+      ],
+      [
+        "terra1h5cankw4vjf2q5cuepxww4cmefww0ds0qqgem7",
+        {
+          "amount": "15_672_765_538700",
+          "unlock_schedule": {
+            "start_time": 1654646400,
+            "cliff": 16329600,
+            "duration": 63072000
+          },
+          "proposed_receiver": null
+        }
+      ],
+      [
+        "terra1t2fj6czytujh22dwe8zx4sduqkrcpda758mn0q",
+        {
+          "amount": "14_821_821_827800",
+          "unlock_schedule": {
+            "start_time": 1654646400,
+            "cliff": 16329600,
+            "duration": 63072000
+          },
+          "proposed_receiver": null
+        }
+      ],
+      [
+        "terra1l750ue570u3xwm8008ncs5cw22pwrsz0yawztp",
+        {
+          "amount": "32_080_000_000000",
+          "unlock_schedule": {
+            "start_time": 1654646400,
+            "cliff": 16329600,
+            "duration": 63072000
+          },
+          "proposed_receiver": null
+        }
+      ],
+      [
+        "terra1q4pxqn3ytlt4wqkdpkt76mx6v4v8h2zakye4jn",
+        {
+          "amount": "43_300_000_000000",
+          "unlock_schedule": {
+            "start_time": 1654646400,
+            "cliff": 16329600,
+            "duration": 63072000
+          },
+          "proposed_receiver": null
+        }
+      ]
+    ]
   },
   "assembly": {
     "admin": null,
@@ -336,7 +357,12 @@
       "proposal_required_deposit": "30000000000",
       "proposal_required_quorum": "0.1",
       "proposal_required_threshold": "0.50",
-      "whitelisted_links": ["https://forum.astroport.fi/", "http://forum.astroport.fi/", "https://astroport.fi/", "http://astroport.fi/"]
+      "whitelisted_links": [
+        "https://forum.astroport.fi/",
+        "http://forum.astroport.fi/",
+        "https://astroport.fi/",
+        "http://astroport.fi/"
+      ]
     },
     "label": "Astroport Assembly Contract"
   },
@@ -354,7 +380,9 @@
           "url": "https://astroport.fi/vxastro_logo.png"
         }
       },
-      "logo_urls_whitelist": ["https://astroport.fi/"]
+      "logo_urls_whitelist": [
+        "https://astroport.fi/"
+      ]
     },
     "label": "Astroport Voting Escrow Contract"
   },
