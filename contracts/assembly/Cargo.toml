@@ -23,7 +23,6 @@ astroport-governance = { path = "../../packages/astroport-governance" }
 ibc-controller-package = { git = "https://github.com/astroport-fi/astroport_ibc.git" }
 thiserror = { version = "1.0" }
 cosmwasm-schema = "1.1"
-ibc-controller-package = { git = "https://github.com/astroport-fi/astroport_ibc.git" }
 
 [dev-dependencies]
 cosmwasm-schema = "1.0"
