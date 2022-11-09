@@ -4,7 +4,7 @@ members = [
     "contracts/*",
 ]
 
-[patch."https://github.com/astroport-fi/astroport-governance"]
+[patch."https://github.com/astroport-fi/hidden_astroport_governance.git"]
 astroport-governance = { path = "packages/astroport-governance" }
 
 [profile.release]

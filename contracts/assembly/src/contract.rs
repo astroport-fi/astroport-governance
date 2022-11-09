@@ -399,7 +399,7 @@ pub fn execute_proposal(
             &config
                 .ibc_controller
                 .ok_or(ContractError::MissingIBCController {})?,
-            &astro_ibc::controller::ExecuteMsg::IbcExecuteProposal {
+            &ibc_controller_package::ExecuteMsg::IbcExecuteProposal {
                 channel_id: channel.to_string(),
                 proposal_id,
                 messages: proposal.messages.unwrap_or_default(),

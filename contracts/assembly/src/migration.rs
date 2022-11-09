@@ -48,7 +48,7 @@ pub struct ProposalV100 {
     pub deposit_amount: Uint128,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[cw_serde]
 pub struct ProposalV130 {
     /// Unique proposal ID
     pub proposal_id: Uint64,
@@ -115,7 +115,7 @@ pub struct ConfigV100 {
     pub whitelisted_links: Vec<String>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[cw_serde]
 pub struct ConfigV130 {
     /// xASTRO token address
     pub xastro_token_addr: Addr,
@@ -184,7 +184,7 @@ pub(crate) fn migrate_proposals_to_v111(deps: &mut DepsMut, cfg: &ConfigV100) ->
 
 /// Migrate proposals to V1.4.0
 pub(crate) fn migrate_proposals_to_v140(deps: DepsMut) -> StdResult<()> {
-    let v130_proposals_interface: Map<U64Key, ProposalV130> = Map::new("proposals");
+    let v130_proposals_interface: Map<u64, ProposalV130> = Map::new("proposals");
     let proposals_v130 = v130_proposals_interface
         .range(deps.storage, None, None, cosmwasm_std::Order::Ascending {})
         .collect::<StdResult<Vec<_>>>()?;

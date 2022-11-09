@@ -415,7 +415,6 @@ impl Proposal {
 
 /// This enum describes available statuses/states for a Proposal.
 #[cw_serde]
-#[serde(rename_all = "snake_case")]
 pub enum ProposalStatus {
     Active,
     Passed,
