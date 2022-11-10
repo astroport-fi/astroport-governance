@@ -36,12 +36,12 @@ cosmwasm-schema = "1.1"
 cw-multi-test = "0.15"
 astroport-tests = { path = "../../packages/astroport-tests" }
 
-astroport-generator = { git = "https://github.com/astroport-fi/astroport-core.git", branch = "release/terra2" }
-astroport-pair = { git = "https://github.com/astroport-fi/astroport-core.git", branch = "release/terra2" }
-astroport-factory = { git = "https://github.com/astroport-fi/astroport-core.git", branch = "release/terra2" }
-astroport-token = { git = "https://github.com/astroport-fi/astroport-core.git", branch = "release/terra2" }
-astroport-staking = { git = "https://github.com/astroport-fi/astroport-core.git", branch = "release/terra2" }
-astroport-whitelist = { git = "https://github.com/astroport-fi/astroport-core.git", branch = "release/terra2" }
+astroport-generator = { git = "https://github.com/astroport-fi/astroport-core.git", branch = "release" }
+astroport-pair = { git = "https://github.com/astroport-fi/astroport-core.git", branch = "release" }
+astroport-factory = { git = "https://github.com/astroport-fi/astroport-core.git", branch = "release" }
+astroport-token = { git = "https://github.com/astroport-fi/astroport-core.git", branch = "release" }
+astroport-staking = { git = "https://github.com/astroport-fi/astroport-core.git", branch = "release" }
+astroport-whitelist = { git = "https://github.com/astroport-fi/astroport-core.git", branch = "release" }
 
 cw20 = "0.15"
 voting-escrow = { path = "../voting_escrow" }

@@ -1,6 +1,6 @@
-## Scripts to Deploy the Astroport Builder Unlock Contract
+## Scripts
 
-### Build env local
+### Build local env
 
 ```shell
 npm install
@@ -9,11 +9,21 @@ npm start
 
 ### Deploy on `testnet`
 
-Create `.env`:
+Set multisig address in corresponding config or create new one in chain_configs
 
+Build contract:
+```shell
+npm run build-artifacts
+```
+
+Create `.env`:
 ```shell
 WALLET="mnemonic"
-LCD_CLIENT_URL=https://bombay-lcd.terra.dev
-CHAIN_ID=bombay-12
-node --loader ts-node/esm deploy.ts
+LCD_CLIENT_URL=https://pisco-lcd.terra.dev
+CHAIN_ID=pisco-1
+```
+
+Deploy contracts:
+```shell
+npm run build-app
 ```

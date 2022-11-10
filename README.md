@@ -1,8 +1,12 @@
 # Astroport Governance
 
-[![codecov](https://codecov.io/gh/astroport-fi/astroport-governance/branch/main/graph/badge.svg?token=WDA8WEI7MI)](https://codecov.io/gh/astroport-fi/astroport-governance)
+[![codecov](https://codecov.io/gh/astroport-fi/astroport-governance/branch/release/graph/badge.svg?token=WDA8WEI7MI)](https://codecov.io/gh/astroport-fi/astroport-governance)
 
 This repo contains Astroport Governance related contracts.
+
+## Contracts diagram
+
+![contract diagram](./assets/sc_diagram.png "Contracts Diagram")
 
 ## Contracts
 
@@ -16,15 +20,26 @@ This repo contains Astroport Governance related contracts.
 
 ## Building Contracts
 
-You will need Rust 1.58.1+ with wasm32-unknown-unknown target installed.
+You will need Rust 1.64.0+ with wasm32-unknown-unknown target installed.
 
-You can run unit tests for each contract directory via:
+### You can compile each contract:
+Go to contract directory and run 
+    
+```
+cargo wasm
+cp ../../target/wasm32-unknown-unknown/release/astroport_token.wasm .
+ls -l astroport_token.wasm
+sha256sum astroport_token.wasm
+```
+
+### You can run tests for all contracts
+Run the following from the repository root
 
 ```
 cargo test
 ```
 
-#### For a production-ready (compressed) build:
+### For a production-ready (compressed) build:
 Run the following from the repository root
 
 ```
@@ -32,3 +47,15 @@ Run the following from the repository root
 ```
 
 The optimized contracts are generated in the artifacts/ directory.
+
+## Branches
+
+We use [main](https://github.com/astroport-fi/astroport-governance/tree/main) branch for new feature development and [release](https://github.com/astroport-fi/astroport-governance/tree/release) one for collecting features which are ready for deployment. You can find the version and commit for actually deployed contracts [here](https://github.com/astroport-fi/astroport-changelog).
+
+## Docs
+
+Docs can be generated using `cargo doc --no-deps`
+
+## Bug Bounty
+
+The contracts in this repo are included in a [bug bounty program](https://www.immunefi.com/bounty/astroport).
