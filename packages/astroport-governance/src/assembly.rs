@@ -327,7 +327,6 @@ impl Proposal {
 
 /// This enum describes available statuses/states for a Proposal.
 #[cw_serde]
-#[derive(PartialEq)]
 pub enum ProposalStatus {
     Active,
     Passed,

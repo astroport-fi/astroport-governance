@@ -1,10 +1,9 @@
 use astroport::asset::addr_validate_to_lower;
-use astroport_governance::{
-    assembly::{Config, Proposal, ProposalMessage, ProposalStatus},
-    U64Key,
-};
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{DepsMut, StdError, StdResult, Storage};
+use cosmwasm_std::{Addr, Decimal, DepsMut, StdError, StdResult, Storage, Uint128, Uint64};
+use cw_storage_plus::{Item, Map};
+
+use astroport_governance::assembly::{Config, Proposal, ProposalMessage, ProposalStatus};
 
 use crate::state::{CONFIG, PROPOSALS};
 
@@ -15,7 +14,21 @@ pub struct MigrateMsg {
 }
 
 pub fn migrate_config(deps: &mut DepsMut, msg: &MigrateMsg) -> StdResult<()> {
-    let config = astro_assembly110::state::CONFIG.load(deps.storage)?;
+    #[cw_serde]
+    struct ConfigV110 {
+        pub xastro_token_addr: Addr,
+        pub vxastro_token_addr: Option<Addr>,
+        pub builder_unlock_addr: Addr,
+        pub proposal_voting_period: u64,
+        pub proposal_effective_delay: u64,
+        pub proposal_expiration_period: u64,
+        pub proposal_required_deposit: Uint128,
+        pub proposal_required_quorum: Decimal,
+        pub proposal_required_threshold: Decimal,
+        pub whitelisted_links: Vec<String>,
+    }
+
+    let config: ConfigV110 = Item::new("config").load(deps.storage)?;
     let mut config = Config {
         builder_unlock_addr: config.builder_unlock_addr,
         ibc_controller: None,
@@ -39,16 +52,45 @@ pub fn migrate_config(deps: &mut DepsMut, msg: &MigrateMsg) -> StdResult<()> {
     Ok(())
 }
 
+#[cw_serde]
+enum ProposalStatus110 {
+    Active,
+    Executed,
+    Expired,
+    Passed,
+    Rejected,
+}
+
+#[cw_serde]
+struct ProposalV110 {
+    pub proposal_id: Uint64,
+    pub submitter: Addr,
+    pub status: ProposalStatus110,
+    pub for_power: Uint128,
+    pub against_power: Uint128,
+    pub for_voters: Vec<Addr>,
+    pub against_voters: Vec<Addr>,
+    pub start_block: u64,
+    pub start_time: u64,
+    pub end_block: u64,
+    pub title: String,
+    pub description: String,
+    pub link: Option<String>,
+    pub messages: Option<Vec<ProposalMessage>>,
+    pub deposit_amount: Uint128,
+}
+
+const PROPOSALS_V110: Map<u64, ProposalV110> = Map::new("proposals");
+
 pub fn migrate_proposals(storage: &mut dyn Storage) -> StdResult<()> {
-    let proposals = astro_assembly110::state::PROPOSALS
+    let proposals = PROPOSALS_V110
         .range(storage, None, None, cosmwasm_std::Order::Ascending {})
-        .collect::<Result<Vec<_>, StdError>>()?;
+        .collect::<StdResult<Vec<_>>>()?;
 
     for (key, proposal) in proposals {
-        use astroport_governance110::assembly::ProposalStatus as ProposalStatus110;
         PROPOSALS.save(
             storage,
-            U64Key::new(key),
+            key,
             &Proposal {
                 proposal_id: proposal.proposal_id,
                 submitter: proposal.submitter,
