@@ -352,8 +352,8 @@
       "xastro_token_addr": null,
       "builder_unlock_addr": null,
       "proposal_voting_period": 57600,
-      "proposal_effective_delay": 6171,
-      "proposal_expiration_period": 12342,
+      "proposal_effective_delay": 14400,
+      "proposal_expiration_period": 100800,
       "proposal_required_deposit": "30000000000",
       "proposal_required_quorum": "0.1",
       "proposal_required_threshold": "0.50",
@@ -380,9 +380,7 @@
           "url": "https://astroport.fi/vxastro_logo.png"
         }
       },
-      "logo_urls_whitelist": [
-        "https://astroport.fi/"
-      ]
+      "max_exit_penalty": "0.1"
     },
     "label": "Astroport Voting Escrow Contract"
   },
