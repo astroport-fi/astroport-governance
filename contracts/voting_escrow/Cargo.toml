@@ -34,8 +34,8 @@ cosmwasm-schema = "1.1"
 
 [dev-dependencies]
 cw-multi-test = "0.15"
-astroport-token = { git = "https://github.com/astroport-fi/astroport-core.git", branch = "fix/deployment_scripts_release" }
-astroport-staking = { git = "https://github.com/astroport-fi/astroport-core.git", branch = "fix/deployment_scripts_release" }
+astroport-token = { git = "https://github.com/astroport-fi/astroport-core.git", branch = "release" }
+astroport-staking = { git = "https://github.com/astroport-fi/astroport-core.git", branch = "release" }
 astroport-escrow-fee-distributor = { path = "../escrow_fee_distributor" }
 anyhow = "1"
 proptest = "1.0"
