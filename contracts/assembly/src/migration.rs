@@ -1,6 +1,6 @@
 use astroport::asset::addr_validate_to_lower;
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, Decimal, DepsMut, StdError, StdResult, Storage, Uint128, Uint64};
+use cosmwasm_std::{Addr, Decimal, DepsMut, StdResult, Storage, Uint128, Uint64};
 use cw_storage_plus::{Item, Map};
 
 use astroport_governance::assembly::{Config, Proposal, ProposalMessage, ProposalStatus};

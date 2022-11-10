@@ -458,7 +458,7 @@ pub fn execute_proposal(
     let messages;
     if let Some(channel) = &proposal.ibc_channel {
         proposal.status = ProposalStatus::InProgress;
-        PROPOSALS.save(deps.storage, proposal_id.into(), &proposal)?;
+        PROPOSALS.save(deps.storage, proposal_id, &proposal)?;
 
         let config = CONFIG.load(deps.storage)?;
         messages = vec![CosmosMsg::Wasm(wasm_execute(
@@ -668,14 +668,14 @@ fn update_ibc_proposal_status(
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
     if Some(info.sender) == config.ibc_controller {
-        let mut proposal = PROPOSALS.load(deps.storage, id.into())?;
+        let mut proposal = PROPOSALS.load(deps.storage, id)?;
         match (&proposal.status, &new_status) {
             (
                 ProposalStatus::InProgress,
                 ProposalStatus::Executed {} | ProposalStatus::Failed {},
             ) => {
                 proposal.status = new_status;
-                PROPOSALS.save(deps.storage, id.into(), &proposal)?;
+                PROPOSALS.save(deps.storage, id, &proposal)?;
                 Ok(Response::new().add_attribute("action", "ibc_proposal_completed"))
             }
             _ => Err(ContractError::Unauthorized {}),
