@@ -43,13 +43,7 @@ interface TeamUnlock {
         owner: string,
         expires_in: number
     },
-    setup_allocations: {
-        allocations: {
-            create_allocations: {
-                allocations: Allocations[]
-            }
-        }
-    }
+    allocations: Allocations[]
 }
 
 interface Assembly {
@@ -63,7 +57,9 @@ interface Assembly {
         proposal_required_deposit: string,
         proposal_required_quorum: string,
         proposal_required_threshold: string,
-        whitelisted_links: string[]
+        whitelisted_links: string[],
+        vxastro_token_addr?: string,
+        voting_escrow_delegator_addr?: string
     },
     label: string
 }
