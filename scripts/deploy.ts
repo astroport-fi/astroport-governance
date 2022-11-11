@@ -32,37 +32,6 @@ async function main() {
 
     await deployFeeDistributor(terra, wallet)
     await deployGeneratorController(terra, wallet)
-    await deployVotingEscrowDelegation(terra, wallet)
-}
-
-async function deployVotingEscrowDelegation(terra: LCDClient, wallet: any) {
-    let network = readArtifact(terra.config.chainID)
-
-    if (!network.nftCodeID) {
-        console.log('Register Astroport NFT Contract...')
-        network.nftCodeID = await uploadContract(terra, wallet, join(ARTIFACTS_PATH, 'astroport_nft.wasm')!)
-        writeArtifact(network, terra.config.chainID)
-    }
-
-    if (!network.votingEscrowDelegationAddress) {
-        chainConfigs.votingEscrowDelegation.admin ||= chainConfigs.generalInfo.multisig
-        chainConfigs.votingEscrowDelegation.initMsg.nft_code_id ||= network.nftCodeID
-        chainConfigs.votingEscrowDelegation.initMsg.owner ||= network.assemblyAddress
-        chainConfigs.votingEscrowDelegation.initMsg.voting_escrow_addr ||= network.votingEscrowAddress
-
-        console.log('Deploying voting escrow delegation...')
-        network.votingEscrowDelegationAddress = await deployContract(
-            terra,
-            wallet,
-            chainConfigs.votingEscrowDelegation.admin,
-            join(ARTIFACTS_PATH, 'voting_escrow_delegation.wasm'),
-            chainConfigs.votingEscrowDelegation.initMsg,
-            chainConfigs.votingEscrowDelegation.label
-        )
-
-        console.log("Voting Escrow Delegation: ", network.votingEscrowDelegationAddress)
-        writeArtifact(network, terra.config.chainID)
-    }
 }
 
 async function deployGeneratorController(terra: LCDClient, wallet: any) {
