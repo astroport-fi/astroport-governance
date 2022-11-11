@@ -55,7 +55,7 @@ async function deployVotingEscrowDelegation(terra: LCDClient, wallet: any) {
             terra,
             wallet,
             chainConfigs.votingEscrowDelegation.admin,
-            join(ARTIFACTS_PATH, 'voting_escrow_delegation.wasm'),
+            join(ARTIFACTS_PATH, 'astroport_voting_escrow_delegation.wasm'),
             chainConfigs.votingEscrowDelegation.initMsg,
             chainConfigs.votingEscrowDelegation.label
         )
@@ -80,7 +80,7 @@ async function deployGeneratorController(terra: LCDClient, wallet: any) {
             terra,
             wallet,
             chainConfigs.generatorController.admin,
-            join(ARTIFACTS_PATH, 'generator_controller.wasm'),
+            join(ARTIFACTS_PATH, 'astroport_generator_controller.wasm'),
             chainConfigs.generatorController.initMsg,
             chainConfigs.generatorController.label
         )
@@ -129,7 +129,7 @@ async function deployVotingEscrow(terra: LCDClient, wallet: any) {
             terra,
             wallet,
             chainConfigs.votingEscrow.admin,
-            join(ARTIFACTS_PATH, 'voting_escrow.wasm'),
+            join(ARTIFACTS_PATH, 'astroport_voting_escrow.wasm'),
             chainConfigs.votingEscrow.initMsg,
             chainConfigs.votingEscrow.label
         )
@@ -152,7 +152,7 @@ async function deployTeamUnlock(terra: LCDClient, wallet: any) {
             terra,
             wallet,
             chainConfigs.teamUnlock.admin,
-            join(ARTIFACTS_PATH, 'builder_unlock.wasm'),
+            join(ARTIFACTS_PATH, 'astroport_builder_unlock.wasm'),
             chainConfigs.teamUnlock.initMsg,
             chainConfigs.teamUnlock.label
         )
@@ -253,7 +253,7 @@ async function deployAssembly(terra: LCDClient, wallet: any) {
             terra,
             wallet,
             chainConfigs.assembly.admin,
-            join(ARTIFACTS_PATH, 'astro_assembly.wasm'),
+            join(ARTIFACTS_PATH, 'astroport_assembly.wasm'),
             chainConfigs.assembly.initMsg,
             chainConfigs.assembly.label
         )
