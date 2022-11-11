@@ -35,12 +35,12 @@ cosmwasm-schema = "1.1"
 [dev-dependencies]
 cw-multi-test = "0.15"
 astroport-tests = { path = "../../packages/astroport-tests" }
-astroport-generator = { git = "https://github.com/astroport-fi/astroport-core.git" }
-astroport-pair = { git = "https://github.com/astroport-fi/astroport-core.git"}
-astroport-factory = { git = "https://github.com/astroport-fi/astroport-core.git"}
-astroport-token = { git = "https://github.com/astroport-fi/astroport-core.git"}
-astroport-staking = { git = "https://github.com/astroport-fi/astroport-core.git"}
-astroport-whitelist = { git = "https://github.com/astroport-fi/astroport-core.git"}
+astroport-generator = { git = "https://github.com/astroport-fi/hidden_astroport_core.git" }
+astroport-pair = { git = "https://github.com/astroport-fi/hidden_astroport_core.git" }
+astroport-factory = { git = "https://github.com/astroport-fi/hidden_astroport_core.git" }
+astroport-token = { git = "https://github.com/astroport-fi/hidden_astroport_core.git" }
+astroport-staking = { git = "https://github.com/astroport-fi/hidden_astroport_core.git" }
+astroport-whitelist = { git = "https://github.com/astroport-fi/hidden_astroport_core.git" }
 cw20 = "0.15"
 voting-escrow = { path = "../voting_escrow" }
 anyhow = "1"
