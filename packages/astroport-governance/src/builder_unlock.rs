@@ -49,28 +49,28 @@ pub struct AllocationParams {
 }
 
 impl AllocationParams {
-    pub fn validate_schedule(
+    pub fn update_schedule(
         &mut self,
         new_schedule: Schedule,
         account: &String,
     ) -> Result<(), StdError> {
         if new_schedule.cliff < self.unlock_schedule.cliff {
             return Err(StdError::generic_err(format!(
-                "A new cliff value should be higher than an old cliff value: {} > {}. Account error: {}",
+                "The new cliff value should be greater than or equal to the old one: {} >= {}. Account error: {}",
                 new_schedule.cliff, self.unlock_schedule.cliff, account
             )));
         }
 
         if new_schedule.start_time < self.unlock_schedule.start_time {
             return Err(StdError::generic_err(format!(
-                "A new start time should be higher than an old start time: {} > {}. Account error: {}",
+                "The new start time should be later than or equal to the old one: {} >= {}. Account error: {}",
                 new_schedule.start_time, self.unlock_schedule.start_time, account
             )));
         }
 
         if new_schedule.duration < self.unlock_schedule.duration {
             return Err(StdError::generic_err(format!(
-                "A new duration value should be higher than an old duration value: {} > {}. Account error: {}",
+                "The new duration value should be greater than or equal to the old one: {} >= {}. Account error: {}",
                 new_schedule.duration, self.unlock_schedule.duration, account
             )));
         }

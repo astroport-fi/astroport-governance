@@ -716,7 +716,7 @@ fn update_unlock_schedules(
         let account_addr = addr_validate_to_lower(deps.api, &account)?;
         let mut params = PARAMS.load(deps.storage, &account_addr)?;
 
-        params.validate_schedule(new_schedule, &account)?;
+        params.update_schedule(new_schedule, &account)?;
         PARAMS.save(deps.storage, &account_addr, &params)?;
     }
 
