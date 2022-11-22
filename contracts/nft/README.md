@@ -2,6 +2,7 @@
 
 This is the contract implementation for the ASTRO NFT.
 
+Its interface can be found [here](../../packages/nft/README.md)
 
 # Cw721 Basic
 
