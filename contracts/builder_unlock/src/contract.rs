@@ -21,6 +21,7 @@ use astroport_governance::builder_unlock::msg::{
 use astroport_governance::builder_unlock::{
     AllocationParams, AllocationStatus, Config, Schedule, State,
 };
+
 use astroport_governance::{DEFAULT_LIMIT, MAX_LIMIT};
 
 use crate::state::{CONFIG, OWNERSHIP_PROPOSAL, PARAMS, STATE, STATUS};
@@ -631,7 +632,7 @@ fn update_unlock_schedules(
         let account_addr = addr_validate_to_lower(deps.api, &account)?;
         let mut params = PARAMS.load(deps.storage, &account_addr)?;
 
-        params.validate_schedule(new_schedule, &account)?;
+        params.update_schedule(new_schedule, &account)?;
         PARAMS.save(deps.storage, &account_addr, &params)?;
     }
 
@@ -773,6 +774,7 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> StdResult<Response>
                     },
                 )?;
             }
+            "1.1.0" => {}
             _ => return Err(StdError::generic_err("Contract can't be migrated!")),
         },
         _ => return Err(StdError::generic_err("Contract can't be migrated!")),

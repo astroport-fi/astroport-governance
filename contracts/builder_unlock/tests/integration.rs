@@ -1748,7 +1748,7 @@ fn test_updates_schedules() {
         )
         .unwrap_err();
     assert_eq!(
-        "Generic error: A new cliff value should be higher than an old cliff value: 123 > 7776000. Account error: team_1",
+        "Generic error: The new cliff value should be greater than or equal to the old one: 123 >= 7776000. Account error: team_1",
         err.root_cause().to_string()
     );
 

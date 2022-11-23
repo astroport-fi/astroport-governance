@@ -19,36 +19,32 @@
       "owner": "terra174gu7kg8ekk5gsxdma5jlfcedm653tyg6ayppw",
       "expires_in": 604800
     },
-    "setup_allocations": {
-      "allocations": {
-        "create_allocations": {
-          "allocations": [
-            ["terra14zees4lwrdds0em258axe7d3lqqj9n4v7saq7e",
-              {
-                "amount": "1000000000",
-                "unlock_schedule": {
-                  "start_time": 0,
-                  "cliff": 86400,
-                  "duration": 94608000
-                },
-                "proposed_receiver": null
-              }
-            ],
-            ["terra18wqkwdcz04upyg0eew3vyhepq9rgfl35aq6jw6",
-              {
-                "amount": "1000000000",
-                "unlock_schedule": {
-                  "start_time": 0,
-                  "cliff": 86400,
-                  "duration": 94608000
-                },
-                "proposed_receiver": null
-              }
-            ]
-          ]
+    "allocations": [
+      [
+        "terra14zees4lwrdds0em258axe7d3lqqj9n4v7saq7e",
+        {
+          "amount": "1000000000",
+          "unlock_schedule": {
+            "start_time": 0,
+            "cliff": 86400,
+            "duration": 94608000
+          },
+          "proposed_receiver": null
         }
-      }
-    }
+      ],
+      [
+        "terra18wqkwdcz04upyg0eew3vyhepq9rgfl35aq6jw6",
+        {
+          "amount": "1000000000",
+          "unlock_schedule": {
+            "start_time": 0,
+            "cliff": 86400,
+            "duration": 94608000
+          },
+          "proposed_receiver": null
+        }
+      ]
+    ]
   },
   "assembly": {
     "admin": null,
@@ -61,7 +57,12 @@
       "proposal_required_deposit": "30000000000",
       "proposal_required_quorum": "0.1",
       "proposal_required_threshold": "0.50",
-      "whitelisted_links": ["https://forum.astroport.fi/", "http://forum.astroport.fi/", "https://astroport.fi/", "http://astroport.fi/"]
+      "whitelisted_links": [
+        "https://forum.astroport.fi/",
+        "http://forum.astroport.fi/",
+        "https://astroport.fi/",
+        "http://astroport.fi/"
+      ]
     },
     "label": "Astroport Assembly Contract"
   },
@@ -79,7 +80,9 @@
           "url": "https://astroport.fi/vxastro_logo.png"
         }
       },
-      "logo_urls_whitelist": ["https://astroport.fi/"]
+      "logo_urls_whitelist": [
+        "https://astroport.fi/"
+      ]
     },
     "label": "Astroport Voting Escrow Contract"
   },
