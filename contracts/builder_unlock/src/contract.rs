@@ -17,7 +17,9 @@ use astroport_governance::builder_unlock::msg::{
     AllocationResponse, ExecuteMsg, InstantiateMsg, QueryMsg, ReceiveMsg, SimulateWithdrawResponse,
     StateResponse,
 };
-use astroport_governance::builder_unlock::{AllocationParams, AllocationStatus, Config, State};
+use astroport_governance::builder_unlock::{
+    AllocationParams, AllocationStatus, Config, Schedule, State,
+};
 use astroport_governance::{DEFAULT_LIMIT, MAX_LIMIT};
 
 use crate::state::{CONFIG, OWNERSHIP_PROPOSAL, PARAMS, STATE, STATUS};
@@ -147,7 +149,9 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
         ExecuteMsg::UpdateConfig {
             new_max_allocations_amount,
         } => update_config(deps, info, new_max_allocations_amount),
-        ExecuteMsg::IncreaseCliff { new_cliffs } => increase_cliffs(deps, info, new_cliffs),
+        ExecuteMsg::UpdateUnlockSchedules {
+            new_unlock_schedules,
+        } => update_unlock_schedules(deps, info, new_unlock_schedules),
     }
 }
 
@@ -694,11 +698,11 @@ fn update_config(
         .add_attribute("new_max_allocations_amount", new_max_allocations_amount))
 }
 
-/// Increase a schedule cliff of allocations for specified accounts
-fn increase_cliffs(
+/// Updates builder unlock schedules for specified accounts.
+fn update_unlock_schedules(
     deps: DepsMut,
     info: MessageInfo,
-    new_cliffs: Vec<(String, u64)>,
+    new_unlock_schedules: Vec<(String, Schedule)>,
 ) -> StdResult<Response> {
     let config = CONFIG.load(deps.storage)?;
 
@@ -708,21 +712,15 @@ fn increase_cliffs(
         ));
     }
 
-    for (account, new_cliff) in new_cliffs {
+    for (account, new_schedule) in new_unlock_schedules {
         let account_addr = addr_validate_to_lower(deps.api, &account)?;
         let mut params = PARAMS.load(deps.storage, &account_addr)?;
 
-        if new_cliff < params.unlock_schedule.cliff {
-            return Err(StdError::generic_err(format!(
-                "The new unlock cliff should be later than the old one: {} > {}. Account: {}",
-                new_cliff, params.unlock_schedule.cliff, account
-            )));
-        }
-        params.unlock_schedule.cliff = new_cliff;
+        params.update_schedule(new_schedule, &account)?;
         PARAMS.save(deps.storage, &account_addr, &params)?;
     }
 
-    Ok(Response::new().add_attribute("action", "increase_cliffs"))
+    Ok(Response::new().add_attribute("action", "update_unlock_schedules"))
 }
 
 /// ## Description
@@ -896,6 +894,7 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> StdResult<Response>
                 )?;
             }
             "1.1.0" => {}
+            "1.2.0" => {}
             _ => return Err(StdError::generic_err("Contract can't be migrated!")),
         },
         _ => return Err(StdError::generic_err("Contract can't be migrated!")),
