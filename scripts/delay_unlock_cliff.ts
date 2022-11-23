@@ -4,7 +4,7 @@ import { executeContract, newClient, queryContract, readArtifact } from "./helpe
 
 const NEW_START_TIME = 1656633600; // July 1st 2022 12:00:00
 const NEW_CLIFF = 31536000; // distribution starts on July 1st 2023 12:00:00
-const NEW_DURATION = 94608000; // July 1st 2025 12:00:00
+const NEW_DURATION = 94694400; // July 1st 2025 12:00:00
 
 async function main() {
     const { terra, wallet } = newClient();
@@ -74,7 +74,7 @@ async function check_new_cliffs_are_set(terra: LCDClient | LocalTerra, network: 
     console.log("Checking new cliffs are set...");
 
     let allocations = await fetch_all_allocations(terra, network);
-    allocations.forEach(allocation => { if (allocation[1] != new_cliff) { throw "New cliff wasn't set!" } })
+    allocations.forEach(allocation => {if (allocation[2] != new_cliff) {throw "New cliff wasn't set!"}})
     console.log("Completed successfully!");
 }
 
