@@ -17,7 +17,7 @@ async function main() {
 
     let allocations = await fetch_all_allocations(terra, network);
     await set_new_schedule(terra, wallet, network, allocations, NEW_CLIFF, NEW_START_TIME, NEW_DURATION);
-    await check_new_cliffs_are_set(terra, network, NEW_CLIFF);
+    await check_new_cliffs_are_set(terra, network, NEW_CLIFF, NEW_START_TIME, NEW_DURATION);
 
 }
 
@@ -70,11 +70,21 @@ async function set_new_schedule(
     });
 }
 
-async function check_new_cliffs_are_set(terra: LCDClient | LocalTerra, network: any, new_cliff: number) {
-    console.log("Checking new cliffs are set...");
+async function check_new_cliffs_are_set(
+    terra: LCDClient | LocalTerra,
+    network: any,
+    new_cliff: number,
+    new_start_time: number,
+    new_duration: number
+) {
+    console.log("Checking new schedules are set...");
 
     let allocations = await fetch_all_allocations(terra, network);
-    allocations.forEach(allocation => {if (allocation[2] != new_cliff) {throw "New cliff wasn't set!"}})
+    allocations.forEach(allocation => {
+        if (allocation[1] != new_start_time) {throw "New start time wasn't set!"}
+        if (allocation[2] != new_cliff) {throw "New cliff wasn't set!"}
+        if (allocation[3] != new_duration) {throw "New duration wasn't set!"}
+    })
     console.log("Completed successfully!");
 }
 
