@@ -1,5 +1,5 @@
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, Uint128};
+use cosmwasm_std::{Addr, StdError, Uint128};
 
 /// This structure stores general parameters for the builder unlock contract.
 #[cw_serde]
@@ -48,6 +48,38 @@ pub struct AllocationParams {
     pub proposed_receiver: Option<Addr>,
 }
 
+impl AllocationParams {
+    pub fn update_schedule(
+        &mut self,
+        new_schedule: Schedule,
+        account: &String,
+    ) -> Result<(), StdError> {
+        if new_schedule.cliff < self.unlock_schedule.cliff {
+            return Err(StdError::generic_err(format!(
+                "The new cliff value should be greater than or equal to the old one: {} >= {}. Account error: {}",
+                new_schedule.cliff, self.unlock_schedule.cliff, account
+            )));
+        }
+
+        if new_schedule.start_time < self.unlock_schedule.start_time {
+            return Err(StdError::generic_err(format!(
+                "The new start time should be later than or equal to the old one: {} >= {}. Account error: {}",
+                new_schedule.start_time, self.unlock_schedule.start_time, account
+            )));
+        }
+
+        if new_schedule.duration < self.unlock_schedule.duration {
+            return Err(StdError::generic_err(format!(
+                "The new duration value should be greater than or equal to the old one: {} >= {}. Account error: {}",
+                new_schedule.duration, self.unlock_schedule.duration, account
+            )));
+        }
+
+        self.unlock_schedule = new_schedule;
+        Ok(())
+    }
+}
+
 /// This structure stores the parameters used to describe the status of an allocation.
 #[cw_serde]
 #[derive(Default)]
@@ -68,6 +100,7 @@ impl AllocationStatus {
 }
 
 pub mod msg {
+    use crate::builder_unlock::Schedule;
     use cosmwasm_schema::{cw_serde, QueryResponses};
     use cosmwasm_std::Uint128;
     use cw20::Cw20ReceiveMsg;
@@ -115,8 +148,10 @@ pub mod msg {
         ClaimOwnership {},
         /// Update parameters in the contract configuration
         UpdateConfig { new_max_allocations_amount: Uint128 },
-        /// Update a schedule cliff of allocation for specified accounts
-        IncreaseCliff { new_cliffs: Vec<(String, u64)> },
+        /// Update a schedule of allocation for specified accounts
+        UpdateUnlockSchedules {
+            new_unlock_schedules: Vec<(String, Schedule)>,
+        },
     }
 
     /// This enum describes receive msg templates.
