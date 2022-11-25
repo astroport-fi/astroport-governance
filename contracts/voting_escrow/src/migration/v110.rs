@@ -1,4 +1,3 @@
-use crate::astroport::asset::addr_validate_to_lower;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Decimal, DepsMut, Env, StdError, StdResult};
 use cw20::{Cw20QueryMsg, MinterResponse};
@@ -33,7 +32,7 @@ impl Migration<ParamsV110> for MigrationV110 {
         }
         let slashed_fund_receiver = params
             .slashed_fund_receiver
-            .map(|addr| addr_validate_to_lower(deps.api, &addr))
+            .map(|addr| deps.api.addr_validate(&addr))
             .transpose()?;
         // Initialize early withdraw parameters
         let xastro_minter_resp: MinterResponse = deps
@@ -54,7 +53,7 @@ impl Migration<ParamsV110> for MigrationV110 {
                 max_exit_penalty: params.max_exit_penalty,
                 slashed_fund_receiver,
                 astro_addr: staking_config.deposit_token_addr,
-                xastro_staking_addr: addr_validate_to_lower(deps.api, &xastro_minter_resp.minter)?,
+                xastro_staking_addr: deps.api.addr_validate(&xastro_minter_resp.minter)?,
             },
         )?;
 

@@ -8,7 +8,6 @@ use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20ReceiveMsg};
 use cw_storage_plus::Bound;
 use std::str::FromStr;
 
-use astroport::asset::addr_validate_to_lower;
 use astroport_governance::assembly::{
     helpers::validate_links, Config, Cw20HookMsg, ExecuteMsg, InstantiateMsg, Proposal,
     ProposalListResponse, ProposalMessage, ProposalStatus, ProposalVoteOption,
@@ -61,10 +60,10 @@ pub fn instantiate(
     validate_links(&msg.whitelisted_links)?;
 
     let mut config = Config {
-        xastro_token_addr: addr_validate_to_lower(deps.api, &msg.xastro_token_addr)?,
+        xastro_token_addr: deps.api.addr_validate(&msg.xastro_token_addr)?,
         vxastro_token_addr: None,
         ibc_controller: None,
-        builder_unlock_addr: addr_validate_to_lower(deps.api, &msg.builder_unlock_addr)?,
+        builder_unlock_addr: deps.api.addr_validate(&msg.builder_unlock_addr)?,
         proposal_voting_period: msg.proposal_voting_period,
         proposal_effective_delay: msg.proposal_effective_delay,
         proposal_expiration_period: msg.proposal_expiration_period,
@@ -75,11 +74,11 @@ pub fn instantiate(
     };
 
     if let Some(vxastro_token_addr) = msg.vxastro_token_addr {
-        config.vxastro_token_addr = Some(addr_validate_to_lower(deps.api, &vxastro_token_addr)?);
+        config.vxastro_token_addr = Some(deps.api.addr_validate(&vxastro_token_addr)?);
     }
 
     if let Some(ibc_controller) = msg.ibc_controller {
-        config.ibc_controller = Some(addr_validate_to_lower(deps.api, &ibc_controller)?);
+        config.ibc_controller = Some(deps.api.addr_validate(&ibc_controller)?);
     }
 
     config.validate()?;
@@ -168,7 +167,7 @@ pub fn receive_cw20(
             messages,
             ibc_channel,
         } => {
-            let sender = addr_validate_to_lower(deps.api, &cw20_msg.sender)?;
+            let sender = deps.api.addr_validate(&cw20_msg.sender)?;
             submit_proposal(
                 deps,
                 env,
@@ -582,19 +581,19 @@ pub fn update_config(
     }
 
     if let Some(xastro_token_addr) = updated_config.xastro_token_addr {
-        config.xastro_token_addr = addr_validate_to_lower(deps.api, &xastro_token_addr)?;
+        config.xastro_token_addr = deps.api.addr_validate(&xastro_token_addr)?;
     }
 
     if let Some(vxastro_token_addr) = updated_config.vxastro_token_addr {
-        config.vxastro_token_addr = Some(addr_validate_to_lower(deps.api, &vxastro_token_addr)?);
+        config.vxastro_token_addr = Some(deps.api.addr_validate(&vxastro_token_addr)?);
     }
 
     if let Some(ibc_controller) = updated_config.ibc_controller {
-        config.ibc_controller = Some(addr_validate_to_lower(deps.api, &ibc_controller)?)
+        config.ibc_controller = Some(deps.api.addr_validate(&ibc_controller)?)
     }
 
     if let Some(builder_unlock_addr) = updated_config.builder_unlock_addr {
-        config.builder_unlock_addr = addr_validate_to_lower(deps.api, &builder_unlock_addr)?;
+        config.builder_unlock_addr = deps.api.addr_validate(&builder_unlock_addr)?;
     }
 
     if let Some(proposal_voting_period) = updated_config.proposal_voting_period {
@@ -718,7 +717,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::UserVotingPower { user, proposal_id } => {
             let proposal = PROPOSALS.load(deps.storage, proposal_id)?;
 
-            addr_validate_to_lower(deps.api, &user)?;
+            deps.api.addr_validate(&user)?;
 
             to_binary(&calc_voting_power(deps, user, &proposal)?)
         }
@@ -949,6 +948,7 @@ pub fn migrate(mut deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response
                 migrate_proposals(deps.storage)?;
             }
             "1.2.0" => {}
+            "1.2.1" => {}
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),

@@ -1,4 +1,3 @@
-use astroport::asset::addr_validate_to_lower;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Decimal, DepsMut, StdResult, Storage, Uint128, Uint64};
 use cw_storage_plus::{Item, Map};
@@ -44,7 +43,7 @@ pub fn migrate_config(deps: &mut DepsMut, msg: &MigrateMsg) -> StdResult<()> {
     };
 
     if let Some(ref ibc_controller) = msg.ibc_controller {
-        config.ibc_controller = Some(addr_validate_to_lower(deps.api, ibc_controller)?);
+        config.ibc_controller = Some(deps.api.addr_validate(ibc_controller)?);
     }
 
     CONFIG.save(deps.storage, &config)?;
