@@ -192,7 +192,7 @@ pub(crate) fn migrate_proposals_to_v140(deps: DepsMut) -> StdResult<()> {
     for (key, proposal) in proposals_v130 {
         PROPOSALS.save(
             deps.storage,
-            key.into(),
+            key,
             &Proposal {
                 proposal_id: proposal.proposal_id,
                 submitter: proposal.submitter,
