@@ -754,10 +754,10 @@ fn query_allocation(deps: Deps, account: String) -> StdResult<AllocationResponse
 
     Ok(AllocationResponse {
         params: PARAMS
-            .load(deps.storage, &account_checked)
+            .may_load(deps.storage, &account_checked)?
             .unwrap_or_default(),
         status: STATUS
-            .load(deps.storage, &account_checked)
+            .may_load(deps.storage, &account_checked)?
             .unwrap_or_default(),
     })
 }
