@@ -74,7 +74,7 @@ impl AllocationParams {
     pub fn update_schedule(
         &mut self,
         new_schedule: Schedule,
-        account: &String,
+        account: &str,
     ) -> Result<(), StdError> {
         if new_schedule.cliff < self.unlock_schedule.cliff {
             return Err(StdError::generic_err(format!(
