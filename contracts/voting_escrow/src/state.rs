@@ -1,5 +1,5 @@
 use astroport::common::OwnershipProposal;
-use cosmwasm_std::{Addr, Decimal, Uint128};
+use cosmwasm_std::{Addr, Uint128};
 use cw_storage_plus::{Item, Map, U64Key};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -27,7 +27,7 @@ pub struct Point {
     /// The period when the lock should expire
     pub end: u64,
     /// Weekly voting power decay
-    pub slope: Decimal,
+    pub slope: Uint128,
 }
 
 /// ## Description
@@ -59,7 +59,7 @@ pub const HISTORY: Map<(Addr, U64Key), Point> = Map::new("history");
 
 /// ## Description
 /// Scheduled slope changes per period (week)
-pub const SLOPE_CHANGES: Map<U64Key, Decimal> = Map::new("slope_changes");
+pub const SLOPE_CHANGES: Map<U64Key, Uint128> = Map::new("slope_changes");
 
 /// ## Description
 /// Last period when a scheduled slope change was applied

@@ -671,7 +671,7 @@ fn claim_multiple_users() {
             },
         )
         .unwrap();
-    assert_eq!(Uint128::new(411_538_460), resp.voting_power);
+    assert_eq!(Uint128::new(411_538_456), resp.voting_power);
 
     // Go to the next week
     router_ref.update_block(next_block);

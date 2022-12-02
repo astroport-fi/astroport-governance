@@ -1,27 +1,24 @@
 use anyhow::Result;
 use astroport::{staking as xastro, token as astro};
-use astroport_governance::utils::EPOCH_START;
 use astroport_governance::voting_escrow::{
-    Cw20HookMsg, ExecuteMsg, InstantiateMsg, QueryMsg, VotingPowerResponse,
+    Cw20HookMsg, ExecuteMsg, InstantiateMsg, LockInfoResponse, QueryMsg, VotingPowerResponse,
 };
-use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
-use cosmwasm_std::{attr, to_binary, Addr, QueryRequest, StdResult, Timestamp, Uint128, WasmQuery};
+use cosmwasm_std::{attr, to_binary, Addr, QueryRequest, StdResult, Uint128, WasmQuery};
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
-use terra_multi_test::{
-    AppBuilder, AppResponse, BankKeeper, ContractWrapper, Executor, TerraApp, TerraMock,
-};
+use terra_multi_test::{AppResponse, ContractWrapper, Executor, TerraApp};
 
 pub const MULTIPLIER: u64 = 1000000;
 
-pub struct Helper {
+pub struct EscrowHelper {
     pub owner: Addr,
     pub astro_token: Addr,
     pub staking_instance: Addr,
     pub xastro_token: Addr,
-    pub voting_instance: Addr,
+    pub escrow_instance: Addr,
+    pub astro_token_code_id: u64,
 }
 
-impl Helper {
+impl EscrowHelper {
     pub fn init(router: &mut TerraApp, owner: Addr) -> Self {
         let astro_token_contract = Box::new(ContractWrapper::new_with_empty(
             astroport_token::contract::execute,
@@ -40,7 +37,6 @@ impl Helper {
                 minter: owner.to_string(),
                 cap: None,
             }),
-            marketing: None,
         };
 
         let astro_token = router
@@ -69,7 +65,6 @@ impl Helper {
             owner: owner.to_string(),
             token_code_id: astro_token_code_id,
             deposit_token_addr: astro_token.to_string(),
-            marketing: None,
         };
         let staking_instance = router
             .instantiate_contract(
@@ -120,13 +115,14 @@ impl Helper {
             xastro_token: res.share_token_addr,
             astro_token,
             staking_instance,
-            voting_instance,
+            escrow_instance: voting_instance,
+            astro_token_code_id,
         }
     }
 
     pub fn mint_xastro(&self, router: &mut TerraApp, to: &str, amount: u64) {
         let amount = amount * MULTIPLIER;
-        let msg = cw20::Cw20ExecuteMsg::Mint {
+        let msg = Cw20ExecuteMsg::Mint {
             recipient: String::from(to),
             amount: Uint128::from(amount),
         };
@@ -174,27 +170,7 @@ impl Helper {
     ) -> Result<AppResponse> {
         let amount = (amount * MULTIPLIER as f32) as u64;
         let cw20msg = Cw20ExecuteMsg::Send {
-            contract: self.voting_instance.to_string(),
-            amount: Uint128::from(amount),
-            msg: to_binary(&Cw20HookMsg::CreateLock { time }).unwrap(),
-        };
-        router.execute_contract(
-            Addr::unchecked(user),
-            self.xastro_token.clone(),
-            &cw20msg,
-            &[],
-        )
-    }
-
-    pub fn create_lock_u128(
-        &self,
-        router: &mut TerraApp,
-        user: &str,
-        time: u64,
-        amount: u128,
-    ) -> Result<AppResponse> {
-        let cw20msg = Cw20ExecuteMsg::Send {
-            contract: self.voting_instance.to_string(),
+            contract: self.escrow_instance.to_string(),
             amount: Uint128::from(amount),
             msg: to_binary(&Cw20HookMsg::CreateLock { time }).unwrap(),
         };
@@ -214,7 +190,7 @@ impl Helper {
     ) -> Result<AppResponse> {
         let amount = (amount * MULTIPLIER as f32) as u64;
         let cw20msg = Cw20ExecuteMsg::Send {
-            contract: self.voting_instance.to_string(),
+            contract: self.escrow_instance.to_string(),
             amount: Uint128::from(amount),
             msg: to_binary(&Cw20HookMsg::ExtendLockAmount {}).unwrap(),
         };
@@ -235,7 +211,7 @@ impl Helper {
     ) -> Result<AppResponse> {
         let amount = (amount * MULTIPLIER as f32) as u64;
         let cw20msg = Cw20ExecuteMsg::Send {
-            contract: self.voting_instance.to_string(),
+            contract: self.escrow_instance.to_string(),
             amount: Uint128::from(amount),
             msg: to_binary(&Cw20HookMsg::DepositFor {
                 user: to.to_string(),
@@ -258,7 +234,7 @@ impl Helper {
     ) -> Result<AppResponse> {
         router.execute_contract(
             Addr::unchecked(user),
-            self.voting_instance.clone(),
+            self.escrow_instance.clone(),
             &ExecuteMsg::ExtendLockTime { time },
             &[],
         )
@@ -267,7 +243,7 @@ impl Helper {
     pub fn withdraw(&self, router: &mut TerraApp, user: &str) -> Result<AppResponse> {
         router.execute_contract(
             Addr::unchecked(user),
-            self.voting_instance.clone(),
+            self.escrow_instance.clone(),
             &ExecuteMsg::Withdraw {},
             &[],
         )
@@ -281,7 +257,7 @@ impl Helper {
     ) -> Result<AppResponse> {
         router.execute_contract(
             Addr::unchecked("owner"),
-            self.voting_instance.clone(),
+            self.escrow_instance.clone(),
             &ExecuteMsg::UpdateBlacklist {
                 append_addrs,
                 remove_addrs,
@@ -294,7 +270,7 @@ impl Helper {
         router
             .wrap()
             .query_wasm_smart(
-                self.voting_instance.clone(),
+                self.escrow_instance.clone(),
                 &QueryMsg::UserVotingPower {
                     user: user.to_string(),
                 },
@@ -302,23 +278,11 @@ impl Helper {
             .map(|vp: VotingPowerResponse| vp.voting_power.u128() as f32 / MULTIPLIER as f32)
     }
 
-    pub fn query_exact_user_vp(&self, router: &mut TerraApp, user: &str) -> StdResult<u128> {
-        router
-            .wrap()
-            .query_wasm_smart(
-                self.voting_instance.clone(),
-                &QueryMsg::UserVotingPower {
-                    user: user.to_string(),
-                },
-            )
-            .map(|vp: VotingPowerResponse| vp.voting_power.u128())
-    }
-
     pub fn query_user_vp_at(&self, router: &mut TerraApp, user: &str, time: u64) -> StdResult<f32> {
         router
             .wrap()
             .query_wasm_smart(
-                self.voting_instance.clone(),
+                self.escrow_instance.clone(),
                 &QueryMsg::UserVotingPowerAt {
                     user: user.to_string(),
                     time,
@@ -336,7 +300,7 @@ impl Helper {
         router
             .wrap()
             .query_wasm_smart(
-                self.voting_instance.clone(),
+                self.escrow_instance.clone(),
                 &QueryMsg::UserVotingPowerAtPeriod {
                     user: user.to_string(),
                     period,
@@ -348,22 +312,15 @@ impl Helper {
     pub fn query_total_vp(&self, router: &mut TerraApp) -> StdResult<f32> {
         router
             .wrap()
-            .query_wasm_smart(self.voting_instance.clone(), &QueryMsg::TotalVotingPower {})
+            .query_wasm_smart(self.escrow_instance.clone(), &QueryMsg::TotalVotingPower {})
             .map(|vp: VotingPowerResponse| vp.voting_power.u128() as f32 / MULTIPLIER as f32)
-    }
-
-    pub fn query_exact_total_vp(&self, router: &mut TerraApp) -> StdResult<u128> {
-        router
-            .wrap()
-            .query_wasm_smart(self.voting_instance.clone(), &QueryMsg::TotalVotingPower {})
-            .map(|vp: VotingPowerResponse| vp.voting_power.u128())
     }
 
     pub fn query_total_vp_at(&self, router: &mut TerraApp, time: u64) -> StdResult<f32> {
         router
             .wrap()
             .query_wasm_smart(
-                self.voting_instance.clone(),
+                self.escrow_instance.clone(),
                 &QueryMsg::TotalVotingPowerAt { time },
             )
             .map(|vp: VotingPowerResponse| vp.voting_power.u128() as f32 / MULTIPLIER as f32)
@@ -373,26 +330,22 @@ impl Helper {
         router
             .wrap()
             .query_wasm_smart(
-                self.voting_instance.clone(),
+                self.escrow_instance.clone(),
                 &QueryMsg::TotalVotingPowerAtPeriod { period },
             )
             .map(|vp: VotingPowerResponse| vp.voting_power.u128() as f32 / MULTIPLIER as f32)
     }
-}
 
-pub fn mock_app() -> TerraApp {
-    let mut env = mock_env();
-    env.block.time = Timestamp::from_seconds(EPOCH_START);
-    let api = MockApi::default();
-    let bank = BankKeeper::new();
-    let storage = MockStorage::new();
-    let custom = TerraMock::luna_ust_case();
-
-    AppBuilder::new()
-        .with_api(api)
-        .with_block(env.block)
-        .with_bank(bank)
-        .with_storage(storage)
-        .with_custom(custom)
-        .build()
+    pub fn query_lock_info(
+        &self,
+        router: &mut TerraApp,
+        user: &str,
+    ) -> StdResult<LockInfoResponse> {
+        router.wrap().query_wasm_smart(
+            self.escrow_instance.clone(),
+            &QueryMsg::LockInfo {
+                user: user.to_string(),
+            },
+        )
+    }
 }

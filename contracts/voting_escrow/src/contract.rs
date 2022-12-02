@@ -1,11 +1,12 @@
 use astroport::asset::addr_validate_to_lower;
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
+use astroport::DecimalCheckedOps;
 use astroport_governance::utils::{get_period, get_periods_count, EPOCH_START, WEEK};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    from_binary, to_binary, Addr, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo,
-    Response, StdError, StdResult, Uint128, WasmMsg,
+    from_binary, to_binary, Addr, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Response,
+    StdError, StdResult, Uint128, WasmMsg,
 };
 use cw2::set_contract_version;
 use cw20::{
@@ -28,9 +29,9 @@ use crate::state::{
     Config, Lock, Point, BLACKLIST, CONFIG, HISTORY, LAST_SLOPE_CHANGE, LOCKED, OWNERSHIP_PROPOSAL,
 };
 use crate::utils::{
-    blacklist_check, calc_coefficient, calc_voting_power, cancel_scheduled_slope,
-    fetch_last_checkpoint, fetch_slope_changes, schedule_slope_change, time_limits_check,
-    validate_addresses, xastro_token_check,
+    adjust_vp_and_slope, blacklist_check, calc_coefficient, calc_voting_power,
+    cancel_scheduled_slope, fetch_last_checkpoint, fetch_slope_changes, schedule_slope_change,
+    time_limits_check, validate_addresses, xastro_token_check,
 };
 
 /// Contract name that is used for migration.
@@ -71,7 +72,7 @@ pub fn instantiate(
         power: Uint128::zero(),
         start: cur_period,
         end: 0,
-        slope: Decimal::zero(),
+        slope: Default::default(),
     };
     HISTORY.save(
         deps.storage,
@@ -221,8 +222,8 @@ fn checkpoint_total(
     env: Env,
     add_voting_power: Option<Uint128>,
     reduce_power: Option<Uint128>,
-    old_slope: Decimal,
-    new_slope: Decimal,
+    old_slope: Uint128,
+    new_slope: Uint128,
 ) -> StdResult<()> {
     let cur_period = get_period(env.block.time.seconds())?;
     let cur_period_key = U64Key::new(cur_period);
@@ -308,7 +309,7 @@ fn checkpoint(
     let cur_period = get_period(env.block.time.seconds())?;
     let cur_period_key = U64Key::new(cur_period);
     let add_amount = add_amount.unwrap_or_default();
-    let mut old_slope = Decimal::zero();
+    let mut old_slope = Default::default();
     let mut add_voting_power = Uint128::zero();
 
     // Get last user checkpoint
@@ -321,19 +322,24 @@ fn checkpoint(
             if end > point.end && add_amount.is_zero() {
                 // This is extend_lock_time. Recalculating user's voting power
                 let mut lock = LOCKED.load(deps.storage, addr.clone())?;
-                let new_voting_power = lock.amount * calc_coefficient(dt);
+                let mut new_voting_power = calc_coefficient(dt).checked_mul(lock.amount)?;
+                let slope = adjust_vp_and_slope(&mut new_voting_power, dt)?;
                 // new_voting_power should always be >= current_power. saturating_sub is used for extra safety
                 add_voting_power = new_voting_power.saturating_sub(current_power);
                 lock.last_extend_lock_period = cur_period;
                 LOCKED.save(deps.storage, addr.clone(), &lock)?;
-                Decimal::from_ratio(new_voting_power, dt)
+                slope
             } else {
                 // This is an increase in the user's lock amount
-                add_voting_power = add_amount * calc_coefficient(dt);
-                Decimal::from_ratio(current_power + add_voting_power, dt)
+                let raw_add_voting_power = calc_coefficient(dt).checked_mul(add_amount)?;
+                let mut new_voting_power = current_power.checked_add(raw_add_voting_power)?;
+                let slope = adjust_vp_and_slope(&mut new_voting_power, dt)?;
+                // new_voting_power should always be >= current_power. saturating_sub is used for extra safety
+                add_voting_power = new_voting_power.saturating_sub(current_power);
+                slope
             }
         } else {
-            Decimal::zero()
+            Uint128::zero()
         };
 
         // Cancel the previously scheduled slope change
@@ -353,8 +359,8 @@ fn checkpoint(
         let end =
             new_end.ok_or_else(|| StdError::generic_err("Checkpoint initialization error"))?;
         let dt = end - cur_period;
-        add_voting_power = add_amount * calc_coefficient(dt);
-        let slope = Decimal::from_ratio(add_voting_power, dt);
+        add_voting_power = calc_coefficient(dt).checked_mul(add_amount)?;
+        let slope = adjust_vp_and_slope(&mut add_voting_power, dt)?;
         Point {
             power: add_voting_power,
             slope,
@@ -537,7 +543,7 @@ fn withdraw(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, Cont
                 power: Uint128::zero(),
                 start: cur_period,
                 end: cur_period,
-                slope: Decimal::zero(),
+                slope: Default::default(),
             },
         )?;
 
@@ -643,7 +649,7 @@ fn update_blacklist(
     let cur_period = get_period(env.block.time.seconds())?;
     let cur_period_key = U64Key::new(cur_period);
     let mut reduce_total_vp = Uint128::zero(); // accumulator for decreasing total voting power
-    let mut old_slopes = Decimal::zero(); // accumulator for old slopes
+    let mut old_slopes = Uint128::zero(); // accumulator for old slopes
     for addr in append.iter() {
         let last_checkpoint = fetch_last_checkpoint(deps.as_ref(), addr, &cur_period_key)?;
         if let Some((_, point)) = last_checkpoint {
@@ -653,7 +659,7 @@ fn update_blacklist(
                 (addr.clone(), cur_period_key.clone()),
                 &Point {
                     power: Uint128::zero(),
-                    slope: Decimal::zero(),
+                    slope: Default::default(),
                     start: cur_period,
                     end: cur_period,
                 },
@@ -667,7 +673,7 @@ fn update_blacklist(
 
             // User's contribution in the total voting power calculation
             reduce_total_vp += cur_power;
-            old_slopes = old_slopes + point.slope;
+            old_slopes += point.slope;
             cancel_scheduled_slope(deps.branch(), point.slope, point.end)?;
         }
     }
@@ -680,7 +686,7 @@ fn update_blacklist(
             None,
             Some(reduce_total_vp),
             old_slopes,
-            Decimal::zero(),
+            Default::default(),
         )?;
     }
 
@@ -757,7 +763,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::UserVotingPowerAtPeriod { user, period } => {
             to_binary(&get_user_voting_power_at_period(deps, user, period)?)
         }
-        QueryMsg::LockInfo { user } => to_binary(&get_user_lock_info(deps, user)?),
+        QueryMsg::LockInfo { user } => to_binary(&get_user_lock_info(deps, env, user)?),
         QueryMsg::Config {} => {
             let config = CONFIG.load(deps.storage)?;
             to_binary(&ConfigResponse {
@@ -778,14 +784,19 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 /// * **deps** is an object of type [`Deps`].
 ///
 /// * **user** is an object of type String. This is the address of the user for which we return lock information.
-fn get_user_lock_info(deps: Deps, user: String) -> StdResult<LockInfoResponse> {
+fn get_user_lock_info(deps: Deps, env: Env, user: String) -> StdResult<LockInfoResponse> {
     let addr = addr_validate_to_lower(deps.api, &user)?;
-    if let Some(lock) = LOCKED.may_load(deps.storage, addr)? {
+    if let Some(lock) = LOCKED.may_load(deps.storage, addr.clone())? {
+        let cur_period = get_period(env.block.time.seconds())?;
+        let slope = fetch_last_checkpoint(deps, &addr, &U64Key::new(cur_period))?
+            .map(|(_, point)| point.slope)
+            .unwrap_or_default();
         let resp = LockInfoResponse {
             amount: lock.amount,
             coefficient: calc_coefficient(lock.end - lock.last_extend_lock_period),
             start: lock.start,
             end: lock.end,
+            slope,
         };
         Ok(resp)
     } else {
@@ -904,7 +915,7 @@ fn get_total_voting_power_at_period(
             power: Uint128::zero(),
             start: period,
             end: period,
-            slope: Decimal::zero(),
+            slope: Default::default(),
         },
         |(_, point)| point,
     );

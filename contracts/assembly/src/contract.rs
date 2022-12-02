@@ -2,16 +2,16 @@ use cosmwasm_std::{
     attr, entry_point, from_binary, to_binary, Addr, Binary, CosmosMsg, Decimal, Deps, DepsMut,
     Env, MessageInfo, Order, Response, StdResult, Uint128, Uint64, WasmMsg,
 };
-use cw2::set_contract_version;
+use cw2::{get_contract_version, set_contract_version};
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20ReceiveMsg};
 use cw_storage_plus::{Bound, U64Key};
 use std::str::FromStr;
 
 use astroport::asset::addr_validate_to_lower;
 use astroport_governance::assembly::{
-    Config, Cw20HookMsg, ExecuteMsg, InstantiateMsg, Proposal, ProposalListResponse,
-    ProposalMessage, ProposalStatus, ProposalVoteOption, ProposalVotesResponse, QueryMsg,
-    UpdateConfig,
+    helpers::validate_links, Config, Cw20HookMsg, ExecuteMsg, InstantiateMsg, Proposal,
+    ProposalListResponse, ProposalMessage, ProposalStatus, ProposalVoteOption,
+    ProposalVotesResponse, QueryMsg, UpdateConfig,
 };
 
 use astroport::xastro_token::QueryMsg as XAstroTokenQueryMsg;
@@ -21,19 +21,12 @@ use astroport_governance::builder_unlock::msg::{
 use astroport_governance::voting_escrow::{QueryMsg as VotingEscrowQueryMsg, VotingPowerResponse};
 
 use crate::error::ContractError;
+use crate::migration::{MigrateMsg, CONFIGV100, CONFIGV101};
 use crate::state::{CONFIG, PROPOSALS, PROPOSAL_COUNT};
 
 // Contract name and version used for migration.
 const CONTRACT_NAME: &str = "astro-assembly";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
-
-// Proposal validation attributes
-const MIN_TITLE_LENGTH: usize = 4;
-const MAX_TITLE_LENGTH: usize = 64;
-const MIN_DESC_LENGTH: usize = 4;
-const MAX_DESC_LENGTH: usize = 1024;
-const MIN_LINK_LENGTH: usize = 12;
-const MAX_LINK_LENGTH: usize = 128;
 
 // Default pagination constants
 const DEFAULT_LIMIT: u32 = 10;
@@ -60,9 +53,15 @@ pub fn instantiate(
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    let config = Config {
+    if msg.whitelisted_links.is_empty() {
+        return Err(ContractError::WhitelistEmpty {});
+    }
+
+    validate_links(&msg.whitelisted_links)?;
+
+    let mut config = Config {
         xastro_token_addr: addr_validate_to_lower(deps.api, &msg.xastro_token_addr)?,
-        vxastro_token_addr: addr_validate_to_lower(deps.api, &msg.vxastro_token_addr)?,
+        vxastro_token_addr: None,
         builder_unlock_addr: addr_validate_to_lower(deps.api, &msg.builder_unlock_addr)?,
         proposal_voting_period: msg.proposal_voting_period,
         proposal_effective_delay: msg.proposal_effective_delay,
@@ -70,7 +69,12 @@ pub fn instantiate(
         proposal_required_deposit: msg.proposal_required_deposit,
         proposal_required_quorum: Decimal::from_str(&msg.proposal_required_quorum)?,
         proposal_required_threshold: Decimal::from_str(&msg.proposal_required_threshold)?,
+        whitelisted_links: msg.whitelisted_links,
     };
+
+    if let Some(vxastro_token_addr) = msg.vxastro_token_addr {
+        config.vxastro_token_addr = Some(addr_validate_to_lower(deps.api, &vxastro_token_addr)?);
+    }
 
     config.validate()?;
 
@@ -197,39 +201,6 @@ pub fn submit_proposal(
     link: Option<String>,
     messages: Option<Vec<ProposalMessage>>,
 ) -> Result<Response, ContractError> {
-    // Validate title
-    if title.len() < MIN_TITLE_LENGTH {
-        return Err(ContractError::InvalidProposal(
-            "Title too short".to_string(),
-        ));
-    }
-
-    if title.len() > MAX_TITLE_LENGTH {
-        return Err(ContractError::InvalidProposal("Title too long".to_string()));
-    }
-
-    // Validate the description
-    if description.len() < MIN_DESC_LENGTH {
-        return Err(ContractError::InvalidProposal(
-            "Description too short".to_string(),
-        ));
-    }
-    if description.len() > MAX_DESC_LENGTH {
-        return Err(ContractError::InvalidProposal(
-            "Description too long".to_string(),
-        ));
-    }
-
-    // Validate Link
-    if let Some(link) = &link {
-        if link.len() < MIN_LINK_LENGTH {
-            return Err(ContractError::InvalidProposal("Link too short".to_string()));
-        }
-        if link.len() > MAX_LINK_LENGTH {
-            return Err(ContractError::InvalidProposal("Link too long".to_string()));
-        }
-    }
-
     let config = CONFIG.load(deps.storage)?;
 
     if info.sender != config.xastro_token_addr {
@@ -242,30 +213,30 @@ pub fn submit_proposal(
 
     // Update the proposal count
     let count = PROPOSAL_COUNT.update(deps.storage, |c| -> StdResult<_> {
-        Ok(c.checked_add(Uint64::from(1u32))?)
+        Ok(c.checked_add(Uint64::new(1))?)
     })?;
 
-    PROPOSALS.save(
-        deps.storage,
-        U64Key::new(count.u64()),
-        &Proposal {
-            proposal_id: count,
-            submitter: sender.clone(),
-            status: ProposalStatus::Active,
-            for_power: Uint128::zero(),
-            against_power: Uint128::zero(),
-            for_voters: Vec::new(),
-            against_voters: Vec::new(),
-            start_block: env.block.height,
-            start_time: env.block.time.seconds(),
-            end_block: env.block.height + config.proposal_voting_period,
-            title,
-            description,
-            link,
-            messages,
-            deposit_amount,
-        },
-    )?;
+    let proposal = Proposal {
+        proposal_id: count,
+        submitter: sender.clone(),
+        status: ProposalStatus::Active,
+        for_power: Uint128::zero(),
+        against_power: Uint128::zero(),
+        for_voters: Vec::new(),
+        against_voters: Vec::new(),
+        start_block: env.block.height,
+        start_time: env.block.time.seconds(),
+        end_block: env.block.height + config.proposal_voting_period,
+        title,
+        description,
+        link,
+        messages,
+        deposit_amount,
+    };
+
+    proposal.validate(config.whitelisted_links)?;
+
+    PROPOSALS.save(deps.storage, U64Key::new(count.u64()), &proposal)?;
 
     Ok(Response::new()
         .add_attribute("action", "submit_proposal")
@@ -317,7 +288,7 @@ pub fn cast_vote(
         return Err(ContractError::UserAlreadyVoted {});
     }
 
-    let voting_power = calc_voting_power(&deps, info.sender.to_string(), &proposal)?;
+    let voting_power = calc_voting_power(deps.as_ref(), info.sender.to_string(), &proposal)?;
 
     if voting_power.is_zero() {
         return Err(ContractError::NoVotingPower {});
@@ -378,7 +349,7 @@ pub fn end_proposal(
     let against_votes = proposal.against_power;
     let total_votes = for_votes + against_votes;
 
-    let total_voting_power = calc_total_voting_power_at(&deps, &proposal)?;
+    let total_voting_power = calc_total_voting_power_at(deps.as_ref(), &proposal)?;
 
     let mut proposal_quorum: Decimal = Decimal::zero();
     let mut proposal_threshold: Decimal = Decimal::zero();
@@ -543,7 +514,7 @@ pub fn update_config(
     }
 
     if let Some(vxastro_token_addr) = updated_config.vxastro_token_addr {
-        config.vxastro_token_addr = addr_validate_to_lower(deps.api, &vxastro_token_addr)?;
+        config.vxastro_token_addr = Some(addr_validate_to_lower(deps.api, &vxastro_token_addr)?);
     }
 
     if let Some(builder_unlock_addr) = updated_config.builder_unlock_addr {
@@ -574,6 +545,29 @@ pub fn update_config(
         config.proposal_required_threshold = Decimal::from_str(&proposal_required_threshold)?;
     }
 
+    if let Some(whitelist_add) = updated_config.whitelist_add {
+        validate_links(&whitelist_add)?;
+
+        config.whitelisted_links.append(
+            &mut whitelist_add
+                .into_iter()
+                .filter(|link| !config.whitelisted_links.contains(link))
+                .collect(),
+        );
+    }
+
+    if let Some(whitelist_remove) = updated_config.whitelist_remove {
+        config.whitelisted_links = config
+            .whitelisted_links
+            .into_iter()
+            .filter(|link| !whitelist_remove.contains(link))
+            .collect();
+
+        if config.whitelisted_links.is_empty() {
+            return Err(ContractError::WhitelistEmpty {});
+        }
+    }
+
     config.validate()?;
 
     CONFIG.save(deps.storage, &config)?;
@@ -598,6 +592,10 @@ pub fn update_config(
 /// * **QueryMsg::Proposal { proposal_id }** Returns a [`Proposal`] according to the specified `proposal_id`.
 ///
 /// * **QueryMsg::ProposalVotes { proposal_id }** Returns proposal vote counts that are stored in the [`ProposalVotesResponse`] structure.
+///
+/// * **QueryMsg::UserVotingPower { user, proposal_id }** Returns user voting power for a specific proposal.
+///
+/// * **QueryMsg::TotalVotingPower { proposal_id }** Returns total voting power for a specific proposal.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
@@ -606,6 +604,17 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::Proposal { proposal_id } => to_binary(&query_proposal(deps, proposal_id)?),
         QueryMsg::ProposalVotes { proposal_id } => {
             to_binary(&query_proposal_votes(deps, proposal_id)?)
+        }
+        QueryMsg::UserVotingPower { user, proposal_id } => {
+            let proposal = PROPOSALS.load(deps.storage, U64Key::new(proposal_id))?;
+
+            addr_validate_to_lower(deps.api, &user)?;
+
+            to_binary(&calc_voting_power(deps, user, &proposal)?)
+        }
+        QueryMsg::TotalVotingPower { proposal_id } => {
+            let proposal = PROPOSALS.load(deps.storage, U64Key::new(proposal_id))?;
+            to_binary(&calc_total_voting_power_at(deps, &proposal)?)
         }
     }
 }
@@ -682,18 +691,18 @@ pub fn query_proposal_votes(deps: Deps, proposal_id: u64) -> StdResult<ProposalV
 /// ## Description
 /// Calculates an address' voting power at the specified block.
 /// ## Params
-/// * **deps** is an object of type [`DepsMut`].
+/// * **deps** is an object of type [`Deps`].
 ///
 /// * **sender** is an object of type [`String`]. This is the address whose voting power we calculate.
 ///
 /// * **proposal** is an object of type [`Proposal`]. This is the proposal for which we want to compute the `sender` (voter) voting power.
-pub fn calc_voting_power(
-    deps: &DepsMut,
-    sender: String,
-    proposal: &Proposal,
-) -> StdResult<Uint128> {
+pub fn calc_voting_power(deps: Deps, sender: String, proposal: &Proposal) -> StdResult<Uint128> {
     let config = CONFIG.load(deps.storage)?;
 
+    // xASTRO balance of the specified user at previous block(proposal.start_block - 1),
+    // because the previous block always has an up-to-date checkpoint and more secured.
+    // BalanceAt will always return the balance information in the previous block,
+    // so you shouldn't subtract block because of the specific logic of the SnapshotMap.
     let xastro_amount: BalanceResponse = deps.querier.query_wasm_smart(
         config.xastro_token_addr,
         &XAstroTokenQueryMsg::BalanceAt {
@@ -713,19 +722,22 @@ pub fn calc_voting_power(
 
     if !locked_amount.params.amount.is_zero() {
         total = total
-            .checked_add(locked_amount.params.amount - locked_amount.status.astro_withdrawn)?;
+            .checked_add(locked_amount.params.amount)?
+            .checked_sub(locked_amount.status.astro_withdrawn)?;
     }
 
-    let vxastro_amount: VotingPowerResponse = deps.querier.query_wasm_smart(
-        config.vxastro_token_addr,
-        &VotingEscrowQueryMsg::UserVotingPowerAt {
-            user: sender,
-            time: proposal.start_time - 1,
-        },
-    )?;
+    if let Some(vxastro_token_addr) = config.vxastro_token_addr {
+        let vxastro_amount: VotingPowerResponse = deps.querier.query_wasm_smart(
+            vxastro_token_addr,
+            &VotingEscrowQueryMsg::UserVotingPowerAt {
+                user: sender,
+                time: proposal.start_time - 1,
+            },
+        )?;
 
-    if !vxastro_amount.voting_power.is_zero() {
-        total = total.checked_add(vxastro_amount.voting_power)?;
+        if !vxastro_amount.voting_power.is_zero() {
+            total = total.checked_add(vxastro_amount.voting_power)?;
+        }
     }
 
     Ok(total)
@@ -734,13 +746,14 @@ pub fn calc_voting_power(
 /// ## Description
 /// Calculates the total voting power at a specified block (that is relevant for a specific proposal).
 /// ## Params
-/// * **deps** is an object of type [`DepsMut`].
+/// * **deps** is an object of type [`Deps`].
 ///
 /// * **proposal** is an object of type [`Proposal`]. This is the proposal for which we calculate the total voting power.
-pub fn calc_total_voting_power_at(deps: &DepsMut, proposal: &Proposal) -> StdResult<Uint128> {
+pub fn calc_total_voting_power_at(deps: Deps, proposal: &Proposal) -> StdResult<Uint128> {
     let config = CONFIG.load(deps.storage)?;
 
-    // Total xASTRO supply at a specified block
+    // Total xASTRO supply at a previous block(proposal.start_block - 1),
+    // because the previous block always has an up-to-date checkpoint and more secured
     let mut total: Uint128 = deps.querier.query_wasm_smart(
         config.xastro_token_addr,
         &XAstroTokenQueryMsg::TotalSupplyAt {
@@ -757,17 +770,89 @@ pub fn calc_total_voting_power_at(deps: &DepsMut, proposal: &Proposal) -> StdRes
         total = total.checked_add(builder_state.remaining_astro_tokens)?;
     }
 
-    // Total vxASTRO voting power
-    let vxastro: VotingPowerResponse = deps.querier.query_wasm_smart(
-        config.vxastro_token_addr,
-        &VotingEscrowQueryMsg::TotalVotingPowerAt {
-            time: proposal.start_time - 1,
-        },
-    )?;
-
-    if !vxastro.voting_power.is_zero() {
-        total = total.checked_add(vxastro.voting_power)?;
+    if let Some(vxastro_token_addr) = config.vxastro_token_addr {
+        // Total vxASTRO voting power
+        let vxastro: VotingPowerResponse = deps.querier.query_wasm_smart(
+            vxastro_token_addr,
+            &VotingEscrowQueryMsg::TotalVotingPowerAt {
+                time: proposal.start_time - 1,
+            },
+        )?;
+        if !vxastro.voting_power.is_zero() {
+            total = total.checked_add(vxastro.voting_power)?;
+        }
     }
 
     Ok(total)
+}
+
+/// ## Description
+/// Used for the contract migration. Returns a default object of type [`Response`].
+/// ## Params
+/// * **deps** is an object of type [`DepsMut`].
+///
+/// * **_env** is an object of type [`Env`].
+///
+/// * **msg** is an object of type [`MigrateMsg`].
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
+    let contract_version = get_contract_version(deps.storage)?;
+
+    match contract_version.contract.as_ref() {
+        "astro-assembly" => match contract_version.version.as_ref() {
+            "1.0.0" => {
+                let config_v100 = CONFIGV100.load(deps.storage)?;
+
+                if msg.whitelisted_links.is_empty() {
+                    return Err(ContractError::WhitelistEmpty {});
+                }
+                validate_links(&msg.whitelisted_links)?;
+
+                let config = Config {
+                    xastro_token_addr: config_v100.xastro_token_addr,
+                    vxastro_token_addr: Some(config_v100.vxastro_token_addr),
+                    builder_unlock_addr: config_v100.builder_unlock_addr,
+                    proposal_voting_period: msg.proposal_voting_period,
+                    proposal_effective_delay: msg.proposal_effective_delay,
+                    proposal_expiration_period: config_v100.proposal_expiration_period,
+                    proposal_required_deposit: config_v100.proposal_required_deposit,
+                    proposal_required_quorum: config_v100.proposal_required_quorum,
+                    proposal_required_threshold: config_v100.proposal_required_threshold,
+                    whitelisted_links: msg.whitelisted_links,
+                };
+
+                config.validate()?;
+
+                CONFIG.save(deps.storage, &config)?;
+            }
+            "1.0.1" => {
+                let config_v101 = CONFIGV101.load(deps.storage)?;
+
+                let config = Config {
+                    xastro_token_addr: config_v101.xastro_token_addr,
+                    vxastro_token_addr: Some(config_v101.vxastro_token_addr),
+                    builder_unlock_addr: config_v101.builder_unlock_addr,
+                    proposal_voting_period: config_v101.proposal_voting_period,
+                    proposal_effective_delay: config_v101.proposal_effective_delay,
+                    proposal_expiration_period: config_v101.proposal_expiration_period,
+                    proposal_required_deposit: config_v101.proposal_required_deposit,
+                    proposal_required_quorum: config_v101.proposal_required_quorum,
+                    proposal_required_threshold: config_v101.proposal_required_threshold,
+                    whitelisted_links: config_v101.whitelisted_links,
+                };
+
+                CONFIG.save(deps.storage, &config)?;
+            }
+            _ => return Err(ContractError::MigrationError {}),
+        },
+        _ => return Err(ContractError::MigrationError {}),
+    };
+
+    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    Ok(Response::new()
+        .add_attribute("previous_contract_name", &contract_version.contract)
+        .add_attribute("previous_contract_version", &contract_version.version)
+        .add_attribute("new_contract_name", CONTRACT_NAME)
+        .add_attribute("new_contract_version", CONTRACT_VERSION))
 }

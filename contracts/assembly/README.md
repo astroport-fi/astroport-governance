@@ -15,7 +15,10 @@ Instantiate the contract with proposal parameter limitations and the xASTRO and 
   "proposal_expiration_period": 123,
   "proposal_required_deposit": "123",
   "proposal_required_quorum": "0.55",
-  "proposal_required_threshold": "0.55"
+  "proposal_required_threshold": "0.55",
+  "whitelisted_links": [
+    "https://some.link"
+  ]
 }
 ```
 
@@ -98,7 +101,13 @@ Update contract parameters. Only the Assembly is allowed to update its own param
     "proposal_expiration_period": 123,
     "proposal_required_deposit": "123",
     "proposal_required_quorum": "0.55",
-    "proposal_required_threshold": "0.55"
+    "proposal_required_threshold": "0.55",
+    "whitelist_add": [
+      "https://some1.link"
+    ],
+    "whitelist_remove": [
+      "https://some2.link"
+    ]
   }
 }
 ```
@@ -153,3 +162,29 @@ Returns information about the votes cast on a proposal.
   }
 }
 ```
+
+### `user_voting_power`
+
+Returns user voting power for a specific proposal.
+
+```json
+{
+  "user_voting_power": {
+    "user": "terra...",
+    "proposal_id": 123
+  }
+}
+```
+
+### `total_voting_power`
+
+Returns total voting power for a specific proposal.
+
+```json
+{
+  "total_voting_power": {
+    "proposal_id": 123
+  }
+}
+```
+
