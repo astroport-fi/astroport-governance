@@ -6,7 +6,7 @@ use astroport_governance::builder_unlock::msg::{
     SimulateWithdrawResponse, StateResponse,
 };
 use cosmwasm_std::testing::{mock_env, MockApi, MockQuerier, MockStorage};
-use cosmwasm_std::{attr, to_binary, Addr, Timestamp, Uint128};
+use cosmwasm_std::{attr, to_binary, Addr, StdResult, Timestamp, Uint128};
 use cw20::BalanceResponse;
 use terra_multi_test::{App, BankKeeper, ContractWrapper, Executor, TerraMockQuerier};
 
@@ -67,7 +67,7 @@ fn init_contracts(app: &mut App) -> (Addr, Addr, InstantiateMsg) {
     let unlock_instantiate_msg = InstantiateMsg {
         owner: OWNER.clone().to_string(),
         astro_token: astro_token_instance.to_string(),
-        max_allocations_amount: Default::default(),
+        max_allocations_amount: Uint128::new(11000000000000000),
     };
 
     // Init contract
@@ -1258,4 +1258,339 @@ fn test_claim_receiver() {
         sim_withdraw_resp_after_new_inv.astro_to_withdraw,
         sim_withdraw_resp_before.astro_to_withdraw,
     );
+}
+
+#[test]
+fn test_updates_schedules() {
+    let mut app = mock_app();
+    let (unlock_instance, astro_instance, _) = init_contracts(&mut app);
+
+    mint_some_astro(
+        &mut app,
+        Addr::unchecked(OWNER.clone()),
+        astro_instance.clone(),
+        Uint128::new(1_000_000_000_000000),
+        OWNER.to_string(),
+    );
+
+    let mut allocations: Vec<(String, AllocationParams)> = vec![];
+    allocations.push((
+        "investor_1".to_string(),
+        AllocationParams {
+            amount: Uint128::from(5_000_000_000000u64),
+            unlock_schedule: Schedule {
+                start_time: 1642402274u64,
+                cliff: 0u64,
+                duration: 31536000u64,
+            },
+            proposed_receiver: None,
+        },
+    ));
+    allocations.push((
+        "advisor_1".to_string(),
+        AllocationParams {
+            amount: Uint128::from(5_000_000_000000u64),
+            unlock_schedule: Schedule {
+                start_time: 1642402274u64,
+                cliff: 7776000u64,
+                duration: 31536000u64,
+            },
+            proposed_receiver: None,
+        },
+    ));
+    allocations.push((
+        "team_1".to_string(),
+        AllocationParams {
+            amount: Uint128::from(5_000_000_000000u64),
+            unlock_schedule: Schedule {
+                start_time: 1642402274u64,
+                cliff: 7776000u64,
+                duration: 31536000u64,
+            },
+            proposed_receiver: None,
+        },
+    ));
+
+    // ######    SUCCESSFULLY CREATES ALLOCATIONS    ######
+    app.execute_contract(
+        Addr::unchecked(OWNER.clone()),
+        astro_instance.clone(),
+        &cw20::Cw20ExecuteMsg::Send {
+            contract: unlock_instance.clone().to_string(),
+            amount: Uint128::from(15_000_000_000000u64),
+            msg: to_binary(&ReceiveMsg::CreateAllocations {
+                allocations: allocations.clone(),
+            })
+            .unwrap(),
+        },
+        &[],
+    )
+    .unwrap();
+
+    // Check state before update parameters
+    let resp: StateResponse = app
+        .wrap()
+        .query_wasm_smart(&unlock_instance, &QueryMsg::State {})
+        .unwrap();
+    assert_eq!(
+        resp.total_astro_deposited,
+        Uint128::from(15_000_000_000000u64)
+    );
+    assert_eq!(
+        resp.remaining_astro_tokens,
+        Uint128::from(15_000_000_000000u64)
+    );
+
+    // Check allocation #1 before update
+    check_allocation(
+        &mut app,
+        &unlock_instance,
+        "investor_1".to_string(),
+        Uint128::from(5_000_000_000000u64),
+        Uint128::from(0u64),
+        Schedule {
+            start_time: 1642402274u64,
+            cliff: 0u64,
+            duration: 31536000u64,
+        },
+    )
+    .unwrap();
+
+    // Check allocation #2 before update
+    check_allocation(
+        &mut app,
+        &unlock_instance,
+        "advisor_1".to_string(),
+        Uint128::from(5_000_000_000000u64),
+        Uint128::from(0u64),
+        Schedule {
+            start_time: 1642402274u64,
+            cliff: 7776000u64,
+            duration: 31536000u64,
+        },
+    )
+    .unwrap();
+
+    // Check allocation #3 before update
+    check_allocation(
+        &mut app,
+        &unlock_instance,
+        "team_1".to_string(),
+        Uint128::from(5_000_000_000000u64),
+        Uint128::from(0u64),
+        Schedule {
+            start_time: 1642402274u64,
+            cliff: 7776000u64,
+            duration: 31536000u64,
+        },
+    )
+    .unwrap();
+
+    // not owner try to update configs
+    let err = app
+        .execute_contract(
+            Addr::unchecked("not_owner".clone()),
+            unlock_instance.clone(),
+            &ExecuteMsg::UpdateUnlockSchedules {
+                new_unlock_schedules: vec![(
+                    "team_1".to_string(),
+                    Schedule {
+                        start_time: 123u64,
+                        cliff: 123u64,
+                        duration: 123u64,
+                    },
+                )],
+            },
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(
+        "Generic error: Only the contract owner can change config",
+        err.root_cause().to_string()
+    );
+
+    let err = app
+        .execute_contract(
+            Addr::unchecked(OWNER.clone()),
+            unlock_instance.clone(),
+            &ExecuteMsg::UpdateUnlockSchedules {
+                new_unlock_schedules: vec![
+                    (
+                        "team_1".to_string(),
+                        Schedule {
+                            start_time: 123u64,
+                            cliff: 123u64,
+                            duration: 123u64,
+                        },
+                    ),
+                    (
+                        "advisor_1".to_string(),
+                        Schedule {
+                            start_time: 123u64,
+                            cliff: 123u64,
+                            duration: 123u64,
+                        },
+                    ),
+                ],
+            },
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(
+        "Generic error: The new cliff value should be greater than or equal to the old one: 123 >= 7776000. Account error: team_1",
+        err.root_cause().to_string()
+    );
+
+    app.execute_contract(
+        Addr::unchecked(OWNER.clone()),
+        unlock_instance.clone(),
+        &ExecuteMsg::UpdateUnlockSchedules {
+            new_unlock_schedules: vec![
+                (
+                    "team_1".to_string(),
+                    Schedule {
+                        start_time: 1642402284u64,
+                        cliff: 8776000u64,
+                        duration: 31536001u64,
+                    },
+                ),
+                (
+                    "advisor_1".to_string(),
+                    Schedule {
+                        start_time: 1642402284u64,
+                        cliff: 8776000u64,
+                        duration: 31536001u64,
+                    },
+                ),
+            ],
+        },
+        &[],
+    )
+    .unwrap();
+
+    // Check allocation #2 before update
+    check_allocation(
+        &mut app,
+        &unlock_instance,
+        "advisor_1".to_string(),
+        Uint128::from(5_000_000_000000u64),
+        Uint128::from(0u64),
+        Schedule {
+            start_time: 1642402284u64,
+            cliff: 8776000u64,
+            duration: 31536001u64,
+        },
+    )
+    .unwrap();
+
+    // Check allocation #3 before update
+    check_allocation(
+        &mut app,
+        &unlock_instance,
+        "team_1".to_string(),
+        Uint128::from(5_000_000_000000u64),
+        Uint128::from(0u64),
+        Schedule {
+            start_time: 1642402284u64,
+            cliff: 8776000u64,
+            duration: 31536001u64,
+        },
+    )
+    .unwrap();
+
+    // Query allocations
+    let resp: Vec<(Addr, AllocationParams)> = app
+        .wrap()
+        .query_wasm_smart(
+            &unlock_instance,
+            &QueryMsg::Allocations {
+                start_after: None,
+                limit: None,
+            },
+        )
+        .unwrap();
+
+    let comparing_values: Vec<(Addr, AllocationParams)> = vec![
+        (
+            Addr::unchecked("advisor_1"),
+            AllocationParams {
+                amount: Uint128::new(5000000000000),
+                unlock_schedule: Schedule {
+                    start_time: 1642402284u64,
+                    cliff: 8776000u64,
+                    duration: 31536001u64,
+                },
+                proposed_receiver: None,
+            },
+        ),
+        (
+            Addr::unchecked("investor_1"),
+            AllocationParams {
+                amount: Uint128::new(5000000000000),
+                unlock_schedule: Schedule {
+                    start_time: 1642402274,
+                    cliff: 0,
+                    duration: 31536000,
+                },
+                proposed_receiver: None,
+            },
+        ),
+        (
+            Addr::unchecked("team_1"),
+            AllocationParams {
+                amount: Uint128::new(5000000000000),
+                unlock_schedule: Schedule {
+                    start_time: 1642402284u64,
+                    cliff: 8776000u64,
+                    duration: 31536001u64,
+                },
+                proposed_receiver: None,
+            },
+        ),
+    ];
+    assert_eq!(comparing_values, resp);
+
+    // Query allocations by specified parameters
+    let resp: Vec<(Addr, AllocationParams)> = app
+        .wrap()
+        .query_wasm_smart(
+            &unlock_instance,
+            &QueryMsg::Allocations {
+                start_after: Some("investor_1".to_string()),
+                limit: None,
+            },
+        )
+        .unwrap();
+    let comparing_values: Vec<(Addr, AllocationParams)> = vec![(
+        Addr::unchecked("team_1"),
+        AllocationParams {
+            amount: Uint128::new(5000000000000),
+            unlock_schedule: Schedule {
+                start_time: 1642402284u64,
+                cliff: 8776000u64,
+                duration: 31536001u64,
+            },
+            proposed_receiver: None,
+        },
+    )];
+    assert_eq!(comparing_values, resp);
+}
+
+fn check_allocation(
+    app: &mut App,
+    unlock_instance: &Addr,
+    account: String,
+    total_amount: Uint128,
+    astro_withdrawn: Uint128,
+    unlock_schedule: Schedule,
+) -> StdResult<()> {
+    let resp: AllocationResponse = app
+        .wrap()
+        .query_wasm_smart(unlock_instance, &QueryMsg::Allocation { account })
+        .unwrap();
+    assert_eq!(resp.params.amount, total_amount);
+    assert_eq!(resp.status.astro_withdrawn, astro_withdrawn);
+    assert_eq!(resp.params.unlock_schedule, unlock_schedule);
+
+    Ok(())
 }
