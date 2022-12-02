@@ -178,6 +178,7 @@ fn random_token_lock() {
             minter: helper.owner.to_string(),
             cap: None,
         }),
+        marketing: None,
     };
 
     let random_token = router

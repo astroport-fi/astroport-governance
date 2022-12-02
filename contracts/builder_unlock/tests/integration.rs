@@ -41,6 +41,7 @@ fn init_contracts(app: &mut App) -> (Addr, Addr, InstantiateMsg) {
             minter: OWNER.clone().to_string(),
             cap: None,
         }),
+        marketing: None,
     };
 
     let astro_token_instance = app
@@ -66,6 +67,7 @@ fn init_contracts(app: &mut App) -> (Addr, Addr, InstantiateMsg) {
     let unlock_instantiate_msg = InstantiateMsg {
         owner: OWNER.clone().to_string(),
         astro_token: astro_token_instance.to_string(),
+        max_allocations_amount: Default::default(),
     };
 
     // Init contract
@@ -128,66 +130,6 @@ fn proper_initialization() {
 
     assert_eq!(Uint128::zero(), resp.total_astro_deposited);
     assert_eq!(Uint128::zero(), resp.remaining_astro_tokens);
-}
-
-#[test]
-fn test_transfer_ownership() {
-    let mut app = mock_app();
-    let (unlock_instance, _, init_msg) = init_contracts(&mut app);
-
-    // ######    ERROR :: Unauthorized     ######
-    let err = app
-        .execute_contract(
-            Addr::unchecked("not_owner".to_string()),
-            unlock_instance.clone(),
-            &ExecuteMsg::TransferOwnership {
-                new_owner: Some("new_owner".to_string()),
-            },
-            &[],
-        )
-        .unwrap_err();
-    assert_eq!(
-        err.to_string(),
-        "Generic error: Only the current owner can transfer ownership"
-    );
-
-    // ######    SUCCESSFULLY TRANSFERS OWNERSHIP :: UPDATES OWNER    ######
-    app.execute_contract(
-        Addr::unchecked(OWNER.to_string()),
-        unlock_instance.clone(),
-        &ExecuteMsg::TransferOwnership {
-            new_owner: Some("new_owner".to_string()),
-        },
-        &[],
-    )
-    .unwrap();
-
-    let resp: ConfigResponse = app
-        .wrap()
-        .query_wasm_smart(&unlock_instance, &QueryMsg::Config {})
-        .unwrap();
-
-    // Check config
-    assert_eq!("new_owner".to_string(), resp.owner);
-    assert_eq!(init_msg.astro_token, resp.astro_token);
-
-    // ######    SUCCESSFULLY TRANSFERS OWNERSHIP :: UPDATES REFUND RECIPIENT    ######
-    app.execute_contract(
-        Addr::unchecked("new_owner".to_string()),
-        unlock_instance.clone(),
-        &ExecuteMsg::TransferOwnership { new_owner: None },
-        &[],
-    )
-    .unwrap();
-
-    let resp: ConfigResponse = app
-        .wrap()
-        .query_wasm_smart(&unlock_instance, &QueryMsg::Config {})
-        .unwrap();
-
-    // Check config
-    assert_eq!("new_owner".to_string(), resp.owner);
-    assert_eq!(init_msg.astro_token, resp.astro_token);
 }
 
 #[test]
@@ -289,6 +231,7 @@ fn test_create_allocations() {
             minter: OWNER.clone().to_string(),
             cap: None,
         }),
+        marketing: None,
     };
 
     let not_astro_token_instance = app

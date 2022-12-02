@@ -6,6 +6,10 @@ pub mod querier;
 pub mod utils;
 pub mod voting_escrow;
 
+// Default pagination constants
+pub const DEFAULT_LIMIT: u32 = 10;
+pub const MAX_LIMIT: u32 = 30;
+
 #[allow(clippy::all)]
 mod uints {
     use uint::construct_uint;

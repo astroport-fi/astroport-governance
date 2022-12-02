@@ -16,14 +16,14 @@ use anyhow::Result;
 
 pub const MULTIPLIER: u64 = 1_000_000;
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub struct ContractInfo {
     pub address: Addr,
     pub code_id: u64,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub struct BaseAstroportTestPackage {
     pub owner: Addr,
@@ -33,7 +33,7 @@ pub struct BaseAstroportTestPackage {
     pub voting_escrow: Option<ContractInfo>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub struct BaseAstroportTestInitMessage {
     pub owner: Addr,
@@ -74,6 +74,7 @@ impl BaseAstroportTestPackage {
                 minter: owner.to_string(),
                 cap: None,
             }),
+            marketing: None,
         };
 
         let astro_token_instance = router
@@ -109,6 +110,7 @@ impl BaseAstroportTestPackage {
             owner: owner.to_string(),
             token_code_id: self.astro_token.clone().unwrap().code_id,
             deposit_token_addr: self.astro_token.clone().unwrap().address.to_string(),
+            marketing: None,
         };
 
         let staking_instance = router
