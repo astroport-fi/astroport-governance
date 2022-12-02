@@ -153,7 +153,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
         } => update_config(deps, info, new_max_allocations_amount),
         ExecuteMsg::UpdateUnlockSchedules {
             new_unlock_schedules,
-        } => update_unlock_schedules(deps, info, new_unlock_schedules),
+        } => update_unlock_schedules(deps, env, info, new_unlock_schedules),
     }
 }
 
@@ -288,31 +288,18 @@ fn execute_create_allocations(
     for allocation in allocations {
         let (user_unchecked, params) = allocation;
 
+        params.validate(&user_unchecked)?;
+
         let user = deps.api.addr_validate(&user_unchecked)?;
 
-        match PARAMS.load(deps.storage, &user) {
-            Ok(..) => {
-                return Err(StdError::generic_err(format!(
-                    "Allocation (params) already exists for {}",
-                    user
-                )));
-            }
-            Err(..) => {
-                PARAMS.save(deps.storage, &user, &params)?;
-            }
+        if PARAMS.has(deps.storage, &user) {
+            return Err(StdError::generic_err(format!(
+                "Allocation (params) already exists for {}",
+                user
+            )));
         }
-
-        match STATUS.load(deps.storage, &user) {
-            Ok(..) => {
-                return Err(StdError::generic_err(format!(
-                    "Allocation (status) already exists for {}",
-                    user
-                )));
-            }
-            Err(..) => {
-                STATUS.save(deps.storage, &user, &AllocationStatus::new())?;
-            }
-        }
+        PARAMS.save(deps.storage, &user, &params)?;
+        STATUS.save(deps.storage, &user, &AllocationStatus::new())?;
     }
 
     STATE.save(deps.storage, &state)?;
@@ -332,11 +319,23 @@ fn execute_withdraw(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Res
     let mut state = STATE.load(deps.storage)?;
 
     let params = PARAMS.load(deps.storage, &info.sender)?;
+
+    if params.proposed_receiver.is_some() {
+        return Err(StdError::generic_err(
+            "You may not withdraw once you proposed new receiver!",
+        ));
+    }
+
     let mut status = STATUS.load(deps.storage, &info.sender)?;
 
     let SimulateWithdrawResponse { astro_to_withdraw } =
-        helpers::compute_withdraw_amount(env.block.time.seconds(), &params, &mut status);
+        helpers::compute_withdraw_amount(env.block.time.seconds(), &params, &status);
 
+    if astro_to_withdraw.is_zero() {
+        return Err(StdError::generic_err("No unlocked ASTRO to be withdrawn"));
+    }
+
+    status.astro_withdrawn += astro_to_withdraw;
     state.remaining_astro_tokens -= astro_to_withdraw;
 
     // SAVE :: state & allocation
@@ -345,23 +344,15 @@ fn execute_withdraw(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Res
     // Update status
     STATUS.save(deps.storage, &info.sender, &status)?;
 
-    let mut msgs: Vec<WasmMsg> = vec![];
-
-    if astro_to_withdraw.is_zero() {
-        return Err(StdError::generic_err("No unlocked ASTRO to be withdrawn"));
-    }
-
-    msgs.push(WasmMsg::Execute {
-        contract_addr: config.astro_token.to_string(),
-        msg: to_binary(&Cw20ExecuteMsg::Transfer {
-            recipient: info.sender.to_string(),
-            amount: astro_to_withdraw,
-        })?,
-        funds: vec![],
-    });
-
     Ok(Response::new()
-        .add_messages(msgs)
+        .add_message(WasmMsg::Execute {
+            contract_addr: config.astro_token.to_string(),
+            msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                recipient: info.sender.to_string(),
+                amount: astro_to_withdraw,
+            })?,
+            funds: vec![],
+        })
         .add_attribute("astro_withdrawn", astro_to_withdraw))
 }
 
@@ -593,6 +584,7 @@ fn execute_transfer_unallocated(
     }
 
     state.unallocated_tokens = state.unallocated_tokens.checked_sub(amount)?;
+    state.total_astro_deposited = state.total_astro_deposited.checked_sub(amount)?;
 
     let msg = WasmMsg::Execute {
         contract_addr: config.astro_token.to_string(),
@@ -624,7 +616,9 @@ fn execute_claim_receiver(
     info: MessageInfo,
     prev_receiver: String,
 ) -> StdResult<Response> {
-    let mut alloc_params = PARAMS.load(deps.storage, &deps.api.addr_validate(&prev_receiver)?)?;
+    let prev_receiver_addr = deps.api.addr_validate(&prev_receiver)?;
+
+    let mut alloc_params = PARAMS.load(deps.storage, &prev_receiver_addr)?;
 
     match alloc_params.proposed_receiver {
         Some(proposed_receiver) => {
@@ -643,12 +637,12 @@ fn execute_claim_receiver(
 
                 PARAMS.save(deps.storage, &info.sender, &alloc_params)?;
                 // 2. Remove the allocation info from the previous owner
-                PARAMS.remove(deps.storage, &deps.api.addr_validate(&prev_receiver)?);
+                PARAMS.remove(deps.storage, &prev_receiver_addr);
                 // Transfers Allocation Status
-                let status = STATUS.load(deps.storage, &deps.api.addr_validate(&prev_receiver)?)?;
+                let status = STATUS.load(deps.storage, &prev_receiver_addr)?;
 
                 STATUS.save(deps.storage, &info.sender, &status)?;
-                STATUS.remove(deps.storage, &deps.api.addr_validate(&prev_receiver)?)
+                STATUS.remove(deps.storage, &prev_receiver_addr)
             } else {
                 return Err(StdError::generic_err(format!(
                     "Proposed receiver mismatch, actual proposed receiver : {}",
@@ -701,6 +695,7 @@ fn update_config(
 /// Updates builder unlock schedules for specified accounts.
 fn update_unlock_schedules(
     deps: DepsMut,
+    env: Env,
     info: MessageInfo,
     new_unlock_schedules: Vec<(String, Schedule)>,
 ) -> StdResult<Response> {
@@ -715,6 +710,20 @@ fn update_unlock_schedules(
     for (account, new_schedule) in new_unlock_schedules {
         let account_addr = deps.api.addr_validate(&account)?;
         let mut params = PARAMS.load(deps.storage, &account_addr)?;
+
+        let mut status = STATUS.load(deps.storage, &account_addr)?;
+
+        let unlocked_amount_checkpoint = compute_unlocked_amount(
+            env.block.time.seconds(),
+            params.amount,
+            &params.unlock_schedule,
+            status.unlocked_amount_checkpoint,
+        );
+
+        if unlocked_amount_checkpoint > status.unlocked_amount_checkpoint {
+            status.unlocked_amount_checkpoint = unlocked_amount_checkpoint;
+            STATUS.save(deps.storage, &account_addr, &status)?;
+        }
 
         params.update_schedule(new_schedule, &account)?;
         PARAMS.save(deps.storage, &account_addr, &params)?;
@@ -829,7 +838,7 @@ fn query_simulate_withdraw(
     let account_checked = deps.api.addr_validate(&account)?;
 
     let params = PARAMS.load(deps.storage, &account_checked)?;
-    let mut status = STATUS.load(deps.storage, &account_checked)?;
+    let status = STATUS.load(deps.storage, &account_checked)?;
 
     let timestamp_ = match timestamp {
         Some(timestamp) => timestamp,
@@ -837,9 +846,7 @@ fn query_simulate_withdraw(
     };
 
     Ok(helpers::compute_withdraw_amount(
-        timestamp_,
-        &params,
-        &mut status,
+        timestamp_, &params, &status,
     ))
 }
 
@@ -931,9 +938,7 @@ mod helpers {
             unlock_checkpoint
         }
         // Tokens unlock linearly between start time and end time
-        else if (timestamp < schedule.start_time + schedule.cliff + schedule.duration)
-            && schedule.duration != 0
-        {
+        else if (timestamp < schedule.start_time + schedule.duration) && schedule.duration != 0 {
             let unlocked_amount =
                 amount.multiply_ratio(timestamp - schedule.start_time, schedule.duration);
 
@@ -953,7 +958,7 @@ mod helpers {
     pub fn compute_withdraw_amount(
         timestamp: u64,
         params: &AllocationParams,
-        status: &mut AllocationStatus,
+        status: &AllocationStatus,
     ) -> SimulateWithdrawResponse {
         // "Unlocked" amount
         let astro_unlocked = compute_unlocked_amount(
@@ -965,7 +970,6 @@ mod helpers {
 
         // Withdrawable amount is unlocked amount minus the amount already withdrawn
         let astro_withdrawable = astro_unlocked - status.astro_withdrawn;
-        status.astro_withdrawn += astro_withdrawable;
 
         SimulateWithdrawResponse {
             astro_to_withdraw: astro_withdrawable,
