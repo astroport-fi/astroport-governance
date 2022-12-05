@@ -364,9 +364,9 @@ dependencies = [
 
 [[package]]
 name = "builder-unlock"
-version = "1.2.1"
+version = "1.1.0"
 dependencies = [
- "astroport 1.2.0 (git+https://github.com/astroport-fi/astroport.git?branch=terra_classic)",
+ "astroport 1.2.0 (git+https://github.com/astroport-fi/astroport-core.git?branch=terra_classic)",
  "astroport-governance",
  "astroport-token 1.0.0-fix-name (git+https://github.com/astroport-fi/astroport.git?branch=terra_classic)",
  "cosmwasm-schema",

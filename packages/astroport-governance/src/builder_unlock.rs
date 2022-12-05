@@ -14,7 +14,7 @@ pub struct Config {
 }
 
 /// This structure stores the total and the remaining amount of ASTRO to be unlocked by all accounts.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Default)]
 pub struct State {
     /// Amount of ASTRO tokens deposited into the contract
     pub total_astro_deposited: Uint128,
@@ -24,18 +24,8 @@ pub struct State {
     pub unallocated_tokens: Uint128,
 }
 
-impl Default for State {
-    fn default() -> Self {
-        State {
-            total_astro_deposited: Uint128::zero(),
-            remaining_astro_tokens: Uint128::zero(),
-            unallocated_tokens: Uint128::zero(),
-        }
-    }
-}
-
 /// This structure stores the parameters describing a typical unlock schedule.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Default)]
 pub struct Schedule {
     /// Timestamp for the start of the unlock schedule (in seconds)
     pub start_time: u64,
@@ -46,7 +36,7 @@ pub struct Schedule {
 }
 
 /// This structure stores the parameters used to describe an ASTRO allocation.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Default)]
 pub struct AllocationParams {
     /// Total amount of ASTRO tokens allocated to a specific account
     pub amount: Uint128,
@@ -56,25 +46,36 @@ pub struct AllocationParams {
     pub proposed_receiver: Option<Addr>,
 }
 
-impl Default for AllocationParams {
-    fn default() -> Self {
-        AllocationParams {
-            amount: Uint128::zero(),
-            unlock_schedule: Schedule {
-                start_time: 0u64,
-                cliff: 0u64,
-                duration: 0u64,
-            },
-            proposed_receiver: None,
-        }
-    }
-}
-
 impl AllocationParams {
+    pub fn validate(&self, account: &str) -> Result<(), StdError> {
+        if self.unlock_schedule.cliff >= self.unlock_schedule.duration {
+            return Err(StdError::generic_err(format!(
+                "The new cliff value must be less than the duration: {} < {}. Account: {}",
+                self.unlock_schedule.cliff, self.unlock_schedule.duration, account
+            )));
+        };
+
+        if self.amount.is_zero() {
+            return Err(StdError::generic_err(format!(
+                "Amount must not be zero. Account: {}",
+                account
+            )));
+        }
+
+        if self.proposed_receiver.is_some() {
+            return Err(StdError::generic_err(format!(
+                "Proposed receiver must be unset. Account: {}",
+                account
+            )));
+        }
+
+        Ok(())
+    }
+
     pub fn update_schedule(
         &mut self,
         new_schedule: Schedule,
-        account: &str,
+        account: &String,
     ) -> Result<(), StdError> {
         if new_schedule.cliff < self.unlock_schedule.cliff {
             return Err(StdError::generic_err(format!(
@@ -103,21 +104,12 @@ impl AllocationParams {
 }
 
 /// This structure stores the parameters used to describe the status of an allocation.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, Default)]
 pub struct AllocationStatus {
     /// Amount of ASTRO already withdrawn
     pub astro_withdrawn: Uint128,
     /// Already unlocked amount after decreasing
     pub unlocked_amount_checkpoint: Uint128,
-}
-
-impl Default for AllocationStatus {
-    fn default() -> Self {
-        AllocationStatus {
-            astro_withdrawn: Uint128::zero(),
-            unlocked_amount_checkpoint: Uint128::zero(),
-        }
-    }
 }
 
 impl AllocationStatus {
@@ -190,7 +182,7 @@ pub mod msg {
     #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
     #[serde(rename_all = "snake_case")]
     pub enum ReceiveMsg {
-        /// Create new ASTRO allocations
+        /// CreateAllocations creates new ASTRO allocations
         CreateAllocations {
             allocations: Vec<(String, AllocationParams)>,
         },
@@ -202,25 +194,25 @@ pub mod msg {
     #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
     #[serde(rename_all = "snake_case")]
     pub enum QueryMsg {
-        // Config for this contract
+        // Config returns the configuration for this contract
         Config {},
-        // State of this contract
+        // State returns the state of this contract
         State {},
-        // Parameters and current status of an allocation
+        // Allocation returns the parameters and current status of an allocation
         Allocation {
             /// Account whose allocation status we query
             account: String,
         },
-        // Unlocked tokens from an allocation
+        // UnlockedTokens returns the unlocked tokens from an allocation
         UnlockedTokens {
             /// Account whose amount of unlocked ASTRO we query for
             account: String,
         },
-        // Simulate how many ASTRO will be released if a withdrawal is attempted
+        // SimulateWithdraw simulates how many ASTRO will be released if a withdrawal is attempted
         SimulateWithdraw {
             /// Account for which we simulate a withdrawal
             account: String,
-            /// Timestmpa used to simulate how many ASTRO the account can withdraw
+            /// Timestamp used to simulate how much ASTRO the account can withdraw
             timestamp: Option<u64>,
         },
         /// Allocations returns a vector that contains builder unlock allocations by specified

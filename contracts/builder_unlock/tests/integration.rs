@@ -67,7 +67,7 @@ fn init_contracts(app: &mut App) -> (Addr, Addr, InstantiateMsg) {
     let unlock_instantiate_msg = InstantiateMsg {
         owner: OWNER.clone().to_string(),
         astro_token: astro_token_instance.to_string(),
-        max_allocations_amount: Uint128::new(11000000000000000),
+        max_allocations_amount: Uint128::new(300_000_000_000_000u128),
     };
 
     // Init contract
@@ -108,6 +108,32 @@ fn mint_some_astro(
     assert_eq!(res.events[1].attributes[3], attr("amount", amount));
 }
 
+fn check_alloc_amount(app: &mut App, contract_addr: &Addr, account: &Addr, amount: Uint128) {
+    let res: AllocationResponse = app
+        .wrap()
+        .query_wasm_smart(
+            contract_addr,
+            &QueryMsg::Allocation {
+                account: account.to_string(),
+            },
+        )
+        .unwrap();
+    assert_eq!(res.params.amount, amount);
+}
+
+fn check_unlock_amount(app: &mut App, contract_addr: &Addr, account: &Addr, amount: Uint128) {
+    let resp: Uint128 = app
+        .wrap()
+        .query_wasm_smart(
+            contract_addr,
+            &QueryMsg::UnlockedTokens {
+                account: account.to_string(),
+            },
+        )
+        .unwrap();
+    assert_eq!(resp, amount);
+}
+
 #[test]
 fn proper_initialization() {
     let mut app = mock_app();
@@ -130,6 +156,54 @@ fn proper_initialization() {
 
     assert_eq!(Uint128::zero(), resp.total_astro_deposited);
     assert_eq!(Uint128::zero(), resp.remaining_astro_tokens);
+}
+
+#[test]
+fn test_transfer_ownership() {
+    let mut app = mock_app();
+    let (unlock_instance, _, init_msg) = init_contracts(&mut app);
+
+    // ######    ERROR :: Unauthorized     ######
+    let err = app
+        .execute_contract(
+            Addr::unchecked("not_owner".to_string()),
+            unlock_instance.clone(),
+            &ExecuteMsg::ProposeNewOwner {
+                new_owner: "new_owner".to_string(),
+                expires_in: 600,
+            },
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(err.root_cause().to_string(), "Generic error: Unauthorized");
+
+    app.execute_contract(
+        Addr::unchecked(OWNER.to_string()),
+        unlock_instance.clone(),
+        &ExecuteMsg::ProposeNewOwner {
+            new_owner: "new_owner".to_string(),
+            expires_in: 100,
+        },
+        &[],
+    )
+    .unwrap();
+
+    app.execute_contract(
+        Addr::unchecked("new_owner".to_string()),
+        unlock_instance.clone(),
+        &ExecuteMsg::ClaimOwnership {},
+        &[],
+    )
+    .unwrap();
+
+    let resp: ConfigResponse = app
+        .wrap()
+        .query_wasm_smart(&unlock_instance, &QueryMsg::Config {})
+        .unwrap();
+
+    // Check config
+    assert_eq!("new_owner".to_string(), resp.owner);
+    assert_eq!(init_msg.astro_token, resp.astro_token);
 }
 
 #[test]
@@ -208,7 +282,7 @@ fn test_create_allocations() {
         )
         .unwrap_err();
     assert_eq!(
-        err.to_string(),
+        err.root_cause().to_string(),
         "Generic error: Only the contract owner can create allocations"
     );
 
@@ -272,7 +346,7 @@ fn test_create_allocations() {
         )
         .unwrap_err();
     assert_eq!(
-        err.to_string(),
+        err.root_cause().to_string(),
         "Generic error: Only ASTRO can be deposited"
     );
 
@@ -293,7 +367,7 @@ fn test_create_allocations() {
         )
         .unwrap_err();
     assert_eq!(
-        err.to_string(),
+        err.root_cause().to_string(),
         "Generic error: ASTRO deposit amount mismatch"
     );
 
@@ -407,7 +481,7 @@ fn test_create_allocations() {
         )
         .unwrap_err();
     assert_eq!(
-        err.to_string(),
+        err.root_cause().to_string(),
         "Generic error: Allocation (params) already exists for investor_1"
     );
 }
@@ -489,7 +563,7 @@ fn test_withdraw() {
         )
         .unwrap_err();
     assert_eq!(
-        err.to_string(),
+        err.root_cause().to_string(),
         "astroport_governance::builder_unlock::AllocationParams not found"
     );
 
@@ -581,7 +655,7 @@ fn test_withdraw() {
         )
         .unwrap_err();
     assert_eq!(
-        err.to_string(),
+        err.root_cause().to_string(),
         "Generic error: No unlocked ASTRO to be withdrawn"
     );
 
@@ -650,7 +724,7 @@ fn test_withdraw() {
         )
         .unwrap_err();
     assert_eq!(
-        err.to_string(),
+        err.root_cause().to_string(),
         "Generic error: No unlocked ASTRO to be withdrawn"
     );
 
@@ -671,7 +745,7 @@ fn test_withdraw() {
             },
         )
         .unwrap();
-    assert_eq!(unlock_resp, Uint128::from(1232876553779u64));
+    assert_eq!(unlock_resp, Uint128::from(2465753266108u64));
 
     // Check Number of tokens that can be withdrawn
     sim_withdraw_resp = app
@@ -687,7 +761,7 @@ fn test_withdraw() {
 
     assert_eq!(
         sim_withdraw_resp.astro_to_withdraw,
-        Uint128::from(1232876553779u64)
+        Uint128::from(2465753266108u64)
     );
 
     app.update_block(|b| {
@@ -705,7 +779,7 @@ fn test_withdraw() {
             },
         )
         .unwrap();
-    assert_eq!(unlock_resp, Uint128::from(1232877505073u64));
+    assert_eq!(unlock_resp, Uint128::from(2465754217402u64));
 
     // Check Number of tokens that can be withdrawn
     sim_withdraw_resp = app
@@ -721,7 +795,7 @@ fn test_withdraw() {
 
     assert_eq!(
         sim_withdraw_resp.astro_to_withdraw,
-        Uint128::from(1232877505073u64)
+        Uint128::from(2465754217402u64)
     );
 
     app.execute_contract(
@@ -840,7 +914,7 @@ fn test_propose_new_receiver() {
         )
         .unwrap_err();
     assert_eq!(
-        err.to_string(),
+        err.root_cause().to_string(),
         "astroport_governance::builder_unlock::AllocationParams not found"
     );
 
@@ -856,8 +930,8 @@ fn test_propose_new_receiver() {
         )
         .unwrap_err();
     assert_eq!(
-        err.to_string(),
-        "Generic error: Invalid new_receiver. Proposed receiver already has an ASTRO allocation of 5000000000000 ASTRO"
+        err.root_cause().to_string(),
+        "Generic error: Invalid new_receiver. Proposed receiver already has an ASTRO allocation"
     );
 
     // ######   SUCCESSFULLY PROPOSES NEW RECEIVER   ######
@@ -897,7 +971,7 @@ fn test_propose_new_receiver() {
         )
         .unwrap_err();
     assert_eq!(
-        err.to_string(),
+        err.root_cause().to_string(),
         "Generic error: Proposed receiver already set to investor_1_new"
     );
 }
@@ -979,7 +1053,7 @@ fn test_drop_new_receiver() {
         )
         .unwrap_err();
     assert_eq!(
-        err.to_string(),
+        err.root_cause().to_string(),
         "astroport_governance::builder_unlock::AllocationParams not found"
     );
 
@@ -992,7 +1066,10 @@ fn test_drop_new_receiver() {
             &[],
         )
         .unwrap_err();
-    assert_eq!(err.to_string(), "Generic error: Proposed receiver not set");
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Generic error: Proposed receiver not set"
+    );
 
     // ######   SUCCESSFULLY DROP NEW RECEIVER   ######
     // SUCCESSFULLY PROPOSES NEW RECEIVER
@@ -1117,7 +1194,7 @@ fn test_claim_receiver() {
         )
         .unwrap_err();
     assert_eq!(
-        err.to_string(),
+        err.root_cause().to_string(),
         "astroport_governance::builder_unlock::AllocationParams not found"
     );
 
@@ -1132,7 +1209,10 @@ fn test_claim_receiver() {
             &[],
         )
         .unwrap_err();
-    assert_eq!(err.to_string(), "Generic error: Proposed receiver not set");
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Generic error: Proposed receiver not set"
+    );
 
     // ######   SUCCESSFULLY CLAIMED BY NEW RECEIVER   ######
     // SUCCESSFULLY PROPOSES NEW RECEIVER
@@ -1257,6 +1337,244 @@ fn test_claim_receiver() {
     assert_eq!(
         sim_withdraw_resp_after_new_inv.astro_to_withdraw,
         sim_withdraw_resp_before.astro_to_withdraw,
+    );
+}
+
+#[test]
+fn test_increase_and_decrease_allocation() {
+    let mut app = mock_app();
+    let (unlock_instance, astro_instance, _) = init_contracts(&mut app);
+
+    mint_some_astro(
+        &mut app,
+        Addr::unchecked(OWNER.clone()),
+        astro_instance.clone(),
+        Uint128::new(1_000_000_000_000_000),
+        OWNER.to_string(),
+    );
+
+    // Create allocations
+    let allocations: Vec<(String, AllocationParams)> = vec![(
+        "investor".to_string(),
+        AllocationParams {
+            amount: Uint128::from(5_000_000_000000u64),
+            unlock_schedule: Schedule {
+                start_time: 1_571_797_419u64,
+                cliff: 300u64,
+                duration: 1_534_700u64,
+            },
+            proposed_receiver: None,
+        },
+    )];
+
+    app.execute_contract(
+        Addr::unchecked(OWNER.clone()),
+        astro_instance.clone(),
+        &cw20::Cw20ExecuteMsg::Send {
+            contract: unlock_instance.clone().to_string(),
+            amount: Uint128::from(5_000_000_000000u64),
+            msg: to_binary(&ReceiveMsg::CreateAllocations {
+                allocations: allocations.clone(),
+            })
+            .unwrap(),
+        },
+        &[],
+    )
+    .unwrap();
+
+    // Check allocations before changes
+    check_alloc_amount(
+        &mut app,
+        &unlock_instance,
+        &Addr::unchecked("investor"),
+        Uint128::new(5_000_000_000_000u128),
+    );
+
+    // Skip blocks
+    app.update_block(|bi| {
+        bi.height += 1000;
+        bi.time = bi.time.plus_seconds(5_000);
+    });
+
+    // Withdraw ASTRO
+    app.execute_contract(
+        Addr::unchecked("investor".to_string()),
+        unlock_instance.clone(),
+        &ExecuteMsg::Withdraw {},
+        &[],
+    )
+    .unwrap();
+
+    // Skip blocks
+    app.update_block(|bi| {
+        bi.height += 4000;
+        bi.time = bi.time.plus_seconds(20_000);
+    });
+
+    check_unlock_amount(
+        &mut app,
+        &unlock_instance,
+        &Addr::unchecked("investor"),
+        Uint128::new(81_449_143_155u128),
+    );
+
+    // Try to decrease 4918550856846 ASTRO
+    let err = app
+        .execute_contract(
+            Addr::unchecked(OWNER.clone()),
+            unlock_instance.clone(),
+            &ExecuteMsg::DecreaseAllocation {
+                receiver: "investor".to_string(),
+                amount: Uint128::from(4_918_550_856_846u128),
+            },
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Generic error: Insufficient amount of lock to decrease allocation, user has locked 4918550856845 ASTRO."
+    );
+
+    app.execute_contract(
+        Addr::unchecked(OWNER.clone()),
+        unlock_instance.clone(),
+        &ExecuteMsg::DecreaseAllocation {
+            receiver: "investor".to_string(),
+            amount: Uint128::from(1_000_000_000_000u128),
+        },
+        &[],
+    )
+    .unwrap();
+
+    // Unlock amount didn't change after decreasing
+    check_unlock_amount(
+        &mut app,
+        &unlock_instance,
+        &Addr::unchecked("investor"),
+        Uint128::new(81_449_143_155u128),
+    );
+    let res: StateResponse = app
+        .wrap()
+        .query_wasm_smart(unlock_instance.clone(), &QueryMsg::State {})
+        .unwrap();
+
+    assert_eq!(
+        res,
+        StateResponse {
+            total_astro_deposited: Uint128::new(5_000_000_000_000u128),
+            remaining_astro_tokens: Uint128::new(3_983_710_171_369u128),
+            unallocated_astro_tokens: Uint128::new(1_000_000_000_000u128)
+        }
+    );
+
+    // Try to increase
+    let err = app
+        .execute_contract(
+            Addr::unchecked(OWNER.clone()),
+            unlock_instance.clone(),
+            &ExecuteMsg::IncreaseAllocation {
+                receiver: "investor".to_string(),
+                amount: Uint128::from(1_000_000_000_001u128),
+            },
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Generic error: Insufficient unallocated ASTRO to increase allocation. Contract has: 1000000000000 unallocated ASTRO."
+    );
+
+    // Transfer unallocated tokens to owner
+    app.execute_contract(
+        Addr::unchecked("owner".to_string()),
+        unlock_instance.clone(),
+        &ExecuteMsg::TransferUnallocated {
+            amount: Uint128::from(500_000_000_000u128),
+            recipient: Some(OWNER.to_string()),
+        },
+        &[],
+    )
+    .unwrap();
+
+    let res: BalanceResponse = app
+        .wrap()
+        .query_wasm_smart(
+            &astro_instance,
+            &cw20::Cw20QueryMsg::Balance {
+                address: OWNER.to_string(),
+            },
+        )
+        .unwrap();
+    assert_eq!(res.balance, Uint128::from(995_500_000_000_000u128));
+
+    // Increase allocations with sending cw20
+    app.execute_contract(
+        Addr::unchecked(OWNER),
+        astro_instance.clone(),
+        &cw20::Cw20ExecuteMsg::Send {
+            contract: unlock_instance.clone().to_string(),
+            amount: Uint128::from(1_000u64),
+            msg: to_binary(&ReceiveMsg::IncreaseAllocation {
+                amount: Uint128::from(500_000_001_000u128),
+                user: "investor".to_string(),
+            })
+            .unwrap(),
+        },
+        &[],
+    )
+    .unwrap();
+
+    // Withdraw ASTRO
+    app.execute_contract(
+        Addr::unchecked("investor".to_string()),
+        unlock_instance.clone(),
+        &ExecuteMsg::Withdraw {},
+        &[],
+    )
+    .unwrap();
+
+    let res: BalanceResponse = app
+        .wrap()
+        .query_wasm_smart(
+            &astro_instance,
+            &cw20::Cw20QueryMsg::Balance {
+                address: "investor".to_string(),
+            },
+        )
+        .unwrap();
+    assert_eq!(res.balance, Uint128::from(81_449_143_155u128));
+
+    // Check allocation amount after decreasing and increasing
+    check_alloc_amount(
+        &mut app,
+        &unlock_instance,
+        &Addr::unchecked("investor"),
+        Uint128::new(4_500_000_001_000u128),
+    );
+    // Check astro to withdraw after withdrawal
+    let res: SimulateWithdrawResponse = app
+        .wrap()
+        .query_wasm_smart(
+            unlock_instance.clone(),
+            &QueryMsg::SimulateWithdraw {
+                account: "investor".to_string(),
+                timestamp: None,
+            },
+        )
+        .unwrap();
+    assert_eq!(res.astro_to_withdraw, Uint128::zero());
+    // Check state
+    let res: StateResponse = app
+        .wrap()
+        .query_wasm_smart(unlock_instance.clone(), &QueryMsg::State {})
+        .unwrap();
+    assert_eq!(
+        res,
+        StateResponse {
+            total_astro_deposited: Uint128::new(4_500_000_001_000u128),
+            remaining_astro_tokens: Uint128::new(4_418_550_857_845u128),
+            unallocated_astro_tokens: Uint128::zero()
+        }
     );
 }
 
