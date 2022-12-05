@@ -903,7 +903,7 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> StdResult<Response>
             }
             _ => return Err(StdError::generic_err("Contract can't be migrated!")),
         },
-        "builder-unlock" => {}
+        "builder-unlock" => return Err(StdError::generic_err("Contract can't be migrated!")),
         _ => return Err(StdError::generic_err("Contract can't be migrated!")),
     };
 
