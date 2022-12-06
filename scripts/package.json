@@ -5,7 +5,7 @@
   "license": "MIT",
   "type": "module",
   "dependencies": {
-    "@terra-money/terra.js": "^3.1.5",
+    "@terra-money/terra.js": "^3.1.7",
     "dotenv": "^8.2.0",
     "ts-custom-error": "^3.2.0"
   },

@@ -1,34 +1,50 @@
-import { LCDClient, LocalTerra, Wallet } from "@terra-money/terra.js";
+import { LCDClient, LocalTerra, MsgExecuteContract, Wallet } from "@terra-money/terra.js";
 import "dotenv/config";
-import { executeContract, newClient, queryContract, readArtifact } from "./helpers.js";
+import { executeContract, newClient, queryContract } from "./helpers.js";
 
-const NEW_START_TIME = 1656633600; // July 1st 2022 12:00:00
-const NEW_CLIFF = 31536000; // distribution starts on July 1st 2023 12:00:00
-const NEW_DURATION = 94694400; // July 1st 2025 12:00:00
+export const NEW_START_TIME = 1656633600; // July 1st 2022 12:00:00
+export const NEW_CLIFF = 31536000; // distribution starts on July 1st 2023 12:00:00
+export const NEW_DURATION = 94694400; // July 1st 2025 12:00:00
+
+// Mainnet
+export const BUILDER_UNLOCK_ADDRESS = "terra1zdfquayrfx6jzxmxaltnhq8jfhas7xyrg4q9hrtwvcuyjhgd7qdsgmkgrz"
+export const multisig = "terra174gu7kg8ekk5gsxdma5jlfcedm653tyg6ayppw"
+
+// Mainnet classic
+// export const BUILDER_UNLOCK_ADDRESS = "terra1fh27l8h4s0tfx9ykqxq5efq4xx88f06x6clwmr"
+// export const multisig = "terra1c7m6j8ya58a2fkkptn8fgudx8sqjqvc8azq0ex"
+
 
 async function main() {
-    const { terra, wallet } = newClient();
+
+    let isClassic = process.env.CHAIN_ID == "columbus-5";
+
+    var { terra, wallet } = newClient(isClassic);
     console.log(
         `chainID: ${terra.config.chainID} wallet: ${wallet.key.accAddress}`
     );
 
-    let network = readArtifact(terra.config.chainID);
-    console.log("network:", network);
+    await claim_ownership(terra, wallet);
 
-    let allocations = await fetch_all_allocations(terra, network);
-    await set_new_schedule(terra, wallet, network, allocations, NEW_CLIFF, NEW_START_TIME, NEW_DURATION);
-    await check_new_cliffs_are_set(terra, network, NEW_CLIFF, NEW_START_TIME, NEW_DURATION);
+    let allocations = await fetch_all_allocations(terra);
 
+    await simulate_setting_new_schedule(terra, wallet, allocations, NEW_CLIFF, NEW_START_TIME, NEW_DURATION);
 }
 
-async function fetch_all_allocations(terra: LCDClient | LocalTerra, network: any) {
+async function claim_ownership(terra: LCDClient | LocalTerra,
+    wallet: Wallet
+) {
+    await executeContract(terra, wallet, BUILDER_UNLOCK_ADDRESS, { claim_ownership: {} })
+}
+
+export async function fetch_all_allocations(terra: LCDClient | LocalTerra) {
     console.log("Fetching allocations...");
 
     let allocations = [];
     let start_after = undefined;
     let last_received_count = undefined;
     do {
-        let sub_result: any[] = await queryContract(terra, network.builderUnlockAddress, {
+        let sub_result: any[] = await queryContract(terra, BUILDER_UNLOCK_ADDRESS, {
             allocations:
             {
                 start_after,
@@ -48,44 +64,34 @@ async function fetch_all_allocations(terra: LCDClient | LocalTerra, network: any
     return allocations
 }
 
-async function set_new_schedule(
+async function simulate_setting_new_schedule(
     terra: LCDClient | LocalTerra,
     wallet: Wallet,
-    network: any,
     allocations: (string | number)[][],
     new_cliff: number,
     new_start_time: number,
     new_duration: number
-    )
-{
-    console.log("Setting new schedule...");
+) {
+    console.log("Simulate setting new schedule...");
 
     let new_unlock_schedules = allocations.map(account => [account[0], { start_time: new_start_time, cliff: new_cliff, duration: new_duration }]);
     console.log("New allocation schedules", new_unlock_schedules);
 
-    await executeContract(terra, wallet, network.builderUnlockAddress, {
+    let msg = {
         "update_unlock_schedules": {
             new_unlock_schedules
         }
-    });
-}
+    }
 
-async function check_new_cliffs_are_set(
-    terra: LCDClient | LocalTerra,
-    network: any,
-    new_cliff: number,
-    new_start_time: number,
-    new_duration: number
-) {
-    console.log("Checking new schedules are set...");
-
-    let allocations = await fetch_all_allocations(terra, network);
-    allocations.forEach(allocation => {
-        if (allocation[1] != new_start_time) {throw "New start time wasn't set!"}
-        if (allocation[2] != new_cliff) {throw "New cliff wasn't set!"}
-        if (allocation[3] != new_duration) {throw "New duration wasn't set!"}
-    })
-    console.log("Completed successfully!");
-}
+    const executeMsg = new MsgExecuteContract(
+        wallet.key.accAddress,
+        BUILDER_UNLOCK_ADDRESS,
+        msg,
+        undefined
+    );
+    let sequence = await wallet.sequence()
+    let fee = await terra.tx.estimateFee([{ sequenceNumber: sequence }], { msgs: [executeMsg] })
+    console.log(`Required fee: ${fee.amount}`)
+};
 
 main().catch(console.log);
