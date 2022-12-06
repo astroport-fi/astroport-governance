@@ -1250,6 +1250,7 @@ fn instantiate_astro_token(router: &mut TerraApp, owner: &Addr) -> Addr {
             minter: owner.to_string(),
             cap: None,
         }),
+        marketing: None,
     };
 
     router
@@ -1282,6 +1283,7 @@ fn instantiate_xastro_token(router: &mut TerraApp, owner: &Addr) -> Addr {
             minter: owner.to_string(),
             cap: None,
         }),
+        marketing: None,
     };
 
     router
@@ -1340,6 +1342,7 @@ fn instantiate_builder_unlock_contract(
     let msg = BuilderUnlockInstantiateMsg {
         owner: owner.to_string(),
         astro_token: astro_token.to_string(),
+        max_allocations_amount: Uint128::new(11000000000000000),
     };
 
     router
