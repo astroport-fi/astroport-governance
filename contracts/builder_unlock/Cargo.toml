@@ -1,6 +1,6 @@
 [package]
 name = "builder-unlock"
-version = "1.2.2"
+version = "1.2.3"
 authors = ["Astroport"]
 edition = "2021"
 repository = "https://github.com/astroport-fi/astroport-governance"

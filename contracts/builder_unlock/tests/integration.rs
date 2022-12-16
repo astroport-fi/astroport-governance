@@ -1564,7 +1564,7 @@ fn test_increase_and_decrease_allocation() {
     assert_eq!(
         res,
         StateResponse {
-            total_astro_deposited: Uint128::new(5_000_000_001_000u128),
+            total_astro_deposited: Uint128::new(4_500_000_001_000u128),
             remaining_astro_tokens: Uint128::new(4_418_550_857_845u128),
             unallocated_astro_tokens: Uint128::zero()
         }
