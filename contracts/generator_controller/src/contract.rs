@@ -90,6 +90,9 @@ pub fn instantiate(
 /// Exposes all the execute functions available in the contract.
 ///
 /// ## Execute messages
+/// * **ExecuteMsg::KickBlacklistedVoters { blacklisted_voters }** Removes all votes applied by
+/// blacklisted voters
+///
 /// * **ExecuteMsg::Vote { votes }** Casts votes for pools
 ///
 /// * **ExecuteMsg::TunePools** Launches pool tuning
@@ -631,6 +634,10 @@ pub fn migrate(mut deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response
     match contract_version.contract.as_ref() {
         "astro-generator-controller" => match contract_version.version.as_ref() {
             "1.0.0" => migration::migrate_configs_to_v110(&mut deps, &msg)?,
+            _ => return Err(ContractError::MigrationError {}),
+        },
+        "generator-controller" => match contract_version.version.as_ref() {
+            "1.1.0" => {}
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),

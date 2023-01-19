@@ -22,13 +22,10 @@ pub struct InstantiateMsg {
 /// This structure describes the execute messages available in the contract.
 #[cw_serde]
 pub enum ExecuteMsg {
-    KickBlacklistedVoters {
-        blacklisted_voters: Vec<String>,
-    },
+    /// Removes all votes applied by blacklisted voters
+    KickBlacklistedVoters { blacklisted_voters: Vec<String> },
     /// Vote allows a vxASTRO holder to cast votes on which generators should get ASTRO emissions in the next epoch
-    Vote {
-        votes: Vec<(String, u16)>,
-    },
+    Vote { votes: Vec<(String, u16)> },
     /// TunePools transforms the latest vote distribution into alloc_points which are then applied to ASTRO generators
     TunePools {},
     UpdateConfig {
@@ -42,9 +39,7 @@ pub enum ExecuteMsg {
         remove_main_pool: Option<bool>,
     },
     /// ChangePoolsLimit changes the max amount of pools that can be voted at once to receive ASTRO emissions
-    ChangePoolsLimit {
-        limit: u64,
-    },
+    ChangePoolsLimit { limit: u64 },
     /// ProposeNewOwner proposes a new owner for the contract
     ProposeNewOwner {
         /// Newly proposed contract owner

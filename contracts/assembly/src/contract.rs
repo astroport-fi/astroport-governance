@@ -240,6 +240,10 @@ pub fn submit_proposal(
         } else {
             return Err(ContractError::MissingIBCController {});
         }
+
+        if messages.is_none() {
+            return Err(ContractError::SignalMessageNotSupported {});
+        }
     }
 
     let proposal = Proposal {
@@ -460,17 +464,24 @@ pub fn execute_proposal(
         PROPOSALS.save(deps.storage, proposal_id, &proposal)?;
 
         let config = CONFIG.load(deps.storage)?;
-        messages = vec![CosmosMsg::Wasm(wasm_execute(
-            &config
-                .ibc_controller
-                .ok_or(ContractError::MissingIBCController {})?,
-            &ibc_controller_package::ExecuteMsg::IbcExecuteProposal {
-                channel_id: channel.to_string(),
-                proposal_id,
-                messages: proposal.messages.unwrap_or_default(),
-            },
-            vec![],
-        )?)];
+
+        if let Some(mut proposal_messages) = proposal.messages {
+            proposal_messages.sort_by(|a, b| a.order.cmp(&b.order));
+
+            messages = vec![CosmosMsg::Wasm(wasm_execute(
+                &config
+                    .ibc_controller
+                    .ok_or(ContractError::MissingIBCController {})?,
+                &ibc_controller_package::ExecuteMsg::IbcExecuteProposal {
+                    channel_id: channel.to_string(),
+                    proposal_id,
+                    messages: proposal_messages,
+                },
+                vec![],
+            )?)];
+        } else {
+            return Err(ContractError::SignalMessageNotSupported {});
+        }
     } else {
         proposal.status = ProposalStatus::Executed;
 
@@ -668,16 +679,20 @@ fn update_ibc_proposal_status(
     let config = CONFIG.load(deps.storage)?;
     if Some(info.sender) == config.ibc_controller {
         let mut proposal = PROPOSALS.load(deps.storage, id)?;
-        match (&proposal.status, &new_status) {
-            (
-                ProposalStatus::InProgress,
-                ProposalStatus::Executed {} | ProposalStatus::Failed {},
-            ) => {
+
+        if proposal.status != ProposalStatus::InProgress {
+            return Err(ContractError::ProposalStatusCannotUpdate {});
+        }
+
+        match new_status {
+            ProposalStatus::Executed {} | ProposalStatus::Failed {} => {
                 proposal.status = new_status;
                 PROPOSALS.save(deps.storage, id, &proposal)?;
                 Ok(Response::new().add_attribute("action", "ibc_proposal_completed"))
             }
-            _ => Err(ContractError::Unauthorized {}),
+            _ => Err(ContractError::InvalidIBCProposalStatus(
+                new_status.to_string(),
+            )),
         }
     } else {
         Err(ContractError::Unauthorized {})

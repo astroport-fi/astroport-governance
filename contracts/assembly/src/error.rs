@@ -1,3 +1,4 @@
+use astroport_governance::assembly::ProposalStatus;
 use cosmwasm_std::{OverflowError, StdError};
 use thiserror::Error;
 
@@ -61,6 +62,18 @@ pub enum ContractError {
 
     #[error("IBC controller is not set")]
     MissingIBCController {},
+
+    #[error("The IBC controller does not support a signal message")]
+    SignalMessageNotSupported {},
+
+    #[error(
+        "The IBC controller can update a proposal only with the status {}",
+        ProposalStatus::InProgress
+    )]
+    ProposalStatusCannotUpdate {},
+
+    #[error("The IBC controller returns an invalid proposal status: {0} ")]
+    InvalidIBCProposalStatus(String),
 }
 
 impl From<OverflowError> for ContractError {
