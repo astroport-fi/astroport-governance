@@ -311,8 +311,24 @@ fn handle_vote(
                 }
             }
             // Check an address is a lp token
-            pair_info_by_pool(deps.as_ref(), addr.clone())
+            let pair_info = pair_info_by_pool(deps.as_ref(), addr.clone())
                 .map_err(|_| ContractError::InvalidLPTokenAddress(addr.to_string()))?;
+
+            // Check if a pair is registered in the factory
+            deps.querier
+                .query_wasm_smart(
+                    config.factory_addr.clone(),
+                    &astroport::factory::QueryMsg::Pair {
+                        asset_infos: pair_info.asset_infos.clone(),
+                    },
+                )
+                .map_err(|_| {
+                    ContractError::Std(StdError::generic_err(format!(
+                        "The pair aren't registered: {}-{}",
+                        pair_info.asset_infos[0], pair_info.asset_infos[1]
+                    )))
+                })?;
+
             let bps: BasicPoints = bps.try_into()?;
             Ok((addr, bps))
         })

