@@ -17,16 +17,16 @@ cw20 = "0.15"
 cosmwasm-std = "1.1"
 cosmwasm-schema = "1.1"
 cw-multi-test = "0.15"
-astroport = { git = "https://github.com/astroport-fi/hidden_astroport_core.git", branch = "release" }
+astroport = { git = "https://github.com/astroport-fi/astroport-core.git", branch = "release" }
 
 astroport-escrow-fee-distributor = { path = "../../contracts/escrow_fee_distributor" }
 astroport-governance = { path = "../astroport-governance" }
 voting-escrow = { path = "../../contracts/voting_escrow" }
 generator-controller = { path = "../../contracts/generator_controller" }
-astroport-generator = { git = "https://github.com/astroport-fi/hidden_astroport_core.git", branch = "release" }
-astroport-pair = { git = "https://github.com/astroport-fi/hidden_astroport_core.git", branch = "release" }
-astroport-factory = { git = "https://github.com/astroport-fi/hidden_astroport_core.git", branch = "release" }
-astroport-token = { git = "https://github.com/astroport-fi/hidden_astroport_core.git", branch = "release" }
-astroport-staking = { git = "https://github.com/astroport-fi/hidden_astroport_core.git", branch = "release" }
-astroport-whitelist = { git = "https://github.com/astroport-fi/hidden_astroport_core.git", branch = "release" }
+astroport-generator = { git = "https://github.com/astroport-fi/astroport-core.git", branch = "release" }
+astroport-pair = { git = "https://github.com/astroport-fi/astroport-core.git", branch = "release" }
+astroport-factory = { git = "https://github.com/astroport-fi/astroport-core.git", branch = "release" }
+astroport-token = { git = "https://github.com/astroport-fi/astroport-core.git", branch = "release" }
+astroport-staking = { git = "https://github.com/astroport-fi/astroport-core.git", branch = "release" }
+astroport-whitelist = { git = "https://github.com/astroport-fi/astroport-core.git", branch = "release" }
 anyhow = "1"
