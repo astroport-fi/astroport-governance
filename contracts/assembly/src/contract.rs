@@ -454,28 +454,30 @@ pub fn execute_proposal(
         return Err(ContractError::ExecuteProposalExpired {});
     }
 
-    let mut messages = vec![];
+    let messages;
     if let Some(channel) = &proposal.ibc_channel {
         proposal.status = ProposalStatus::InProgress;
         PROPOSALS.save(deps.storage, proposal_id, &proposal)?;
 
         let config = CONFIG.load(deps.storage)?;
 
-        if let Some(mut proposal_messages) = proposal.messages {
-            proposal_messages.sort_by(|a, b| a.order.cmp(&b.order));
-
-            messages = vec![CosmosMsg::Wasm(wasm_execute(
-                &config
-                    .ibc_controller
-                    .ok_or(ContractError::MissingIBCController {})?,
-                &ibc_controller_package::ExecuteMsg::IbcExecuteProposal {
-                    channel_id: channel.to_string(),
-                    proposal_id,
-                    messages: proposal_messages,
-                },
-                vec![],
-            )?)];
-        }
+        messages = match proposal.messages {
+            Some(mut messages) => {
+                messages.sort_by(|a, b| a.order.cmp(&b.order));
+                vec![CosmosMsg::Wasm(wasm_execute(
+                    &config
+                        .ibc_controller
+                        .ok_or(ContractError::MissingIBCController {})?,
+                    &ibc_controller_package::ExecuteMsg::IbcExecuteProposal {
+                        channel_id: channel.to_string(),
+                        proposal_id,
+                        messages,
+                    },
+                    vec![],
+                )?)]
+            }
+            None => vec![],
+        };
     } else {
         proposal.status = ProposalStatus::Executed;
 
