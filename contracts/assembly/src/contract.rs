@@ -166,21 +166,18 @@ pub fn receive_cw20(
             link,
             messages,
             ibc_channel,
-        } => {
-            let sender = deps.api.addr_validate(&cw20_msg.sender)?;
-            submit_proposal(
-                deps,
-                env,
-                info,
-                sender,
-                cw20_msg.amount,
-                title,
-                description,
-                link,
-                messages,
-                ibc_channel,
-            )
-        }
+        } => submit_proposal(
+            deps,
+            env,
+            info,
+            cw20_msg.sender,
+            cw20_msg.amount,
+            title,
+            description,
+            link,
+            messages,
+            ibc_channel,
+        ),
     }
 }
 
@@ -210,7 +207,7 @@ pub fn submit_proposal(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    sender: Addr,
+    sender: String,
     deposit_amount: Uint128,
     title: String,
     description: String,
@@ -244,7 +241,7 @@ pub fn submit_proposal(
 
     let proposal = Proposal {
         proposal_id: count,
-        submitter: sender.clone(),
+        submitter: Addr::unchecked(sender.clone()),
         status: ProposalStatus::Active,
         for_power: Uint128::zero(),
         against_power: Uint128::zero(),
@@ -267,7 +264,7 @@ pub fn submit_proposal(
 
     Ok(Response::new()
         .add_attribute("action", "submit_proposal")
-        .add_attribute("submitter", sender.to_string())
+        .add_attribute("submitter", sender)
         .add_attribute("proposal_id", count.to_string())
         .add_attribute(
             "proposal_end_height",
