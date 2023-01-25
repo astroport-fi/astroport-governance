@@ -240,10 +240,6 @@ pub fn submit_proposal(
         } else {
             return Err(ContractError::MissingIBCController {});
         }
-
-        if messages.is_none() {
-            return Err(ContractError::SignalMessageNotSupported {});
-        }
     }
 
     let proposal = Proposal {
@@ -458,7 +454,7 @@ pub fn execute_proposal(
         return Err(ContractError::ExecuteProposalExpired {});
     }
 
-    let messages;
+    let mut messages = vec![];
     if let Some(channel) = &proposal.ibc_channel {
         proposal.status = ProposalStatus::InProgress;
         PROPOSALS.save(deps.storage, proposal_id, &proposal)?;
@@ -479,8 +475,6 @@ pub fn execute_proposal(
                 },
                 vec![],
             )?)];
-        } else {
-            return Err(ContractError::SignalMessageNotSupported {});
         }
     } else {
         proposal.status = ProposalStatus::Executed;
@@ -591,14 +585,6 @@ pub fn update_config(
         return Err(ContractError::Unauthorized {});
     }
 
-    if let Some(xastro_token_addr) = updated_config.xastro_token_addr {
-        config.xastro_token_addr = deps.api.addr_validate(&xastro_token_addr)?;
-    }
-
-    if let Some(vxastro_token_addr) = updated_config.vxastro_token_addr {
-        config.vxastro_token_addr = Some(deps.api.addr_validate(&vxastro_token_addr)?);
-    }
-
     if let Some(ibc_controller) = updated_config.ibc_controller {
         config.ibc_controller = Some(deps.api.addr_validate(&ibc_controller)?)
     }
@@ -681,7 +667,7 @@ fn update_ibc_proposal_status(
         let mut proposal = PROPOSALS.load(deps.storage, id)?;
 
         if proposal.status != ProposalStatus::InProgress {
-            return Err(ContractError::ProposalStatusCannotUpdate {});
+            return Err(ContractError::NotUpdatedProposalStatus {});
         }
 
         match new_status {

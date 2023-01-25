@@ -473,8 +473,6 @@ fn test_proposal_submitting() {
                     msg: CosmosMsg::Wasm(WasmMsg::Execute {
                         contract_addr: assembly_addr.to_string(),
                         msg: to_binary(&ExecuteMsg::UpdateConfig(UpdateConfig {
-                            xastro_token_addr: None,
-                            vxastro_token_addr: None,
                             ibc_controller: None,
                             builder_unlock_addr: None,
                             proposal_voting_period: Some(750),
@@ -526,8 +524,6 @@ fn test_proposal_submitting() {
             msg: CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: assembly_addr.to_string(),
                 msg: to_binary(&ExecuteMsg::UpdateConfig(UpdateConfig {
-                    xastro_token_addr: None,
-                    vxastro_token_addr: None,
                     ibc_controller: None,
                     builder_unlock_addr: None,
                     proposal_voting_period: Some(750),
@@ -658,8 +654,6 @@ fn test_successful_proposal() {
             msg: CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: assembly_addr.to_string(),
                 msg: to_binary(&ExecuteMsg::UpdateConfig(UpdateConfig {
-                    xastro_token_addr: None,
-                    vxastro_token_addr: None,
                     ibc_controller: None,
                     builder_unlock_addr: None,
                     proposal_voting_period: Some(750),
@@ -945,8 +939,6 @@ fn test_voting_power_changes() {
             msg: CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: assembly_addr.to_string(),
                 msg: to_binary(&ExecuteMsg::UpdateConfig(UpdateConfig {
-                    xastro_token_addr: None,
-                    vxastro_token_addr: None,
                     ibc_controller: None,
                     builder_unlock_addr: None,
                     proposal_voting_period: Some(750),

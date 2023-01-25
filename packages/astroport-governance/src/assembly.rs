@@ -221,10 +221,6 @@ impl Config {
 /// This structure sotres the params used when updating the main Assembly contract params.
 #[cw_serde]
 pub struct UpdateConfig {
-    /// xASTRO token address
-    pub xastro_token_addr: Option<String>,
-    /// vxASTRO token address
-    pub vxastro_token_addr: Option<String>,
     /// Astroport IBC controller contract
     pub ibc_controller: Option<String>,
     /// Builder unlock contract address

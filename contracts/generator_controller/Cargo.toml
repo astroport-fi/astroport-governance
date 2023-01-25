@@ -31,7 +31,6 @@ thiserror = { version = "1.0" }
 itertools = "0.10"
 astroport-governance = { path = "../../packages/astroport-governance" }
 cosmwasm-schema = "1.1"
-astroport = { git = "https://github.com/astroport-fi/hidden_astroport_core.git", branch = "release" }
 
 [dev-dependencies]
 cw-multi-test = "0.15"

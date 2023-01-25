@@ -13,6 +13,7 @@ use cosmwasm_std::{
 use cw2::{get_contract_version, set_contract_version};
 use itertools::Itertools;
 
+use crate::astroport::querier::query_pair_info;
 use astroport_governance::generator_controller::{
     ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg, UserInfoResponse, VOTERS_MAX_LIMIT,
 };
@@ -314,20 +315,18 @@ fn handle_vote(
             let pair_info = pair_info_by_pool(deps.as_ref(), addr.clone())
                 .map_err(|_| ContractError::InvalidLPTokenAddress(addr.to_string()))?;
 
-            // Check if a pair is registered in the factory
-            deps.querier
-                .query_wasm_smart(
-                    config.factory_addr.clone(),
-                    &astroport::factory::QueryMsg::Pair {
-                        asset_infos: pair_info.asset_infos.clone(),
-                    },
-                )
-                .map_err(|_| {
-                    ContractError::Std(StdError::generic_err(format!(
-                        "The pair aren't registered: {}-{}",
-                        pair_info.asset_infos[0], pair_info.asset_infos[1]
-                    )))
-                })?;
+            // Check a pair is registered in factory
+            query_pair_info(
+                &deps.querier,
+                config.factory_addr.clone(),
+                &pair_info.asset_infos,
+            )
+            .map_err(|_| {
+                ContractError::Std(StdError::generic_err(format!(
+                    "The pair aren't registered: {}-{}",
+                    pair_info.asset_infos[0], pair_info.asset_infos[1]
+                )))
+            })?;
 
             let bps: BasicPoints = bps.try_into()?;
             Ok((addr, bps))

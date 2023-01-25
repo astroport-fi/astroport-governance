@@ -1,10 +1,11 @@
 use astroport::asset::AssetInfo;
 use astroport::generator::PoolInfoResponse;
-use cosmwasm_std::{attr, Addr, Decimal, Uint128};
-use cw_multi_test::Executor;
+use cosmwasm_std::{attr, Addr, Decimal, StdResult, Uint128};
+use cw_multi_test::{App, ContractWrapper, Executor};
 use generator_controller::astroport;
 use std::str::FromStr;
 
+use crate::astroport::asset::PairInfo;
 use astroport_governance::generator_controller::{
     ConfigResponse, ExecuteMsg, QueryMsg, VOTERS_MAX_LIMIT,
 };
@@ -13,59 +14,6 @@ use astroport_tests::{
     controller_helper::ControllerHelper, escrow_helper::MULTIPLIER, mock_app, TerraAppExtension,
 };
 use generator_controller::state::TuneInfo;
-
-#[test]
-fn test_jam_tuning() {
-    // reproduced in contracts/generator_controller/tests/integration.rs
-    let mut router = mock_app();
-    let owner = "owner";
-    let owner_addr = Addr::unchecked(owner);
-    let helper = ControllerHelper::init(&mut router, &owner_addr);
-    let mut pools_to_vote: Vec<(String, u16)> = vec![];
-    // attacker creates 1000 child contracts that implements the Minter{}
-    // the MinterResponse.minter query points to the parent contract implements
-
-    for _ in 0..100000 {
-        let pool = helper
-            .create_pool_with_tokens(&mut router, &"FOO", &"BAR")
-            .unwrap();
-        let pool_to_vote = (pool.to_string(), 1000_u16);
-        pools_to_vote.push(pool_to_vote);
-    }
-    assert_eq!(pools_to_vote.len(), 100000);
-    // attacker create 100 accounts and stakes for voting power
-    let mut attacker_accounts: Vec<String> = vec![];
-    for i in 0..100 {
-        let s = String::new() + "user" + &i.to_string();
-        attacker_accounts.push(s.clone());
-        helper.escrow_helper.mint_xastro(&mut router, &s, 1000);
-        helper
-            .escrow_helper
-            .create_lock(&mut router, &s, 2 * WEEK, 100f32)
-            .unwrap();
-    }
-    // 100 accounts each vote for 10 pools (hopefully its realistic enough)
-    let per_account = pools_to_vote.len() / attacker_accounts.len();
-    let mut pool_iter = pools_to_vote.clone().into_iter();
-    for acc in attacker_accounts {
-        let to_vote: Vec<_> = pool_iter.by_ref().take(per_account).collect();
-        helper.vote(&mut router, &acc, to_vote.clone()).unwrap();
-    }
-    // ensure all 1000 pools are recorded in contract
-    assert_eq!(pool_iter.len(), 0);
-    /*
-    - Try to tune pool, since all POOLS are fetched without limit, an attacker
-    can cause it to fail
-    // contracts/generator_controller/src/contract.rs:399
-    let pool_votes: Vec<_> = POOLS
-    .keys(deps.as_ref().storage, None, None, Order::Ascending)
-    .collect::<Vec<_>>()
-    .into_iter()
-    .map()
-    */
-    router.next_block(WEEK * 2);
-    helper.tune(&mut router).unwrap();
-}
 
 #[test]
 fn update_configs() {
@@ -375,12 +323,60 @@ fn check_vote_works() {
         .unwrap();
 }
 
+fn create_unregistered_pool(
+    router: &mut App,
+    helper: &mut ControllerHelper,
+) -> StdResult<PairInfo> {
+    let pair_contract = Box::new(
+        ContractWrapper::new_with_empty(
+            astroport_pair::contract::execute,
+            astroport_pair::contract::instantiate,
+            astroport_pair::contract::query,
+        )
+        .with_reply_empty(astroport_pair::contract::reply),
+    );
+
+    let pair_code_id = router.store_code(pair_contract);
+
+    let test_token1 = helper.init_cw20_token(router, "TST").unwrap();
+    let test_token2 = helper.init_cw20_token(router, "TSB").unwrap();
+
+    let pair_addr = router
+        .instantiate_contract(
+            pair_code_id,
+            Addr::unchecked("owner"),
+            &astroport::pair::InstantiateMsg {
+                asset_infos: [
+                    AssetInfo::Token {
+                        contract_addr: test_token1.clone(),
+                    },
+                    AssetInfo::Token {
+                        contract_addr: test_token2.clone(),
+                    },
+                ],
+                token_code_id: 1,
+                factory_addr: helper.factory.to_string(),
+                init_params: None,
+            },
+            &[],
+            "Unregistered pair".to_string(),
+            None,
+        )
+        .unwrap();
+
+    let res: PairInfo = router
+        .wrap()
+        .query_wasm_smart(pair_addr, &astroport::pair::QueryMsg::Pair {})?;
+
+    Ok(res)
+}
+
 #[test]
 fn check_tuning() {
     let mut router = mock_app();
     let owner = "owner";
     let owner_addr = Addr::unchecked(owner);
-    let helper = ControllerHelper::init(&mut router, &owner_addr);
+    let mut helper = ControllerHelper::init(&mut router, &owner_addr);
     let user1 = "user1";
     let user2 = "user2";
     let user3 = "user3";
@@ -405,6 +401,23 @@ fn check_tuning() {
             .create_lock(&mut router, user, duration * WEEK, 100f32)
             .unwrap();
     }
+
+    let res = create_unregistered_pool(&mut router, &mut helper).unwrap();
+    let err = helper
+        .vote(
+            &mut router,
+            user1,
+            vec![
+                (pools[0].as_str(), 5000),
+                (pools[1].as_str(), 4000),
+                (res.liquidity_token.as_str(), 1000),
+            ],
+        )
+        .unwrap_err();
+    assert_eq!(
+        "Generic error: The pair aren't registered: contract20-contract21",
+        err.root_cause().to_string()
+    );
 
     helper
         .vote(
@@ -620,12 +633,20 @@ fn check_bad_pools_filtering() {
         )
         .unwrap();
 
-    // Vote for deregistered pool
-    helper
+    // We cannot vote for deregistered pool
+    let err = helper
         .vote(&mut router, user, vec![(pools[0].as_str(), 10000)])
-        .unwrap();
+        .unwrap_err();
+    assert_eq!(
+        "Generic error: The pair aren't registered: contract8-contract9",
+        err.root_cause().to_string()
+    );
+
     let err = helper.tune(&mut router).unwrap_err();
-    assert_eq!(err.root_cause().to_string(), "There are no pools to tune");
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Generic error: The pair aren't registered: contract8-contract9"
+    );
 
     router.next_block(2 * WEEK);
 
@@ -645,16 +666,12 @@ fn check_bad_pools_filtering() {
         )
         .unwrap();
 
-    // Voting for 2 blocked pools and one valid pool
+    // Voting for 2 valid pools
     helper
         .vote(
             &mut router,
             user,
-            vec![
-                (pools[0].as_str(), 1000),
-                (pools[1].as_str(), 1000),
-                (pools[2].as_str(), 8000),
-            ],
+            vec![(pools[1].as_str(), 1000), (pools[2].as_str(), 8000)],
         )
         .unwrap();
 
