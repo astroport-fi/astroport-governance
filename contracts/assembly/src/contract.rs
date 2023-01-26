@@ -170,7 +170,7 @@ pub fn receive_cw20(
             deps,
             env,
             info,
-            cw20_msg.sender,
+            Addr::unchecked(cw20_msg.sender),
             cw20_msg.amount,
             title,
             description,
@@ -207,7 +207,7 @@ pub fn submit_proposal(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    sender: String,
+    sender: Addr,
     deposit_amount: Uint128,
     title: String,
     description: String,
@@ -241,7 +241,7 @@ pub fn submit_proposal(
 
     let proposal = Proposal {
         proposal_id: count,
-        submitter: Addr::unchecked(sender.clone()),
+        submitter: sender.clone(),
         status: ProposalStatus::Active,
         for_power: Uint128::zero(),
         against_power: Uint128::zero(),
@@ -453,14 +453,19 @@ pub fn execute_proposal(
 
     let messages;
     if let Some(channel) = &proposal.ibc_channel {
-        proposal.status = ProposalStatus::InProgress;
-        PROPOSALS.save(deps.storage, proposal_id, &proposal)?;
-
         let config = CONFIG.load(deps.storage)?;
+
+        if proposal.messages.is_some() {
+            proposal.status = ProposalStatus::InProgress;
+        } else {
+            proposal.status = ProposalStatus::Executed;
+        }
+        PROPOSALS.save(deps.storage, proposal_id, &proposal)?;
 
         messages = match proposal.messages {
             Some(mut messages) => {
                 messages.sort_by(|a, b| a.order.cmp(&b.order));
+
                 vec![CosmosMsg::Wasm(wasm_execute(
                     &config
                         .ibc_controller
@@ -477,7 +482,6 @@ pub fn execute_proposal(
         };
     } else {
         proposal.status = ProposalStatus::Executed;
-
         PROPOSALS.save(deps.storage, proposal_id, &proposal)?;
 
         messages = match proposal.messages {
