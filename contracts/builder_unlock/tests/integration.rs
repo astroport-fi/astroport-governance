@@ -738,7 +738,7 @@ fn test_withdraw() {
             },
         )
         .unwrap();
-    assert_eq!(unlock_resp, Uint128::from(1232876553779u64));
+    assert_eq!(unlock_resp, Uint128::from(2465753266108u64));
 
     // Check Number of tokens that can be withdrawn
     sim_withdraw_resp = app
@@ -754,7 +754,7 @@ fn test_withdraw() {
 
     assert_eq!(
         sim_withdraw_resp.astro_to_withdraw,
-        Uint128::from(1232876553779u64)
+        Uint128::from(2465753266108u64)
     );
 
     app.update_block(|b| {
@@ -772,7 +772,7 @@ fn test_withdraw() {
             },
         )
         .unwrap();
-    assert_eq!(unlock_resp, Uint128::from(1232877505073u64));
+    assert_eq!(unlock_resp, Uint128::from(2465754217402u64));
 
     // Check Number of tokens that can be withdrawn
     sim_withdraw_resp = app
@@ -788,7 +788,7 @@ fn test_withdraw() {
 
     assert_eq!(
         sim_withdraw_resp.astro_to_withdraw,
-        Uint128::from(1232877505073u64)
+        Uint128::from(2465754217402u64)
     );
 
     app.execute_contract(
@@ -924,7 +924,7 @@ fn test_propose_new_receiver() {
         .unwrap_err();
     assert_eq!(
         err.root_cause().to_string(),
-        "Generic error: Invalid new_receiver. Proposed receiver already has an ASTRO allocation of 5000000000000 ASTRO"
+        "Generic error: Invalid new_receiver. Proposed receiver already has an ASTRO allocation"
     );
 
     // ######   SUCCESSFULLY PROPOSES NEW RECEIVER   ######
@@ -1408,24 +1408,24 @@ fn test_increase_and_decrease_allocation() {
         &mut app,
         &unlock_instance,
         &Addr::unchecked("investor"),
-        Uint128::new(80_471_753_437u128),
+        Uint128::new(81_449_143_155u128),
     );
 
-    // Try to decrease 4919528246563 ASTRO
+    // Try to decrease 4918550856846 ASTRO
     let err = app
         .execute_contract(
             Addr::unchecked(OWNER.clone()),
             unlock_instance.clone(),
             &ExecuteMsg::DecreaseAllocation {
                 receiver: "investor".to_string(),
-                amount: Uint128::from(4_919_528_246_564u128),
+                amount: Uint128::from(4_918_550_856_846u128),
             },
             &[],
         )
         .unwrap_err();
     assert_eq!(
         err.root_cause().to_string(),
-        "Generic error: Insufficient amount of lock to decrease allocation, user has locked 4919528246563 ASTRO."
+        "Generic error: Insufficient amount of lock to decrease allocation, user has locked 4918550856845 ASTRO."
     );
 
     app.execute_contract(
@@ -1444,7 +1444,7 @@ fn test_increase_and_decrease_allocation() {
         &mut app,
         &unlock_instance,
         &Addr::unchecked("investor"),
-        Uint128::new(80_471_753_437u128),
+        Uint128::new(81_449_143_155u128),
     );
     let res: StateResponse = app
         .wrap()
@@ -1455,7 +1455,7 @@ fn test_increase_and_decrease_allocation() {
         res,
         StateResponse {
             total_astro_deposited: Uint128::new(5_000_000_000_000u128),
-            remaining_astro_tokens: Uint128::new(3_984_687_561_087u128),
+            remaining_astro_tokens: Uint128::new(3_983_710_171_369u128),
             unallocated_astro_tokens: Uint128::new(1_000_000_000_000u128)
         }
     );
@@ -1535,7 +1535,7 @@ fn test_increase_and_decrease_allocation() {
             },
         )
         .unwrap();
-    assert_eq!(res.balance, Uint128::from(80_471_753_437u128));
+    assert_eq!(res.balance, Uint128::from(81_449_143_155u128));
 
     // Check allocation amount after decreasing and increasing
     check_alloc_amount(
@@ -1564,8 +1564,8 @@ fn test_increase_and_decrease_allocation() {
     assert_eq!(
         res,
         StateResponse {
-            total_astro_deposited: Uint128::new(5_000_000_001_000u128),
-            remaining_astro_tokens: Uint128::new(4_419_528_247_563u128),
+            total_astro_deposited: Uint128::new(4_500_000_001_000u128),
+            remaining_astro_tokens: Uint128::new(4_418_550_857_845u128),
             unallocated_astro_tokens: Uint128::zero()
         }
     );

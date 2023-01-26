@@ -1,4 +1,3 @@
-use crate::astroport::asset::addr_validate_to_lower;
 use crate::astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
@@ -69,9 +68,9 @@ pub fn instantiate(
     }
     let slashed_fund_receiver = msg
         .slashed_fund_receiver
-        .map(|addr| addr_validate_to_lower(deps.api, &addr))
+        .map(|addr| deps.api.addr_validate(&addr))
         .transpose()?;
-    let deposit_token_addr = addr_validate_to_lower(deps.api, &msg.deposit_token_addr)?;
+    let deposit_token_addr = deps.api.addr_validate(&msg.deposit_token_addr)?;
 
     // Initialize early withdraw parameters
     let xastro_minter_resp: MinterResponse = deps
@@ -83,16 +82,16 @@ pub fn instantiate(
     )?;
 
     let mut config = Config {
-        owner: addr_validate_to_lower(deps.api, &msg.owner)?,
+        owner: deps.api.addr_validate(&msg.owner)?,
         guardian_addr: None,
         deposit_token_addr,
         max_exit_penalty: msg.max_exit_penalty,
         astro_addr: staking_config.deposit_token_addr,
-        xastro_staking_addr: addr_validate_to_lower(deps.api, &xastro_minter_resp.minter)?,
+        xastro_staking_addr: deps.api.addr_validate(&xastro_minter_resp.minter)?,
         slashed_fund_receiver,
     };
     if let Some(guardian_addr) = msg.guardian_addr {
-        config.guardian_addr = Some(addr_validate_to_lower(deps.api, &guardian_addr)?);
+        config.guardian_addr = Some(deps.api.addr_validate(&guardian_addr)?);
     }
     CONFIG.save(deps.storage, &config)?;
 
@@ -127,7 +126,7 @@ pub fn instantiate(
             description: marketing.description,
             marketing: marketing
                 .marketing
-                .map(|addr| addr_validate_to_lower(deps.api, &addr))
+                .map(|addr| deps.api.addr_validate(&addr))
                 .transpose()?,
             logo,
         };
@@ -439,14 +438,14 @@ fn receive_cw20(
     cw20_msg: Cw20ReceiveMsg,
 ) -> Result<Response, ContractError> {
     xastro_token_check(deps.as_ref(), info.sender)?;
-    let sender = addr_validate_to_lower(deps.api, &cw20_msg.sender)?;
+    let sender = deps.api.addr_validate(&cw20_msg.sender)?;
     blacklist_check(deps.as_ref(), &sender)?;
 
     match from_binary(&cw20_msg.msg)? {
         Cw20HookMsg::CreateLock { time } => create_lock(deps, env, sender, cw20_msg.amount, time),
         Cw20HookMsg::ExtendLockAmount {} => deposit_for(deps, env, cw20_msg.amount, sender),
         Cw20HookMsg::DepositFor { user } => {
-            let addr = addr_validate_to_lower(deps.api, &user)?;
+            let addr = deps.api.addr_validate(&user)?;
             blacklist_check(deps.as_ref(), &addr)?;
             deposit_for(deps, env, cw20_msg.amount, addr)
         }
@@ -615,8 +614,7 @@ fn configure_early_withdrawal(
         }
     }
     if let Some(slashed_fund_receiver) = slashed_fund_receiver {
-        config.slashed_fund_receiver =
-            Some(addr_validate_to_lower(deps.api, &slashed_fund_receiver)?);
+        config.slashed_fund_receiver = Some(deps.api.addr_validate(&slashed_fund_receiver)?);
     }
 
     CONFIG.save(deps.storage, &config)?;
@@ -1009,7 +1007,7 @@ fn execute_update_config(
     }
 
     if let Some(new_guardian) = new_guardian {
-        cfg.guardian_addr = Some(addr_validate_to_lower(deps.api, &new_guardian)?);
+        cfg.guardian_addr = Some(deps.api.addr_validate(&new_guardian)?);
     }
 
     CONFIG.save(deps.storage, &cfg)?;
@@ -1102,7 +1100,7 @@ pub fn check_voters_are_blacklisted(
     let black_list = BLACKLIST.load(deps.storage)?;
 
     for voter in voters {
-        let voter_addr = addr_validate_to_lower(deps.api, voter.as_str())?;
+        let voter_addr = deps.api.addr_validate(voter.as_str())?;
         if !black_list.contains(&voter_addr) {
             return Ok(BlacklistedVotersResponse::VotersNotBlacklisted { voter });
         }
@@ -1139,7 +1137,7 @@ pub fn get_blacklisted_voters(
 
     let mut start_index = Default::default();
     if let Some(start_after) = start_after {
-        let start_addr = addr_validate_to_lower(deps.api, start_after.as_str())?;
+        let start_addr = deps.api.addr_validate(start_after.as_str())?;
         start_index = black_list
             .iter()
             .position(|addr| *addr == start_addr)
@@ -1165,7 +1163,7 @@ pub fn get_blacklisted_voters(
 ///
 /// * **user** is an object of type [`String`]. This is the address of the user for which we return lock information.
 fn get_user_lock_info(deps: Deps, env: Env, user: String) -> StdResult<LockInfoResponse> {
-    let addr = addr_validate_to_lower(deps.api, &user)?;
+    let addr = deps.api.addr_validate(&user)?;
     if let Some(lock) = LOCKED.may_load(deps.storage, addr.clone())? {
         let cur_period = get_period(env.block.time.seconds())?;
         let slope = fetch_last_checkpoint(deps, &addr, cur_period)?
@@ -1193,7 +1191,7 @@ fn get_user_lock_info(deps: Deps, env: Env, user: String) -> StdResult<LockInfoR
 ///
 /// * **user** is an object of type [`String`].
 fn get_early_withdraw_amount(deps: Deps, env: Env, user: String) -> StdResult<Uint128> {
-    let user = addr_validate_to_lower(deps.api, &user)?;
+    let user = deps.api.addr_validate(&user)?;
     let lock = LOCKED.may_load(deps.storage, user)?;
 
     let cur_period = get_period(env.block.time.seconds())?;
@@ -1223,7 +1221,7 @@ fn get_early_withdraw_amount(deps: Deps, env: Env, user: String) -> StdResult<Ui
 ///
 /// * **block_height** is an object of type u64. This is the block height at which we return the staked xASTRO amount.
 fn get_user_deposit_at_height(deps: Deps, user: String, block_height: u64) -> StdResult<Uint128> {
-    let addr = addr_validate_to_lower(deps.api, &user)?;
+    let addr = deps.api.addr_validate(&user)?;
     let locked_opt = LOCKED.may_load_at_height(deps.storage, addr, block_height)?;
     if let Some(lock) = locked_opt {
         Ok(lock.amount)
@@ -1266,7 +1264,7 @@ fn get_user_voting_power_at_period(
     user: String,
     period: u64,
 ) -> StdResult<VotingPowerResponse> {
-    let user = addr_validate_to_lower(deps.api, &user)?;
+    let user = deps.api.addr_validate(&user)?;
     let period_key = period;
 
     let last_checkpoint = fetch_last_checkpoint(deps, &user, period_key)?;

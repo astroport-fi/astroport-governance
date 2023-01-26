@@ -55,6 +55,12 @@ pub enum ContractError {
 
     #[error("Messages check passed. Nothing was committed to the blockchain")]
     MessagesCheckPassed {},
+
+    #[error("IBC controller does not have channel {0}")]
+    InvalidChannel(String),
+
+    #[error("IBC controller is not set")]
+    MissingIBCController {},
 }
 
 impl From<OverflowError> for ContractError {

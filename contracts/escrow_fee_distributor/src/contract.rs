@@ -7,7 +7,6 @@ use crate::error::ContractError;
 use crate::state::{Config, CONFIG, LAST_CLAIM_PERIOD, OWNERSHIP_PROPOSAL, REWARDS_PER_WEEK};
 
 use crate::utils::transfer_token_amount;
-use astroport::asset::addr_validate_to_lower;
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 
 use astroport_governance::escrow_fee_distributor::{
@@ -56,9 +55,9 @@ pub fn instantiate(
     CONFIG.save(
         deps.storage,
         &Config {
-            owner: addr_validate_to_lower(deps.api, &msg.owner)?,
-            astro_token: addr_validate_to_lower(deps.api, &msg.astro_token)?,
-            voting_escrow_addr: addr_validate_to_lower(deps.api, &msg.voting_escrow_addr)?,
+            owner: deps.api.addr_validate(&msg.owner)?,
+            astro_token: deps.api.addr_validate(&msg.astro_token)?,
+            voting_escrow_addr: deps.api.addr_validate(&msg.voting_escrow_addr)?,
             is_claim_disabled: msg.is_claim_disabled.unwrap_or(false),
             claim_many_limit: msg.claim_many_limit.unwrap_or(CLAIM_LIMIT),
         },
@@ -191,10 +190,9 @@ pub fn claim(
     info: MessageInfo,
     recipient: Option<String>,
 ) -> Result<Response, ContractError> {
-    let recipient_addr = addr_validate_to_lower(
-        deps.api,
-        &recipient.unwrap_or_else(|| info.sender.to_string()),
-    )?;
+    let recipient_addr = deps
+        .api
+        .addr_validate(&recipient.unwrap_or_else(|| info.sender.to_string()))?;
 
     let config: Config = CONFIG.load(deps.storage)?;
 
@@ -249,7 +247,7 @@ fn claim_many(
     let mut transfer_msg = vec![];
 
     for receiver in receivers {
-        let receiver_addr = addr_validate_to_lower(deps.api, &receiver)?;
+        let receiver_addr = deps.api.addr_validate(&receiver)?;
         let claim_amount = calc_claim_amount(
             deps.branch(),
             env.clone(),

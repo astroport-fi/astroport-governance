@@ -2,7 +2,7 @@ use std::collections::HashSet;
 use std::convert::TryInto;
 
 use crate::astroport;
-use astroport::asset::{addr_validate_to_lower, pair_info_by_pool};
+use astroport::asset::pair_info_by_pool;
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
@@ -63,10 +63,10 @@ pub fn instantiate(
     CONFIG.save(
         deps.storage,
         &Config {
-            owner: addr_validate_to_lower(deps.api, &msg.owner)?,
-            escrow_addr: addr_validate_to_lower(deps.api, &msg.escrow_addr)?,
-            generator_addr: addr_validate_to_lower(deps.api, &msg.generator_addr)?,
-            factory_addr: addr_validate_to_lower(deps.api, &msg.factory_addr)?,
+            owner: deps.api.addr_validate(&msg.owner)?,
+            escrow_addr: deps.api.addr_validate(&msg.escrow_addr)?,
+            generator_addr: deps.api.addr_validate(&msg.generator_addr)?,
+            factory_addr: deps.api.addr_validate(&msg.factory_addr)?,
             pools_limit: validate_pools_limit(msg.pools_limit)?,
             blacklisted_voters_limit: None,
             main_pool: None,
@@ -203,7 +203,7 @@ fn kick_blacklisted_voters(deps: DepsMut, env: Env, voters: Vec<String>) -> Exec
     }
 
     for voter in voters {
-        let voter_addr = addr_validate_to_lower(deps.api, &voter)?;
+        let voter_addr = deps.api.addr_validate(&voter)?;
         if let Some(user_info) = USER_INFO.may_load(deps.storage, &voter_addr)? {
             if user_info.lock_end > block_period {
                 let user_last_vote_period = get_period(user_info.vote_ts)?;
@@ -300,7 +300,7 @@ fn handle_vote(
     let votes = votes
         .into_iter()
         .map(|(addr, bps)| {
-            let addr = addr_validate_to_lower(deps.api, &addr)?;
+            let addr = deps.api.addr_validate(&addr)?;
             // Voting for the main pool is prohibited
             if let Some(main_pool) = &config.main_pool {
                 if &addr == main_pool {
@@ -530,7 +530,7 @@ fn update_config(
         if config.main_pool_min_alloc.is_zero() {
             return Err(StdError::generic_err("Main pool min alloc can not be zero").into());
         }
-        config.main_pool = Some(addr_validate_to_lower(deps.api, &main_pool)?);
+        config.main_pool = Some(deps.api.addr_validate(&main_pool)?);
     }
 
     if let Some(remove_main_pool) = remove_main_pool {
@@ -601,7 +601,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 /// # Description
 /// Returns user information using a [`UserInfoResponse`] object.
 fn user_info(deps: Deps, user: String) -> StdResult<UserInfoResponse> {
-    let user_addr = addr_validate_to_lower(deps.api, &user)?;
+    let user_addr = deps.api.addr_validate(&user)?;
     USER_INFO
         .may_load(deps.storage, &user_addr)?
         .map(UserInfo::into_response)
@@ -616,7 +616,7 @@ fn pool_info(
     pool_addr: String,
     period: Option<u64>,
 ) -> StdResult<VotedPoolInfo> {
-    let pool_addr = addr_validate_to_lower(deps.api, &pool_addr)?;
+    let pool_addr = deps.api.addr_validate(&pool_addr)?;
     let block_period = get_period(env.block.time.seconds())?;
     let period = period.unwrap_or(block_period);
     get_pool_info(deps.storage, period, &pool_addr)

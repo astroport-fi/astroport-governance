@@ -1,13 +1,13 @@
 use cosmwasm_std::{
-    attr, entry_point, from_binary, to_binary, Addr, Binary, CosmosMsg, Decimal, Deps, DepsMut,
-    Env, MessageInfo, Order, Response, StdResult, Uint128, Uint64, WasmMsg,
+    attr, entry_point, from_binary, to_binary, wasm_execute, Addr, Binary, CosmosMsg, Decimal,
+    Deps, DepsMut, Env, IbcQuery, ListChannelsResponse, MessageInfo, Order, QuerierWrapper,
+    QueryRequest, Response, StdResult, Uint128, Uint64, WasmMsg,
 };
 use cw2::{get_contract_version, set_contract_version};
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20ReceiveMsg};
 use cw_storage_plus::Bound;
 use std::str::FromStr;
 
-use astroport::asset::addr_validate_to_lower;
 use astroport_governance::assembly::{
     helpers::validate_links, Config, Cw20HookMsg, ExecuteMsg, InstantiateMsg, Proposal,
     ProposalListResponse, ProposalMessage, ProposalStatus, ProposalVoteOption,
@@ -21,7 +21,7 @@ use astroport_governance::builder_unlock::msg::{
 use astroport_governance::voting_escrow::{QueryMsg as VotingEscrowQueryMsg, VotingPowerResponse};
 
 use crate::error::ContractError;
-use crate::migration::{MigrateMsg, CONFIGV100, CONFIGV101};
+use crate::migration::{migrate_config, migrate_proposals, MigrateMsg};
 use crate::state::{CONFIG, PROPOSALS, PROPOSAL_COUNT};
 
 // Contract name and version used for migration.
@@ -60,9 +60,10 @@ pub fn instantiate(
     validate_links(&msg.whitelisted_links)?;
 
     let mut config = Config {
-        xastro_token_addr: addr_validate_to_lower(deps.api, &msg.xastro_token_addr)?,
+        xastro_token_addr: deps.api.addr_validate(&msg.xastro_token_addr)?,
         vxastro_token_addr: None,
-        builder_unlock_addr: addr_validate_to_lower(deps.api, &msg.builder_unlock_addr)?,
+        ibc_controller: None,
+        builder_unlock_addr: deps.api.addr_validate(&msg.builder_unlock_addr)?,
         proposal_voting_period: msg.proposal_voting_period,
         proposal_effective_delay: msg.proposal_effective_delay,
         proposal_expiration_period: msg.proposal_expiration_period,
@@ -73,7 +74,11 @@ pub fn instantiate(
     };
 
     if let Some(vxastro_token_addr) = msg.vxastro_token_addr {
-        config.vxastro_token_addr = Some(addr_validate_to_lower(deps.api, &vxastro_token_addr)?);
+        config.vxastro_token_addr = Some(deps.api.addr_validate(&vxastro_token_addr)?);
+    }
+
+    if let Some(ibc_controller) = msg.ibc_controller {
+        config.ibc_controller = Some(deps.api.addr_validate(&ibc_controller)?);
     }
 
     config.validate()?;
@@ -129,6 +134,10 @@ pub fn execute(
             remove_completed_proposal(deps, env, info, proposal_id)
         }
         ExecuteMsg::UpdateConfig(config) => update_config(deps, env, info, config),
+        ExecuteMsg::IBCProposalCompleted {
+            proposal_id,
+            status,
+        } => update_ibc_proposal_status(deps, info, proposal_id, status),
     }
 }
 
@@ -156,17 +165,22 @@ pub fn receive_cw20(
             description,
             link,
             messages,
-        } => submit_proposal(
-            deps,
-            env,
-            info,
-            Addr::unchecked(cw20_msg.sender),
-            cw20_msg.amount,
-            title,
-            description,
-            link,
-            messages,
-        ),
+            ibc_channel,
+        } => {
+            let sender = deps.api.addr_validate(&cw20_msg.sender)?;
+            submit_proposal(
+                deps,
+                env,
+                info,
+                sender,
+                cw20_msg.amount,
+                title,
+                description,
+                link,
+                messages,
+                ibc_channel,
+            )
+        }
     }
 }
 
@@ -202,6 +216,7 @@ pub fn submit_proposal(
     description: String,
     link: Option<String>,
     messages: Option<Vec<ProposalMessage>>,
+    ibc_channel: Option<String>,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
 
@@ -217,6 +232,15 @@ pub fn submit_proposal(
     let count = PROPOSAL_COUNT.update(deps.storage, |c| -> StdResult<_> {
         Ok(c.checked_add(Uint64::new(1))?)
     })?;
+
+    // Check that controller exists and it supports this channel
+    if let Some(ibc_channel) = &ibc_channel {
+        if let Some(ibc_controller) = &config.ibc_controller {
+            check_controller_supports_channel(deps.querier, ibc_controller, ibc_channel)?;
+        } else {
+            return Err(ContractError::MissingIBCController {});
+        }
+    }
 
     let proposal = Proposal {
         proposal_id: count,
@@ -234,6 +258,7 @@ pub fn submit_proposal(
         link,
         messages,
         deposit_amount,
+        ibc_channel,
     };
 
     proposal.validate(config.whitelisted_links)?;
@@ -429,17 +454,36 @@ pub fn execute_proposal(
         return Err(ContractError::ExecuteProposalExpired {});
     }
 
-    proposal.status = ProposalStatus::Executed;
+    let messages;
+    if let Some(channel) = &proposal.ibc_channel {
+        proposal.status = ProposalStatus::InProgress;
+        PROPOSALS.save(deps.storage, proposal_id, &proposal)?;
 
-    PROPOSALS.save(deps.storage, proposal_id, &proposal)?;
+        let config = CONFIG.load(deps.storage)?;
+        messages = vec![CosmosMsg::Wasm(wasm_execute(
+            &config
+                .ibc_controller
+                .ok_or(ContractError::MissingIBCController {})?,
+            &ibc_controller_package::ExecuteMsg::IbcExecuteProposal {
+                channel_id: channel.to_string(),
+                proposal_id,
+                messages: proposal.messages.unwrap_or_default(),
+            },
+            vec![],
+        )?)];
+    } else {
+        proposal.status = ProposalStatus::Executed;
 
-    let messages = match proposal.messages {
-        Some(mut messages) => {
-            messages.sort_by(|a, b| a.order.cmp(&b.order));
-            messages.into_iter().map(|message| message.msg).collect()
-        }
-        None => vec![],
-    };
+        PROPOSALS.save(deps.storage, proposal_id, &proposal)?;
+
+        messages = match proposal.messages {
+            Some(mut messages) => {
+                messages.sort_by(|a, b| a.order.cmp(&b.order));
+                messages.into_iter().map(|message| message.msg).collect()
+            }
+            None => vec![],
+        };
+    }
 
     Ok(Response::new()
         .add_attribute("action", "execute_proposal")
@@ -537,15 +581,19 @@ pub fn update_config(
     }
 
     if let Some(xastro_token_addr) = updated_config.xastro_token_addr {
-        config.xastro_token_addr = addr_validate_to_lower(deps.api, &xastro_token_addr)?;
+        config.xastro_token_addr = deps.api.addr_validate(&xastro_token_addr)?;
     }
 
     if let Some(vxastro_token_addr) = updated_config.vxastro_token_addr {
-        config.vxastro_token_addr = Some(addr_validate_to_lower(deps.api, &vxastro_token_addr)?);
+        config.vxastro_token_addr = Some(deps.api.addr_validate(&vxastro_token_addr)?);
+    }
+
+    if let Some(ibc_controller) = updated_config.ibc_controller {
+        config.ibc_controller = Some(deps.api.addr_validate(&ibc_controller)?)
     }
 
     if let Some(builder_unlock_addr) = updated_config.builder_unlock_addr {
-        config.builder_unlock_addr = addr_validate_to_lower(deps.api, &builder_unlock_addr)?;
+        config.builder_unlock_addr = deps.api.addr_validate(&builder_unlock_addr)?;
     }
 
     if let Some(proposal_voting_period) = updated_config.proposal_voting_period {
@@ -601,6 +649,42 @@ pub fn update_config(
 }
 
 /// ## Description
+/// Updates proposal status InProgress -> Executed or Failed. Intended to be called in the end of
+/// the ibc execution cycle via ibc-controller. Only ibc controller is able to call this function.
+/// ## Params
+/// * **deps** cosmwasm dependencies,
+///
+/// * **info** message info,
+///
+/// * **id** proposal's id,
+///
+/// * **status** a new proposal status reported by ibc controller.
+fn update_ibc_proposal_status(
+    deps: DepsMut,
+    info: MessageInfo,
+    id: u64,
+    new_status: ProposalStatus,
+) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+    if Some(info.sender) == config.ibc_controller {
+        let mut proposal = PROPOSALS.load(deps.storage, id)?;
+        match (&proposal.status, &new_status) {
+            (
+                ProposalStatus::InProgress,
+                ProposalStatus::Executed {} | ProposalStatus::Failed {},
+            ) => {
+                proposal.status = new_status;
+                PROPOSALS.save(deps.storage, id, &proposal)?;
+                Ok(Response::new().add_attribute("action", "ibc_proposal_completed"))
+            }
+            _ => Err(ContractError::Unauthorized {}),
+        }
+    } else {
+        Err(ContractError::Unauthorized {})
+    }
+}
+
+/// ## Description
 /// Expose available contract queries.
 /// ## Params
 /// * **deps** is an object of type [`Deps`].
@@ -633,7 +717,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::UserVotingPower { user, proposal_id } => {
             let proposal = PROPOSALS.load(deps.storage, proposal_id)?;
 
-            addr_validate_to_lower(deps.api, &user)?;
+            deps.api.addr_validate(&user)?;
 
             to_binary(&calc_voting_power(deps, user, &proposal)?)
         }
@@ -822,6 +906,29 @@ pub fn calc_total_voting_power_at(deps: Deps, proposal: &Proposal) -> StdResult<
 }
 
 /// ## Description
+/// Checks that controller supports given IBC-channel.
+/// ## Params
+/// * **querier** is an object of type [`QuerierWrapper`].
+///
+/// * **ibc_controller** is an ibc controller contract address.
+///
+/// * **given_channel** is an IBC channel id the function needs to check.
+pub fn check_controller_supports_channel(
+    querier: QuerierWrapper,
+    ibc_controller: &Addr,
+    given_channel: &String,
+) -> Result<(), ContractError> {
+    let port_id = Some(format!("wasm.{}", ibc_controller));
+    let ListChannelsResponse { channels } =
+        querier.query(&QueryRequest::Ibc(IbcQuery::ListChannels { port_id }))?;
+    channels
+        .iter()
+        .find(|channel| &channel.endpoint.channel_id == given_channel)
+        .map(|_| ())
+        .ok_or_else(|| ContractError::InvalidChannel(given_channel.to_string()))
+}
+
+/// ## Description
 /// Used for contract migration. Returns a default object of type [`Response`].
 /// ## Params
 /// * **deps** is an object of type [`DepsMut`].
@@ -830,63 +937,18 @@ pub fn calc_total_voting_power_at(deps: Deps, proposal: &Proposal) -> StdResult<
 ///
 /// * **msg** is an object of type [`MigrateMsg`].
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
+pub fn migrate(mut deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
     let contract_version = get_contract_version(deps.storage)?;
 
     match contract_version.contract.as_ref() {
         "astro-assembly" => match contract_version.version.as_ref() {
-            "1.0.0" => {
-                let config_v100 = CONFIGV100.load(deps.storage)?;
+            "1.1.0" => {
+                migrate_config(&mut deps, &msg)?;
 
-                if msg.whitelisted_links.is_none() {
-                    return Err(ContractError::WhitelistEmpty {});
-                }
-                if let Some(links) = &msg.whitelisted_links {
-                    validate_links(links)?;
-                }
-
-                let config = Config {
-                    xastro_token_addr: config_v100.xastro_token_addr,
-                    vxastro_token_addr: Some(config_v100.vxastro_token_addr),
-                    builder_unlock_addr: config_v100.builder_unlock_addr,
-                    proposal_voting_period: msg
-                        .proposal_voting_period
-                        .ok_or(ContractError::MigrationError {})?,
-                    proposal_effective_delay: msg
-                        .proposal_effective_delay
-                        .ok_or(ContractError::MigrationError {})?,
-                    proposal_expiration_period: config_v100.proposal_expiration_period,
-                    proposal_required_deposit: config_v100.proposal_required_deposit,
-                    proposal_required_quorum: config_v100.proposal_required_quorum,
-                    proposal_required_threshold: config_v100.proposal_required_threshold,
-                    whitelisted_links: msg
-                        .whitelisted_links
-                        .ok_or(ContractError::MigrationError {})?,
-                };
-
-                config.validate()?;
-
-                CONFIG.save(deps.storage, &config)?;
+                migrate_proposals(deps.storage)?;
             }
-            "1.0.1" => {
-                let config_v101 = CONFIGV101.load(deps.storage)?;
-
-                let config = Config {
-                    xastro_token_addr: config_v101.xastro_token_addr,
-                    vxastro_token_addr: Some(config_v101.vxastro_token_addr),
-                    builder_unlock_addr: config_v101.builder_unlock_addr,
-                    proposal_voting_period: config_v101.proposal_voting_period,
-                    proposal_effective_delay: config_v101.proposal_effective_delay,
-                    proposal_expiration_period: config_v101.proposal_expiration_period,
-                    proposal_required_deposit: config_v101.proposal_required_deposit,
-                    proposal_required_quorum: config_v101.proposal_required_quorum,
-                    proposal_required_threshold: config_v101.proposal_required_threshold,
-                    whitelisted_links: config_v101.whitelisted_links,
-                };
-
-                CONFIG.save(deps.storage, &config)?;
-            }
-            "1.0.2" => {}
+            "1.2.0" => {}
+            "1.2.1" => {}
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),

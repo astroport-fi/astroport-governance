@@ -79,7 +79,9 @@ impl ControllerHelper {
             factory: factory.to_string(),
             generator_controller: None,
             guardian: None,
-            astro_token: escrow_helper.astro_token.to_string(),
+            astro_token: AssetInfo::Token {
+                contract_addr: escrow_helper.astro_token.clone(),
+            },
             tokens_per_block: Default::default(),
             start_block: Default::default(),
             vesting_contract: "vesting_placeholder".to_string(),

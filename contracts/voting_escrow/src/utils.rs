@@ -1,4 +1,3 @@
-use crate::astroport::asset::addr_validate_to_lower;
 use crate::error::ContractError;
 use astroport_governance::utils::{get_periods_count, MAX_LOCK_TIME, WEEK};
 use cosmwasm_std::{Addr, Decimal, Deps, DepsMut, Order, StdResult, Uint128};
@@ -141,7 +140,7 @@ pub(crate) fn fetch_slope_changes(
 pub(crate) fn validate_addresses(deps: Deps, addresses: &[String]) -> StdResult<Vec<Addr>> {
     addresses
         .iter()
-        .map(|addr| addr_validate_to_lower(deps.api, addr))
+        .map(|addr| deps.api.addr_validate(addr))
         .collect()
 }
 

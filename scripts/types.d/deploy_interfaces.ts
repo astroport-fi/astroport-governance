@@ -100,22 +100,11 @@ interface GeneratorController {
     label: string
 }
 
-interface VotingEscrowDelegation {
-    admin: string,
-    initMsg: {
-        owner: string,
-        voting_escrow_addr: string,
-        nft_code_id: number
-    },
-    label: string
-}
-
 interface Config {
     teamUnlock: TeamUnlock,
     assembly: Assembly,
     votingEscrow: VotingEscrow,
     feeDistributor: FeeDistributor,
     generatorController: GeneratorController,
-    votingEscrowDelegation: VotingEscrowDelegation,
     generalInfo: GeneralInfo
 }

@@ -105,14 +105,5 @@
       "pools_limit": 12
     },
     "label": "Astroport Generator Controller Contract"
-  },
-  "votingEscrowDelegation": {
-    "admin": null,
-    "initMsg": {
-      "owner": null,
-      "voting_escrow_addr": null,
-      "nft_code_id": null
-    },
-    "label": "Astroport Voting Escrow Delegation Contract"
   }
 }
