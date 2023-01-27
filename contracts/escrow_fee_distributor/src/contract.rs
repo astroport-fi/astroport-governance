@@ -552,7 +552,7 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, C
     let contract_version = get_contract_version(deps.storage)?;
 
     match contract_version.contract.as_ref() {
-        "astro-assembly" => match contract_version.version.as_ref() {
+        "astroport-escrow-fee-distributor" => match contract_version.version.as_ref() {
             "1.0.0" => {}
             _ => return Err(ContractError::MigrationError {}),
         },

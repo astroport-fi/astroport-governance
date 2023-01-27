@@ -647,10 +647,6 @@ pub fn migrate(mut deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response
     let contract_version = get_contract_version(deps.storage)?;
 
     match contract_version.contract.as_ref() {
-        "astro-generator-controller" => match contract_version.version.as_ref() {
-            "1.0.0" => migration::migrate_configs_to_v110(&mut deps, &msg)?,
-            _ => return Err(ContractError::MigrationError {}),
-        },
         "generator-controller" => match contract_version.version.as_ref() {
             "1.1.0" => {}
             _ => return Err(ContractError::MigrationError {}),
