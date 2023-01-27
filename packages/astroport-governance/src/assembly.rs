@@ -363,8 +363,6 @@ impl Display for ProposalStatus {
 /// This structure describes a proposal message.
 #[cw_serde]
 pub struct ProposalMessage {
-    /// Order of execution of the message
-    pub order: Uint64,
     /// Execution message
     pub msg: CosmosMsg,
 }

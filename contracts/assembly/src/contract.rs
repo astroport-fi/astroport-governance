@@ -21,7 +21,9 @@ use astroport_governance::builder_unlock::msg::{
 use astroport_governance::voting_escrow::{QueryMsg as VotingEscrowQueryMsg, VotingPowerResponse};
 
 use crate::error::ContractError;
-use crate::migration::{migrate_config, migrate_proposals, MigrateMsg};
+use crate::migration::{
+    migrate_config, migrate_proposals_from_v110, migrate_proposals_from_v121, MigrateMsg,
+};
 use crate::state::{CONFIG, PROPOSALS, PROPOSAL_COUNT};
 
 // Contract name and version used for migration.
@@ -455,17 +457,9 @@ pub fn execute_proposal(
     if let Some(channel) = &proposal.ibc_channel {
         let config = CONFIG.load(deps.storage)?;
 
-        if proposal.messages.is_some() {
-            proposal.status = ProposalStatus::InProgress;
-        } else {
-            proposal.status = ProposalStatus::Executed;
-        }
-        PROPOSALS.save(deps.storage, proposal_id, &proposal)?;
-
-        messages = match proposal.messages {
-            Some(mut messages) => {
-                messages.sort_by(|a, b| a.order.cmp(&b.order));
-
+        messages = match &proposal.messages {
+            Some(messages) => {
+                proposal.status = ProposalStatus::InProgress;
                 vec![CosmosMsg::Wasm(wasm_execute(
                     &config
                         .ibc_controller
@@ -473,22 +467,24 @@ pub fn execute_proposal(
                     &ibc_controller_package::ExecuteMsg::IbcExecuteProposal {
                         channel_id: channel.to_string(),
                         proposal_id,
-                        messages,
+                        messages: messages.to_vec(),
                     },
                     vec![],
                 )?)]
             }
-            None => vec![],
+            None => {
+                proposal.status = ProposalStatus::Executed;
+                vec![]
+            }
         };
+
+        PROPOSALS.save(deps.storage, proposal_id, &proposal)?;
     } else {
         proposal.status = ProposalStatus::Executed;
         PROPOSALS.save(deps.storage, proposal_id, &proposal)?;
 
         messages = match proposal.messages {
-            Some(mut messages) => {
-                messages.sort_by(|a, b| a.order.cmp(&b.order));
-                messages.into_iter().map(|message| message.msg).collect()
-            }
+            Some(messages) => messages.into_iter().map(|message| message.msg).collect(),
             None => vec![],
         };
     }
@@ -507,11 +503,7 @@ pub fn execute_proposal(
 /// * **env** is an object of type [`Env`].
 ///
 /// * **messages** is a vector of [`ProposalMessage`].
-pub fn check_messages(
-    env: Env,
-    mut messages: Vec<ProposalMessage>,
-) -> Result<Response, ContractError> {
-    messages.sort_by(|a, b| a.order.cmp(&b.order));
+pub fn check_messages(env: Env, messages: Vec<ProposalMessage>) -> Result<Response, ContractError> {
     let mut messages: Vec<_> = messages.into_iter().map(|message| message.msg).collect();
     messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: env.contract.address.to_string(),
@@ -950,12 +942,11 @@ pub fn migrate(mut deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response
         "astro-assembly" => match contract_version.version.as_ref() {
             "1.1.0" => {
                 migrate_config(&mut deps, &msg)?;
-
-                migrate_proposals(deps.storage)?;
+                migrate_proposals_from_v110(deps.storage)?;
+                migrate_proposals_from_v121(deps.storage)?;
             }
-            "1.2.0" => {}
             "1.2.1" => {
-                todo!("Remove the order field and migrate all proposals")
+                migrate_proposals_from_v121(deps.storage)?;
             }
             _ => return Err(ContractError::MigrationError {}),
         },

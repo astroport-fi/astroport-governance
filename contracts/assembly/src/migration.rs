@@ -1,5 +1,5 @@
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, Decimal, DepsMut, StdResult, Storage, Uint128, Uint64};
+use cosmwasm_std::{Addr, CosmosMsg, Decimal, DepsMut, StdResult, Storage, Uint128, Uint64};
 use cw_storage_plus::{Item, Map};
 
 use astroport_governance::assembly::{Config, Proposal, ProposalMessage, ProposalStatus};
@@ -60,6 +60,15 @@ enum ProposalStatus110 {
     Rejected,
 }
 
+/// This structure describes an old proposal message.
+#[cw_serde]
+pub struct OldProposalMessage {
+    /// Order of execution of the message
+    pub order: Uint64,
+    /// Execution message
+    pub msg: CosmosMsg,
+}
+
 #[cw_serde]
 struct ProposalV110 {
     pub proposal_id: Uint64,
@@ -75,13 +84,13 @@ struct ProposalV110 {
     pub title: String,
     pub description: String,
     pub link: Option<String>,
-    pub messages: Option<Vec<ProposalMessage>>,
+    pub messages: Option<Vec<OldProposalMessage>>,
     pub deposit_amount: Uint128,
 }
 
 const PROPOSALS_V110: Map<u64, ProposalV110> = Map::new("proposals");
 
-pub fn migrate_proposals(storage: &mut dyn Storage) -> StdResult<()> {
+pub fn migrate_proposals_from_v110(storage: &mut dyn Storage) -> StdResult<()> {
     let proposals = PROPOSALS_V110
         .range(storage, None, None, cosmwasm_std::Order::Ascending {})
         .collect::<StdResult<Vec<_>>>()?;
@@ -112,14 +121,69 @@ pub fn migrate_proposals(storage: &mut dyn Storage) -> StdResult<()> {
                 link: proposal.link,
                 messages: proposal.messages.map(|v| {
                     v.into_iter()
-                        .map(|m| ProposalMessage {
-                            msg: m.msg,
-                            order: m.order,
-                        })
+                        .map(|m| ProposalMessage { msg: m.msg })
                         .collect()
                 }),
                 deposit_amount: proposal.deposit_amount,
                 ibc_channel: None,
+            },
+        )?;
+    }
+    Ok(())
+}
+
+#[cw_serde]
+pub struct ProposalV121 {
+    pub proposal_id: Uint64,
+    pub submitter: Addr,
+    pub status: ProposalStatus,
+    pub for_power: Uint128,
+    pub against_power: Uint128,
+    pub for_voters: Vec<Addr>,
+    pub against_voters: Vec<Addr>,
+    pub start_block: u64,
+    pub start_time: u64,
+    pub end_block: u64,
+    pub title: String,
+    pub description: String,
+    pub link: Option<String>,
+    pub messages: Option<Vec<OldProposalMessage>>,
+    pub deposit_amount: Uint128,
+    pub ibc_channel: Option<String>,
+}
+
+const PROPOSALS_V121: Map<u64, ProposalV121> = Map::new("proposals");
+
+pub fn migrate_proposals_from_v121(storage: &mut dyn Storage) -> StdResult<()> {
+    let proposals = PROPOSALS_V121
+        .range(storage, None, None, cosmwasm_std::Order::Ascending {})
+        .collect::<StdResult<Vec<_>>>()?;
+
+    for (key, proposal) in proposals {
+        PROPOSALS.save(
+            storage,
+            key,
+            &Proposal {
+                proposal_id: proposal.proposal_id,
+                submitter: proposal.submitter,
+                status: proposal.status,
+                for_power: proposal.for_power,
+                against_power: proposal.against_power,
+                for_voters: proposal.for_voters,
+                against_voters: proposal.against_voters,
+                start_block: proposal.start_block,
+                start_time: proposal.start_time,
+                end_block: proposal.end_block,
+                title: proposal.title,
+                description: proposal.description,
+                link: proposal.link,
+                messages: proposal.messages.map(|v| {
+                    v.into_iter()
+                        .map(|m| ProposalMessage { msg: m.msg })
+                        .collect()
+                }),
+                deposit_amount: proposal.deposit_amount,
+                ibc_channel: proposal.ibc_channel,
             },
         )?;
     }

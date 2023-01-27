@@ -469,7 +469,6 @@ fn test_proposal_submitting() {
                 description: String::from("Description"),
                 link: Some(String::from("https://some.link/q/")),
                 messages: Some(vec![ProposalMessage {
-                    order: Uint64::from(0u32),
                     msg: CosmosMsg::Wasm(WasmMsg::Execute {
                         contract_addr: assembly_addr.to_string(),
                         msg: to_binary(&ExecuteMsg::UpdateConfig(UpdateConfig {
@@ -520,7 +519,6 @@ fn test_proposal_submitting() {
     assert_eq!(
         proposal.messages,
         Some(vec![ProposalMessage {
-            order: Uint64::from(0u32),
             msg: CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: assembly_addr.to_string(),
                 msg: to_binary(&ExecuteMsg::UpdateConfig(UpdateConfig {
@@ -650,7 +648,6 @@ fn test_successful_proposal() {
         &assembly_addr,
         Addr::unchecked("user0"),
         Some(vec![ProposalMessage {
-            order: Uint64::from(0u32),
             msg: CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: assembly_addr.to_string(),
                 msg: to_binary(&ExecuteMsg::UpdateConfig(UpdateConfig {
@@ -935,7 +932,6 @@ fn test_voting_power_changes() {
         &assembly_addr,
         Addr::unchecked("user0"),
         Some(vec![ProposalMessage {
-            order: Uint64::from(0u32),
             msg: CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: assembly_addr.to_string(),
                 msg: to_binary(&ExecuteMsg::UpdateConfig(UpdateConfig {
@@ -1268,8 +1264,7 @@ fn test_check_messages() {
         let messages = msgs
             .into_iter()
             .enumerate()
-            .map(|(i, (contract_addr, msg))| ProposalMessage {
-                order: Uint64::from(i as u64),
+            .map(|(_, (contract_addr, msg))| ProposalMessage {
                 msg: CosmosMsg::Wasm(WasmMsg::Execute {
                     contract_addr,
                     msg,
