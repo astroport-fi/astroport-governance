@@ -643,10 +643,7 @@ fn check_bad_pools_filtering() {
     );
 
     let err = helper.tune(&mut router).unwrap_err();
-    assert_eq!(
-        err.root_cause().to_string(),
-        "Generic error: The pair aren't registered: contract8-contract9"
-    );
+    assert_eq!(err.root_cause().to_string(), "There are no pools to tune");
 
     router.next_block(2 * WEEK);
 

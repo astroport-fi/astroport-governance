@@ -6,6 +6,7 @@ use astroport::factory::PairType;
 use cosmwasm_std::{Addr, Deps, Order, StdError, StdResult, Storage, Uint128};
 use cw_storage_plus::Bound;
 
+use crate::astroport::querier::query_pair_info;
 use astroport_governance::utils::calc_voting_power;
 
 use crate::bps::BasicPoints;
@@ -73,6 +74,9 @@ pub(crate) fn filter_pools(
         .filter_map(|(pool_addr, vxastro_amount)| {
             // Check the address is a LP token and retrieve a pair info
             let pair_info = pair_info_by_pool(deps, pool_addr).ok()?;
+
+            // Check a pair is registered in factory
+            query_pair_info(&deps.querier, factory_addr.clone(), &pair_info.asset_infos).ok()?;
 
             let condition = !blocklisted_pair_types.contains(&pair_info.pair_type)
                 && !blocked_tokens.contains(&pair_info.asset_infos[0])

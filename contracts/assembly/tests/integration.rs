@@ -1263,8 +1263,7 @@ fn test_check_messages() {
     let into_check_msg = |msgs: Vec<(String, Binary)>| {
         let messages = msgs
             .into_iter()
-            .enumerate()
-            .map(|(_, (contract_addr, msg))| ProposalMessage {
+            .map(|(contract_addr, msg)| ProposalMessage {
                 msg: CosmosMsg::Wasm(WasmMsg::Execute {
                     contract_addr,
                     msg,
