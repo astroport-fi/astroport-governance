@@ -670,7 +670,9 @@ fn update_ibc_proposal_status(
         let mut proposal = PROPOSALS.load(deps.storage, id)?;
 
         if proposal.status != ProposalStatus::InProgress {
-            return Err(ContractError::NotUpdatedProposalStatus {});
+            return Err(ContractError::WrongIbcProposalStatus(
+                proposal.status.to_string(),
+            ));
         }
 
         match new_status {
@@ -679,7 +681,7 @@ fn update_ibc_proposal_status(
                 PROPOSALS.save(deps.storage, id, &proposal)?;
                 Ok(Response::new().add_attribute("action", "ibc_proposal_completed"))
             }
-            _ => Err(ContractError::InvalidIBCProposalStatus(
+            _ => Err(ContractError::InvalidRemoteIbcProposalStatus(
                 new_status.to_string(),
             )),
         }

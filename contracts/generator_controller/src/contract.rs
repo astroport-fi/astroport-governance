@@ -25,7 +25,7 @@ use astroport_governance::voting_escrow::{
 
 use crate::bps::BasicPoints;
 use crate::error::ContractError;
-use crate::migration;
+
 use crate::state::{
     Config, TuneInfo, UserInfo, VotedPoolInfo, CONFIG, OWNERSHIP_PROPOSAL, POOLS, TUNE_INFO,
     USER_INFO,
@@ -643,7 +643,7 @@ fn pool_info(
 /// ## Description
 /// Used for migration of contract. Returns the default object of type [`Response`].
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(mut deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
+pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
     let contract_version = get_contract_version(deps.storage)?;
 
     match contract_version.contract.as_ref() {
