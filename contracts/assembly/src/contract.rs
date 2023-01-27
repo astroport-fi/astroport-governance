@@ -952,7 +952,9 @@ pub fn migrate(mut deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response
                 migrate_proposals(deps.storage)?;
             }
             "1.2.0" => {}
-            "1.2.1" => {}
+            "1.2.1" => {
+                todo!("Remove the order field and migrate all proposals")
+            }
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),
