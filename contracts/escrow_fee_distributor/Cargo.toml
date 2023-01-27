@@ -1,6 +1,6 @@
 [package]
 name = "astroport-escrow-fee-distributor"
-version = "1.0.0"
+version = "1.0.1"
 authors = ["Astroport"]
 edition = "2021"
 
@@ -20,6 +20,7 @@ cw-storage-plus = "0.15"
 thiserror = { version = "1.0" }
 astroport-governance = { path = "../../packages/astroport-governance" }
 cosmwasm-schema = "1.1"
+semver = "1"
 
 [dev-dependencies]
 cw-multi-test = "0.15"

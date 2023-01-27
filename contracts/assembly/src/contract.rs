@@ -684,7 +684,7 @@ fn update_ibc_proposal_status(
             )),
         }
     } else {
-        Err(ContractError::Unauthorized {})
+        Err(ContractError::InvalidIBCController {})
     }
 }
 

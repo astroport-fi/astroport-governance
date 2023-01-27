@@ -20,8 +20,9 @@ use astroport_governance::voting_escrow::{
 };
 use cw20::Cw20ReceiveMsg;
 
-use cw2::set_contract_version;
+use cw2::{get_contract_version, set_contract_version};
 use cw_storage_plus::Bound;
+use semver::Version;
 
 /// Contract name that is used for migration.
 const CONTRACT_NAME: &str = "astroport-escrow-fee-distributor";
@@ -548,6 +549,15 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
 ///
 /// * **_msg** is an object of type [`MigrateMsg`].
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
+    let version: Version = CONTRACT_VERSION.parse()?;
+    let storage_version: Version = get_contract_version(deps.storage)?.version.parse()?;
+
+    if storage_version < version {
+        set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+        return Err(ContractError::MigrationError {});
+        // If state structure changed in any contract version in the way migration is needed, it
+        // should occur here
+    }
     Ok(Response::default())
 }

@@ -64,13 +64,16 @@ pub enum ContractError {
     MissingIBCController {},
 
     #[error(
-        "The IBC controller can update a proposal only with the status {}",
+        "IBC controller can update a proposal only with the status {}",
         ProposalStatus::InProgress
     )]
     NotUpdatedProposalStatus {},
 
-    #[error("The IBC controller returns an invalid proposal status: {0} ")]
+    #[error("IBC controller returns an invalid proposal status: {0} ")]
     InvalidIBCProposalStatus(String),
+
+    #[error("Sender is not an IBC controller installed in the assembly")]
+    InvalidIBCController {},
 }
 
 impl From<OverflowError> for ContractError {
