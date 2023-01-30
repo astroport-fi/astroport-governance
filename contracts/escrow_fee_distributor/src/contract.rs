@@ -20,7 +20,7 @@ use astroport_governance::voting_escrow::{
 };
 use cw20::Cw20ReceiveMsg;
 
-use cw2::{get_contract_version, set_contract_version};
+use cw2::set_contract_version;
 use cw_storage_plus::Bound;
 
 /// Contract name that is used for migration.
@@ -548,22 +548,6 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
 ///
 /// * **_msg** is an object of type [`MigrateMsg`].
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
-    let contract_version = get_contract_version(deps.storage)?;
-
-    match contract_version.contract.as_ref() {
-        "astroport-escrow-fee-distributor" => match contract_version.version.as_ref() {
-            "1.0.0" => {}
-            _ => return Err(ContractError::MigrationError {}),
-        },
-        _ => return Err(ContractError::MigrationError {}),
-    };
-
-    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-
-    Ok(Response::new()
-        .add_attribute("previous_contract_name", &contract_version.contract)
-        .add_attribute("previous_contract_version", &contract_version.version)
-        .add_attribute("new_contract_name", CONTRACT_NAME)
-        .add_attribute("new_contract_version", CONTRACT_VERSION))
+pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
+    Err(ContractError::MigrationError {})
 }
