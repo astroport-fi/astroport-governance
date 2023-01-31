@@ -1,8 +1,10 @@
+use std::collections::HashSet;
 use std::ops::RangeInclusive;
 
 use crate::astroport;
 use astroport::asset::{pair_info_by_pool, AssetInfo};
 use astroport::factory::PairType;
+use astroport_governance::generator_controller::ConfigResponse;
 use cosmwasm_std::{Addr, Deps, Order, StdError, StdResult, Storage, Uint128};
 use cw_storage_plus::Bound;
 
@@ -338,4 +340,48 @@ pub(crate) fn validate_pools_limit(number: u64) -> Result<u64, ContractError> {
     } else {
         Ok(number)
     }
+}
+
+pub fn validate_pool(
+    deps: Deps,
+    config: &ConfigResponse,
+    pool: &Addr,
+) -> Result<(), ContractError> {
+    // Voting for or updating the main pool is prohibited
+    if let Some(main_pool) = &config.main_pool {
+        if pool == main_pool {
+            return Err(ContractError::MainPoolVoteOrWhitelistedProhibited(
+                main_pool.to_string(),
+            ));
+        }
+    }
+
+    // Check a pool is lp token
+    let pair_info = pair_info_by_pool(deps, pool.clone())
+        .map_err(|_| ContractError::InvalidLPTokenAddress(pool.to_string()))?;
+
+    // Check a pair is registered in the factory
+    query_pair_info(
+        &deps.querier,
+        config.factory_addr.clone(),
+        &pair_info.asset_infos,
+    )
+    .map_err(|_| {
+        ContractError::PairNotRegistered(
+            pair_info.asset_infos[0].to_string(),
+            pair_info.asset_infos[1].to_string(),
+        )
+    })?;
+
+    Ok(())
+}
+
+/// Checks for duplicate pools
+pub fn check_duplicated(votes: &[String]) -> Result<(), ContractError> {
+    let mut uniq = HashSet::new();
+    if !votes.iter().all(|lp_token| uniq.insert(lp_token)) {
+        return Err(ContractError::DuplicatedPools {});
+    }
+
+    Ok(())
 }

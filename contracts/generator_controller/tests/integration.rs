@@ -68,6 +68,15 @@ fn check_kick_holders_works() {
         .create_lock(&mut router, "user1", WEEK, 100f32)
         .unwrap();
 
+    helper
+        .update_whitelist(
+            &mut router,
+            "owner",
+            Some(pools.iter().map(|el| el.to_string()).collect()),
+            None,
+        )
+        .unwrap();
+
     // Votes from user1
     helper
         .vote(&mut router, "user1", vec![(pools[0].as_str(), 1000)])
@@ -220,6 +229,25 @@ fn check_vote_works() {
         .escrow_helper
         .create_lock(&mut router, "user1", WEEK, 100f32)
         .unwrap();
+    let err = helper
+        .vote(&mut router, "user1", vec![(pools[0].as_str(), 1000)])
+        .unwrap_err();
+    assert_eq!("Whitelist cannot be empty!", err.root_cause().to_string());
+
+    let err = helper
+        .update_whitelist(&mut router, "user1", Some(vec![pools[0].to_string()]), None)
+        .unwrap_err();
+    assert_eq!("Unauthorized", err.root_cause().to_string());
+
+    helper
+        .update_whitelist(
+            &mut router,
+            "owner",
+            Some(pools.iter().map(|el| el.to_string()).collect()),
+            None,
+        )
+        .unwrap();
+
     helper
         .vote(&mut router, "user1", vec![(pools[0].as_str(), 1000)])
         .unwrap();
@@ -394,6 +422,15 @@ fn check_tuning() {
             .unwrap(),
     ];
 
+    helper
+        .update_whitelist(
+            &mut router,
+            "owner",
+            Some(pools.iter().map(|el| el.to_string()).collect()),
+            None,
+        )
+        .unwrap();
+
     for (user, duration) in ve_locks {
         helper.escrow_helper.mint_xastro(&mut router, user, 1000);
         helper
@@ -415,7 +452,7 @@ fn check_tuning() {
         )
         .unwrap_err();
     assert_eq!(
-        "Generic error: The pair aren't registered: contract20-contract21",
+        "Generic error: This pool is not whitelisted: contract23",
         err.root_cause().to_string()
     );
 
@@ -588,17 +625,15 @@ fn check_bad_pools_filtering() {
         .create_lock(&mut router, user, 10 * WEEK, 100f32)
         .unwrap();
 
-    let err = helper
-        .vote(
+    helper
+        .update_whitelist(
             &mut router,
-            user,
-            vec![("random_pool", 5000), (pools[0].as_str(), 5000)],
+            "owner",
+            Some(pools.iter().map(|el| el.to_string()).collect()),
+            None,
         )
-        .unwrap_err();
-    assert_eq!(
-        err.root_cause().to_string(),
-        "Invalid lp token address: random_pool"
-    );
+        .unwrap();
+
     helper
         .vote(&mut router, user, vec![(pools[0].as_str(), 5000)])
         .unwrap();
@@ -638,7 +673,7 @@ fn check_bad_pools_filtering() {
         .vote(&mut router, user, vec![(pools[0].as_str(), 10000)])
         .unwrap_err();
     assert_eq!(
-        "Generic error: The pair aren't registered: contract8-contract9",
+        "The pair aren't registered: contract8-contract9",
         err.root_cause().to_string()
     );
 
@@ -792,6 +827,16 @@ fn check_main_pool() {
             .create_lock(&mut router, user, MAX_LOCK_TIME, 100f32)
             .unwrap();
     }
+
+    helper
+        .update_whitelist(
+            &mut router,
+            "owner",
+            Some(pools.iter().map(|el| el.to_string()).collect()),
+            None,
+        )
+        .unwrap();
+
     helper
         .vote(
             &mut router,
@@ -855,7 +900,7 @@ fn check_main_pool() {
         .unwrap_err();
     assert_eq!(
         &err.root_cause().to_string(),
-        "contract11 is the main pool. Voting for the main pool is prohibited"
+        "contract11 is the main pool. Voting for the main pool or adding it to the whitelist is prohibited."
     );
 
     router

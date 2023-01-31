@@ -127,6 +127,25 @@ Used to claim contract ownership. Only the newly proposed contract owner can exe
 }
 ```
 
+### `update_whitelist`
+
+Adds or removes lp tokens used to vote.
+
+```json
+{
+  "update_whitelist": {
+    "add": [
+        "terra...",
+        "terra..."
+    ],
+    "remove": [
+      "terra...",
+      "terra..."
+    ]
+  }
+}
+```
+
 ## QueryMsg
 
 All query messages are described below. A custom struct is defined for each query response.
@@ -254,5 +273,15 @@ Returns the contract's config.
   "generator_addr": "terra...",
   "factory_addr": "terra...",
   "pools_limit": 5
+}
+```
+
+### `whitelisted_pools`
+
+Returns the whitelist of pools.
+
+```json
+{
+  "whitelisted_pools": {}
 }
 ```

@@ -2,7 +2,6 @@ use std::collections::HashSet;
 use std::convert::TryInto;
 
 use crate::astroport;
-use astroport::asset::pair_info_by_pool;
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
@@ -13,7 +12,6 @@ use cosmwasm_std::{
 use cw2::{get_contract_version, set_contract_version};
 use itertools::Itertools;
 
-use crate::astroport::querier::query_pair_info;
 use astroport_governance::generator_controller::{
     ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg, UserInfoResponse, VOTERS_MAX_LIMIT,
 };
@@ -31,8 +29,8 @@ use crate::state::{
     USER_INFO,
 };
 use crate::utils::{
-    cancel_user_changes, filter_pools, get_pool_info, update_pool_info, validate_pools_limit,
-    vote_for_pool,
+    cancel_user_changes, check_duplicated, filter_pools, get_pool_info, update_pool_info,
+    validate_pool, validate_pools_limit, vote_for_pool,
 };
 
 /// Contract name that is used for migration.
@@ -72,6 +70,7 @@ pub fn instantiate(
             blacklisted_voters_limit: None,
             main_pool: None,
             main_pool_min_alloc: Decimal::zero(),
+            whitelisted_pools: vec![],
         },
     )?;
 
@@ -132,6 +131,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> E
             main_pool_min_alloc,
             remove_main_pool,
         ),
+        ExecuteMsg::UpdateWhitelist { add, remove } => update_whitelist(deps, info, add, remove),
         ExecuteMsg::ProposeNewOwner {
             new_owner,
             expires_in,
@@ -167,6 +167,56 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> E
             .map_err(|e| e.into())
         }
     }
+}
+
+/// ## Description
+/// Adds or removes lp tokens used to vote. Returns a [`ContractError`] on failure.
+fn update_whitelist(
+    deps: DepsMut,
+    info: MessageInfo,
+    add: Option<Vec<String>>,
+    remove: Option<Vec<String>>,
+) -> Result<Response, ContractError> {
+    let mut cfg = CONFIG.load(deps.storage)?;
+
+    // Permission check
+    if info.sender != cfg.owner {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    // Remove old LP tokens
+    if let Some(remove_lp_tokens) = remove {
+        cfg.whitelisted_pools
+            .retain(|pool| !remove_lp_tokens.contains(&pool.to_string()));
+
+        if cfg.whitelisted_pools.is_empty() {
+            return Err(ContractError::WhitelistEmpty {});
+        }
+    }
+
+    // Add new lp tokens
+    if let Some(add_lp_tokens) = add {
+        check_duplicated(&add_lp_tokens)?;
+
+        cfg.whitelisted_pools.append(
+            &mut add_lp_tokens
+                .into_iter()
+                .map(|lp_token| {
+                    let lp_token_addr = deps.api.addr_validate(lp_token.as_str())?;
+                    validate_pool(deps.as_ref(), &cfg, &lp_token_addr)?;
+
+                    if cfg.whitelisted_pools.contains(&lp_token_addr) {
+                        return Err(ContractError::PoolIsWhitelisted(lp_token_addr.to_string()));
+                    }
+
+                    Ok(lp_token_addr)
+                })
+                .collect::<Result<Vec<_>, ContractError>>()?,
+        );
+    }
+
+    CONFIG.save(deps.storage, &cfg)?;
+    Ok(Response::default().add_attribute("action", "update_whitelist"))
 }
 
 /// ## Description
@@ -284,52 +334,43 @@ fn handle_vote(
         return Err(ContractError::ZeroVotingPower {});
     }
 
+    if config.whitelisted_pools.is_empty() {
+        return Err(ContractError::WhitelistEmpty {});
+    }
+
     let user_info = USER_INFO.may_load(deps.storage, &user)?.unwrap_or_default();
     // Does the user eligible to vote again?
     if env.block.time.seconds() - user_info.vote_ts < VOTE_COOLDOWN {
         return Err(ContractError::CooldownError(VOTE_COOLDOWN / DAY));
     }
 
-    // Check duplicated votes
-    let addrs_set = votes
-        .iter()
-        .cloned()
-        .map(|(addr, _)| addr)
-        .collect::<HashSet<_>>();
-    if votes.len() != addrs_set.len() {
-        return Err(ContractError::DuplicatedPools {});
-    }
+    check_duplicated(
+        &votes
+            .iter()
+            .map(|vote| {
+                let (lp_token, _) = vote;
+                lp_token.clone()
+            })
+            .collect::<Vec<_>>(),
+    )?;
 
     // Validating addrs and bps
     let votes = votes
         .into_iter()
         .map(|(addr, bps)| {
-            let addr = deps.api.addr_validate(&addr)?;
-            // Voting for the main pool is prohibited
-            if let Some(main_pool) = &config.main_pool {
-                if &addr == main_pool {
-                    return Err(ContractError::MainPoolVoteProhibited(main_pool.to_string()));
-                }
-            }
-            // Check an address is a lp token
-            let pair_info = pair_info_by_pool(deps.as_ref(), addr.clone())
-                .map_err(|_| ContractError::InvalidLPTokenAddress(addr.to_string()))?;
+            let pool = deps.api.addr_validate(&addr)?;
 
-            // Check a pair is registered in factory
-            query_pair_info(
-                &deps.querier,
-                config.factory_addr.clone(),
-                &pair_info.asset_infos,
-            )
-            .map_err(|_| {
-                ContractError::Std(StdError::generic_err(format!(
-                    "The pair aren't registered: {}-{}",
-                    pair_info.asset_infos[0], pair_info.asset_infos[1]
-                )))
-            })?;
+            if !config.whitelisted_pools.contains(&pool) {
+                return Err(ContractError::Std(StdError::generic_err(format!(
+                    "This pool is not whitelisted: {0}",
+                    pool
+                ))));
+            }
+
+            validate_pool(deps.as_ref(), &config, &pool)?;
 
             let bps: BasicPoints = bps.try_into()?;
-            Ok((addr, bps))
+            Ok((pool, bps))
         })
         .collect::<Result<Vec<_>, ContractError>>()?;
 
@@ -613,6 +654,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::PoolInfoAtPeriod { pool_addr, period } => {
             to_binary(&pool_info(deps, env, pool_addr, Some(period))?)
         }
+        QueryMsg::WhitelistedPools {} => to_binary(&CONFIG.load(deps.storage)?.whitelisted_pools),
     }
 }
 
