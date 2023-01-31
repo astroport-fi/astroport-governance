@@ -2,7 +2,7 @@ use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, CosmosMsg, Decimal, DepsMut, StdResult, Storage, Uint128, Uint64};
 use cw_storage_plus::{Item, Map};
 
-use astroport_governance::assembly::{Config, Proposal, ProposalMessage, ProposalStatus};
+use astroport_governance::assembly::{Config, Proposal, ProposalStatus};
 
 use crate::state::{CONFIG, PROPOSALS};
 
@@ -119,11 +119,9 @@ pub fn migrate_proposals_from_v110(storage: &mut dyn Storage) -> StdResult<()> {
                 title: proposal.title,
                 description: proposal.description,
                 link: proposal.link,
-                messages: proposal.messages.map(|v| {
-                    v.into_iter()
-                        .map(|m| ProposalMessage { msg: m.msg })
-                        .collect()
-                }),
+                messages: proposal
+                    .messages
+                    .map(|v| v.into_iter().map(|m| m.msg).collect()),
                 deposit_amount: proposal.deposit_amount,
                 ibc_channel: None,
             },
@@ -177,11 +175,9 @@ pub fn migrate_proposals_from_v121(storage: &mut dyn Storage) -> StdResult<()> {
                 title: proposal.title,
                 description: proposal.description,
                 link: proposal.link,
-                messages: proposal.messages.map(|v| {
-                    v.into_iter()
-                        .map(|m| ProposalMessage { msg: m.msg })
-                        .collect()
-                }),
+                messages: proposal
+                    .messages
+                    .map(|v| v.into_iter().map(|m| m.msg).collect()),
                 deposit_amount: proposal.deposit_amount,
                 ibc_channel: proposal.ibc_channel,
             },

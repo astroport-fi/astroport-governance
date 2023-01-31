@@ -10,8 +10,8 @@ use std::str::FromStr;
 
 use astroport_governance::assembly::{
     helpers::validate_links, Config, Cw20HookMsg, ExecuteMsg, InstantiateMsg, Proposal,
-    ProposalListResponse, ProposalMessage, ProposalStatus, ProposalVoteOption,
-    ProposalVotesResponse, QueryMsg, UpdateConfig,
+    ProposalListResponse, ProposalStatus, ProposalVoteOption, ProposalVotesResponse, QueryMsg,
+    UpdateConfig,
 };
 
 use astroport::xastro_token::QueryMsg as XAstroTokenQueryMsg;
@@ -203,7 +203,7 @@ pub fn receive_cw20(
 ///
 /// * **link** is an object of type [`Option<String>`]. Proposal link.
 ///
-/// * **messages** is an object of type [`Option<Vec<ProposalMessage>>`]. Executable messages (actions to perform if the proposal passes).
+/// * **messages** is an object of type [`Option<Vec<CosmosMsg>>`]. Executable messages (actions to perform if the proposal passes).
 #[allow(clippy::too_many_arguments)]
 pub fn submit_proposal(
     deps: DepsMut,
@@ -214,7 +214,7 @@ pub fn submit_proposal(
     title: String,
     description: String,
     link: Option<String>,
-    messages: Option<Vec<ProposalMessage>>,
+    messages: Option<Vec<CosmosMsg>>,
     ibc_channel: Option<String>,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
@@ -483,10 +483,7 @@ pub fn execute_proposal(
         proposal.status = ProposalStatus::Executed;
         PROPOSALS.save(deps.storage, proposal_id, &proposal)?;
 
-        messages = match proposal.messages {
-            Some(messages) => messages.into_iter().map(|message| message.msg).collect(),
-            None => vec![],
-        };
+        messages = proposal.messages.unwrap_or_default()
     }
 
     Ok(Response::new()
@@ -502,9 +499,8 @@ pub fn execute_proposal(
 /// ## Params
 /// * **env** is an object of type [`Env`].
 ///
-/// * **messages** is a vector of [`ProposalMessage`].
-pub fn check_messages(env: Env, messages: Vec<ProposalMessage>) -> Result<Response, ContractError> {
-    let mut messages: Vec<_> = messages.into_iter().map(|message| message.msg).collect();
+/// * **messages** is a vector of [`CosmosMsg`].
+pub fn check_messages(env: Env, mut messages: Vec<CosmosMsg>) -> Result<Response, ContractError> {
     messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: env.contract.address.to_string(),
         msg: to_binary(&ExecuteMsg::CheckMessagesPassed {})?,

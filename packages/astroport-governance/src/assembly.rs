@@ -80,7 +80,7 @@ pub enum ExecuteMsg {
     /// Check messages execution
     CheckMessages {
         /// messages
-        messages: Vec<ProposalMessage>,
+        messages: Vec<CosmosMsg>,
     },
     /// The last endpoint which is executed only if all proposal messages have been passed
     CheckMessagesPassed {},
@@ -144,7 +144,7 @@ pub enum Cw20HookMsg {
         title: String,
         description: String,
         link: Option<String>,
-        messages: Option<Vec<ProposalMessage>>,
+        messages: Option<Vec<CosmosMsg>>,
         /// If proposal should be executed on a remote chain this field should specify governance channel
         ibc_channel: Option<String>,
     },
@@ -273,7 +273,7 @@ pub struct Proposal {
     /// Proposal link
     pub link: Option<String>,
     /// Proposal messages
-    pub messages: Option<Vec<ProposalMessage>>,
+    pub messages: Option<Vec<CosmosMsg>>,
     /// Amount of xASTRO deposited in order to post the proposal
     pub deposit_amount: Uint128,
     /// IBC channel
@@ -358,13 +358,6 @@ impl Display for ProposalStatus {
             ProposalStatus::Expired {} => fmt.write_str("expired"),
         }
     }
-}
-
-/// This structure describes a proposal message.
-#[cw_serde]
-pub struct ProposalMessage {
-    /// Execution message
-    pub msg: CosmosMsg,
 }
 
 /// This structure describes a proposal vote.

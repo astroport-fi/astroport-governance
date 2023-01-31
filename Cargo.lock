@@ -776,7 +776,7 @@ dependencies = [
 [[package]]
 name = "ibc-controller-package"
 version = "0.1.0"
-source = "git+https://github.com/astroport-fi/astroport_ibc.git?branch=release#c6ca81b347fc71fe0f520cf3ed704fb96b1c2f20"
+source = "git+https://github.com/astroport-fi/astroport_ibc.git?branch=fix/oak_audit#09b9dbe86098cc43cad6cb0db1bde8813773a08a"
 dependencies = [
  "astroport-governance",
  "cosmwasm-schema",
