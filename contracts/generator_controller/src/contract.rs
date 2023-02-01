@@ -6,7 +6,7 @@ use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_ow
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_binary, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env, Fraction, MessageInfo, Order,
+    to_binary, Addr, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env, Fraction, MessageInfo, Order,
     Response, StdError, StdResult, Uint128, WasmMsg,
 };
 use cw2::{get_contract_version, set_contract_version};
@@ -29,6 +29,7 @@ use crate::state::{
     Config, TuneInfo, UserInfo, VotedPoolInfo, CONFIG, OWNERSHIP_PROPOSAL, POOLS, TUNE_INFO,
     USER_INFO,
 };
+
 use crate::utils::{
     cancel_user_changes, check_duplicated, filter_pools, get_pool_info, update_pool_info,
     validate_pool, validate_pools_limit, vote_for_pool,
@@ -104,8 +105,8 @@ pub fn instantiate(
 /// * **ExecuteMsg::UpdateConfig { blacklisted_voters_limit }** Changes the number of blacklisted
 /// voters that can be kicked at once
 ///
-/// * **ExecuteMsg::UpdateWhitelist { add, remove }** Adds or removes the liquidity pools that use
-/// for a vote
+/// * **ExecuteMsg::UpdateWhitelist { add, remove }** Adds or removes lp tokens which are eligible
+/// to receive votes.
 ///
 /// * **ExecuteMsg::ProposeNewOwner { owner, expires_in }** Creates a new request to change
 /// contract ownership.
@@ -173,7 +174,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> E
     }
 }
 
-/// Adds or removes lp tokens that use for a vote.
+/// Adds or removes lp tokens which are eligible to receive votes.
 /// Returns a [`ContractError`] on failure.
 fn update_whitelist(
     deps: DepsMut,
@@ -192,31 +193,22 @@ fn update_whitelist(
     if let Some(remove_lp_tokens) = remove {
         cfg.whitelisted_pools
             .retain(|pool| !remove_lp_tokens.contains(&pool.to_string()));
-
-        if cfg.whitelisted_pools.is_empty() {
-            return Err(ContractError::WhitelistEmpty {});
-        }
     }
 
     // Add new lp tokens
     if let Some(add_lp_tokens) = add {
-        check_duplicated(&add_lp_tokens)?;
-
         cfg.whitelisted_pools.append(
             &mut add_lp_tokens
                 .into_iter()
                 .map(|lp_token| {
                     let lp_token_addr = deps.api.addr_validate(lp_token.as_str())?;
                     validate_pool(deps.as_ref(), &cfg, &lp_token_addr)?;
-
-                    if cfg.whitelisted_pools.contains(&lp_token_addr) {
-                        return Err(ContractError::PoolIsWhitelisted(lp_token_addr.to_string()));
-                    }
-
                     Ok(lp_token_addr)
                 })
                 .collect::<Result<Vec<_>, ContractError>>()?,
         );
+        check_duplicated(&cfg.whitelisted_pools).map_err(|_|
+            ContractError::Std(StdError::generic_err("The resulting whitelist contains duplicated pools. It's either provided 'add' list contains duplicated pools or some of the added pools are already whitelisted.")))?;
     }
 
     CONFIG.save(deps.storage, &cfg)?;
@@ -353,7 +345,7 @@ fn handle_vote(
             .iter()
             .map(|vote| {
                 let (lp_token, _) = vote;
-                lp_token.clone()
+                Addr::unchecked(lp_token)
             })
             .collect::<Vec<_>>(),
     )?;
@@ -655,7 +647,6 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::PoolInfoAtPeriod { pool_addr, period } => {
             to_binary(&pool_info(deps, env, pool_addr, Some(period))?)
         }
-        QueryMsg::WhitelistedPools {} => to_binary(&CONFIG.load(deps.storage)?.whitelisted_pools),
     }
 }
 

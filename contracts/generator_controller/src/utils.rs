@@ -352,7 +352,7 @@ pub fn validate_pool(
     // Voting for the main pool or updating it is prohibited
     if let Some(main_pool) = &config.main_pool {
         if pool == main_pool {
-            return Err(ContractError::MainPoolVoteOrWhitelistedProhibited(
+            return Err(ContractError::MainPoolVoteOrWhitelistingProhibited(
                 main_pool.to_string(),
             ));
         }
@@ -379,7 +379,7 @@ pub fn validate_pool(
 }
 
 /// Checks for duplicate pools
-pub fn check_duplicated(votes: &[String]) -> Result<(), ContractError> {
+pub fn check_duplicated(votes: &[Addr]) -> Result<(), ContractError> {
     let mut uniq = HashSet::new();
     if !votes.iter().all(|lp_token| uniq.insert(lp_token)) {
         return Err(ContractError::DuplicatedPools {});

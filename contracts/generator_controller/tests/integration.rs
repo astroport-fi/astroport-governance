@@ -431,8 +431,13 @@ fn check_tuning() {
         )
         .unwrap();
 
-    let whitelisted_pools = helper.query_whitelisted_pools(&mut router).unwrap();
-    assert_eq!(whitelisted_pools, pools);
+    let err = helper
+        .update_whitelist(&mut router, "owner", Some(vec![pools[0].to_string()]), None)
+        .unwrap_err();
+    assert_eq!("Generic error: The resulting whitelist contains duplicated pools. It's either provided 'add' list contains duplicated pools or some of the added pools are already whitelisted.", err.root_cause().to_string());
+
+    let config_resp = helper.query_config(&mut router).unwrap();
+    assert_eq!(config_resp.whitelisted_pools, pools);
 
     for (user, duration) in ve_locks {
         helper.escrow_helper.mint_xastro(&mut router, user, 1000);

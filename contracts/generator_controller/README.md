@@ -129,7 +129,7 @@ Used to claim contract ownership. Only the newly proposed contract owner can exe
 
 ### `update_whitelist`
 
-Adds or removes lp tokens that use for a vote.
+Adds or removes lp tokens which are eligible to receive votes.
 
 ```json
 {
@@ -273,15 +273,5 @@ Returns the contract's config.
   "generator_addr": "terra...",
   "factory_addr": "terra...",
   "pools_limit": 5
-}
-```
-
-### `whitelisted_pools`
-
-Returns the list of liquidity pools that use for a vote.
-
-```json
-{
-  "whitelisted_pools": {}
 }
 ```

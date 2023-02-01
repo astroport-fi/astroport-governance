@@ -346,12 +346,6 @@ impl ControllerHelper {
             .wrap()
             .query_wasm_smart(self.controller.clone(), &QueryMsg::Config {})
     }
-
-    pub fn query_whitelisted_pools(&self, router: &mut App) -> StdResult<Vec<Addr>> {
-        router
-            .wrap()
-            .query_wasm_smart(self.controller.clone(), &QueryMsg::WhitelistedPools {})
-    }
 }
 
 fn store_whitelist_code(app: &mut App) -> u64 {

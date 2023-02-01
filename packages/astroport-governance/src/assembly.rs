@@ -77,7 +77,7 @@ pub enum ExecuteMsg {
         /// Proposal identifier
         proposal_id: u64,
     },
-    /// Check messages execution
+    /// Checks that proposal messages are correct.
     CheckMessages {
         /// messages
         messages: Vec<CosmosMsg>,
