@@ -104,6 +104,9 @@ pub fn instantiate(
 /// * **ExecuteMsg::UpdateConfig { blacklisted_voters_limit }** Changes the number of blacklisted
 /// voters that can be kicked at once
 ///
+/// * **ExecuteMsg::UpdateWhitelist { add, remove }** Adds or removes the liquidity pools that use
+/// for a vote
+///
 /// * **ExecuteMsg::ProposeNewOwner { owner, expires_in }** Creates a new request to change
 /// contract ownership.
 ///
