@@ -17,7 +17,7 @@ pub struct InstantiateMsg {
     pub factory_addr: String,
     /// Max number of pools that can receive ASTRO emissions at the same time
     pub pools_limit: u64,
-    /// The list of liquidity pools that use to vote
+    /// The list of liquidity pools that use for a vote
     pub whitelisted_pools: Vec<String>,
 }
 
@@ -53,7 +53,7 @@ pub enum ExecuteMsg {
     DropOwnershipProposal {},
     /// ClaimOwnership allows the newly proposed owner to claim contract ownership
     ClaimOwnership {},
-    /// Add or remove the liquidity pools used to vote.
+    /// Adds or removes the liquidity pools that use for a vote
     UpdateWhitelist {
         add: Option<Vec<String>>,
         remove: Option<Vec<String>>,
@@ -79,6 +79,7 @@ pub enum QueryMsg {
     /// PoolInfo returns the voting power allocated to a specific pool (generator) at a specific period
     #[returns(VotedPoolInfoResponse)]
     PoolInfoAtPeriod { pool_addr: String, period: u64 },
+    /// Returns the list of liquidity pools that use for a vote
     #[returns(Vec<Addr>)]
     WhitelistedPools {},
 }
@@ -86,10 +87,7 @@ pub enum QueryMsg {
 /// This structure describes a migration message.
 /// We currently take no arguments for migrations.
 #[cw_serde]
-pub struct MigrateMsg {
-    /// Max number of blacklisted voters can be removed
-    pub blacklisted_voters_limit: Option<u32>,
-}
+pub struct MigrateMsg {}
 
 /// This structure describes the parameters returned when querying for the contract configuration.
 #[cw_serde]
@@ -110,7 +108,7 @@ pub struct ConfigResponse {
     pub main_pool: Option<Addr>,
     /// The minimum percentage of ASTRO emissions that main pool should get every block
     pub main_pool_min_alloc: Decimal,
-    /// The list of liquidity pools that use to vote
+    /// The list of liquidity pools that use for a vote
     pub whitelisted_pools: Vec<Addr>,
 }
 

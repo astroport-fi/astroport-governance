@@ -23,6 +23,7 @@ use astroport_governance::voting_escrow::{
 
 use crate::bps::BasicPoints;
 use crate::error::ContractError;
+use crate::migration::migrate_configs_to_v120;
 
 use crate::state::{
     Config, TuneInfo, UserInfo, VotedPoolInfo, CONFIG, OWNERSHIP_PROPOSAL, POOLS, TUNE_INFO,
@@ -169,8 +170,8 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> E
     }
 }
 
-/// ## Description
-/// Adds or removes lp tokens used to vote. Returns a [`ContractError`] on failure.
+/// Adds or removes lp tokens that use for a vote.
+/// Returns a [`ContractError`] on failure.
 fn update_whitelist(
     deps: DepsMut,
     info: MessageInfo,
@@ -361,10 +362,7 @@ fn handle_vote(
             let pool = deps.api.addr_validate(&addr)?;
 
             if !config.whitelisted_pools.contains(&pool) {
-                return Err(ContractError::Std(StdError::generic_err(format!(
-                    "This pool is not whitelisted: {0}",
-                    pool
-                ))));
+                return Err(ContractError::PoolIsNotWhitelisted(pool.to_string()));
             }
 
             validate_pool(deps.as_ref(), &config, &pool)?;
@@ -685,12 +683,12 @@ fn pool_info(
 /// ## Description
 /// Used for migration of contract. Returns the default object of type [`Response`].
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
+pub fn migrate(mut deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
     let contract_version = get_contract_version(deps.storage)?;
 
     match contract_version.contract.as_ref() {
         "generator-controller" => match contract_version.version.as_ref() {
-            "1.1.0" => {}
+            "1.1.0" => migrate_configs_to_v120(&mut deps)?,
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),

@@ -20,7 +20,7 @@ pub enum ContractError {
     #[error("You can't vote with zero voting power")]
     ZeroVotingPower {},
 
-    #[error("{0} is the main pool. Voting for the main pool or adding it to the whitelist is prohibited.")]
+    #[error("{0} is the main pool. Voting or whitelisting the main pool is prohibited.")]
     MainPoolVoteOrWhitelistedProhibited(String),
 
     #[error("main_pool_min_alloc should be more than 0 and less than 1")]
@@ -58,4 +58,7 @@ pub enum ContractError {
 
     #[error("Pool is already whitelisted: {0}")]
     PoolIsWhitelisted(String),
+
+    #[error("Pool is not whitelisted: {0}")]
+    PoolIsNotWhitelisted(String),
 }

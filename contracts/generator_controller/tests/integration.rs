@@ -431,6 +431,9 @@ fn check_tuning() {
         )
         .unwrap();
 
+    let whitelisted_pools = helper.query_whitelisted_pools(&mut router).unwrap();
+    assert_eq!(whitelisted_pools, pools);
+
     for (user, duration) in ve_locks {
         helper.escrow_helper.mint_xastro(&mut router, user, 1000);
         helper
@@ -452,7 +455,23 @@ fn check_tuning() {
         )
         .unwrap_err();
     assert_eq!(
-        "Generic error: This pool is not whitelisted: contract23",
+        "Pool is not whitelisted: contract23",
+        err.root_cause().to_string()
+    );
+
+    let err = helper
+        .vote(
+            &mut router,
+            user1,
+            vec![
+                (pools[0].as_str(), 5000),
+                (pools[1].as_str(), 2000),
+                (pools[1].as_str(), 2000),
+            ],
+        )
+        .unwrap_err();
+    assert_eq!(
+        "Votes contain duplicated pool addresses",
         err.root_cause().to_string()
     );
 
@@ -463,6 +482,7 @@ fn check_tuning() {
             vec![(pools[0].as_str(), 5000), (pools[1].as_str(), 5000)],
         )
         .unwrap();
+
     helper
         .vote(
             &mut router,
@@ -900,7 +920,7 @@ fn check_main_pool() {
         .unwrap_err();
     assert_eq!(
         &err.root_cause().to_string(),
-        "contract11 is the main pool. Voting for the main pool or adding it to the whitelist is prohibited."
+        "contract11 is the main pool. Voting or whitelisting the main pool is prohibited."
     );
 
     router

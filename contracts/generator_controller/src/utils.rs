@@ -342,12 +342,14 @@ pub(crate) fn validate_pools_limit(number: u64) -> Result<u64, ContractError> {
     }
 }
 
+/// Check if a pool isn't the main pool. Check if a pool is an LP token.
+/// Check if a pool is registered in the factory contract.
 pub fn validate_pool(
     deps: Deps,
     config: &ConfigResponse,
     pool: &Addr,
 ) -> Result<(), ContractError> {
-    // Voting for or updating the main pool is prohibited
+    // Voting for the main pool or updating it is prohibited
     if let Some(main_pool) = &config.main_pool {
         if pool == main_pool {
             return Err(ContractError::MainPoolVoteOrWhitelistedProhibited(
@@ -356,11 +358,11 @@ pub fn validate_pool(
         }
     }
 
-    // Check a pool is lp token
+    // Checks if a pool is an LP token
     let pair_info = pair_info_by_pool(deps, pool.clone())
         .map_err(|_| ContractError::InvalidLPTokenAddress(pool.to_string()))?;
 
-    // Check a pair is registered in the factory
+    // Check if a pair is registered in the factory
     query_pair_info(
         &deps.querier,
         config.factory_addr.clone(),
