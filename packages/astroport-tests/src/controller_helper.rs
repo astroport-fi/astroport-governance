@@ -113,6 +113,7 @@ impl ControllerHelper {
             generator_addr: generator.to_string(),
             factory_addr: factory.to_string(),
             pools_limit: 5,
+            whitelisted_pools: vec![],
         };
 
         let controller = router
@@ -290,6 +291,21 @@ impl ControllerHelper {
             },
             &[],
         )
+    }
+
+    pub fn update_whitelist(
+        &self,
+        router: &mut App,
+        user: &str,
+        add_pools: Option<Vec<String>>,
+        remove_pools: Option<Vec<String>>,
+    ) -> AnyResult<AppResponse> {
+        let msg = ExecuteMsg::UpdateWhitelist {
+            add: add_pools,
+            remove: remove_pools,
+        };
+
+        router.execute_contract(Addr::unchecked(user), self.controller.clone(), &msg, &[])
     }
 
     pub fn query_user_info(&self, router: &mut App, user: &str) -> StdResult<UserInfo> {
