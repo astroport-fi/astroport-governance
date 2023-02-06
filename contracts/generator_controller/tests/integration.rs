@@ -1,10 +1,11 @@
 use astroport::asset::AssetInfo;
 use astroport::generator::PoolInfoResponse;
-use cosmwasm_std::{attr, Addr, Decimal, Uint128};
-use cw_multi_test::Executor;
+use cosmwasm_std::{attr, Addr, Decimal, StdResult, Uint128};
+use cw_multi_test::{App, ContractWrapper, Executor};
 use generator_controller::astroport;
 use std::str::FromStr;
 
+use crate::astroport::asset::PairInfo;
 use astroport_governance::generator_controller::{
     ConfigResponse, ExecuteMsg, QueryMsg, VOTERS_MAX_LIMIT,
 };
@@ -65,6 +66,15 @@ fn check_kick_holders_works() {
     helper
         .escrow_helper
         .create_lock(&mut router, "user1", WEEK, 100f32)
+        .unwrap();
+
+    helper
+        .update_whitelist(
+            &mut router,
+            "owner",
+            Some(pools.iter().map(|el| el.to_string()).collect()),
+            None,
+        )
         .unwrap();
 
     // Votes from user1
@@ -219,6 +229,25 @@ fn check_vote_works() {
         .escrow_helper
         .create_lock(&mut router, "user1", WEEK, 100f32)
         .unwrap();
+    let err = helper
+        .vote(&mut router, "user1", vec![(pools[0].as_str(), 1000)])
+        .unwrap_err();
+    assert_eq!("Whitelist cannot be empty!", err.root_cause().to_string());
+
+    let err = helper
+        .update_whitelist(&mut router, "user1", Some(vec![pools[0].to_string()]), None)
+        .unwrap_err();
+    assert_eq!("Unauthorized", err.root_cause().to_string());
+
+    helper
+        .update_whitelist(
+            &mut router,
+            "owner",
+            Some(pools.iter().map(|el| el.to_string()).collect()),
+            None,
+        )
+        .unwrap();
+
     helper
         .vote(&mut router, "user1", vec![(pools[0].as_str(), 1000)])
         .unwrap();
@@ -322,12 +351,60 @@ fn check_vote_works() {
         .unwrap();
 }
 
+fn create_unregistered_pool(
+    router: &mut App,
+    helper: &mut ControllerHelper,
+) -> StdResult<PairInfo> {
+    let pair_contract = Box::new(
+        ContractWrapper::new_with_empty(
+            astroport_pair::contract::execute,
+            astroport_pair::contract::instantiate,
+            astroport_pair::contract::query,
+        )
+        .with_reply_empty(astroport_pair::contract::reply),
+    );
+
+    let pair_code_id = router.store_code(pair_contract);
+
+    let test_token1 = helper.init_cw20_token(router, "TST").unwrap();
+    let test_token2 = helper.init_cw20_token(router, "TSB").unwrap();
+
+    let pair_addr = router
+        .instantiate_contract(
+            pair_code_id,
+            Addr::unchecked("owner"),
+            &astroport::pair::InstantiateMsg {
+                asset_infos: vec![
+                    AssetInfo::Token {
+                        contract_addr: test_token1.clone(),
+                    },
+                    AssetInfo::Token {
+                        contract_addr: test_token2.clone(),
+                    },
+                ],
+                token_code_id: 1,
+                factory_addr: helper.factory.to_string(),
+                init_params: None,
+            },
+            &[],
+            "Unregistered pair".to_string(),
+            None,
+        )
+        .unwrap();
+
+    let res: PairInfo = router
+        .wrap()
+        .query_wasm_smart(pair_addr, &astroport::pair::QueryMsg::Pair {})?;
+
+    Ok(res)
+}
+
 #[test]
 fn check_tuning() {
     let mut router = mock_app();
     let owner = "owner";
     let owner_addr = Addr::unchecked(owner);
-    let helper = ControllerHelper::init(&mut router, &owner_addr);
+    let mut helper = ControllerHelper::init(&mut router, &owner_addr);
     let user1 = "user1";
     let user2 = "user2";
     let user3 = "user3";
@@ -345,6 +422,23 @@ fn check_tuning() {
             .unwrap(),
     ];
 
+    helper
+        .update_whitelist(
+            &mut router,
+            "owner",
+            Some(pools.iter().map(|el| el.to_string()).collect()),
+            None,
+        )
+        .unwrap();
+
+    let err = helper
+        .update_whitelist(&mut router, "owner", Some(vec![pools[0].to_string()]), None)
+        .unwrap_err();
+    assert_eq!("Generic error: The resulting whitelist contains duplicated pools. It's either provided 'add' list contains duplicated pools or some of the added pools are already whitelisted.", err.root_cause().to_string());
+
+    let config_resp = helper.query_config(&mut router).unwrap();
+    assert_eq!(config_resp.whitelisted_pools, pools);
+
     for (user, duration) in ve_locks {
         helper.escrow_helper.mint_xastro(&mut router, user, 1000);
         helper
@@ -353,6 +447,39 @@ fn check_tuning() {
             .unwrap();
     }
 
+    let res = create_unregistered_pool(&mut router, &mut helper).unwrap();
+    let err = helper
+        .vote(
+            &mut router,
+            user1,
+            vec![
+                (pools[0].as_str(), 5000),
+                (pools[1].as_str(), 4000),
+                (res.liquidity_token.as_str(), 1000),
+            ],
+        )
+        .unwrap_err();
+    assert_eq!(
+        "Pool is not whitelisted: contract23",
+        err.root_cause().to_string()
+    );
+
+    let err = helper
+        .vote(
+            &mut router,
+            user1,
+            vec![
+                (pools[0].as_str(), 5000),
+                (pools[1].as_str(), 2000),
+                (pools[1].as_str(), 2000),
+            ],
+        )
+        .unwrap_err();
+    assert_eq!(
+        "Votes contain duplicated pool addresses",
+        err.root_cause().to_string()
+    );
+
     helper
         .vote(
             &mut router,
@@ -360,6 +487,7 @@ fn check_tuning() {
             vec![(pools[0].as_str(), 5000), (pools[1].as_str(), 5000)],
         )
         .unwrap();
+
     helper
         .vote(
             &mut router,
@@ -522,17 +650,15 @@ fn check_bad_pools_filtering() {
         .create_lock(&mut router, user, 10 * WEEK, 100f32)
         .unwrap();
 
-    let err = helper
-        .vote(
+    helper
+        .update_whitelist(
             &mut router,
-            user,
-            vec![("random_pool", 5000), (pools[0].as_str(), 5000)],
+            "owner",
+            Some(pools.iter().map(|el| el.to_string()).collect()),
+            None,
         )
-        .unwrap_err();
-    assert_eq!(
-        err.root_cause().to_string(),
-        "Invalid lp token address: random_pool"
-    );
+        .unwrap();
+
     helper
         .vote(&mut router, user, vec![(pools[0].as_str(), 5000)])
         .unwrap();
@@ -562,15 +688,22 @@ fn check_bad_pools_filtering() {
         .execute_contract(
             owner_addr.clone(),
             helper.factory.clone(),
-            &astroport::factory::ExecuteMsg::Deregister { asset_infos },
+            &astroport::factory::ExecuteMsg::Deregister {
+                asset_infos: asset_infos.to_vec(),
+            },
             &[],
         )
         .unwrap();
 
-    // Vote for deregistered pool
-    helper
+    // We cannot vote for deregistered pool
+    let err = helper
         .vote(&mut router, user, vec![(pools[0].as_str(), 10000)])
-        .unwrap();
+        .unwrap_err();
+    assert_eq!(
+        "The pair aren't registered: contract8-contract9",
+        err.root_cause().to_string()
+    );
+
     let err = helper.tune(&mut router).unwrap_err();
     assert_eq!(err.root_cause().to_string(), "There are no pools to tune");
 
@@ -592,16 +725,12 @@ fn check_bad_pools_filtering() {
         )
         .unwrap();
 
-    // Voting for 2 blocked pools and one valid pool
+    // Voting for 2 valid pools
     helper
         .vote(
             &mut router,
             user,
-            vec![
-                (pools[0].as_str(), 1000),
-                (pools[1].as_str(), 1000),
-                (pools[2].as_str(), 8000),
-            ],
+            vec![(pools[1].as_str(), 1000), (pools[2].as_str(), 8000)],
         )
         .unwrap();
 
@@ -725,6 +854,16 @@ fn check_main_pool() {
             .create_lock(&mut router, user, MAX_LOCK_TIME, 100f32)
             .unwrap();
     }
+
+    helper
+        .update_whitelist(
+            &mut router,
+            "owner",
+            Some(pools.iter().map(|el| el.to_string()).collect()),
+            None,
+        )
+        .unwrap();
+
     helper
         .vote(
             &mut router,
@@ -788,7 +927,7 @@ fn check_main_pool() {
         .unwrap_err();
     assert_eq!(
         &err.root_cause().to_string(),
-        "contract11 is the main pool. Voting for the main pool is prohibited"
+        "contract11 is the main pool. Voting or whitelisting the main pool is prohibited."
     );
 
     router

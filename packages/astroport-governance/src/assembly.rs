@@ -77,10 +77,10 @@ pub enum ExecuteMsg {
         /// Proposal identifier
         proposal_id: u64,
     },
-    /// Check messages execution
+    /// Checks that proposal messages are correct.
     CheckMessages {
         /// messages
-        messages: Vec<ProposalMessage>,
+        messages: Vec<CosmosMsg>,
     },
     /// The last endpoint which is executed only if all proposal messages have been passed
     CheckMessagesPassed {},
@@ -144,7 +144,7 @@ pub enum Cw20HookMsg {
         title: String,
         description: String,
         link: Option<String>,
-        messages: Option<Vec<ProposalMessage>>,
+        messages: Option<Vec<CosmosMsg>>,
         /// If proposal should be executed on a remote chain this field should specify governance channel
         ibc_channel: Option<String>,
     },
@@ -221,10 +221,6 @@ impl Config {
 /// This structure sotres the params used when updating the main Assembly contract params.
 #[cw_serde]
 pub struct UpdateConfig {
-    /// xASTRO token address
-    pub xastro_token_addr: Option<String>,
-    /// vxASTRO token address
-    pub vxastro_token_addr: Option<String>,
     /// Astroport IBC controller contract
     pub ibc_controller: Option<String>,
     /// Builder unlock contract address
@@ -277,7 +273,7 @@ pub struct Proposal {
     /// Proposal link
     pub link: Option<String>,
     /// Proposal messages
-    pub messages: Option<Vec<ProposalMessage>>,
+    pub messages: Option<Vec<CosmosMsg>>,
     /// Amount of xASTRO deposited in order to post the proposal
     pub deposit_amount: Uint128,
     /// IBC channel
@@ -362,15 +358,6 @@ impl Display for ProposalStatus {
             ProposalStatus::Expired {} => fmt.write_str("expired"),
         }
     }
-}
-
-/// This structure describes a proposal message.
-#[cw_serde]
-pub struct ProposalMessage {
-    /// Order of execution of the message
-    pub order: Uint64,
-    /// Execution message
-    pub msg: CosmosMsg,
 }
 
 /// This structure describes a proposal vote.
