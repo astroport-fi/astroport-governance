@@ -1,12 +1,14 @@
+use std::collections::HashSet;
 use std::ops::RangeInclusive;
 
 use crate::astroport;
 use astroport::asset::{pair_info_by_pool, AssetInfo};
 use astroport::factory::PairType;
-use astroport::querier::query_pair_info;
+use astroport_governance::generator_controller::ConfigResponse;
 use cosmwasm_std::{Addr, Deps, Order, StdError, StdResult, Storage, Uint128};
 use cw_storage_plus::Bound;
 
+use crate::astroport::querier::query_pair_info;
 use astroport_governance::utils::calc_voting_power;
 
 use crate::bps::BasicPoints;
@@ -73,9 +75,11 @@ pub(crate) fn filter_pools(
         .into_iter()
         .filter_map(|(pool_addr, vxastro_amount)| {
             // Check the address is a LP token and retrieve a pair info
-            let pair_info = pair_info_by_pool(deps, pool_addr).ok()?;
+            let pair_info = pair_info_by_pool(&deps.querier, pool_addr).ok()?;
+
             // Check a pair is registered in factory
             query_pair_info(&deps.querier, factory_addr.clone(), &pair_info.asset_infos).ok()?;
+
             let condition = !blocklisted_pair_types.contains(&pair_info.pair_type)
                 && !blocked_tokens.contains(&pair_info.asset_infos[0])
                 && !blocked_tokens.contains(&pair_info.asset_infos[1]);
@@ -336,4 +340,50 @@ pub(crate) fn validate_pools_limit(number: u64) -> Result<u64, ContractError> {
     } else {
         Ok(number)
     }
+}
+
+/// Check if a pool isn't the main pool. Check if a pool is an LP token.
+/// Check if a pool is registered in the factory contract.
+pub fn validate_pool(
+    deps: Deps,
+    config: &ConfigResponse,
+    pool: &Addr,
+) -> Result<(), ContractError> {
+    // Voting for the main pool or updating it is prohibited
+    if let Some(main_pool) = &config.main_pool {
+        if pool == main_pool {
+            return Err(ContractError::MainPoolVoteOrWhitelistingProhibited(
+                main_pool.to_string(),
+            ));
+        }
+    }
+
+    // Checks if a pool is an LP token
+    let pair_info = pair_info_by_pool(&deps.querier, pool.clone())
+        .map_err(|_| ContractError::InvalidLPTokenAddress(pool.to_string()))?;
+
+    // Check if a pair is registered in the factory
+    query_pair_info(
+        &deps.querier,
+        config.factory_addr.clone(),
+        &pair_info.asset_infos,
+    )
+    .map_err(|_| {
+        ContractError::PairNotRegistered(
+            pair_info.asset_infos[0].to_string(),
+            pair_info.asset_infos[1].to_string(),
+        )
+    })?;
+
+    Ok(())
+}
+
+/// Checks for duplicate pools
+pub fn check_duplicated(votes: &[Addr]) -> Result<(), ContractError> {
+    let mut uniq = HashSet::new();
+    if !votes.iter().all(|lp_token| uniq.insert(lp_token)) {
+        return Err(ContractError::DuplicatedPools {});
+    }
+
+    Ok(())
 }

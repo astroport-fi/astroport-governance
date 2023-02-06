@@ -1,13 +1,12 @@
 use astroport::{
     token::InstantiateMsg as TokenInstantiateMsg, xastro_token::QueryMsg as XAstroQueryMsg,
 };
-use std::str::FromStr;
-
 use astroport_governance::assembly::{
     Config, Cw20HookMsg, ExecuteMsg, InstantiateMsg, Proposal, ProposalListResponse,
-    ProposalMessage, ProposalStatus, ProposalVoteOption, ProposalVotesResponse, QueryMsg,
-    UpdateConfig,
+    ProposalStatus, ProposalVoteOption, ProposalVotesResponse, QueryMsg, UpdateConfig,
 };
+
+use std::str::FromStr;
 
 use astroport_governance::voting_escrow::{
     Cw20HookMsg as VXAstroCw20HookMsg, InstantiateMsg as VXAstroInstantiateMsg,
@@ -468,28 +467,23 @@ fn test_proposal_submitting() {
                 title: String::from("Title"),
                 description: String::from("Description"),
                 link: Some(String::from("https://some.link/q/")),
-                messages: Some(vec![ProposalMessage {
-                    order: Uint64::from(0u32),
-                    msg: CosmosMsg::Wasm(WasmMsg::Execute {
-                        contract_addr: assembly_addr.to_string(),
-                        msg: to_binary(&ExecuteMsg::UpdateConfig(UpdateConfig {
-                            xastro_token_addr: None,
-                            vxastro_token_addr: None,
-                            ibc_controller: None,
-                            builder_unlock_addr: None,
-                            proposal_voting_period: Some(750),
-                            proposal_effective_delay: None,
-                            proposal_expiration_period: None,
-                            proposal_required_deposit: None,
-                            proposal_required_quorum: None,
-                            proposal_required_threshold: None,
-                            whitelist_add: None,
-                            whitelist_remove: None,
-                        }))
-                        .unwrap(),
-                        funds: vec![],
-                    }),
-                }]),
+                messages: Some(vec![CosmosMsg::Wasm(WasmMsg::Execute {
+                    contract_addr: assembly_addr.to_string(),
+                    msg: to_binary(&ExecuteMsg::UpdateConfig(UpdateConfig {
+                        ibc_controller: None,
+                        builder_unlock_addr: None,
+                        proposal_voting_period: Some(750),
+                        proposal_effective_delay: None,
+                        proposal_expiration_period: None,
+                        proposal_required_deposit: None,
+                        proposal_required_quorum: None,
+                        proposal_required_threshold: None,
+                        whitelist_add: None,
+                        whitelist_remove: None,
+                    }))
+                    .unwrap(),
+                    funds: vec![],
+                })]),
                 ibc_channel: None,
             })
             .unwrap(),
@@ -521,28 +515,23 @@ fn test_proposal_submitting() {
     assert_eq!(proposal.link, Some(String::from("https://some.link/q/")));
     assert_eq!(
         proposal.messages,
-        Some(vec![ProposalMessage {
-            order: Uint64::from(0u32),
-            msg: CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: assembly_addr.to_string(),
-                msg: to_binary(&ExecuteMsg::UpdateConfig(UpdateConfig {
-                    xastro_token_addr: None,
-                    vxastro_token_addr: None,
-                    ibc_controller: None,
-                    builder_unlock_addr: None,
-                    proposal_voting_period: Some(750),
-                    proposal_effective_delay: None,
-                    proposal_expiration_period: None,
-                    proposal_required_deposit: None,
-                    proposal_required_quorum: None,
-                    proposal_required_threshold: None,
-                    whitelist_add: None,
-                    whitelist_remove: None,
-                }))
-                .unwrap(),
-                funds: vec![],
-            }),
-        }])
+        Some(vec![CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: assembly_addr.to_string(),
+            msg: to_binary(&ExecuteMsg::UpdateConfig(UpdateConfig {
+                ibc_controller: None,
+                builder_unlock_addr: None,
+                proposal_voting_period: Some(750),
+                proposal_effective_delay: None,
+                proposal_expiration_period: None,
+                proposal_required_deposit: None,
+                proposal_required_quorum: None,
+                proposal_required_threshold: None,
+                whitelist_add: None,
+                whitelist_remove: None,
+            }))
+            .unwrap(),
+            funds: vec![],
+        })])
     );
     assert_eq!(proposal.deposit_amount, Uint128::from(1000u64))
 }
@@ -653,31 +642,26 @@ fn test_successful_proposal() {
         &xastro_addr,
         &assembly_addr,
         Addr::unchecked("user0"),
-        Some(vec![ProposalMessage {
-            order: Uint64::from(0u32),
-            msg: CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: assembly_addr.to_string(),
-                msg: to_binary(&ExecuteMsg::UpdateConfig(UpdateConfig {
-                    xastro_token_addr: None,
-                    vxastro_token_addr: None,
-                    ibc_controller: None,
-                    builder_unlock_addr: None,
-                    proposal_voting_period: Some(750),
-                    proposal_effective_delay: None,
-                    proposal_expiration_period: None,
-                    proposal_required_deposit: None,
-                    proposal_required_quorum: None,
-                    proposal_required_threshold: None,
-                    whitelist_add: Some(vec![
-                        "https://some1.link/".to_string(),
-                        "https://some2.link/".to_string(),
-                    ]),
-                    whitelist_remove: Some(vec!["https://some.link/".to_string()]),
-                }))
-                .unwrap(),
-                funds: vec![],
-            }),
-        }]),
+        Some(vec![CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: assembly_addr.to_string(),
+            msg: to_binary(&ExecuteMsg::UpdateConfig(UpdateConfig {
+                ibc_controller: None,
+                builder_unlock_addr: None,
+                proposal_voting_period: Some(750),
+                proposal_effective_delay: None,
+                proposal_expiration_period: None,
+                proposal_required_deposit: None,
+                proposal_required_quorum: None,
+                proposal_required_threshold: None,
+                whitelist_add: Some(vec![
+                    "https://some1.link/".to_string(),
+                    "https://some2.link/".to_string(),
+                ]),
+                whitelist_remove: Some(vec!["https://some.link/".to_string()]),
+            }))
+            .unwrap(),
+            funds: vec![],
+        })]),
     );
 
     let votes: Vec<(&str, ProposalVoteOption, u128)> = vec![
@@ -940,28 +924,23 @@ fn test_voting_power_changes() {
         &xastro_addr,
         &assembly_addr,
         Addr::unchecked("user0"),
-        Some(vec![ProposalMessage {
-            order: Uint64::from(0u32),
-            msg: CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: assembly_addr.to_string(),
-                msg: to_binary(&ExecuteMsg::UpdateConfig(UpdateConfig {
-                    xastro_token_addr: None,
-                    vxastro_token_addr: None,
-                    ibc_controller: None,
-                    builder_unlock_addr: None,
-                    proposal_voting_period: Some(750),
-                    proposal_effective_delay: None,
-                    proposal_expiration_period: None,
-                    proposal_required_deposit: None,
-                    proposal_required_quorum: None,
-                    proposal_required_threshold: None,
-                    whitelist_add: None,
-                    whitelist_remove: None,
-                }))
-                .unwrap(),
-                funds: vec![],
-            }),
-        }]),
+        Some(vec![CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: assembly_addr.to_string(),
+            msg: to_binary(&ExecuteMsg::UpdateConfig(UpdateConfig {
+                ibc_controller: None,
+                builder_unlock_addr: None,
+                proposal_voting_period: Some(750),
+                proposal_effective_delay: None,
+                proposal_expiration_period: None,
+                proposal_required_deposit: None,
+                proposal_required_quorum: None,
+                proposal_required_threshold: None,
+                whitelist_add: None,
+                whitelist_remove: None,
+            }))
+            .unwrap(),
+            funds: vec![],
+        })]),
     );
     // Mint user2's tokens at the same block to increase total supply and add voting power to try to cast vote.
     mint_tokens(
@@ -1275,14 +1254,12 @@ fn test_check_messages() {
     let into_check_msg = |msgs: Vec<(String, Binary)>| {
         let messages = msgs
             .into_iter()
-            .enumerate()
-            .map(|(i, (contract_addr, msg))| ProposalMessage {
-                order: Uint64::from(i as u64),
-                msg: CosmosMsg::Wasm(WasmMsg::Execute {
+            .map(|(contract_addr, msg)| {
+                CosmosMsg::Wasm(WasmMsg::Execute {
                     contract_addr,
                     msg,
                     funds: vec![],
-                }),
+                })
             })
             .collect();
         ExecuteMsg::CheckMessages { messages }
@@ -1648,7 +1625,7 @@ fn create_proposal(
     token: &Addr,
     assembly: &Addr,
     submitter: Addr,
-    msgs: Option<Vec<ProposalMessage>>,
+    msgs: Option<Vec<CosmosMsg>>,
 ) {
     let submit_proposal_msg = Cw20HookMsg::SubmitProposal {
         title: "Test title!".to_string(),

@@ -10,8 +10,8 @@ use std::str::FromStr;
 
 use astroport_governance::assembly::{
     helpers::validate_links, Config, Cw20HookMsg, ExecuteMsg, InstantiateMsg, Proposal,
-    ProposalListResponse, ProposalMessage, ProposalStatus, ProposalVoteOption,
-    ProposalVotesResponse, QueryMsg, UpdateConfig,
+    ProposalListResponse, ProposalStatus, ProposalVoteOption, ProposalVotesResponse, QueryMsg,
+    UpdateConfig,
 };
 
 use astroport::xastro_token::QueryMsg as XAstroTokenQueryMsg;
@@ -21,7 +21,9 @@ use astroport_governance::builder_unlock::msg::{
 use astroport_governance::voting_escrow::{QueryMsg as VotingEscrowQueryMsg, VotingPowerResponse};
 
 use crate::error::ContractError;
-use crate::migration::{migrate_config, migrate_proposals, MigrateMsg};
+use crate::migration::{
+    migrate_config, migrate_proposals_from_v110, migrate_proposals_from_v121, MigrateMsg,
+};
 use crate::state::{CONFIG, PROPOSALS, PROPOSAL_COUNT};
 
 // Contract name and version used for migration.
@@ -166,21 +168,18 @@ pub fn receive_cw20(
             link,
             messages,
             ibc_channel,
-        } => {
-            let sender = deps.api.addr_validate(&cw20_msg.sender)?;
-            submit_proposal(
-                deps,
-                env,
-                info,
-                sender,
-                cw20_msg.amount,
-                title,
-                description,
-                link,
-                messages,
-                ibc_channel,
-            )
-        }
+        } => submit_proposal(
+            deps,
+            env,
+            info,
+            Addr::unchecked(cw20_msg.sender),
+            cw20_msg.amount,
+            title,
+            description,
+            link,
+            messages,
+            ibc_channel,
+        ),
     }
 }
 
@@ -204,7 +203,7 @@ pub fn receive_cw20(
 ///
 /// * **link** is an object of type [`Option<String>`]. Proposal link.
 ///
-/// * **messages** is an object of type [`Option<Vec<ProposalMessage>>`]. Executable messages (actions to perform if the proposal passes).
+/// * **messages** is an object of type [`Option<Vec<CosmosMsg>>`]. Executable messages (actions to perform if the proposal passes).
 #[allow(clippy::too_many_arguments)]
 pub fn submit_proposal(
     deps: DepsMut,
@@ -215,7 +214,7 @@ pub fn submit_proposal(
     title: String,
     description: String,
     link: Option<String>,
-    messages: Option<Vec<ProposalMessage>>,
+    messages: Option<Vec<CosmosMsg>>,
     ibc_channel: Option<String>,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
@@ -267,7 +266,7 @@ pub fn submit_proposal(
 
     Ok(Response::new()
         .add_attribute("action", "submit_proposal")
-        .add_attribute("submitter", sender.to_string())
+        .add_attribute("submitter", sender)
         .add_attribute("proposal_id", count.to_string())
         .add_attribute(
             "proposal_end_height",
@@ -456,33 +455,35 @@ pub fn execute_proposal(
 
     let messages;
     if let Some(channel) = &proposal.ibc_channel {
-        proposal.status = ProposalStatus::InProgress;
-        PROPOSALS.save(deps.storage, proposal_id, &proposal)?;
-
         let config = CONFIG.load(deps.storage)?;
-        messages = vec![CosmosMsg::Wasm(wasm_execute(
-            &config
-                .ibc_controller
-                .ok_or(ContractError::MissingIBCController {})?,
-            &ibc_controller_package::ExecuteMsg::IbcExecuteProposal {
-                channel_id: channel.to_string(),
-                proposal_id,
-                messages: proposal.messages.unwrap_or_default(),
-            },
-            vec![],
-        )?)];
+
+        messages = match &proposal.messages {
+            Some(messages) => {
+                proposal.status = ProposalStatus::InProgress;
+                vec![CosmosMsg::Wasm(wasm_execute(
+                    &config
+                        .ibc_controller
+                        .ok_or(ContractError::MissingIBCController {})?,
+                    &ibc_controller_package::ExecuteMsg::IbcExecuteProposal {
+                        channel_id: channel.to_string(),
+                        proposal_id,
+                        messages: messages.to_vec(),
+                    },
+                    vec![],
+                )?)]
+            }
+            None => {
+                proposal.status = ProposalStatus::Executed;
+                vec![]
+            }
+        };
+
+        PROPOSALS.save(deps.storage, proposal_id, &proposal)?;
     } else {
         proposal.status = ProposalStatus::Executed;
-
         PROPOSALS.save(deps.storage, proposal_id, &proposal)?;
 
-        messages = match proposal.messages {
-            Some(mut messages) => {
-                messages.sort_by(|a, b| a.order.cmp(&b.order));
-                messages.into_iter().map(|message| message.msg).collect()
-            }
-            None => vec![],
-        };
+        messages = proposal.messages.unwrap_or_default()
     }
 
     Ok(Response::new()
@@ -498,13 +499,8 @@ pub fn execute_proposal(
 /// ## Params
 /// * **env** is an object of type [`Env`].
 ///
-/// * **messages** is a vector of [`ProposalMessage`].
-pub fn check_messages(
-    env: Env,
-    mut messages: Vec<ProposalMessage>,
-) -> Result<Response, ContractError> {
-    messages.sort_by(|a, b| a.order.cmp(&b.order));
-    let mut messages: Vec<_> = messages.into_iter().map(|message| message.msg).collect();
+/// * **messages** is a vector of [`CosmosMsg`].
+pub fn check_messages(env: Env, mut messages: Vec<CosmosMsg>) -> Result<Response, ContractError> {
     messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: env.contract.address.to_string(),
         msg: to_binary(&ExecuteMsg::CheckMessagesPassed {})?,
@@ -578,14 +574,6 @@ pub fn update_config(
     // Only the Assembly is allowed to update its own parameters (through a successful proposal)
     if info.sender != env.contract.address {
         return Err(ContractError::Unauthorized {});
-    }
-
-    if let Some(xastro_token_addr) = updated_config.xastro_token_addr {
-        config.xastro_token_addr = deps.api.addr_validate(&xastro_token_addr)?;
-    }
-
-    if let Some(vxastro_token_addr) = updated_config.vxastro_token_addr {
-        config.vxastro_token_addr = Some(deps.api.addr_validate(&vxastro_token_addr)?);
     }
 
     if let Some(ibc_controller) = updated_config.ibc_controller {
@@ -668,19 +656,25 @@ fn update_ibc_proposal_status(
     let config = CONFIG.load(deps.storage)?;
     if Some(info.sender) == config.ibc_controller {
         let mut proposal = PROPOSALS.load(deps.storage, id)?;
-        match (&proposal.status, &new_status) {
-            (
-                ProposalStatus::InProgress,
-                ProposalStatus::Executed {} | ProposalStatus::Failed {},
-            ) => {
+
+        if proposal.status != ProposalStatus::InProgress {
+            return Err(ContractError::WrongIbcProposalStatus(
+                proposal.status.to_string(),
+            ));
+        }
+
+        match new_status {
+            ProposalStatus::Executed {} | ProposalStatus::Failed {} => {
                 proposal.status = new_status;
                 PROPOSALS.save(deps.storage, id, &proposal)?;
                 Ok(Response::new().add_attribute("action", "ibc_proposal_completed"))
             }
-            _ => Err(ContractError::Unauthorized {}),
+            _ => Err(ContractError::InvalidRemoteIbcProposalStatus(
+                new_status.to_string(),
+            )),
         }
     } else {
-        Err(ContractError::Unauthorized {})
+        Err(ContractError::InvalidIBCController {})
     }
 }
 
@@ -944,11 +938,12 @@ pub fn migrate(mut deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response
         "astro-assembly" => match contract_version.version.as_ref() {
             "1.1.0" => {
                 migrate_config(&mut deps, &msg)?;
-
-                migrate_proposals(deps.storage)?;
+                migrate_proposals_from_v110(deps.storage)?;
+                migrate_proposals_from_v121(deps.storage)?;
             }
-            "1.2.0" => {}
-            "1.2.1" => {}
+            "1.2.1" => {
+                migrate_proposals_from_v121(deps.storage)?;
+            }
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),
