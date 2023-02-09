@@ -59,15 +59,13 @@ impl AllocationParams {
 
         if self.amount.is_zero() {
             return Err(StdError::generic_err(format!(
-                "Amount must not be zero. Account: {}",
-                account
+                "Amount must not be zero. Account: {account}",
             )));
         }
 
         if self.proposed_receiver.is_some() {
             return Err(StdError::generic_err(format!(
-                "Proposed receiver must be unset. Account: {}",
-                account
+                "Proposed receiver must be unset. Account: {account}"
             )));
         }
 
