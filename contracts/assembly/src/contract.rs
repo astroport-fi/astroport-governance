@@ -459,18 +459,23 @@ pub fn execute_proposal(
 
         messages = match &proposal.messages {
             Some(messages) => {
-                proposal.status = ProposalStatus::InProgress;
-                vec![CosmosMsg::Wasm(wasm_execute(
-                    &config
-                        .ibc_controller
-                        .ok_or(ContractError::MissingIBCController {})?,
-                    &ibc_controller_package::ExecuteMsg::IbcExecuteProposal {
-                        channel_id: channel.to_string(),
-                        proposal_id,
-                        messages: messages.to_vec(),
-                    },
-                    vec![],
-                )?)]
+                if !messages.is_empty() {
+                    proposal.status = ProposalStatus::InProgress;
+                    vec![CosmosMsg::Wasm(wasm_execute(
+                        config
+                            .ibc_controller
+                            .ok_or(ContractError::MissingIBCController {})?,
+                        &ibc_controller_package::ExecuteMsg::IbcExecuteProposal {
+                            channel_id: channel.to_string(),
+                            proposal_id,
+                            messages: messages.to_vec(),
+                        },
+                        vec![],
+                    )?)]
+                } else {
+                    proposal.status = ProposalStatus::Executed;
+                    vec![]
+                }
             }
             None => {
                 proposal.status = ProposalStatus::Executed;
@@ -886,7 +891,7 @@ pub fn calc_total_voting_power_at(deps: Deps, proposal: &Proposal) -> StdResult<
     if let Some(vxastro_token_addr) = config.vxastro_token_addr {
         // Total vxASTRO voting power
         let vxastro: VotingPowerResponse = deps.querier.query_wasm_smart(
-            &vxastro_token_addr,
+            vxastro_token_addr,
             &VotingEscrowQueryMsg::TotalVotingPowerAt {
                 time: proposal.start_time - 1,
             },
@@ -912,7 +917,7 @@ pub fn check_controller_supports_channel(
     ibc_controller: &Addr,
     given_channel: &String,
 ) -> Result<(), ContractError> {
-    let port_id = Some(format!("wasm.{}", ibc_controller));
+    let port_id = Some(format!("wasm.{ibc_controller}"));
     let ListChannelsResponse { channels } =
         querier.query(&QueryRequest::Ibc(IbcQuery::ListChannels { port_id }))?;
     channels
