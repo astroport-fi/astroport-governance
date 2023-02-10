@@ -46,8 +46,7 @@ pub fn instantiate(
     if let Some(claim_many_limit) = msg.claim_many_limit {
         if claim_many_limit < MIN_CLAIM_LIMIT {
             return Err(StdError::generic_err(format!(
-                "Accounts limit for claim operation cannot be less than {} !",
-                MIN_CLAIM_LIMIT
+                "Accounts limit for claim operation cannot be less than {MIN_CLAIM_LIMIT} !"
             )));
         }
     }
@@ -402,8 +401,7 @@ fn update_config(
     if let Some(claim_many_limit) = claim_many_limit {
         if claim_many_limit < MIN_CLAIM_LIMIT {
             return Err(ContractError::Std(StdError::generic_err(format!(
-                "Accounts limit for claim operation cannot be less than {} !",
-                MIN_CLAIM_LIMIT
+                "Accounts limit for claim operation cannot be less than {MIN_CLAIM_LIMIT} !"
             ))));
         }
 

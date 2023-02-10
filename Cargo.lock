@@ -15,17 +15,17 @@ dependencies = [
 
 [[package]]
 name = "anyhow"
-version = "1.0.68"
+version = "1.0.69"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2cb2f989d18dd141ab8ae82f64d1a8cdd37e0840f73a406896cf5e99502fab61"
+checksum = "224afbd727c3d6e4b90103ece64b8d1b67fbb1973b1046c2281eed3f3803f800"
 
 [[package]]
 name = "astro-assembly"
 version = "1.3.0"
 dependencies = [
  "anyhow",
- "astroport",
- "astroport-governance",
+ "astroport 2.1.0",
+ "astroport-governance 1.2.0",
  "astroport-staking",
  "astroport-token",
  "astroport-xastro-token",
@@ -55,10 +55,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "astroport"
+version = "2.2.0"
+source = "git+https://github.com/astroport-fi/astroport-core.git?branch=release#4aa026f8c3a021a78386d8a034f425070dd06971"
+dependencies = [
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-storage-plus",
+ "cw-utils",
+ "cw20",
+ "itertools",
+ "uint",
+]
+
+[[package]]
 name = "astroport-escrow-fee-distributor"
 version = "1.0.1"
 dependencies = [
- "astroport-governance",
+ "astroport-governance 1.2.0",
  "astroport-tests",
  "astroport-token",
  "cosmwasm-schema",
@@ -75,7 +89,7 @@ name = "astroport-factory"
 version = "1.2.1"
 source = "git+https://github.com/astroport-fi/hidden_astroport_core.git?branch=release#77cad13c6d2c86cbe034137a5ec78d667f9e5ecb"
 dependencies = [
- "astroport",
+ "astroport 2.1.0",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus",
@@ -89,8 +103,8 @@ name = "astroport-generator"
 version = "2.2.0"
 source = "git+https://github.com/astroport-fi/hidden_astroport_core.git?branch=release#77cad13c6d2c86cbe034137a5ec78d667f9e5ecb"
 dependencies = [
- "astroport",
- "astroport-governance",
+ "astroport 2.1.0",
+ "astroport-governance 1.2.0",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus",
@@ -105,7 +119,19 @@ dependencies = [
 name = "astroport-governance"
 version = "1.2.0"
 dependencies = [
- "astroport",
+ "astroport 2.1.0",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-storage-plus",
+ "cw20",
+]
+
+[[package]]
+name = "astroport-governance"
+version = "1.2.0"
+source = "git+https://github.com/astroport-fi/astroport-governance.git?branch=release#a707945bd5c271c6a4dfc2a21a563e902376ce83"
+dependencies = [
+ "astroport 2.2.0",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus",
@@ -117,7 +143,7 @@ name = "astroport-pair"
 version = "1.1.0"
 source = "git+https://github.com/astroport-fi/hidden_astroport_core.git?branch=release#77cad13c6d2c86cbe034137a5ec78d667f9e5ecb"
 dependencies = [
- "astroport",
+ "astroport 2.1.0",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus",
@@ -133,7 +159,7 @@ name = "astroport-staking"
 version = "1.0.1"
 source = "git+https://github.com/astroport-fi/hidden_astroport_core.git?branch=release#77cad13c6d2c86cbe034137a5ec78d667f9e5ecb"
 dependencies = [
- "astroport",
+ "astroport 2.1.0",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus",
@@ -148,11 +174,11 @@ name = "astroport-tests"
 version = "1.0.0"
 dependencies = [
  "anyhow",
- "astroport",
+ "astroport 2.1.0",
  "astroport-escrow-fee-distributor",
  "astroport-factory",
  "astroport-generator",
- "astroport-governance",
+ "astroport-governance 1.2.0",
  "astroport-pair",
  "astroport-staking",
  "astroport-token",
@@ -171,7 +197,7 @@ name = "astroport-token"
 version = "1.1.0"
 source = "git+https://github.com/astroport-fi/hidden_astroport_core.git?branch=release#77cad13c6d2c86cbe034137a5ec78d667f9e5ecb"
 dependencies = [
- "astroport",
+ "astroport 2.1.0",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw2",
@@ -185,7 +211,7 @@ name = "astroport-whitelist"
 version = "1.0.0"
 source = "git+https://github.com/astroport-fi/hidden_astroport_core.git?branch=release#77cad13c6d2c86cbe034137a5ec78d667f9e5ecb"
 dependencies = [
- "astroport",
+ "astroport 2.1.0",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw1-whitelist",
@@ -198,7 +224,7 @@ name = "astroport-xastro-token"
 version = "1.0.1"
 source = "git+https://github.com/astroport-fi/hidden_astroport_core.git?branch=release#77cad13c6d2c86cbe034137a5ec78d667f9e5ecb"
 dependencies = [
- "astroport",
+ "astroport 2.1.0",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus",
@@ -275,8 +301,8 @@ dependencies = [
 name = "builder-unlock"
 version = "1.2.2"
 dependencies = [
- "astroport",
- "astroport-governance",
+ "astroport 2.1.0",
+ "astroport-governance 1.2.0",
  "astroport-token",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -295,9 +321,9 @@ checksum = "14c189c53d098945499cdfa7ecc63567cf3886b3332b312a5b4585d8d3a6a610"
 
 [[package]]
 name = "bytes"
-version = "1.3.0"
+version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dfb24e866b15a1af2a1b663f10c6b6b8f397a84aadb828f12e5b289ec23a3a3c"
+checksum = "89b2fd2a0dcf38d7971e2194b6b6eebab45ae01067456a7fd93d5547a61b70be"
 
 [[package]]
 name = "cfg-if"
@@ -699,7 +725,7 @@ dependencies = [
  "anyhow",
  "astroport-factory",
  "astroport-generator",
- "astroport-governance",
+ "astroport-governance 1.2.0",
  "astroport-pair",
  "astroport-staking",
  "astroport-tests",
@@ -776,9 +802,9 @@ dependencies = [
 [[package]]
 name = "ibc-controller-package"
 version = "0.1.0"
-source = "git+https://github.com/astroport-fi/astroport_ibc.git?branch=fix/oak_audit#09b9dbe86098cc43cad6cb0db1bde8813773a08a"
+source = "git+https://github.com/astroport-fi/astroport_ibc.git?branch=release#47a5e395fe5cff0ee3546db81e99121d2fdf2113"
 dependencies = [
- "astroport-governance",
+ "astroport-governance 1.2.0 (git+https://github.com/astroport-fi/astroport-governance.git?branch=release)",
  "cosmwasm-schema",
  "cosmwasm-std",
  "schemars",
@@ -843,12 +869,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "201de327520df007757c1f0adce6e827fe8562fbc28bfd9c15571c66ca1f5f79"
 
 [[package]]
+name = "libm"
+version = "0.2.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "348108ab3fba42ec82ff6e9564fc4ca0247bdccdc68dd8af9764bbc79c3c8ffb"
+
+[[package]]
 name = "num-traits"
 version = "0.2.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "578ede34cf02f8924ab9447f50c28075b4d3e5b269972345e7e0372b38c6cdcd"
 dependencies = [
  "autocfg",
+ "libm",
 ]
 
 [[package]]
@@ -881,18 +914,18 @@ checksum = "5b40af805b3121feab8a3c29f04d8ad262fa8e0561883e7653e024ae4479e6de"
 
 [[package]]
 name = "proc-macro2"
-version = "1.0.50"
+version = "1.0.51"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6ef7d57beacfaf2d8aee5937dab7b7f28de3cb8b1828479bb5de2a7106f2bae2"
+checksum = "5d727cae5b39d21da60fa540906919ad737832fe0b1c165da3a34d6548c849d6"
 dependencies = [
  "unicode-ident",
 ]
 
 [[package]]
 name = "proptest"
-version = "1.0.0"
+version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1e0d9cc07f18492d879586c92b485def06bc850da3118075cd45d50e9c95b0e5"
+checksum = "29f1b898011ce9595050a68e60f90bad083ff2987a695a42357134c8381fba70"
 dependencies = [
  "bit-set",
  "bitflags",
@@ -906,6 +939,7 @@ dependencies = [
  "regex-syntax",
  "rusty-fork",
  "tempfile",
+ "unarray",
 ]
 
 [[package]]
@@ -1145,9 +1179,9 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.91"
+version = "1.0.93"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "877c235533714907a8c2464236f5c4b2a17262ef1bd71f38f35ea592c8da6883"
+checksum = "cad406b69c91885b5107daf2c29572f6c8cdb3c66826821e286c533490c0bc76"
 dependencies = [
  "itoa",
  "ryu",
@@ -1295,6 +1329,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "unarray"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "eaea85b334db583fe3274d12b4cd1880032beab409c0d774be044d4480ab9a94"
+
+[[package]]
 name = "unicode-ident"
 version = "1.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1312,7 +1352,7 @@ version = "1.2.0"
 dependencies = [
  "anyhow",
  "astroport-escrow-fee-distributor",
- "astroport-governance",
+ "astroport-governance 1.2.0",
  "astroport-staking",
  "astroport-token",
  "cosmwasm-schema",

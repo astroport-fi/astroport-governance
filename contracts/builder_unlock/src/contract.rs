@@ -294,8 +294,7 @@ fn execute_create_allocations(
 
         if PARAMS.has(deps.storage, &user) {
             return Err(StdError::generic_err(format!(
-                "Allocation (params) already exists for {}",
-                user
+                "Allocation (params) already exists for {user}"
             )));
         }
         PARAMS.save(deps.storage, &user, &params)?;
@@ -374,8 +373,7 @@ fn execute_propose_new_receiver(
     match alloc_params.proposed_receiver {
         Some(proposed_receiver) => {
             return Err(StdError::generic_err(format!(
-                "Proposed receiver already set to {}",
-                proposed_receiver
+                "Proposed receiver already set to {proposed_receiver}"
             )));
         }
         None => {
@@ -463,8 +461,8 @@ fn execute_decrease_allocation(
 
     if locked_amount < amount {
         return Err(StdError::generic_err(format!(
-            "Insufficient amount of lock to decrease allocation, user has locked {} ASTRO.",
-            locked_amount
+            "Insufficient amount of lock to decrease allocation, user has locked {locked_amount} ASTRO."
+
         )));
     }
 
@@ -645,8 +643,7 @@ fn execute_claim_receiver(
                 STATUS.remove(deps.storage, &prev_receiver_addr)
             } else {
                 return Err(StdError::generic_err(format!(
-                    "Proposed receiver mismatch, actual proposed receiver : {}",
-                    proposed_receiver
+                    "Proposed receiver mismatch, actual proposed receiver : {proposed_receiver}"
                 )));
             }
         }
