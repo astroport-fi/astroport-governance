@@ -1,4 +1,3 @@
-use astroport_governance::astroport::asset::addr_validate_to_lower;
 use astroport_governance::utils::{calc_voting_power, get_period, get_periods_count};
 use astroport_governance::voting_escrow::{get_voting_power, get_voting_power_at, MAX_LIMIT};
 use std::marker::PhantomData;
@@ -49,9 +48,9 @@ pub fn instantiate(
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     let config = Config {
-        owner: addr_validate_to_lower(deps.api, &msg.owner)?,
+        owner: deps.api.addr_validate(&msg.owner)?,
         nft_addr: Addr::unchecked(""),
-        voting_escrow_addr: addr_validate_to_lower(deps.api, &msg.voting_escrow_addr)?,
+        voting_escrow_addr: deps.api.addr_validate(&msg.voting_escrow_addr)?,
     };
     CONFIG.save(deps.storage, &config)?;
 
@@ -164,7 +163,7 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
     }
 
     let res = parse_reply_instantiate_data(msg)?;
-    config.nft_addr = addr_validate_to_lower(deps.api, res.contract_address)?;
+    config.nft_addr = deps.api.addr_validate(res.contract_address.as_str())?;
 
     CONFIG.save(deps.storage, &config)?;
     Ok(Response::new())
@@ -191,7 +190,7 @@ pub fn create_delegation(
     token_id: String,
     recipient: String,
 ) -> Result<Response, ContractError> {
-    let recipient_addr = addr_validate_to_lower(deps.api, recipient.clone())?;
+    let recipient_addr = deps.api.addr_validate(recipient.as_str())?;
     let delegator = info.sender;
     let cfg = CONFIG.load(deps.storage)?;
     let block_period = get_period(env.block.time.seconds())?;
@@ -337,7 +336,7 @@ fn update_config(
     }
 
     if let Some(new_voting_escrow) = new_voting_escrow {
-        cfg.voting_escrow_addr = addr_validate_to_lower(deps.api, &new_voting_escrow)?;
+        cfg.voting_escrow_addr = deps.api.addr_validate(&new_voting_escrow)?;
     }
 
     CONFIG.save(deps.storage, &cfg)?;
@@ -380,7 +379,7 @@ fn adjusted_balance(
     account: String,
     timestamp: Option<u64>,
 ) -> StdResult<Uint128> {
-    let account = addr_validate_to_lower(deps.api, account)?;
+    let account = deps.api.addr_validate(account.as_str())?;
     let config = CONFIG.load(deps.storage)?;
 
     let mut current_vp = if let Some(timestamp) = timestamp {
@@ -441,7 +440,7 @@ fn delegated_vp(
     account: String,
     timestamp: Option<u64>,
 ) -> StdResult<Uint128> {
-    let account = addr_validate_to_lower(deps.api, account)?;
+    let account = deps.api.addr_validate(account.as_str())?;
     let block_period = get_period(timestamp.unwrap_or_else(|| env.block.time.seconds()))?;
 
     calc_total_delegated_vp(deps, &account, block_period)

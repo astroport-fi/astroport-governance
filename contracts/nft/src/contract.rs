@@ -2,7 +2,6 @@ use cosmwasm_std::{
     entry_point, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Response, StdResult,
 };
 
-use astroport_governance::astroport::asset::addr_validate_to_lower;
 use astroport_governance::nft::MigrateMsg;
 use cw2::set_contract_version;
 use cw721::ContractInfoResponse;
@@ -32,7 +31,7 @@ pub fn instantiate(
     let tract = Cw721Contract::<Extension, Empty, Empty, Empty>::default();
     tract.contract_info.save(deps.storage, &info)?;
 
-    let minter = addr_validate_to_lower(deps.api, msg.minter)?;
+    let minter = deps.api.addr_validate(msg.minter.as_str())?;
     tract.minter.save(deps.storage, &minter)?;
     Ok(Response::default())
 }

@@ -9,7 +9,6 @@ use cw_storage_plus::Bound;
 use std::str::FromStr;
 
 use crate::astroport;
-use astroport::asset::addr_validate_to_lower;
 use astroport_governance::assembly::{
     helpers::validate_links, Config, Cw20HookMsg, ExecuteMsg, InstantiateMsg, Proposal,
     ProposalListResponse, ProposalMessage, ProposalResponse, ProposalStatus, ProposalVoteOption,
@@ -59,14 +58,14 @@ pub fn instantiate(
     validate_links(&msg.whitelisted_links)?;
 
     let config = Config {
-        xastro_token_addr: addr_validate_to_lower(deps.api, &msg.xastro_token_addr)?,
+        xastro_token_addr: deps.api.addr_validate(&msg.xastro_token_addr)?,
         vxastro_token_addr: addr_opt_validate(deps.api, &msg.vxastro_token_addr)?,
         voting_escrow_delegator_addr: addr_opt_validate(
             deps.api,
             &msg.voting_escrow_delegator_addr,
         )?,
         ibc_controller: addr_opt_validate(deps.api, &msg.ibc_controller)?,
-        builder_unlock_addr: addr_validate_to_lower(deps.api, &msg.builder_unlock_addr)?,
+        builder_unlock_addr: deps.api.addr_validate(&msg.builder_unlock_addr)?,
         proposal_voting_period: msg.proposal_voting_period,
         proposal_effective_delay: msg.proposal_effective_delay,
         proposal_expiration_period: msg.proposal_expiration_period,
@@ -142,7 +141,7 @@ pub fn receive_cw20(
             messages,
             ibc_channel,
         } => {
-            let sender = addr_validate_to_lower(deps.api, &cw20_msg.sender)?;
+            let sender = deps.api.addr_validate(&cw20_msg.sender)?;
             submit_proposal(
                 deps,
                 env,
@@ -396,7 +395,7 @@ pub fn execute_proposal(
 
         let config = CONFIG.load(deps.storage)?;
         messages = vec![CosmosMsg::Wasm(wasm_execute(
-            &config
+            config
                 .ibc_controller
                 .ok_or(ContractError::MissingIBCController {})?,
             &ibc_controller_package::ExecuteMsg::IbcExecuteProposal {
@@ -488,26 +487,26 @@ pub fn update_config(
     }
 
     if let Some(xastro_token_addr) = updated_config.xastro_token_addr {
-        config.xastro_token_addr = addr_validate_to_lower(deps.api, &xastro_token_addr)?;
+        config.xastro_token_addr = deps.api.addr_validate(&xastro_token_addr)?;
     }
 
     if let Some(vxastro_token_addr) = updated_config.vxastro_token_addr {
-        config.vxastro_token_addr = Some(addr_validate_to_lower(deps.api, &vxastro_token_addr)?);
+        config.vxastro_token_addr = Some(deps.api.addr_validate(&vxastro_token_addr)?);
     }
 
     if let Some(voting_escrow_delegator_addr) = updated_config.voting_escrow_delegator_addr {
-        config.voting_escrow_delegator_addr = Some(addr_validate_to_lower(
-            deps.api,
-            voting_escrow_delegator_addr,
-        )?)
+        config.voting_escrow_delegator_addr = Some(
+            deps.api
+                .addr_validate(voting_escrow_delegator_addr.as_str())?,
+        )
     }
 
     if let Some(ibc_controller) = updated_config.ibc_controller {
-        config.ibc_controller = Some(addr_validate_to_lower(deps.api, ibc_controller)?)
+        config.ibc_controller = Some(deps.api.addr_validate(ibc_controller.as_str())?)
     }
 
     if let Some(builder_unlock_addr) = updated_config.builder_unlock_addr {
-        config.builder_unlock_addr = addr_validate_to_lower(deps.api, &builder_unlock_addr)?;
+        config.builder_unlock_addr = deps.api.addr_validate(&builder_unlock_addr)?;
     }
 
     if let Some(proposal_voting_period) = updated_config.proposal_voting_period {
@@ -626,7 +625,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::UserVotingPower { user, proposal_id } => {
             let proposal = PROPOSALS.load(deps.storage, proposal_id)?;
 
-            addr_validate_to_lower(deps.api, &user)?;
+            deps.api.addr_validate(&user)?;
 
             to_binary(&calc_voting_power(deps, user, &proposal)?)
         }
@@ -790,7 +789,7 @@ pub fn calc_voting_power(deps: Deps, sender: String, proposal: &Proposal) -> Std
         let vxastro_amount: Uint128 =
             if let Some(voting_escrow_delegator_addr) = config.voting_escrow_delegator_addr {
                 deps.querier.query_wasm_smart(
-                    &voting_escrow_delegator_addr,
+                    voting_escrow_delegator_addr,
                     &AdjustedBalance {
                         account: sender.clone(),
                         timestamp: Some(proposal.start_time - WEEK),
@@ -853,7 +852,7 @@ pub fn calc_total_voting_power_at(deps: Deps, proposal: &Proposal) -> StdResult<
     if let Some(vxastro_token_addr) = config.vxastro_token_addr {
         // Total vxASTRO voting power
         let vxastro: VotingPowerResponse = deps.querier.query_wasm_smart(
-            &vxastro_token_addr,
+            vxastro_token_addr,
             &VotingEscrowQueryMsg::TotalVotingPowerAt {
                 time: proposal.start_time - WEEK,
             },
@@ -879,7 +878,7 @@ pub fn check_controller_supports_channel(
     ibc_controller: &Addr,
     given_channel: &String,
 ) -> Result<(), ContractError> {
-    let port_id = Some(format!("wasm.{}", ibc_controller));
+    let port_id = Some(format!("wasm.{ibc_controller}"));
     let ListChannelsResponse { channels } =
         querier.query(&QueryRequest::Ibc(IbcQuery::ListChannels { port_id }))?;
     channels

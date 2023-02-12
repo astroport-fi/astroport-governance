@@ -12,8 +12,7 @@ fn validate_text(text: &str, name: &str) -> Result<(), ContractError> {
         !c.is_ascii_alphanumeric() && !c.is_ascii_whitespace() && !SAFE_TEXT_CHARS.contains(c)
     }) {
         Err(MarketingInfoValidationError(format!(
-            "{} contains invalid characters: {}",
-            name, text,
+            "{name} contains invalid characters: {text}"
         )))
     } else {
         Ok(())
@@ -24,8 +23,7 @@ pub fn validate_whitelist_links(links: &[String]) -> Result<(), ContractError> {
     links.iter().try_for_each(|link| {
         if !link.ends_with('/') {
             return Err(MarketingInfoValidationError(format!(
-                "Whitelist link should end with '/': {}",
-                link,
+                "Whitelist link should end with '/': {link}"
             )));
         }
         validate_link(link)
@@ -37,7 +35,7 @@ pub fn validate_link(link: &String) -> Result<(), ContractError> {
         .chars()
         .any(|c| !c.is_ascii_alphanumeric() && !SAFE_LINK_CHARS.contains(c))
     {
-        Err(StdError::generic_err(format!("Link contains invalid characters: {}", link)).into())
+        Err(StdError::generic_err(format!("Link contains invalid characters: {link}")).into())
     } else {
         Ok(())
     }
@@ -46,13 +44,11 @@ pub fn validate_link(link: &String) -> Result<(), ContractError> {
 fn check_link(link: &String, whitelisted_links: &[String]) -> Result<(), ContractError> {
     if validate_link(link).is_err() {
         Err(MarketingInfoValidationError(format!(
-            "Logo link is invalid: {}",
-            link
+            "Logo link is invalid: {link}"
         )))
     } else if !whitelisted_links.iter().any(|wl| link.starts_with(wl)) {
         Err(MarketingInfoValidationError(format!(
-            "Logo link is not whitelisted: {}",
-            link
+            "Logo link is not whitelisted: {link}"
         )))
     } else {
         Ok(())
