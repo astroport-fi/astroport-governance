@@ -35,12 +35,12 @@ cosmwasm-schema = "1.1"
 [dev-dependencies]
 cw-multi-test = "0.15"
 astroport-tests = { path = "../../packages/astroport-tests" }
-astroport-generator = { git = "https://github.com/astroport-fi/hidden_astroport_core.git" }
-astroport-pair = { git = "https://github.com/astroport-fi/hidden_astroport_core.git" }
-astroport-factory = { git = "https://github.com/astroport-fi/hidden_astroport_core.git" }
-astroport-token = { git = "https://github.com/astroport-fi/hidden_astroport_core.git" }
-astroport-staking = { git = "https://github.com/astroport-fi/hidden_astroport_core.git" }
-astroport-whitelist = { git = "https://github.com/astroport-fi/hidden_astroport_core.git" }
+astroport-generator = { git = "https://github.com/astroport-fi/hidden_astroport_core.git", branch = "feat/extended_maker" }
+astroport-pair = { git = "https://github.com/astroport-fi/hidden_astroport_core.git", branch = "feat/extended_maker" }
+astroport-factory = { git = "https://github.com/astroport-fi/hidden_astroport_core.git", branch = "feat/extended_maker" }
+astroport-token = { git = "https://github.com/astroport-fi/hidden_astroport_core.git", branch = "feat/extended_maker" }
+astroport-staking = { git = "https://github.com/astroport-fi/hidden_astroport_core.git", branch = "feat/extended_maker" }
+astroport-whitelist = { git = "https://github.com/astroport-fi/hidden_astroport_core.git", branch = "feat/extended_maker" }
 cw20 = "0.15"
 voting-escrow = { path = "../voting_escrow" }
 anyhow = "1"

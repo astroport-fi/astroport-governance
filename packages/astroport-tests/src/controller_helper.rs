@@ -57,6 +57,7 @@ impl ControllerHelper {
             generator_address: None,
             owner: owner.to_string(),
             whitelist_code_id,
+            coin_registry_address: Addr::unchecked("coin_registry").to_string(),
         };
 
         let factory = router

@@ -1,5 +1,4 @@
 use crate::astroport;
-use astroport::asset::addr_validate_to_lower;
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport_governance::astroport::DecimalCheckedOps;
 
@@ -52,7 +51,7 @@ pub fn instantiate(
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-    let deposit_token_addr = addr_validate_to_lower(deps.api, &msg.deposit_token_addr)?;
+    let deposit_token_addr = deps.api.addr_validate(&msg.deposit_token_addr)?;
 
     let xastro_minter_resp: MinterResponse = deps
         .querier
@@ -66,11 +65,11 @@ pub fn instantiate(
     let guardian_addr = addr_opt_validate(deps.api, &msg.guardian_addr)?;
 
     let config = Config {
-        owner: addr_validate_to_lower(deps.api, &msg.owner)?,
+        owner: deps.api.addr_validate(&msg.owner)?,
         guardian_addr,
         deposit_token_addr,
         astro_addr: staking_config.deposit_token_addr,
-        xastro_staking_addr: addr_validate_to_lower(deps.api, &xastro_minter_resp.minter)?,
+        xastro_staking_addr: deps.api.addr_validate(&xastro_minter_resp.minter)?,
         logo_urls_whitelist: msg.logo_urls_whitelist.clone(),
     };
     CONFIG.save(deps.storage, &config)?;
@@ -403,14 +402,14 @@ fn receive_cw20(
     cw20_msg: Cw20ReceiveMsg,
 ) -> Result<Response, ContractError> {
     xastro_token_check(deps.storage, info.sender)?;
-    let sender = addr_validate_to_lower(deps.api, &cw20_msg.sender)?;
+    let sender = deps.api.addr_validate(&cw20_msg.sender)?;
     blacklist_check(deps.storage, &sender)?;
 
     match from_binary(&cw20_msg.msg)? {
         Cw20HookMsg::CreateLock { time } => create_lock(deps, env, sender, cw20_msg.amount, time),
         Cw20HookMsg::ExtendLockAmount {} => deposit_for(deps, env, cw20_msg.amount, sender),
         Cw20HookMsg::DepositFor { user } => {
-            let addr = addr_validate_to_lower(deps.api, &user)?;
+            let addr = deps.api.addr_validate(&user)?;
             blacklist_check(deps.storage, &addr)?;
             deposit_for(deps, env, cw20_msg.amount, addr)
         }
@@ -703,7 +702,7 @@ fn execute_update_config(
     }
 
     if let Some(new_guardian) = new_guardian {
-        cfg.guardian_addr = Some(addr_validate_to_lower(deps.api, &new_guardian)?);
+        cfg.guardian_addr = Some(deps.api.addr_validate(&new_guardian)?);
     }
 
     CONFIG.save(deps.storage, &cfg)?;
@@ -780,7 +779,7 @@ pub fn check_voters_are_blacklisted(
     let black_list = BLACKLIST.load(deps.storage)?;
 
     for voter in voters {
-        let voter_addr = addr_validate_to_lower(deps.api, voter.as_str())?;
+        let voter_addr = deps.api.addr_validate(voter.as_str())?;
         if !black_list.contains(&voter_addr) {
             return Ok(BlacklistedVotersResponse::VotersNotBlacklisted { voter });
         }
@@ -811,7 +810,7 @@ pub fn get_blacklisted_voters(
 
     let mut start_index = Default::default();
     if let Some(start_after) = start_after {
-        let start_addr = addr_validate_to_lower(deps.api, start_after.as_str())?;
+        let start_addr = deps.api.addr_validate(start_after.as_str())?;
         start_index = black_list
             .iter()
             .position(|addr| *addr == start_addr)
@@ -834,7 +833,7 @@ pub fn get_blacklisted_voters(
 ///
 /// * **user** user for which we return lock information.
 fn get_user_lock_info(deps: Deps, env: Env, user: String) -> StdResult<LockInfoResponse> {
-    let addr = addr_validate_to_lower(deps.api, &user)?;
+    let addr = deps.api.addr_validate(&user)?;
     if let Some(lock) = LOCKED.may_load(deps.storage, addr.clone())? {
         let cur_period = get_period(env.block.time.seconds())?;
         let slope = fetch_last_checkpoint(deps.storage, &addr, cur_period)?
@@ -859,7 +858,7 @@ fn get_user_lock_info(deps: Deps, env: Env, user: String) -> StdResult<LockInfoR
 ///
 /// * **block_height** block height at which we return the staked xASTRO amount.
 fn get_user_deposit_at_height(deps: Deps, user: String, block_height: u64) -> StdResult<Uint128> {
-    let addr = addr_validate_to_lower(deps.api, &user)?;
+    let addr = deps.api.addr_validate(&user)?;
     let locked_opt = LOCKED.may_load_at_height(deps.storage, addr, block_height)?;
     if let Some(lock) = locked_opt {
         Ok(lock.amount)
@@ -894,7 +893,7 @@ fn get_user_voting_power_at_period(
     user: String,
     period: u64,
 ) -> StdResult<VotingPowerResponse> {
-    let user = addr_validate_to_lower(deps.api, &user)?;
+    let user = deps.api.addr_validate(&user)?;
     let last_checkpoint = fetch_last_checkpoint(deps.storage, &user, period)?;
 
     if let Some(point) = last_checkpoint.map(|(_, point)| point) {

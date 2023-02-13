@@ -1,4 +1,4 @@
-use crate::astroport::asset::{addr_opt_validate, addr_validate_to_lower};
+use crate::astroport::asset::addr_opt_validate;
 use crate::state::{CONFIG, PROPOSALS};
 use astroport_governance::assembly::{Config, Proposal, ProposalMessage, ProposalStatus};
 
@@ -243,7 +243,7 @@ pub(crate) fn migrate_config_to_130(
     };
 
     if let Some(vxastro_token_addr) = msg.vxastro_token_addr {
-        cfg.vxastro_token_addr = Some(addr_validate_to_lower(deps.api, vxastro_token_addr)?);
+        cfg.vxastro_token_addr = Some(deps.api.addr_validate(vxastro_token_addr.as_str())?);
     }
 
     if cfg.voting_escrow_delegator_addr.is_some() && cfg.vxastro_token_addr.is_none() {

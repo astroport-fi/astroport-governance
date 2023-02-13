@@ -59,7 +59,7 @@ pub(crate) fn calculate_reward(
 
     user_vp
         .checked_multiply_ratio(rewards_per_week, total_vp)
-        .map_err(|e| StdError::generic_err(format!("{:?}", e)))
+        .map_err(|e| StdError::generic_err(format!("{e:?}")))
 }
 
 /// Calculates the amount of ASTRO available to claim by a specific address.
