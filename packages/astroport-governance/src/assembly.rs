@@ -185,9 +185,7 @@ impl Config {
                 < Decimal::percent(MINIMUM_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE)
         {
             return Err(StdError::generic_err(format!(
-                "The required threshold for a proposal cannot be lower than {}% or higher than {}%",
-                MINIMUM_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE,
-                MAX_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE
+                "The required threshold for a proposal cannot be lower than {MINIMUM_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE}% or higher than {MAX_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE}%"
             )));
         }
 
@@ -195,22 +193,19 @@ impl Config {
             > Decimal::percent(MAX_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE)
         {
             return Err(StdError::generic_err(format!(
-                "The required quorum for a proposal cannot be higher than {}%",
-                MAX_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE
+                "The required quorum for a proposal cannot be higher than {MAX_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE}%"
             )));
         }
 
         if self.proposal_effective_delay < MINIMUM_DELAY {
             return Err(StdError::generic_err(format!(
-                "The effective delay for a proposal cannot be less than {} blocks.",
-                MINIMUM_DELAY
+                "The effective delay for a proposal cannot be less than {MINIMUM_DELAY} blocks."
             )));
         }
 
         if self.proposal_expiration_period < MINIMUM_EXPIRATION_PERIOD {
             return Err(StdError::generic_err(format!(
-                "The expiration period for a proposal cannot be less than {} blocks.",
-                MINIMUM_EXPIRATION_PERIOD
+                "The expiration period for a proposal cannot be less than {MINIMUM_EXPIRATION_PERIOD} blocks."
             )));
         }
 
@@ -421,8 +416,7 @@ pub mod helpers {
         for link in links {
             if !(is_safe_link(link) && link.ends_with('/')) {
                 return Err(StdError::generic_err(format!(
-                    "Link is not properly formatted or contains unsafe characters: {}.",
-                    link
+                    "Link is not properly formatted or contains unsafe characters: {link}."
                 )));
             }
         }
