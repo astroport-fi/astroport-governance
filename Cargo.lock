@@ -37,6 +37,7 @@ dependencies = [
  "cw2",
  "cw20",
  "ibc-controller-package",
+ "serde",
  "thiserror",
  "voting-escrow",
 ]

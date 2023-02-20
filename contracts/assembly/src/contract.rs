@@ -944,7 +944,6 @@ pub fn migrate(mut deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response
             "1.1.0" => {
                 migrate_config(&mut deps, &msg)?;
                 migrate_proposals_from_v110(deps.storage)?;
-                migrate_proposals_from_v121(deps.storage)?;
             }
             "1.2.1" => {
                 migrate_proposals_from_v121(deps.storage)?;
