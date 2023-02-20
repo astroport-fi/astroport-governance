@@ -6,6 +6,10 @@ use astroport_governance::assembly::{Config, Proposal, ProposalStatus};
 
 use crate::state::{CONFIG, PROPOSALS};
 
+use cosmwasm_schema::schemars;
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
+
 /// This structure describes a migration message.
 #[cw_serde]
 pub struct MigrateMsg {
@@ -51,7 +55,7 @@ pub fn migrate_config(deps: &mut DepsMut, msg: &MigrateMsg) -> StdResult<()> {
     Ok(())
 }
 
-#[cw_serde]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 enum ProposalStatus110 {
     Active,
     Executed,

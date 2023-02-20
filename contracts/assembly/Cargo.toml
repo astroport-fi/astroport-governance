@@ -22,6 +22,7 @@ ibc-controller-package = { git = "https://github.com/astroport-fi/astroport_ibc.
 astroport = { git = "https://github.com/astroport-fi/astroport-core.git", branch = "release" }
 thiserror = { version = "1.0" }
 cosmwasm-schema = "1.1"
+serde = { version = " 1.0.152", default-features = false, features = ["derive"] }
 
 [dev-dependencies]
 cw-multi-test = "0.15"
