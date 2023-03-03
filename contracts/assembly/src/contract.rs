@@ -481,7 +481,7 @@ pub fn update_config(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    updated_config: UpdateConfig,
+    updated_config: Box<UpdateConfig>,
 ) -> Result<Response, ContractError> {
     let mut config = CONFIG.load(deps.storage)?;
 

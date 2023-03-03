@@ -484,7 +484,7 @@ fn test_proposal_submitting() {
                     order: Uint64::from(0u32),
                     msg: CosmosMsg::Wasm(WasmMsg::Execute {
                         contract_addr: assembly_addr.to_string(),
-                        msg: to_binary(&ExecuteMsg::UpdateConfig(UpdateConfig {
+                        msg: to_binary(&ExecuteMsg::UpdateConfig(Box::new(UpdateConfig {
                             xastro_token_addr: None,
                             vxastro_token_addr: None,
                             voting_escrow_delegator_addr: None,
@@ -498,7 +498,7 @@ fn test_proposal_submitting() {
                             proposal_required_threshold: None,
                             whitelist_add: None,
                             whitelist_remove: None,
-                        }))
+                        })))
                         .unwrap(),
                         funds: vec![],
                     }),
@@ -536,7 +536,7 @@ fn test_proposal_submitting() {
             order: Uint64::from(0u32),
             msg: CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: assembly_addr.to_string(),
-                msg: to_binary(&ExecuteMsg::UpdateConfig(UpdateConfig {
+                msg: to_binary(&ExecuteMsg::UpdateConfig(Box::new(UpdateConfig {
                     xastro_token_addr: None,
                     vxastro_token_addr: None,
                     voting_escrow_delegator_addr: None,
@@ -550,7 +550,7 @@ fn test_proposal_submitting() {
                     proposal_required_threshold: None,
                     whitelist_add: None,
                     whitelist_remove: None,
-                }))
+                })))
                 .unwrap(),
                 funds: vec![],
             }),
@@ -678,7 +678,7 @@ fn test_successful_proposal() {
             order: Uint64::from(0u32),
             msg: CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: assembly_addr.to_string(),
-                msg: to_binary(&ExecuteMsg::UpdateConfig(UpdateConfig {
+                msg: to_binary(&ExecuteMsg::UpdateConfig(Box::new(UpdateConfig {
                     xastro_token_addr: None,
                     vxastro_token_addr: None,
                     voting_escrow_delegator_addr: None,
@@ -695,7 +695,7 @@ fn test_successful_proposal() {
                         "https://some2.link/".to_string(),
                     ]),
                     whitelist_remove: Some(vec!["https://some.link/".to_string()]),
-                }))
+                })))
                 .unwrap(),
                 funds: vec![],
             }),
@@ -1004,7 +1004,7 @@ fn test_voting_power_changes() {
             order: Uint64::from(0u32),
             msg: CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: assembly_addr.to_string(),
-                msg: to_binary(&ExecuteMsg::UpdateConfig(UpdateConfig {
+                msg: to_binary(&ExecuteMsg::UpdateConfig(Box::new(UpdateConfig {
                     xastro_token_addr: None,
                     vxastro_token_addr: None,
                     voting_escrow_delegator_addr: None,
@@ -1018,7 +1018,7 @@ fn test_voting_power_changes() {
                     proposal_required_threshold: None,
                     whitelist_add: None,
                     whitelist_remove: None,
-                }))
+                })))
                 .unwrap(),
                 funds: vec![],
             }),
@@ -1526,7 +1526,7 @@ fn test_delegated_vp() {
             order: Uint64::from(0u32),
             msg: CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: assembly_addr.to_string(),
-                msg: to_binary(&ExecuteMsg::UpdateConfig(UpdateConfig {
+                msg: to_binary(&ExecuteMsg::UpdateConfig(Box::new(UpdateConfig {
                     xastro_token_addr: None,
                     vxastro_token_addr: None,
                     voting_escrow_delegator_addr: None,
@@ -1540,7 +1540,7 @@ fn test_delegated_vp() {
                     proposal_required_threshold: None,
                     whitelist_add: None,
                     whitelist_remove: None,
-                }))
+                })))
                 .unwrap(),
                 funds: vec![],
             }),

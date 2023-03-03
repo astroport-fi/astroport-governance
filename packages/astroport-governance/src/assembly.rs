@@ -116,7 +116,7 @@ pub enum ExecuteMsg {
     /// Update parameters in the Assembly contract
     /// ## Executor
     /// Only the Assembly contract is allowed to update its own parameters
-    UpdateConfig(UpdateConfig),
+    UpdateConfig(Box<UpdateConfig>),
     /// Update proposal status InProgress -> Executed or Failed.
     /// ## Executor
     /// Only the IBC controller contract is allowed to call this method.
