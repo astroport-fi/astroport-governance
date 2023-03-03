@@ -31,6 +31,10 @@ use crate::migration::{
 };
 use crate::state::{CONFIG, PROPOSALS, PROPOSAL_COUNT};
 
+// TODO: uncomment the following use and remove its replacement after it
+// use ibc_controller_package::ExecuteMsg::IbcExecuteProposal as ControllerExecuteMsg;
+use astroport_governance::ControllerExecuteMsg;
+
 // Contract name and version used for migration.
 const CONTRACT_NAME: &str = "astro-assembly";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -398,7 +402,7 @@ pub fn execute_proposal(
             config
                 .ibc_controller
                 .ok_or(ContractError::MissingIBCController {})?,
-            &ibc_controller_package::ExecuteMsg::IbcExecuteProposal {
+            &ControllerExecuteMsg::IbcExecuteProposal {
                 channel_id: channel.to_string(),
                 proposal_id,
                 messages: proposal.messages.unwrap_or_default(),

@@ -25,5 +25,5 @@ cosmwasm-schema = "1.1"
 
 [dev-dependencies]
 cw-multi-test = "0.15"
-astroport-token = { git = "https://github.com/astroport-fi/hidden_astroport_core.git", branch = "feat/extended_maker" }
+astroport-token = { git = "https://github.com/astroport-fi/astroport-core.git", branch = "merge/release" }
 astroport-tests = { path = "../../packages/astroport-tests" }
