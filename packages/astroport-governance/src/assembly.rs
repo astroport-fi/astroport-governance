@@ -3,16 +3,41 @@ use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Addr, CosmosMsg, Decimal, StdError, StdResult, Uint128, Uint64};
 use cw20::Cw20ReceiveMsg;
 use std::fmt::{Display, Formatter, Result};
-use std::ops::RangeInclusive;
+use std::str::FromStr;
 
-pub const MINIMUM_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE: u64 = 33;
-pub const MAX_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE: u64 = 100;
-pub const MAX_PROPOSAL_REQUIRED_QUORUM_PERCENTAGE: u64 = 100;
-pub const MINIMUM_PROPOSAL_REQUIRED_QUORUM_PERCENTAGE: u64 = 1;
-pub const VOTING_PERIOD_INTERVAL: RangeInclusive<u64> = 12342..=7 * 12342;
-pub const DELAY_INTERVAL: RangeInclusive<u64> = 6171..=12342; // from 0.5 to 1 day in blocks (7 seconds per block)
-pub const EXPIRATION_PERIOD_INTERVAL: RangeInclusive<u64> = 12342..=86_399;
-pub const DEPOSIT_INTERVAL: RangeInclusive<u128> = 10000000000..=60000000000; // from 10k to 60k $xASTRO
+#[cfg(not(feature = "testnet"))]
+mod proposal_constants {
+    use std::ops::RangeInclusive;
+
+    pub const MINIMUM_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE: u64 = 33;
+    pub const MAX_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE: u64 = 100;
+    pub const MAX_PROPOSAL_REQUIRED_QUORUM_PERCENTAGE: &str = "1";
+    pub const MINIMUM_PROPOSAL_REQUIRED_QUORUM_PERCENTAGE: &str = "0.01";
+    pub const VOTING_PERIOD_INTERVAL: RangeInclusive<u64> = 12342..=7 * 12342;
+    // from 0.5 to 1 day in blocks (7 seconds per block)
+    pub const DELAY_INTERVAL: RangeInclusive<u64> = 6171..=12342;
+    pub const EXPIRATION_PERIOD_INTERVAL: RangeInclusive<u64> = 12342..=86_399;
+    // from 10k to 60k $xASTRO
+    pub const DEPOSIT_INTERVAL: RangeInclusive<u128> = 10000000000..=60000000000;
+}
+
+#[cfg(feature = "testnet")]
+mod proposal_constants {
+    use std::ops::RangeInclusive;
+
+    pub const MINIMUM_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE: u64 = 33;
+    pub const MAX_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE: u64 = 100;
+    pub const MAX_PROPOSAL_REQUIRED_QUORUM_PERCENTAGE: &str = "1";
+    pub const MINIMUM_PROPOSAL_REQUIRED_QUORUM_PERCENTAGE: &str = "0.001";
+    pub const VOTING_PERIOD_INTERVAL: RangeInclusive<u64> = 200..=7 * 12342;
+    // from ~350 sec to 1 day in blocks (7 seconds per block)
+    pub const DELAY_INTERVAL: RangeInclusive<u64> = 50..=12342;
+    pub const EXPIRATION_PERIOD_INTERVAL: RangeInclusive<u64> = 400..=86_399;
+    // from 0.001 to 60k $xASTRO
+    pub const DEPOSIT_INTERVAL: RangeInclusive<u128> = 1000..=60000000000;
+}
+
+pub use proposal_constants::*;
 
 /// Proposal validation attributes
 const MIN_TITLE_LENGTH: usize = 4;
@@ -34,6 +59,8 @@ pub struct InstantiateMsg {
     pub vxastro_token_addr: Option<String>,
     /// Voting Escrow delegator address
     pub voting_escrow_delegator_addr: Option<String>,
+    /// Astroport IBC controller contract
+    pub ibc_controller: Option<String>,
     /// Address of the builder unlock contract
     pub builder_unlock_addr: String,
     /// Proposal voting period
@@ -89,7 +116,14 @@ pub enum ExecuteMsg {
     /// Update parameters in the Assembly contract
     /// ## Executor
     /// Only the Assembly contract is allowed to update its own parameters
-    UpdateConfig(UpdateConfig),
+    UpdateConfig(Box<UpdateConfig>),
+    /// Update proposal status InProgress -> Executed or Failed.
+    /// ## Executor
+    /// Only the IBC controller contract is allowed to call this method.
+    IBCProposalCompleted {
+        proposal_id: u64,
+        status: ProposalStatus,
+    },
 }
 
 /// Thie enum describes all the queries available in the contract.
@@ -142,6 +176,8 @@ pub enum Cw20HookMsg {
         description: String,
         link: Option<String>,
         messages: Option<Vec<ProposalMessage>>,
+        /// If proposal should be executed on a remote chain this field should specify governance channel
+        ibc_channel: Option<String>,
     },
 }
 
@@ -154,6 +190,8 @@ pub struct Config {
     pub vxastro_token_addr: Option<Addr>,
     /// Voting Escrow delegator address
     pub voting_escrow_delegator_addr: Option<Addr>,
+    /// Astroport IBC controller contract
+    pub ibc_controller: Option<Addr>,
     /// Builder unlock contract address
     pub builder_unlock_addr: Addr,
     /// Proposal voting period
@@ -180,20 +218,18 @@ impl Config {
                 < Decimal::percent(MINIMUM_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE)
         {
             return Err(StdError::generic_err(format!(
-                "The required threshold for a proposal cannot be lower than {}% or higher than {}%",
-                MINIMUM_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE,
-                MAX_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE
+                "The required threshold for a proposal cannot be lower than {MINIMUM_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE}% or higher than {MAX_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE}%"
             )));
         }
 
-        if self.proposal_required_quorum > Decimal::percent(MAX_PROPOSAL_REQUIRED_QUORUM_PERCENTAGE)
-            || self.proposal_required_quorum
-                < Decimal::percent(MINIMUM_PROPOSAL_REQUIRED_QUORUM_PERCENTAGE)
+        let max_quorum = Decimal::from_str(MAX_PROPOSAL_REQUIRED_QUORUM_PERCENTAGE)?;
+        let min_quorum = Decimal::from_str(MINIMUM_PROPOSAL_REQUIRED_QUORUM_PERCENTAGE)?;
+        if self.proposal_required_quorum > max_quorum || self.proposal_required_quorum < min_quorum
         {
             return Err(StdError::generic_err(format!(
                 "The required quorum for a proposal cannot be lower than {}% or higher than {}%",
-                MINIMUM_PROPOSAL_REQUIRED_QUORUM_PERCENTAGE,
-                MAX_PROPOSAL_REQUIRED_QUORUM_PERCENTAGE
+                min_quorum * Decimal::from_ratio(100u8, 1u8),
+                max_quorum * Decimal::from_ratio(100u8, 1u8)
             )));
         }
 
@@ -248,6 +284,8 @@ pub struct UpdateConfig {
     pub vxastro_token_addr: Option<String>,
     /// Voting Escrow delegator address
     pub voting_escrow_delegator_addr: Option<String>,
+    /// Astroport IBC controller contract
+    pub ibc_controller: Option<String>,
     /// Builder unlock contract address
     pub builder_unlock_addr: Option<String>,
     /// Proposal voting period
@@ -305,6 +343,8 @@ pub struct Proposal {
     pub messages: Option<Vec<ProposalMessage>>,
     /// Amount of xASTRO deposited in order to post the proposal
     pub deposit_amount: Uint128,
+    /// IBC channel
+    pub ibc_channel: Option<String>,
 }
 
 /// This structure describes a proposal response.
@@ -402,6 +442,8 @@ pub enum ProposalStatus {
     Active,
     Passed,
     Rejected,
+    InProgress,
+    Failed,
     Executed,
     Expired,
 }
@@ -412,6 +454,8 @@ impl Display for ProposalStatus {
             ProposalStatus::Active {} => fmt.write_str("active"),
             ProposalStatus::Passed {} => fmt.write_str("passed"),
             ProposalStatus::Rejected {} => fmt.write_str("rejected"),
+            ProposalStatus::InProgress => fmt.write_str("in_progress"),
+            ProposalStatus::Failed => fmt.write_str("failed"),
             ProposalStatus::Executed {} => fmt.write_str("executed"),
             ProposalStatus::Expired {} => fmt.write_str("expired"),
         }
@@ -488,8 +532,7 @@ pub mod helpers {
         for link in links {
             if !(is_safe_link(link) && link.contains('.') && link.ends_with('/')) {
                 return Err(StdError::generic_err(format!(
-                    "Link is not properly formatted or contains unsafe characters: {}.",
-                    link
+                    "Link is not properly formatted or contains unsafe characters: {link}."
                 )));
             }
         }

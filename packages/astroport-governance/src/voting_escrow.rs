@@ -109,7 +109,7 @@ impl fmt::Display for BlacklistedVotersResponse {
         match self {
             BlacklistedVotersResponse::VotersBlacklisted {} => write!(f, "Voters are blacklisted!"),
             BlacklistedVotersResponse::VotersNotBlacklisted { voter } => {
-                write!(f, "Voter is not blacklisted: {}", voter)
+                write!(f, "Voter is not blacklisted: {voter}")
             }
         }
     }

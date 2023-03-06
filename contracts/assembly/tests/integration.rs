@@ -40,6 +40,7 @@ const PROPOSAL_REQUIRED_DEPOSIT: u128 = *DEPOSIT_INTERVAL.start();
 const PROPOSAL_REQUIRED_QUORUM: &str = "0.50";
 const PROPOSAL_REQUIRED_THRESHOLD: &str = "0.60";
 
+#[cfg(not(feature = "testnet"))]
 #[test]
 fn test_contract_instantiation() {
     let mut app = mock_app();
@@ -64,6 +65,7 @@ fn test_contract_instantiation() {
         xastro_token_addr: xastro_token_addr.to_string(),
         vxastro_token_addr: Some(vxastro_token_addr.to_string()),
         voting_escrow_delegator_addr: None,
+        ibc_controller: None,
         builder_unlock_addr: builder_unlock_addr.to_string(),
         proposal_voting_period: PROPOSAL_VOTING_PERIOD,
         proposal_effective_delay: PROPOSAL_EFFECTIVE_DELAY,
@@ -251,6 +253,7 @@ fn test_proposal_submitting() {
             description: String::from("Description"),
             link: Some(String::from("https://some.link")),
             messages: None,
+            ibc_channel: None,
         })
         .unwrap(),
         amount: Uint128::from(PROPOSAL_REQUIRED_DEPOSIT - 1),
@@ -274,6 +277,7 @@ fn test_proposal_submitting() {
                     description: String::from("Description"),
                     link: Some(String::from("https://some.link/")),
                     messages: None,
+                    ibc_channel: None,
                 })
                 .unwrap(),
                 amount: Uint128::from(PROPOSAL_REQUIRED_DEPOSIT),
@@ -298,6 +302,7 @@ fn test_proposal_submitting() {
                     description: String::from("Description"),
                     link: Some(String::from("https://some.link/")),
                     messages: None,
+                    ibc_channel: None,
                 })
                 .unwrap(),
                 amount: Uint128::from(PROPOSAL_REQUIRED_DEPOSIT),
@@ -323,6 +328,7 @@ fn test_proposal_submitting() {
                     description: String::from("X"),
                     link: Some(String::from("https://some.link/")),
                     messages: None,
+                    ibc_channel: None,
                 })
                 .unwrap(),
                 amount: Uint128::from(PROPOSAL_REQUIRED_DEPOSIT),
@@ -347,6 +353,7 @@ fn test_proposal_submitting() {
                     description: String::from_utf8(vec![b'X'; 1025]).unwrap(),
                     link: Some(String::from("https://some.link/")),
                     messages: None,
+                    ibc_channel: None,
                 })
                 .unwrap(),
                 amount: Uint128::from(PROPOSAL_REQUIRED_DEPOSIT),
@@ -372,6 +379,7 @@ fn test_proposal_submitting() {
                     description: String::from("Description"),
                     link: Some(String::from("X")),
                     messages: None,
+                    ibc_channel: None,
                 })
                 .unwrap(),
                 amount: Uint128::from(PROPOSAL_REQUIRED_DEPOSIT),
@@ -396,6 +404,7 @@ fn test_proposal_submitting() {
                     description: String::from("Description"),
                     link: Some(String::from_utf8(vec![b'X'; 129]).unwrap()),
                     messages: None,
+                    ibc_channel: None,
                 })
                 .unwrap(),
                 amount: Uint128::from(PROPOSAL_REQUIRED_DEPOSIT),
@@ -420,6 +429,7 @@ fn test_proposal_submitting() {
                     description: String::from("Description"),
                     link: Some(String::from("https://some1.link")),
                     messages: None,
+                    ibc_channel: None,
                 })
                 .unwrap(),
                 amount: Uint128::from(PROPOSAL_REQUIRED_DEPOSIT),
@@ -446,6 +456,7 @@ fn test_proposal_submitting() {
                         "https://some.link/<script>alert('test');</script>",
                     )),
                     messages: None,
+                    ibc_channel: None,
                 })
                 .unwrap(),
                 amount: Uint128::from(PROPOSAL_REQUIRED_DEPOSIT),
@@ -473,10 +484,11 @@ fn test_proposal_submitting() {
                     order: Uint64::from(0u32),
                     msg: CosmosMsg::Wasm(WasmMsg::Execute {
                         contract_addr: assembly_addr.to_string(),
-                        msg: to_binary(&ExecuteMsg::UpdateConfig(UpdateConfig {
+                        msg: to_binary(&ExecuteMsg::UpdateConfig(Box::new(UpdateConfig {
                             xastro_token_addr: None,
                             vxastro_token_addr: None,
                             voting_escrow_delegator_addr: None,
+                            ibc_controller: None,
                             builder_unlock_addr: None,
                             proposal_voting_period: Some(750),
                             proposal_effective_delay: None,
@@ -486,11 +498,12 @@ fn test_proposal_submitting() {
                             proposal_required_threshold: None,
                             whitelist_add: None,
                             whitelist_remove: None,
-                        }))
+                        })))
                         .unwrap(),
                         funds: vec![],
                     }),
                 }]),
+                ibc_channel: None,
             })
             .unwrap(),
             amount: Uint128::from(PROPOSAL_REQUIRED_DEPOSIT),
@@ -523,10 +536,11 @@ fn test_proposal_submitting() {
             order: Uint64::from(0u32),
             msg: CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: assembly_addr.to_string(),
-                msg: to_binary(&ExecuteMsg::UpdateConfig(UpdateConfig {
+                msg: to_binary(&ExecuteMsg::UpdateConfig(Box::new(UpdateConfig {
                     xastro_token_addr: None,
                     vxastro_token_addr: None,
                     voting_escrow_delegator_addr: None,
+                    ibc_controller: None,
                     builder_unlock_addr: None,
                     proposal_voting_period: Some(750),
                     proposal_effective_delay: None,
@@ -536,7 +550,7 @@ fn test_proposal_submitting() {
                     proposal_required_threshold: None,
                     whitelist_add: None,
                     whitelist_remove: None,
-                }))
+                })))
                 .unwrap(),
                 funds: vec![],
             }),
@@ -548,6 +562,7 @@ fn test_proposal_submitting() {
     )
 }
 
+#[cfg(not(feature = "testnet"))]
 #[test]
 fn test_successful_proposal() {
     let mut app = mock_app();
@@ -663,10 +678,11 @@ fn test_successful_proposal() {
             order: Uint64::from(0u32),
             msg: CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: assembly_addr.to_string(),
-                msg: to_binary(&ExecuteMsg::UpdateConfig(UpdateConfig {
+                msg: to_binary(&ExecuteMsg::UpdateConfig(Box::new(UpdateConfig {
                     xastro_token_addr: None,
                     vxastro_token_addr: None,
                     voting_escrow_delegator_addr: None,
+                    ibc_controller: None,
                     builder_unlock_addr: None,
                     proposal_voting_period: Some(PROPOSAL_VOTING_PERIOD + 1000),
                     proposal_effective_delay: None,
@@ -679,7 +695,7 @@ fn test_successful_proposal() {
                         "https://some2.link/".to_string(),
                     ]),
                     whitelist_remove: Some(vec!["https://some.link/".to_string()]),
-                }))
+                })))
                 .unwrap(),
                 funds: vec![],
             }),
@@ -988,10 +1004,11 @@ fn test_voting_power_changes() {
             order: Uint64::from(0u32),
             msg: CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: assembly_addr.to_string(),
-                msg: to_binary(&ExecuteMsg::UpdateConfig(UpdateConfig {
+                msg: to_binary(&ExecuteMsg::UpdateConfig(Box::new(UpdateConfig {
                     xastro_token_addr: None,
                     vxastro_token_addr: None,
                     voting_escrow_delegator_addr: None,
+                    ibc_controller: None,
                     builder_unlock_addr: None,
                     proposal_voting_period: Some(750),
                     proposal_effective_delay: None,
@@ -1001,7 +1018,7 @@ fn test_voting_power_changes() {
                     proposal_required_threshold: None,
                     whitelist_add: None,
                     whitelist_remove: None,
-                }))
+                })))
                 .unwrap(),
                 funds: vec![],
             }),
@@ -1079,6 +1096,7 @@ fn test_voting_power_changes() {
     assert_eq!(proposal.status, ProposalStatus::Passed);
 }
 
+#[cfg(not(feature = "testnet"))]
 #[test]
 fn test_block_height_selection() {
     // Block height is 12345 after app initialization
@@ -1202,6 +1220,7 @@ fn test_block_height_selection() {
     assert_eq!(proposal.status, ProposalStatus::Passed);
 }
 
+#[cfg(not(feature = "testnet"))]
 #[test]
 fn test_unsuccessful_proposal() {
     let mut app = mock_app();
@@ -1507,10 +1526,11 @@ fn test_delegated_vp() {
             order: Uint64::from(0u32),
             msg: CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: assembly_addr.to_string(),
-                msg: to_binary(&ExecuteMsg::UpdateConfig(UpdateConfig {
+                msg: to_binary(&ExecuteMsg::UpdateConfig(Box::new(UpdateConfig {
                     xastro_token_addr: None,
                     vxastro_token_addr: None,
                     voting_escrow_delegator_addr: None,
+                    ibc_controller: None,
                     builder_unlock_addr: None,
                     proposal_voting_period: Some(750),
                     proposal_effective_delay: None,
@@ -1520,7 +1540,7 @@ fn test_delegated_vp() {
                     proposal_required_threshold: None,
                     whitelist_add: None,
                     whitelist_remove: None,
-                }))
+                })))
                 .unwrap(),
                 funds: vec![],
             }),
@@ -1801,6 +1821,7 @@ fn instantiate_assembly_contract(
         xastro_token_addr: xastro.to_string(),
         vxastro_token_addr: Some(vxastro.to_string()),
         voting_escrow_delegator_addr: delegator,
+        ibc_controller: None,
         builder_unlock_addr: builder.to_string(),
         proposal_voting_period: PROPOSAL_VOTING_PERIOD,
         proposal_effective_delay: PROPOSAL_EFFECTIVE_DELAY,
@@ -1952,6 +1973,7 @@ fn create_proposal(
         description: "Test description!".to_string(),
         link: None,
         messages: msgs,
+        ibc_channel: None,
     };
 
     app.execute_contract(

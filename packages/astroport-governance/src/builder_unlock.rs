@@ -49,6 +49,29 @@ pub struct AllocationParams {
 }
 
 impl AllocationParams {
+    pub fn validate(&self, account: &str) -> Result<(), StdError> {
+        if self.unlock_schedule.cliff >= self.unlock_schedule.duration {
+            return Err(StdError::generic_err(format!(
+                "The new cliff value must be less than the duration: {} < {}. Account: {}",
+                self.unlock_schedule.cliff, self.unlock_schedule.duration, account
+            )));
+        };
+
+        if self.amount.is_zero() {
+            return Err(StdError::generic_err(format!(
+                "Amount must not be zero. Account: {account}"
+            )));
+        }
+
+        if self.proposed_receiver.is_some() {
+            return Err(StdError::generic_err(format!(
+                "Proposed receiver must be unset. Account: {account}"
+            )));
+        }
+
+        Ok(())
+    }
+
     pub fn update_schedule(
         &mut self,
         new_schedule: Schedule,

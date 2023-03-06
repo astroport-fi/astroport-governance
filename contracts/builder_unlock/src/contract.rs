@@ -1,5 +1,4 @@
 use crate::astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
-use astroport::asset::addr_validate_to_lower;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 
@@ -12,7 +11,7 @@ use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 use cw_storage_plus::Bound;
 
 use crate::astroport::asset::addr_opt_validate;
-use crate::contract::helpers::compute_unlocked_amount;
+use crate::contract::helpers::{compute_unlocked_amount, compute_withdraw_amount};
 use crate::migration::{MigrateMsg, CONFIGV100, STATEV100, STATUSV100};
 use astroport_governance::builder_unlock::msg::{
     AllocationResponse, ExecuteMsg, InstantiateMsg, QueryMsg, ReceiveMsg, SimulateWithdrawResponse,
@@ -39,11 +38,14 @@ pub fn instantiate(
     msg: InstantiateMsg,
 ) -> StdResult<Response> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    STATE.save(deps.storage, &Default::default())?;
+
     CONFIG.save(
         deps.storage,
         &Config {
-            owner: addr_validate_to_lower(deps.api, &msg.owner)?,
-            astro_token: addr_validate_to_lower(deps.api, &msg.astro_token)?,
+            owner: deps.api.addr_validate(&msg.owner)?,
+            astro_token: deps.api.addr_validate(&msg.astro_token)?,
             max_allocations_amount: msg.max_allocations_amount,
         },
     )?;
@@ -141,7 +143,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
         } => update_config(deps, info, new_max_allocations_amount),
         ExecuteMsg::UpdateUnlockSchedules {
             new_unlock_schedules,
-        } => update_unlock_schedules(deps, info, new_unlock_schedules),
+        } => update_unlock_schedules(deps, env, info, new_unlock_schedules),
     }
 }
 
@@ -167,7 +169,7 @@ fn execute_receive_cw20(
             if config.astro_token != info.sender {
                 return Err(StdError::generic_err("Only ASTRO can be deposited"));
             }
-            if addr_validate_to_lower(deps.api, &cw20_msg.sender)? != config.owner {
+            if deps.api.addr_validate(&cw20_msg.sender)? != config.owner {
                 return Err(StdError::generic_err(
                     "Only the contract owner can increase allocations",
                 ));
@@ -225,8 +227,9 @@ fn execute_create_allocations(
     allocations: Vec<(String, AllocationParams)>,
 ) -> StdResult<Response> {
     let config = CONFIG.load(deps.storage)?;
+    let mut state = STATE.load(deps.storage)?;
 
-    if addr_validate_to_lower(deps.api, &creator)? != config.owner {
+    if deps.api.addr_validate(&creator)? != config.owner {
         return Err(StdError::generic_err(
             "Only the contract owner can create allocations",
         ));
@@ -245,8 +248,6 @@ fn execute_create_allocations(
         return Err(StdError::generic_err("ASTRO deposit amount mismatch"));
     }
 
-    let mut state = STATE.may_load(deps.storage)?.unwrap_or_default();
-
     state.total_astro_deposited += deposit_amount;
     state.remaining_astro_tokens += deposit_amount;
 
@@ -258,25 +259,16 @@ fn execute_create_allocations(
     }
 
     for (user_unchecked, params) in allocations {
-        let user = addr_validate_to_lower(deps.api, &user_unchecked)?;
+        params.validate(&user_unchecked)?;
+        let user = deps.api.addr_validate(&user_unchecked)?;
 
         if PARAMS.has(deps.storage, &user) {
             return Err(StdError::generic_err(format!(
-                "Allocation (params) already exists for {}",
-                user
+                "Allocation (params) already exists for {user}"
             )));
-        } else {
-            PARAMS.save(deps.storage, &user, &params)?
         }
-
-        if STATUS.has(deps.storage, &user) {
-            return Err(StdError::generic_err(format!(
-                "Allocation (status) already exists for {}",
-                user
-            )));
-        } else {
-            STATUS.save(deps.storage, &user, &AllocationStatus::new())?
-        }
+        PARAMS.save(deps.storage, &user, &params)?;
+        STATUS.save(deps.storage, &user, &AllocationStatus::new())?;
     }
 
     STATE.save(deps.storage, &state)?;
@@ -286,18 +278,26 @@ fn execute_create_allocations(
 /// Allow allocation recipients to withdraw unlocked ASTRO.
 fn execute_withdraw(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Response> {
     let config = CONFIG.load(deps.storage)?;
-    let mut state = STATE.may_load(deps.storage)?.unwrap_or_default();
+    let mut state = STATE.load(deps.storage)?;
 
     let params = PARAMS.load(deps.storage, &info.sender)?;
+
+    if params.proposed_receiver.is_some() {
+        return Err(StdError::generic_err(
+            "You may not withdraw once you proposed new receiver!",
+        ));
+    }
+
     let mut status = STATUS.load(deps.storage, &info.sender)?;
 
     let SimulateWithdrawResponse { astro_to_withdraw } =
-        helpers::compute_withdraw_amount(env.block.time.seconds(), &params, &mut status);
+        compute_withdraw_amount(env.block.time.seconds(), &params, &status);
 
     if astro_to_withdraw.is_zero() {
         return Err(StdError::generic_err("No unlocked ASTRO to be withdrawn"));
     }
 
+    status.astro_withdrawn += astro_to_withdraw;
     state.remaining_astro_tokens -= astro_to_withdraw;
 
     // SAVE :: state & allocation
@@ -327,24 +327,19 @@ fn execute_propose_new_receiver(
     new_receiver: String,
 ) -> StdResult<Response> {
     let mut alloc_params = PARAMS.load(deps.storage, &info.sender)?;
-    let new_receiver = addr_validate_to_lower(deps.api, &new_receiver)?;
+    let new_receiver = deps.api.addr_validate(&new_receiver)?;
 
     match alloc_params.proposed_receiver {
         Some(proposed_receiver) => {
             return Err(StdError::generic_err(format!(
-                "Proposed receiver already set to {}",
-                proposed_receiver
+                "Proposed receiver already set to {proposed_receiver}"
             )));
         }
         None => {
-            let alloc_params_new_receiver = PARAMS
-                .may_load(deps.storage, &new_receiver)?
-                .unwrap_or_default();
-            if !alloc_params_new_receiver.amount.is_zero() {
-                return Err(StdError::generic_err(format!(
-                    "Invalid new_receiver. Proposed receiver already has an ASTRO allocation of {} ASTRO",
-                    alloc_params_new_receiver.amount
-                )));
+            if PARAMS.has(deps.storage, &new_receiver) {
+                return Err(StdError::generic_err(
+                    "Invalid new_receiver. Proposed receiver already has an ASTRO allocation",
+                ));
             }
 
             alloc_params.proposed_receiver = Some(new_receiver.clone());
@@ -393,7 +388,7 @@ fn execute_decrease_allocation(
         ));
     }
 
-    let receiver = addr_validate_to_lower(deps.api, &receiver)?;
+    let receiver = deps.api.addr_validate(&receiver)?;
 
     let mut state = STATE.load(deps.storage)?;
     let mut params = PARAMS.load(deps.storage, &receiver)?;
@@ -409,8 +404,7 @@ fn execute_decrease_allocation(
 
     if locked_amount < amount {
         return Err(StdError::generic_err(format!(
-            "Insufficient amount of lock to decrease allocation, user has locked {} ASTRO.",
-            locked_amount
+            "Insufficient amount of lock to decrease allocation, user has locked {locked_amount} ASTRO."
         )));
     }
 
@@ -444,7 +438,7 @@ fn execute_increase_allocation(
     amount: Uint128,
     deposit_amount: Option<Uint128>,
 ) -> StdResult<Response> {
-    let receiver = addr_validate_to_lower(deps.api, &receiver)?;
+    let receiver = deps.api.addr_validate(&receiver)?;
 
     match PARAMS.may_load(deps.storage, &receiver)? {
         Some(mut params) => {
@@ -517,20 +511,24 @@ fn execute_transfer_unallocated(
     }
 
     state.unallocated_tokens = state.unallocated_tokens.checked_sub(amount)?;
+    state.total_astro_deposited = state.total_astro_deposited.checked_sub(amount)?;
+
+    let recipient = addr_opt_validate(deps.api, &recipient)?.unwrap_or_else(|| info.sender.clone());
+    let msg = WasmMsg::Execute {
+        contract_addr: config.astro_token.to_string(),
+        msg: to_binary(&Cw20ExecuteMsg::Transfer {
+            recipient: recipient.to_string(),
+            amount,
+        })?,
+        funds: vec![],
+    };
+
     STATE.save(deps.storage, &state)?;
 
-    let recipient = addr_opt_validate(deps.api, &recipient)?.unwrap_or(info.sender);
     Ok(Response::new()
-        .add_message(WasmMsg::Execute {
-            contract_addr: config.astro_token.to_string(),
-            msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                recipient: recipient.to_string(),
-                amount,
-            })?,
-            funds: vec![],
-        })
         .add_attribute("action", "execute_transfer_unallocated")
-        .add_attribute("amount", amount))
+        .add_attribute("amount", amount)
+        .add_message(msg))
 }
 
 /// Allows a newly proposed allocation receiver to claim the ownership of that allocation.
@@ -541,7 +539,7 @@ fn execute_claim_receiver(
     info: MessageInfo,
     prev_receiver: String,
 ) -> StdResult<Response> {
-    let prev_receiver = addr_validate_to_lower(deps.api, &prev_receiver)?;
+    let prev_receiver = deps.api.addr_validate(&prev_receiver)?;
     let mut alloc_params = PARAMS.load(deps.storage, &prev_receiver)?;
 
     match alloc_params.proposed_receiver {
@@ -558,25 +556,19 @@ fn execute_claim_receiver(
                 // Transfers allocation parameters
                 // 1. Save the allocation for the new receiver
                 alloc_params.proposed_receiver = None;
-
                 PARAMS.save(deps.storage, &info.sender, &alloc_params)?;
+
                 // 2. Remove the allocation info from the previous owner
                 PARAMS.remove(deps.storage, &prev_receiver);
-                // Transfers Allocation Status
-                let mut status = STATUS.load(deps.storage, &prev_receiver)?;
 
-                if let Some(sender_status) = STATUS.may_load(deps.storage, &info.sender)? {
-                    status.astro_withdrawn = status
-                        .astro_withdrawn
-                        .checked_add(sender_status.astro_withdrawn)?;
-                }
+                // Transfers Allocation Status
+                let status = STATUS.load(deps.storage, &prev_receiver)?;
 
                 STATUS.save(deps.storage, &info.sender, &status)?;
                 STATUS.remove(deps.storage, &prev_receiver)
             } else {
                 return Err(StdError::generic_err(format!(
-                    "Proposed receiver mismatch, actual proposed receiver : {}",
-                    proposed_receiver
+                    "Proposed receiver mismatch, actual proposed receiver : {proposed_receiver}"
                 )));
             }
         }
@@ -606,6 +598,15 @@ fn update_config(
         ));
     }
 
+    let state = STATE.load(deps.storage)?;
+
+    if new_max_allocations_amount < state.total_astro_deposited {
+        return Err(StdError::generic_err(format!(
+            "The new max allocations amount {} can not be less than currently deposited {}",
+            new_max_allocations_amount, state.total_astro_deposited,
+        )));
+    }
+
     config.max_allocations_amount = new_max_allocations_amount;
     CONFIG.save(deps.storage, &config)?;
 
@@ -617,6 +618,7 @@ fn update_config(
 /// Updates builder unlock schedules for specified accounts.
 fn update_unlock_schedules(
     deps: DepsMut,
+    env: Env,
     info: MessageInfo,
     new_unlock_schedules: Vec<(String, Schedule)>,
 ) -> StdResult<Response> {
@@ -629,8 +631,22 @@ fn update_unlock_schedules(
     }
 
     for (account, new_schedule) in new_unlock_schedules {
-        let account_addr = addr_validate_to_lower(deps.api, &account)?;
+        let account_addr = deps.api.addr_validate(&account)?;
         let mut params = PARAMS.load(deps.storage, &account_addr)?;
+
+        let mut status = STATUS.load(deps.storage, &account_addr)?;
+
+        let unlocked_amount_checkpoint = compute_unlocked_amount(
+            env.block.time.seconds(),
+            params.amount,
+            &params.unlock_schedule,
+            status.unlocked_amount_checkpoint,
+        );
+
+        if unlocked_amount_checkpoint > status.unlocked_amount_checkpoint {
+            status.unlocked_amount_checkpoint = unlocked_amount_checkpoint;
+            STATUS.save(deps.storage, &account_addr, &status)?;
+        }
 
         params.update_schedule(new_schedule, &account)?;
         PARAMS.save(deps.storage, &account_addr, &params)?;
@@ -641,7 +657,7 @@ fn update_unlock_schedules(
 
 /// Return the global distribution state.
 pub fn query_state(deps: Deps) -> StdResult<StateResponse> {
-    let state = STATE.may_load(deps.storage)?.unwrap_or_default();
+    let state = STATE.load(deps.storage)?;
     Ok(StateResponse {
         total_astro_deposited: state.total_astro_deposited,
         remaining_astro_tokens: state.remaining_astro_tokens,
@@ -653,7 +669,7 @@ pub fn query_state(deps: Deps) -> StdResult<StateResponse> {
 ///
 /// * **account** account whose allocation we query.
 fn query_allocation(deps: Deps, account: String) -> StdResult<AllocationResponse> {
-    let account_checked = addr_validate_to_lower(deps.api, &account)?;
+    let account_checked = deps.api.addr_validate(&account)?;
 
     Ok(AllocationResponse {
         params: PARAMS
@@ -679,7 +695,7 @@ fn query_allocations(
     let default_start;
 
     let start = if let Some(start_after) = start_after {
-        default_start = addr_validate_to_lower(deps.api, &start_after)?;
+        default_start = deps.api.addr_validate(&start_after)?;
         Some(Bound::exclusive(&default_start))
     } else {
         None
@@ -695,7 +711,7 @@ fn query_allocations(
 ///
 /// * **account** account whose unlocked token amount we query.
 fn query_tokens_unlocked(deps: Deps, env: Env, account: String) -> StdResult<Uint128> {
-    let account_checked = addr_validate_to_lower(deps.api, &account)?;
+    let account_checked = deps.api.addr_validate(&account)?;
 
     let params = PARAMS.load(deps.storage, &account_checked)?;
     let status = STATUS.load(deps.storage, &account_checked)?;
@@ -719,15 +735,15 @@ fn query_simulate_withdraw(
     account: String,
     timestamp: Option<u64>,
 ) -> StdResult<SimulateWithdrawResponse> {
-    let account_checked = addr_validate_to_lower(deps.api, &account)?;
+    let account_checked = deps.api.addr_validate(&account)?;
 
     let params = PARAMS.load(deps.storage, &account_checked)?;
-    let mut status = STATUS.load(deps.storage, &account_checked)?;
+    let status = STATUS.load(deps.storage, &account_checked)?;
 
-    Ok(helpers::compute_withdraw_amount(
+    Ok(compute_withdraw_amount(
         timestamp.unwrap_or_else(|| env.block.time.seconds()),
         &params,
-        &mut status,
+        &status,
     ))
 }
 
@@ -776,6 +792,7 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> StdResult<Response>
             }
             "1.1.0" => {}
             "1.2.0" => {}
+            "1.2.2" => {}
             _ => return Err(StdError::generic_err("Contract can't be migrated!")),
         },
         _ => return Err(StdError::generic_err("Contract can't be migrated!")),
@@ -809,16 +826,12 @@ mod helpers {
     ) -> Uint128 {
         // Tokens haven't begun unlocking
         if timestamp < schedule.start_time + schedule.cliff {
-            Uint128::zero()
+            unlock_checkpoint
         }
         // Tokens unlock linearly between start time and end time
-        else if (timestamp < schedule.start_time + schedule.cliff + schedule.duration)
-            && schedule.duration != 0
-        {
-            let unlocked_amount = amount.multiply_ratio(
-                timestamp - (schedule.start_time + schedule.cliff),
-                schedule.duration,
-            );
+        else if (timestamp < schedule.start_time + schedule.duration) && schedule.duration != 0 {
+            let unlocked_amount =
+                amount.multiply_ratio(timestamp - schedule.start_time, schedule.duration);
 
             if unlocked_amount > unlock_checkpoint {
                 unlocked_amount
@@ -836,7 +849,7 @@ mod helpers {
     pub fn compute_withdraw_amount(
         timestamp: u64,
         params: &AllocationParams,
-        status: &mut AllocationStatus,
+        status: &AllocationStatus,
     ) -> SimulateWithdrawResponse {
         // "Unlocked" amount
         let astro_unlocked = compute_unlocked_amount(
@@ -846,9 +859,8 @@ mod helpers {
             status.unlocked_amount_checkpoint,
         );
 
-        // Withdrawable amount is unlocked amount minus the amount already withdrawn
+        // Withdrawal amount is unlocked amount minus the amount already withdrawn
         let astro_withdrawable = astro_unlocked - status.astro_withdrawn;
-        status.astro_withdrawn += astro_withdrawable;
 
         SimulateWithdrawResponse {
             astro_to_withdraw: astro_withdrawable,

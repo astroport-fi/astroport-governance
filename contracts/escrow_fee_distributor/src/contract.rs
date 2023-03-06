@@ -1,4 +1,3 @@
-use astroport::asset::addr_validate_to_lower;
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use cosmwasm_std::{
     attr, entry_point, to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Order, Response,
@@ -38,8 +37,7 @@ pub fn instantiate(
     if let Some(claim_many_limit) = msg.claim_many_limit {
         if claim_many_limit < MIN_CLAIM_LIMIT {
             return Err(StdError::generic_err(format!(
-                "Accounts limit for claim operation cannot be less than {} !",
-                MIN_CLAIM_LIMIT
+                "Accounts limit for claim operation cannot be less than {MIN_CLAIM_LIMIT} !"
             )));
         }
     }
@@ -47,9 +45,9 @@ pub fn instantiate(
     CONFIG.save(
         deps.storage,
         &Config {
-            owner: addr_validate_to_lower(deps.api, &msg.owner)?,
-            astro_token: addr_validate_to_lower(deps.api, &msg.astro_token)?,
-            voting_escrow_addr: addr_validate_to_lower(deps.api, &msg.voting_escrow_addr)?,
+            owner: deps.api.addr_validate(&msg.owner)?,
+            astro_token: deps.api.addr_validate(&msg.astro_token)?,
+            voting_escrow_addr: deps.api.addr_validate(&msg.voting_escrow_addr)?,
             is_claim_disabled: msg.is_claim_disabled.unwrap_or(false),
             claim_many_limit: msg.claim_many_limit.unwrap_or(CLAIM_LIMIT),
         },
@@ -212,7 +210,7 @@ fn claim_many(
     let current_period = get_period(env.block.time.seconds())?;
 
     for receiver in receivers {
-        let receiver_addr = addr_validate_to_lower(deps.api, &receiver)?;
+        let receiver_addr = deps.api.addr_validate(&receiver)?;
         let claim_amount = calc_claim_amount(
             deps.branch(),
             current_period,
@@ -274,8 +272,7 @@ fn update_config(
     if let Some(claim_many_limit) = claim_many_limit {
         if claim_many_limit < MIN_CLAIM_LIMIT {
             return Err(StdError::generic_err(format!(
-                "Accounts limit for claim operation cannot be less than {} !",
-                MIN_CLAIM_LIMIT
+                "Accounts limit for claim operation cannot be less than {MIN_CLAIM_LIMIT} !"
             ))
             .into());
         }
@@ -351,7 +348,7 @@ fn query_user_reward(deps: Deps, user: String, timestamp: u64) -> StdResult<Uint
     let config = CONFIG.load(deps.storage)?;
 
     let user_voting_power =
-        get_voting_power_at(&deps.querier, &config.voting_escrow_addr, &user, timestamp)?;
+        get_voting_power_at(&deps.querier, &config.voting_escrow_addr, user, timestamp)?;
     let total_voting_power =
         get_total_voting_power_at(&deps.querier, &config.voting_escrow_addr, timestamp)?;
 

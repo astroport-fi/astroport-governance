@@ -57,6 +57,7 @@ impl ControllerHelper {
             generator_address: None,
             owner: owner.to_string(),
             whitelist_code_id,
+            coin_registry_address: Addr::unchecked("coin_registry").to_string(),
         };
 
         let factory = router
@@ -78,7 +79,9 @@ impl ControllerHelper {
             factory: factory.to_string(),
             generator_controller: None,
             guardian: None,
-            astro_token: escrow_helper.astro_token.to_string(),
+            astro_token: AssetInfo::NativeToken {
+                denom: escrow_helper.astro_token.to_string(),
+            },
             tokens_per_block: Default::default(),
             start_block: Default::default(),
             vesting_contract: "vesting_placeholder".to_string(),
