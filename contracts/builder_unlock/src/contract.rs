@@ -12,14 +12,12 @@ use cw_storage_plus::Bound;
 
 use crate::astroport::asset::addr_opt_validate;
 use crate::contract::helpers::{compute_unlocked_amount, compute_withdraw_amount};
-use crate::migration::{MigrateMsg, CONFIGV100, STATEV100, STATUSV100};
+use crate::migration::MigrateMsg;
 use astroport_governance::builder_unlock::msg::{
     AllocationResponse, ExecuteMsg, InstantiateMsg, QueryMsg, ReceiveMsg, SimulateWithdrawResponse,
     StateResponse,
 };
-use astroport_governance::builder_unlock::{
-    AllocationParams, AllocationStatus, Config, Schedule, State,
-};
+use astroport_governance::builder_unlock::{AllocationParams, AllocationStatus, Config, Schedule};
 
 use astroport_governance::{DEFAULT_LIMIT, MAX_LIMIT};
 
@@ -539,8 +537,8 @@ fn execute_claim_receiver(
     info: MessageInfo,
     prev_receiver: String,
 ) -> StdResult<Response> {
-    let prev_receiver = deps.api.addr_validate(&prev_receiver)?;
-    let mut alloc_params = PARAMS.load(deps.storage, &prev_receiver)?;
+    let prev_receiver_addr = deps.api.addr_validate(&prev_receiver)?;
+    let mut alloc_params = PARAMS.load(deps.storage, &prev_receiver_addr)?;
 
     match alloc_params.proposed_receiver {
         Some(proposed_receiver) => {
@@ -557,15 +555,13 @@ fn execute_claim_receiver(
                 // 1. Save the allocation for the new receiver
                 alloc_params.proposed_receiver = None;
                 PARAMS.save(deps.storage, &info.sender, &alloc_params)?;
-
                 // 2. Remove the allocation info from the previous owner
-                PARAMS.remove(deps.storage, &prev_receiver);
-
+                PARAMS.remove(deps.storage, &prev_receiver_addr);
                 // Transfers Allocation Status
-                let status = STATUS.load(deps.storage, &prev_receiver)?;
+                let status = STATUS.load(deps.storage, &prev_receiver_addr)?;
 
                 STATUS.save(deps.storage, &info.sender, &status)?;
-                STATUS.remove(deps.storage, &prev_receiver)
+                STATUS.remove(deps.storage, &prev_receiver_addr)
             } else {
                 return Err(StdError::generic_err(format!(
                     "Proposed receiver mismatch, actual proposed receiver : {proposed_receiver}"
@@ -749,48 +745,11 @@ fn query_simulate_withdraw(
 
 /// Manages contract migration
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> StdResult<Response> {
+pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
     let contract_version = get_contract_version(deps.storage)?;
 
     match contract_version.contract.as_ref() {
         "builder-unlock" => match contract_version.version.as_ref() {
-            "1.0.0" => {
-                let state_v100 = STATEV100.load(deps.storage)?;
-                STATE.save(
-                    deps.storage,
-                    &State {
-                        total_astro_deposited: state_v100.total_astro_deposited,
-                        remaining_astro_tokens: state_v100.remaining_astro_tokens,
-                        unallocated_tokens: Uint128::zero(),
-                    },
-                )?;
-
-                let keys = STATUSV100
-                    .keys(deps.storage, None, None, cosmwasm_std::Order::Ascending {})
-                    .map(|v| Ok(v?.to_string()))
-                    .collect::<Result<Vec<String>, StdError>>()?;
-
-                for key in keys {
-                    let status_v100 = STATUSV100.load(deps.storage, &Addr::unchecked(&key))?;
-                    let status = AllocationStatus {
-                        astro_withdrawn: status_v100.astro_withdrawn,
-                        unlocked_amount_checkpoint: Uint128::zero(),
-                    };
-                    STATUS.save(deps.storage, &Addr::unchecked(key), &status)?;
-                }
-
-                let config_v100 = CONFIGV100.load(deps.storage)?;
-
-                CONFIG.save(
-                    deps.storage,
-                    &Config {
-                        owner: config_v100.owner,
-                        astro_token: config_v100.astro_token,
-                        max_allocations_amount: msg.max_allocations_amount,
-                    },
-                )?;
-            }
-            "1.1.0" => {}
             "1.2.0" => {}
             "1.2.2" => {}
             _ => return Err(StdError::generic_err("Contract can't be migrated!")),

@@ -38,6 +38,33 @@ Submit a new on-chain proposal.
 }
 ```
 
+#### msg
+
+Example proposal message
+
+```json
+{
+  "submit_proposal": {
+     "title": "Example proposal",
+     "description": "Example proposal",
+     "link": "https://forum.astroport.fi/",
+     "messages":
+         [
+             {
+               "wasm": {
+                   "execute": {
+                       "contract_addr": "terra..",
+                       "msg": "<base64_encoded_json_string>",
+                       "funds": []
+                   }
+               }
+             }
+         ],
+     "ibc_channel": "channel..."
+  }
+}
+```
+
 ### `cast_vote`
 
 Casts a vote for an active proposal.

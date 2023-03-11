@@ -7,6 +7,7 @@ use cw_multi_test::{App, BankKeeper, BasicAppBuilder};
 #[allow(clippy::all)]
 #[allow(dead_code)]
 pub mod controller_helper;
+
 #[allow(clippy::all)]
 #[allow(dead_code)]
 pub mod escrow_helper;

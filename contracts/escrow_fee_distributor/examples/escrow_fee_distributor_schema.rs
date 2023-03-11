@@ -1,8 +1,7 @@
-use cosmwasm_schema::write_api;
-
 use astroport_governance::escrow_fee_distributor::{
     ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg,
 };
+use cosmwasm_schema::write_api;
 
 fn main() {
     write_api! {
