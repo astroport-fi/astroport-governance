@@ -622,7 +622,9 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Config {} => to_binary(&CONFIG.load(deps.storage)?),
         QueryMsg::Proposals { start, limit } => to_binary(&query_proposals(deps, start, limit)?),
-        QueryMsg::Proposal { proposal_id } => to_binary(&query_proposal(deps, proposal_id)?),
+        QueryMsg::Proposal { proposal_id } => {
+            to_binary(&PROPOSALS.load(deps.storage, proposal_id)?)
+        }
         QueryMsg::ProposalVotes { proposal_id } => {
             to_binary(&query_proposal_votes(deps, proposal_id)?)
         }
@@ -650,12 +652,6 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             limit,
         )?),
     }
-}
-
-/// Returns proposal information by id.
-pub fn query_proposal(deps: Deps, proposal_id: u64) -> StdResult<Proposal> {
-    let proposal = PROPOSALS.load(deps.storage, proposal_id)?;
-    Ok(proposal)
 }
 
 /// Returns the current proposal list.
