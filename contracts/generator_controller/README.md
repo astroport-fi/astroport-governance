@@ -127,6 +127,25 @@ Used to claim contract ownership. Only the newly proposed contract owner can exe
 }
 ```
 
+### `update_whitelist`
+
+Adds or removes lp tokens which are eligible to receive votes.
+
+```json
+{
+  "update_whitelist": {
+    "add": [
+        "terra...",
+        "terra..."
+    ],
+    "remove": [
+      "terra...",
+      "terra..."
+    ]
+  }
+}
+```
+
 ## QueryMsg
 
 All query messages are described below. A custom struct is defined for each query response.

@@ -16,6 +16,9 @@ pub enum ContractError {
 
     #[error("Claiming is disabled!")]
     ClaimDisabled {},
+
+    #[error("Contract can't be migrated!")]
+    MigrationError {},
 }
 
 impl From<OverflowError> for ContractError {

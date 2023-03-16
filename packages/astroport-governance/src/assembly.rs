@@ -15,8 +15,8 @@ mod proposal_constants {
     pub const MINIMUM_PROPOSAL_REQUIRED_QUORUM_PERCENTAGE: &str = "0.01";
     pub const VOTING_PERIOD_INTERVAL: RangeInclusive<u64> = 12342..=7 * 12342;
     // from 0.5 to 1 day in blocks (7 seconds per block)
-    pub const DELAY_INTERVAL: RangeInclusive<u64> = 6171..=12342;
-    pub const EXPIRATION_PERIOD_INTERVAL: RangeInclusive<u64> = 12342..=86_399;
+    pub const DELAY_INTERVAL: RangeInclusive<u64> = 6171..=14400;
+    pub const EXPIRATION_PERIOD_INTERVAL: RangeInclusive<u64> = 12342..=100_800;
     // from 10k to 60k $xASTRO
     pub const DEPOSIT_INTERVAL: RangeInclusive<u128> = 10000000000..=60000000000;
 }
@@ -31,8 +31,8 @@ mod proposal_constants {
     pub const MINIMUM_PROPOSAL_REQUIRED_QUORUM_PERCENTAGE: &str = "0.001";
     pub const VOTING_PERIOD_INTERVAL: RangeInclusive<u64> = 200..=7 * 12342;
     // from ~350 sec to 1 day in blocks (7 seconds per block)
-    pub const DELAY_INTERVAL: RangeInclusive<u64> = 50..=12342;
-    pub const EXPIRATION_PERIOD_INTERVAL: RangeInclusive<u64> = 400..=86_399;
+    pub const DELAY_INTERVAL: RangeInclusive<u64> = 50..=14400;
+    pub const EXPIRATION_PERIOD_INTERVAL: RangeInclusive<u64> = 400..=100_800;
     // from 0.001 to 60k $xASTRO
     pub const DEPOSIT_INTERVAL: RangeInclusive<u128> = 1000..=60000000000;
 }
@@ -96,10 +96,10 @@ pub enum ExecuteMsg {
         /// Proposal identifier
         proposal_id: u64,
     },
-    /// Check messages execution
+    /// Checks that proposal messages are correct.
     CheckMessages {
         /// messages
-        messages: Vec<ProposalMessage>,
+        messages: Vec<CosmosMsg>,
     },
     /// The last endpoint which is executed only if all proposal messages have been passed
     CheckMessagesPassed {},
@@ -116,7 +116,7 @@ pub enum ExecuteMsg {
     /// Update parameters in the Assembly contract
     /// ## Executor
     /// Only the Assembly contract is allowed to update its own parameters
-    UpdateConfig(UpdateConfig),
+    UpdateConfig(Box<UpdateConfig>),
     /// Update proposal status InProgress -> Executed or Failed.
     /// ## Executor
     /// Only the IBC controller contract is allowed to call this method.
@@ -154,7 +154,7 @@ pub enum QueryMsg {
         limit: Option<u32>,
     },
     /// Return information about a specific proposal
-    #[returns(ProposalResponse)]
+    #[returns(Proposal)]
     Proposal { proposal_id: u64 },
     /// Return information about the votes cast on a specific proposal
     #[returns(ProposalVotesResponse)]
@@ -175,7 +175,7 @@ pub enum Cw20HookMsg {
         title: String,
         description: String,
         link: Option<String>,
-        messages: Option<Vec<ProposalMessage>>,
+        messages: Option<Vec<CosmosMsg>>,
         /// If proposal should be executed on a remote chain this field should specify governance channel
         ibc_channel: Option<String>,
     },
@@ -340,46 +340,11 @@ pub struct Proposal {
     /// Proposal link
     pub link: Option<String>,
     /// Proposal messages
-    pub messages: Option<Vec<ProposalMessage>>,
+    pub messages: Option<Vec<CosmosMsg>>,
     /// Amount of xASTRO deposited in order to post the proposal
     pub deposit_amount: Uint128,
     /// IBC channel
     pub ibc_channel: Option<String>,
-}
-
-/// This structure describes a proposal response.
-#[cw_serde]
-pub struct ProposalResponse {
-    /// Unique proposal ID
-    pub proposal_id: Uint64,
-    /// The address of the proposal submitter
-    pub submitter: Addr,
-    /// Status of the proposal
-    pub status: ProposalStatus,
-    /// `For` power of proposal
-    pub for_power: Uint128,
-    /// `Against` power of proposal
-    pub against_power: Uint128,
-    /// Start block of proposal
-    pub start_block: u64,
-    /// Start time of proposal
-    pub start_time: u64,
-    /// End block of proposal
-    pub end_block: u64,
-    /// Delayed end block of proposal
-    pub delayed_end_block: u64,
-    /// Expiration block of proposal
-    pub expiration_block: u64,
-    /// Proposal title
-    pub title: String,
-    /// Proposal description
-    pub description: String,
-    /// Proposal link
-    pub link: Option<String>,
-    /// Proposal messages
-    pub messages: Option<Vec<ProposalMessage>>,
-    /// Amount of xASTRO deposited in order to post the proposal
-    pub deposit_amount: Uint128,
 }
 
 impl Proposal {
@@ -462,15 +427,6 @@ impl Display for ProposalStatus {
     }
 }
 
-/// This structure describes a proposal message.
-#[cw_serde]
-pub struct ProposalMessage {
-    /// Order of execution of the message
-    pub order: Uint64,
-    /// Execution message
-    pub msg: CosmosMsg,
-}
-
 /// This structure describes a proposal vote.
 #[cw_serde]
 pub struct ProposalVote {
@@ -513,7 +469,7 @@ pub struct ProposalListResponse {
     /// The amount of proposals returned
     pub proposal_count: Uint64,
     /// The list of proposals that are returned
-    pub proposal_list: Vec<ProposalResponse>,
+    pub proposal_list: Vec<Proposal>,
 }
 
 pub mod helpers {

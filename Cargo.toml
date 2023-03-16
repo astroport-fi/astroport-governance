@@ -1,11 +1,5 @@
 [workspace]
-members = [
-    "packages/*",
-    "contracts/*",
-]
-
-[patch."https://github.com/astroport-fi/hidden_astroport_governance.git"]
-astroport-governance = { path = "packages/astroport-governance" }
+members = ["packages/*", "contracts/*"]
 
 [profile.release]
 opt-level = "z"

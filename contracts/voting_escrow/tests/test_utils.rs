@@ -189,6 +189,7 @@ impl Helper {
             .unwrap();
     }
 
+    #[allow(dead_code)]
     pub fn check_xastro_balance(&self, router: &mut App, user: &str, amount: u64) {
         let amount = amount * MULTIPLIER;
         let res: BalanceResponse = router
@@ -203,6 +204,7 @@ impl Helper {
         assert_eq!(res.balance.u128(), amount as u128);
     }
 
+    #[allow(dead_code)]
     pub fn check_astro_balance(&self, router: &mut App, user: &str, amount: u64) {
         let amount = amount * MULTIPLIER;
         let res: BalanceResponse = router
@@ -238,6 +240,7 @@ impl Helper {
         )
     }
 
+    #[allow(dead_code)]
     pub fn create_lock_u128(
         &self,
         router: &mut App,
@@ -278,6 +281,7 @@ impl Helper {
         )
     }
 
+    #[allow(dead_code)]
     pub fn deposit_for(
         &self,
         router: &mut App,
@@ -349,6 +353,7 @@ impl Helper {
             .map(|vp: VotingPowerResponse| vp.voting_power.u128() as f32 / MULTIPLIER as f32)
     }
 
+    #[allow(dead_code)]
     pub fn query_exact_user_vp(&self, router: &mut App, user: &str) -> StdResult<u128> {
         router
             .wrap()
@@ -361,6 +366,7 @@ impl Helper {
             .map(|vp: VotingPowerResponse| vp.voting_power.u128())
     }
 
+    #[allow(dead_code)]
     pub fn query_user_vp_at(&self, router: &mut App, user: &str, time: u64) -> StdResult<f32> {
         router
             .wrap()
@@ -374,6 +380,7 @@ impl Helper {
             .map(|vp: VotingPowerResponse| vp.voting_power.u128() as f32 / MULTIPLIER as f32)
     }
 
+    #[allow(dead_code)]
     pub fn query_user_vp_at_period(
         &self,
         router: &mut App,
@@ -399,6 +406,7 @@ impl Helper {
             .map(|vp: VotingPowerResponse| vp.voting_power.u128() as f32 / MULTIPLIER as f32)
     }
 
+    #[allow(dead_code)]
     pub fn query_exact_total_vp(&self, router: &mut App) -> StdResult<u128> {
         router
             .wrap()
@@ -416,6 +424,7 @@ impl Helper {
             .map(|vp: VotingPowerResponse| vp.voting_power.u128() as f32 / MULTIPLIER as f32)
     }
 
+    #[allow(dead_code)]
     pub fn query_total_vp_at_period(&self, router: &mut App, period: u64) -> StdResult<f32> {
         router
             .wrap()
@@ -426,6 +435,7 @@ impl Helper {
             .map(|vp: VotingPowerResponse| vp.voting_power.u128() as f32 / MULTIPLIER as f32)
     }
 
+    #[allow(dead_code)]
     pub fn query_locked_balance_at(
         &self,
         router: &mut App,
@@ -444,6 +454,7 @@ impl Helper {
             .map(|vp: Uint128| vp.u128() as f32 / MULTIPLIER as f32)
     }
 
+    #[allow(dead_code)]
     pub fn query_blacklisted_voters(
         &self,
         router: &mut App,
@@ -456,6 +467,7 @@ impl Helper {
         )
     }
 
+    #[allow(dead_code)]
     pub fn check_voters_are_blacklisted(
         &self,
         router: &mut App,

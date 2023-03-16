@@ -19,4 +19,4 @@ cw20 = "0.15"
 cosmwasm-std = "1.1"
 cw-storage-plus = "0.15"
 cosmwasm-schema = "1.1"
-astroport = { git = "https://github.com/astroport-fi/hidden_astroport_core.git", branch = "feat/extended_maker" }
+astroport = { git = "https://github.com/astroport-fi/astroport-core", branch = "merge/release" }

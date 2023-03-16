@@ -17,18 +17,17 @@ pub struct InstantiateMsg {
     pub factory_addr: String,
     /// Max number of pools that can receive ASTRO emissions at the same time
     pub pools_limit: u64,
+    /// The list of pools which are eligible to receive votes
+    pub whitelisted_pools: Vec<String>,
 }
 
 /// This structure describes the execute messages available in the contract.
 #[cw_serde]
 pub enum ExecuteMsg {
-    KickBlacklistedVoters {
-        blacklisted_voters: Vec<String>,
-    },
+    /// Removes all votes applied by blacklisted voters
+    KickBlacklistedVoters { blacklisted_voters: Vec<String> },
     /// Vote allows a vxASTRO holder to cast votes on which generators should get ASTRO emissions in the next epoch
-    Vote {
-        votes: Vec<(String, u16)>,
-    },
+    Vote { votes: Vec<(String, u16)> },
     /// TunePools transforms the latest vote distribution into alloc_points which are then applied to ASTRO generators
     TunePools {},
     UpdateConfig {
@@ -42,9 +41,7 @@ pub enum ExecuteMsg {
         remove_main_pool: Option<bool>,
     },
     /// ChangePoolsLimit changes the max amount of pools that can be voted at once to receive ASTRO emissions
-    ChangePoolsLimit {
-        limit: u64,
-    },
+    ChangePoolsLimit { limit: u64 },
     /// ProposeNewOwner proposes a new owner for the contract
     ProposeNewOwner {
         /// Newly proposed contract owner
@@ -56,6 +53,11 @@ pub enum ExecuteMsg {
     DropOwnershipProposal {},
     /// ClaimOwnership allows the newly proposed owner to claim contract ownership
     ClaimOwnership {},
+    /// Adds or removes the pools which are eligible to receive votes
+    UpdateWhitelist {
+        add: Option<Vec<String>>,
+        remove: Option<Vec<String>>,
+    },
 }
 
 /// This structure describes the query messages available in the contract.
@@ -82,10 +84,7 @@ pub enum QueryMsg {
 /// This structure describes a migration message.
 /// We currently take no arguments for migrations.
 #[cw_serde]
-pub struct MigrateMsg {
-    /// Max number of blacklisted voters can be removed
-    pub blacklisted_voters_limit: Option<u32>,
-}
+pub struct MigrateMsg {}
 
 /// This structure describes the parameters returned when querying for the contract configuration.
 #[cw_serde]
@@ -106,6 +105,8 @@ pub struct ConfigResponse {
     pub main_pool: Option<Addr>,
     /// The minimum percentage of ASTRO emissions that main pool should get every block
     pub main_pool_min_alloc: Decimal,
+    /// The list of pools which are eligible to receive votes
+    pub whitelisted_pools: Vec<Addr>,
 }
 
 /// This structure describes the response used to return voting information for a specific pool (generator).

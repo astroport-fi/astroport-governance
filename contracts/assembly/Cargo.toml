@@ -1,6 +1,6 @@
 [package]
 name = "astro-assembly"
-version = "1.4.0"
+version = "1.5.0"
 authors = ["Astroport"]
 edition = "2021"
 repository = "https://github.com/astroport-fi/astroport-governance"
@@ -20,17 +20,17 @@ cw20 = "0.15"
 cosmwasm-std = { version = "1.1", features = ["ibc3"] }
 cw-storage-plus = "0.15"
 astroport-governance = { path = "../../packages/astroport-governance" }
-ibc-controller-package = { git = "https://github.com/astroport-fi/astroport_ibc.git", branch = "feat/refactor_code_main" }
+ibc-controller-package = { git = "https://github.com/astroport-fi/astroport_ibc", branch = "merge/release" }
 thiserror = { version = "1.0" }
 cosmwasm-schema = "1.1"
 
 [dev-dependencies]
 cw-multi-test = "0.15"
-astroport-token = { git = "https://github.com/astroport-fi/hidden_astroport_core.git", branch = "feat/extended_maker" }
-astroport-xastro-token = { git = "https://github.com/astroport-fi/hidden_astroport_core.git", branch = "feat/extended_maker" }
+astroport-token = { git = "https://github.com/astroport-fi/astroport-core", branch = "merge/release" }
+astroport-xastro-token = { git = "https://github.com/astroport-fi/astroport-core", branch = "merge/release" }
 voting-escrow = { path = "../voting_escrow" }
 voting-escrow-delegation = { path = "../voting_escrow_delegation" }
 astroport-nft = { path = "../nft" }
-astroport-staking = { git = "https://github.com/astroport-fi/hidden_astroport_core.git", branch = "feat/extended_maker" }
+astroport-staking = { git = "https://github.com/astroport-fi/astroport-core", branch = "merge/release" }
 builder-unlock = { path = "../builder_unlock" }
 anyhow = "1"

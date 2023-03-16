@@ -56,9 +56,9 @@ pub fn instantiate(
     let xastro_minter_resp: MinterResponse = deps
         .querier
         .query_wasm_smart(&deposit_token_addr, &Cw20QueryMsg::Minter {})?;
-    let staking_config: astroport::staking::ConfigResponse = deps.querier.query_wasm_smart(
+    let staking_config: crate::astroport::staking::ConfigResponse = deps.querier.query_wasm_smart(
         &xastro_minter_resp.minter,
-        &astroport::staking::QueryMsg::Config {},
+        &crate::astroport::staking::QueryMsg::Config {},
     )?;
 
     validate_whitelist_links(&msg.logo_urls_whitelist)?;
@@ -402,7 +402,7 @@ fn receive_cw20(
     cw20_msg: Cw20ReceiveMsg,
 ) -> Result<Response, ContractError> {
     xastro_token_check(deps.storage, info.sender)?;
-    let sender = deps.api.addr_validate(&cw20_msg.sender)?;
+    let sender = Addr::unchecked(cw20_msg.sender);
     blacklist_check(deps.storage, &sender)?;
 
     match from_binary(&cw20_msg.msg)? {
