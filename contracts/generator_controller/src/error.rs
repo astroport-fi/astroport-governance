@@ -19,8 +19,8 @@ pub enum ContractError {
     #[error("You can't vote with zero voting power")]
     ZeroVotingPower {},
 
-    #[error("{0} is the main pool. Voting for the main pool is prohibited")]
-    MainPoolVoteProhibited(String),
+    #[error("{0} is the main pool. Voting or whitelisting the main pool is prohibited.")]
+    MainPoolVoteOrWhitelistingProhibited(String),
 
     #[error("main_pool_min_alloc should be more than 0 and less than 1")]
     MainPoolMinAllocFailed {},
@@ -48,4 +48,16 @@ pub enum ContractError {
 
     #[error("Contract can't be migrated!")]
     MigrationError {},
+
+    #[error("Whitelist cannot be empty!")]
+    WhitelistEmpty {},
+
+    #[error("The pair aren't registered: {0}-{1}")]
+    PairNotRegistered(String, String),
+
+    #[error("Pool is already whitelisted: {0}")]
+    PoolIsWhitelisted(String),
+
+    #[error("Pool is not whitelisted: {0}")]
+    PoolIsNotWhitelisted(String),
 }

@@ -2,6 +2,7 @@ use crate::escrow_helper::EscrowHelper;
 use anyhow::Result as AnyResult;
 use astroport::asset::{AssetInfo, PairInfo};
 use astroport::factory::{PairConfig, PairType};
+
 use astroport_governance::generator_controller::{ConfigResponse, ExecuteMsg, QueryMsg};
 use cosmwasm_std::{Addr, Decimal, StdResult};
 use cw_multi_test::{App, AppResponse, ContractWrapper, Executor};
@@ -114,6 +115,7 @@ impl ControllerHelper {
             generator_addr: generator.to_string(),
             factory_addr: factory.to_string(),
             pools_limit: 5,
+            whitelisted_pools: vec![],
         };
 
         let controller = router
@@ -188,7 +190,7 @@ impl ControllerHelper {
             self.factory.clone(),
             &astroport::factory::ExecuteMsg::CreatePair {
                 pair_type: PairType::Xyk {},
-                asset_infos: asset_infos.clone(),
+                asset_infos: asset_infos.to_vec(),
                 init_params: None,
             },
             &[],
@@ -196,7 +198,9 @@ impl ControllerHelper {
 
         let res: PairInfo = router.wrap().query_wasm_smart(
             self.factory.clone(),
-            &astroport::factory::QueryMsg::Pair { asset_infos },
+            &astroport::factory::QueryMsg::Pair {
+                asset_infos: asset_infos.to_vec(),
+            },
         )?;
 
         Ok(res.liquidity_token)
@@ -292,6 +296,21 @@ impl ControllerHelper {
             },
             &[],
         )
+    }
+
+    pub fn update_whitelist(
+        &self,
+        router: &mut App,
+        user: &str,
+        add_pools: Option<Vec<String>>,
+        remove_pools: Option<Vec<String>>,
+    ) -> AnyResult<AppResponse> {
+        let msg = ExecuteMsg::UpdateWhitelist {
+            add: add_pools,
+            remove: remove_pools,
+        };
+
+        router.execute_contract(Addr::unchecked(user), self.controller.clone(), &msg, &[])
     }
 
     pub fn query_user_info(&self, router: &mut App, user: &str) -> StdResult<UserInfo> {

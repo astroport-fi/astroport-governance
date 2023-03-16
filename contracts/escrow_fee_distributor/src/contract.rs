@@ -382,6 +382,6 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
 
 /// Manages contract migration.
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
-    Ok(Response::default())
+pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
+    Err(ContractError::MigrationError {})
 }
