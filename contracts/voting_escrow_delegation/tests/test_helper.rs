@@ -89,6 +89,8 @@ impl Helper {
             Default::default(),
         );
 
+        escrow_helper.mint_xastro(router, "owner", 1001);
+
         Helper {
             escrow_helper,
             delegation_instance: delegation_addr,

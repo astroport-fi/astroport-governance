@@ -20,17 +20,17 @@ cw20 = "0.15"
 cosmwasm-std = { version = "1.1", features = ["ibc3"] }
 cw-storage-plus = "0.15"
 astroport-governance = { path = "../../packages/astroport-governance" }
-ibc-controller-package = { git = "https://github.com/astroport-fi/astroport_ibc", branch = "merge/release" }
+ibc-controller-package = { git = "https://github.com/astroport-fi/astroport_ibc", branch = "main" }
 thiserror = { version = "1.0" }
 cosmwasm-schema = "1.1"
 
 [dev-dependencies]
 cw-multi-test = "0.15"
-astroport-token = { git = "https://github.com/astroport-fi/astroport-core", branch = "merge/release" }
-astroport-xastro-token = { git = "https://github.com/astroport-fi/astroport-core", branch = "merge/release" }
+astroport-token = { git = "https://github.com/astroport-fi/astroport-core", branch = "feat/merge_hidden_2023_05_22" }
+astroport-xastro-token = { git = "https://github.com/astroport-fi/astroport-core", branch = "feat/merge_hidden_2023_05_22" }
 voting-escrow = { path = "../voting_escrow" }
 voting-escrow-delegation = { path = "../voting_escrow_delegation" }
 astroport-nft = { path = "../nft" }
-astroport-staking = { git = "https://github.com/astroport-fi/astroport-core", branch = "merge/release" }
+astroport-staking = { git = "https://github.com/astroport-fi/astroport-core", branch = "feat/merge_hidden_2023_05_22" }
 builder-unlock = { path = "../builder_unlock" }
 anyhow = "1"

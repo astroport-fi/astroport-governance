@@ -19,4 +19,4 @@ cw20 = "0.15"
 cosmwasm-std = "1.1"
 cw-storage-plus = "0.15"
 cosmwasm-schema = "1.1"
-astroport = { git = "https://github.com/astroport-fi/astroport-core", branch = "merge/release" }
+astroport = { git = "https://github.com/astroport-fi/astroport-core", branch = "feat/merge_hidden_2023_05_22" }

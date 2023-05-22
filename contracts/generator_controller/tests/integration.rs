@@ -61,6 +61,7 @@ fn check_kick_holders_works() {
         "You can't vote with zero voting power"
     );
 
+    helper.escrow_helper.mint_xastro(&mut router, "owner", 100);
     helper.escrow_helper.mint_xastro(&mut router, "user1", 100);
     // Create short lock
     helper
@@ -223,6 +224,7 @@ fn check_vote_works() {
         "You can't vote with zero voting power"
     );
 
+    helper.escrow_helper.mint_xastro(&mut router, "owner", 100);
     helper.escrow_helper.mint_xastro(&mut router, "user1", 100);
     // Create short lock
     helper
@@ -859,6 +861,8 @@ fn check_main_pool() {
             .create_pool_with_tokens(&mut router, "FOO", "ADN")
             .unwrap(),
     ];
+
+    helper.escrow_helper.mint_xastro(&mut router, "owner", 100);
 
     for user in ["user1", "user2"] {
         helper.escrow_helper.mint_xastro(&mut router, user, 100);
