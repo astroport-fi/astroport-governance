@@ -144,9 +144,9 @@ dependencies = [
 [[package]]
 name = "astroport-governance"
 version = "1.2.0"
-source = "git+https://github.com/astroport-fi/astroport-governance?branch=main#193a33d72f9ee608d7fcff6c1f0425b84e22777a"
+source = "git+https://github.com/astroport-fi/astroport-governance?branch=feat/merge_hidden_2023_05_22#7e8126d688a640799dd059f93616a66b6c1ee12f"
 dependencies = [
- "astroport 2.4.0",
+ "astroport 2.10.0",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 0.15.1",
@@ -156,7 +156,7 @@ dependencies = [
 [[package]]
 name = "astroport-governance"
 version = "1.2.0"
-source = "git+https://github.com/astroport-fi/astroport-governance.git?branch=merge/release#f7381bb095c15a34c8cb4ba51911506f4d216462"
+source = "git+https://github.com/astroport-fi/astroport-governance?branch=main#193a33d72f9ee608d7fcff6c1f0425b84e22777a"
 dependencies = [
  "astroport 2.4.0",
  "cosmwasm-schema",
@@ -168,7 +168,7 @@ dependencies = [
 [[package]]
 name = "astroport-ibc"
 version = "0.1.0"
-source = "git+https://github.com/astroport-fi/astroport_ibc?branch=main#2b98128012c373d4ed1cb5459e69f38461e262e2"
+source = "git+https://github.com/astroport-fi/astroport_ibc?branch=feat/update_deps_2023_05_22#5ce8b68dc89965790558523ab84c6b2f153c5181"
 dependencies = [
  "cosmwasm-schema",
 ]
@@ -979,9 +979,9 @@ dependencies = [
 [[package]]
 name = "ibc-controller-package"
 version = "0.1.0"
-source = "git+https://github.com/astroport-fi/astroport_ibc?branch=main#2b98128012c373d4ed1cb5459e69f38461e262e2"
+source = "git+https://github.com/astroport-fi/astroport_ibc?branch=feat/update_deps_2023_05_22#5ce8b68dc89965790558523ab84c6b2f153c5181"
 dependencies = [
- "astroport-governance 1.2.0 (git+https://github.com/astroport-fi/astroport-governance.git?branch=merge/release)",
+ "astroport-governance 1.2.0 (git+https://github.com/astroport-fi/astroport-governance?branch=feat/merge_hidden_2023_05_22)",
  "astroport-ibc",
  "cosmwasm-schema",
  "cosmwasm-std",
