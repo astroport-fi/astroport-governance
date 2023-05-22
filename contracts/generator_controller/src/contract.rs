@@ -336,7 +336,7 @@ fn handle_vote(
 
             // Voting for the main pool is prohibited
             if let Some(main_pool) = &config.main_pool {
-                if &pool == main_pool {
+                if pool == main_pool {
                     return Err(ContractError::MainPoolVoteOrWhitelistingProhibited(
                         main_pool.to_string(),
                     ));
