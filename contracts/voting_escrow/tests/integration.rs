@@ -20,6 +20,8 @@ fn lock_unlock_logic() {
     let owner = Addr::unchecked("owner");
     let helper = Helper::init(router_ref, owner);
 
+    helper.mint_xastro(router_ref, "owner", 100);
+
     // Mint ASTRO, stake it and mint xASTRO
     helper.mint_xastro(router_ref, "user", 100);
     helper.check_xastro_balance(router_ref, "user", 100);
@@ -228,6 +230,8 @@ fn new_lock_after_lock_expired() {
     let router_ref = &mut router;
     let helper = Helper::init(router_ref, Addr::unchecked("owner"));
 
+    helper.mint_xastro(router_ref, "owner", 100);
+
     // Mint ASTRO, stake it and mint xASTRO
     helper.mint_xastro(router_ref, "user", 100);
 
@@ -383,6 +387,7 @@ fn voting_variable_decay() {
     let helper = Helper::init(router_ref, Addr::unchecked("owner"));
 
     // Mint ASTRO, stake it and mint xASTRO
+    helper.mint_xastro(router_ref, "owner", 100);
     helper.mint_xastro(router_ref, "user", 100);
     helper.mint_xastro(router_ref, "user2", 100);
 
@@ -448,6 +453,8 @@ fn check_queries() {
     let router_ref = &mut router;
     let owner = Addr::unchecked("owner");
     let helper = Helper::init(router_ref, owner);
+
+    helper.mint_xastro(router_ref, "owner", 100);
 
     // Mint ASTRO, stake it and mint xASTRO
     helper.mint_xastro(router_ref, "user", 100);
@@ -662,6 +669,8 @@ fn check_deposit_for() {
     let router_ref = &mut router;
     let owner = Addr::unchecked("owner");
     let helper = Helper::init(router_ref, owner);
+
+    helper.mint_xastro(router_ref, "owner", 100);
 
     // Mint ASTRO, stake it and mint xASTRO
     helper.mint_xastro(router_ref, "user1", 100);
@@ -934,6 +943,8 @@ fn check_residual() {
     let lock_duration = 104;
     let users_num = 1000;
     let lock_amount = 100_000_000;
+
+    helper.mint_xastro(router_ref, "owner", 100);
 
     for i in 1..(users_num / 2) {
         let user = &format!("user{}", i);
