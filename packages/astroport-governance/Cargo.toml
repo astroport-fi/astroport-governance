@@ -5,6 +5,8 @@ authors = ["Astroport"]
 edition = "2021"
 repository = "https://github.com/astroport-fi/astroport-governance"
 homepage = "https://astroport.fi"
+description = "Astroport Governance common types, queriers and other utils"
+license = "MIT"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -19,4 +21,4 @@ cw20 = "0.15"
 cosmwasm-std = "1.1"
 cw-storage-plus = "0.15"
 cosmwasm-schema = "1.1"
-astroport = { git = "https://github.com/astroport-fi/astroport-core", branch = "merge/release" }
+astroport = { workspace = true }

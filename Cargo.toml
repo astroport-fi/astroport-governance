@@ -11,3 +11,6 @@ codegen-units = 1
 panic = 'abort'
 incremental = false
 overflow-checks = true
+
+[workspace.dependencies]
+astroport = { version = "2.8", git = "https://github.com/astroport-fi/astroport-core", tag = "v2.8.0" }

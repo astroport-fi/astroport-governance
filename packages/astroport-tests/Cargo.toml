@@ -18,7 +18,7 @@ cosmwasm-std = "1.1"
 
 cosmwasm-schema = "1.1"
 cw-multi-test = "0.15"
-astroport = { git = "https://github.com/astroport-fi/astroport-core", branch = "merge/release" }
+astroport = { workspace = true }
 
 astroport-escrow-fee-distributor = { path = "../../contracts/escrow_fee_distributor" }
 astroport-governance = { path = "../astroport-governance" }

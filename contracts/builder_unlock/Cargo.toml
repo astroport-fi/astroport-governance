@@ -20,7 +20,7 @@ cw20 = "0.15"
 cosmwasm-std = "1.1"
 cw-storage-plus = "0.15"
 astroport-governance = { path = "../../packages/astroport-governance" }
-astroport = { git = "https://github.com/astroport-fi/astroport-core", branch = "merge/release" }
+astroport = { workspace = true }
 thiserror = { version = "1.0" }
 cosmwasm-schema = "1.1"
 

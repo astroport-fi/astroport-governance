@@ -68,6 +68,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "astroport"
+version = "2.8.0"
+source = "git+https://github.com/astroport-fi/astroport-core?tag=v2.8.0#3b44a4044b823a145730f66ffaf7ae4205b2cd35"
+dependencies = [
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-storage-plus",
+ "cw-utils",
+ "cw20",
+ "itertools",
+ "uint",
+]
+
+[[package]]
 name = "astroport-escrow-fee-distributor"
 version = "1.0.2"
 dependencies = [
@@ -88,7 +102,7 @@ name = "astroport-factory"
 version = "1.5.0"
 source = "git+https://github.com/astroport-fi/astroport-core?branch=merge/release#b9f30fb2f27352efae78213256d02da9b355b94c"
 dependencies = [
- "astroport",
+ "astroport 2.4.0",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus",
@@ -103,7 +117,7 @@ name = "astroport-generator"
 version = "2.3.0"
 source = "git+https://github.com/astroport-fi/astroport-core?branch=merge/release#b9f30fb2f27352efae78213256d02da9b355b94c"
 dependencies = [
- "astroport",
+ "astroport 2.4.0",
  "astroport-governance 1.2.0 (git+https://github.com/astroport-fi/astroport-governance.git?branch=main)",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -119,7 +133,7 @@ dependencies = [
 name = "astroport-governance"
 version = "1.2.0"
 dependencies = [
- "astroport",
+ "astroport 2.8.0",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus",
@@ -131,7 +145,7 @@ name = "astroport-governance"
 version = "1.2.0"
 source = "git+https://github.com/astroport-fi/astroport-governance.git?branch=main#64e77e55b7e9f87a33e4ff9ab403f5f3e12770f2"
 dependencies = [
- "astroport",
+ "astroport 2.4.0",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus",
@@ -143,7 +157,7 @@ name = "astroport-governance"
 version = "1.2.0"
 source = "git+https://github.com/astroport-fi/astroport-governance.git?branch=merge/release#fd67f761f1fc962d2caa54beccc027785b5e21db"
 dependencies = [
- "astroport",
+ "astroport 2.4.0",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus",
@@ -175,7 +189,7 @@ name = "astroport-pair"
 version = "1.2.0"
 source = "git+https://github.com/astroport-fi/astroport-core?branch=merge/release#b9f30fb2f27352efae78213256d02da9b355b94c"
 dependencies = [
- "astroport",
+ "astroport 2.4.0",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus",
@@ -191,7 +205,7 @@ name = "astroport-staking"
 version = "1.0.2"
 source = "git+https://github.com/astroport-fi/astroport-core?branch=merge/release#b9f30fb2f27352efae78213256d02da9b355b94c"
 dependencies = [
- "astroport",
+ "astroport 2.4.0",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus",
@@ -206,7 +220,7 @@ name = "astroport-tests"
 version = "1.0.0"
 dependencies = [
  "anyhow",
- "astroport",
+ "astroport 2.8.0",
  "astroport-escrow-fee-distributor",
  "astroport-factory",
  "astroport-generator",
@@ -229,7 +243,7 @@ name = "astroport-token"
 version = "1.1.1"
 source = "git+https://github.com/astroport-fi/astroport-core?branch=merge/release#b9f30fb2f27352efae78213256d02da9b355b94c"
 dependencies = [
- "astroport",
+ "astroport 2.4.0",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw2",
@@ -243,7 +257,7 @@ name = "astroport-whitelist"
 version = "1.0.1"
 source = "git+https://github.com/astroport-fi/astroport-core?branch=merge/release#b9f30fb2f27352efae78213256d02da9b355b94c"
 dependencies = [
- "astroport",
+ "astroport 2.4.0",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw1-whitelist",
@@ -256,7 +270,7 @@ name = "astroport-xastro-token"
 version = "1.0.2"
 source = "git+https://github.com/astroport-fi/astroport-core?branch=merge/release#b9f30fb2f27352efae78213256d02da9b355b94c"
 dependencies = [
- "astroport",
+ "astroport 2.4.0",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus",
@@ -333,7 +347,7 @@ dependencies = [
 name = "builder-unlock"
 version = "1.2.3"
 dependencies = [
- "astroport",
+ "astroport 2.8.0",
  "astroport-governance 1.2.0",
  "astroport-token",
  "cosmwasm-schema",
