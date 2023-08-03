@@ -11,7 +11,7 @@ use cosmwasm_std::coins;
 
 use std::str::FromStr;
 
-use astroport_governance::voting_escrow_lite::{
+use astroport_governance::voting_escrow::{
     Cw20HookMsg as VXAstroCw20HookMsg, InstantiateMsg as VXAstroInstantiateMsg,
 };
 
@@ -20,6 +20,10 @@ use astroport_governance::builder_unlock::msg::{
 };
 use astroport_governance::builder_unlock::{AllocationParams, Schedule};
 use astroport_governance::utils::{EPOCH_START, WEEK};
+use astroport_governance::voting_escrow_delegation::{
+    ExecuteMsg as DelegatorExecuteMsg, InstantiateMsg as DelegatorInstantiateMsg,
+    QueryMsg as DelegatorQueryMsg,
+};
 use cosmwasm_std::{
     testing::{mock_env, MockApi, MockStorage},
     to_binary, Addr, Binary, CosmosMsg, Decimal, QueryRequest, StdResult, Timestamp, Uint128,
@@ -218,7 +222,7 @@ fn test_proposal_submitting() {
     let user = Addr::unchecked("user1");
 
     let (_, staking_instance, xastro_addr, _, _, assembly_addr, _) =
-        instantiate_contracts(&mut app, owner, false, false);
+        instantiate_contracts(&mut app, owner, false, false, false);
 
     let proposals: ProposalListResponse = app
         .wrap()
@@ -574,7 +578,7 @@ fn test_successful_proposal() {
         builder_unlock_addr,
         assembly_addr,
         _,
-    ) = instantiate_contracts(&mut app, owner, false, false);
+    ) = instantiate_contracts(&mut app, owner, false, false, false);
 
     // Init voting power for users
     let balances: Vec<(&str, u128, u128)> = vec![
@@ -699,21 +703,21 @@ fn test_successful_proposal() {
     );
 
     let votes: Vec<(&str, ProposalVoteOption, u128)> = vec![
-        ("user1", ProposalVoteOption::For, 180u128),
-        ("user2", ProposalVoteOption::For, 200u128),
-        ("user3", ProposalVoteOption::For, 400u128),
-        ("user4", ProposalVoteOption::For, 300u128),
-        ("user5", ProposalVoteOption::For, 90u128),
-        ("user6", ProposalVoteOption::For, 300u128),
+        ("user1", ProposalVoteOption::For, 280u128),
+        ("user2", ProposalVoteOption::For, 350u128),
+        ("user3", ProposalVoteOption::For, 550u128),
+        ("user4", ProposalVoteOption::For, 350u128),
+        ("user5", ProposalVoteOption::For, 240u128),
+        ("user6", ProposalVoteOption::For, 600u128),
         ("user7", ProposalVoteOption::For, 130u128),
-        ("user8", ProposalVoteOption::Against, 180u128),
+        ("user8", ProposalVoteOption::Against, 330u128),
         ("user9", ProposalVoteOption::Against, 50u128),
-        ("user10", ProposalVoteOption::Against, 120u128),
+        ("user10", ProposalVoteOption::Against, 270u128),
         ("user11", ProposalVoteOption::Against, 500u128),
         ("user12", ProposalVoteOption::For, 10000_000000u128),
     ];
 
-    check_total_vp(&mut app, &assembly_addr, 1, 20000002450);
+    check_total_vp(&mut app, &assembly_addr, 1, 20000003650);
 
     for (addr, option, expected_vp) in votes {
         let sender = Addr::unchecked(addr);
@@ -766,11 +770,11 @@ fn test_successful_proposal() {
         .unwrap();
 
     // Check proposal votes
-    assert_eq!(proposal.for_power, Uint128::from(10000001600u128));
-    assert_eq!(proposal.against_power, Uint128::from(850u32));
+    assert_eq!(proposal.for_power, Uint128::from(10000002500u128));
+    assert_eq!(proposal.against_power, Uint128::from(1150u32));
 
-    assert_eq!(proposal_votes.for_power, Uint128::from(10000001600u128));
-    assert_eq!(proposal_votes.against_power, Uint128::from(850u32));
+    assert_eq!(proposal_votes.for_power, Uint128::from(10000002500u128));
+    assert_eq!(proposal_votes.against_power, Uint128::from(1150u32));
 
     assert_eq!(
         proposal_for_voters,
@@ -966,7 +970,8 @@ fn test_successful_emissions_proposal() {
     let mut app = mock_app();
     let owner = Addr::unchecked("generator_controller");
 
-    let (_, _, _, _, _, assembly_addr, _) = instantiate_contracts(&mut app, owner, true, false);
+    let (_, _, _, _, _, assembly_addr, _) =
+        instantiate_contracts(&mut app, owner, false, true, false);
 
     // Provide some funds to the Assembly contract to use in the proposal messages
     app.init_modules(|router, _, storage| {
@@ -1011,7 +1016,8 @@ fn test_no_generator_controller_emissions_proposal() {
     let mut app = mock_app();
     let owner = Addr::unchecked("generator_controller");
 
-    let (_, _, _, _, _, assembly_addr, _) = instantiate_contracts(&mut app, owner, false, false);
+    let (_, _, _, _, _, assembly_addr, _) =
+        instantiate_contracts(&mut app, owner, false, false, false);
     let emissions_proposal_msg = ExecuteMsg::ExecuteEmissionsProposal {
         title: "Emissions Test title!".to_string(),
         description: "Emissions Test description!".to_string(),
@@ -1040,7 +1046,8 @@ fn test_empty_messages_emissions_proposal() {
     let mut app = mock_app();
     let owner = Addr::unchecked("generator_controller");
 
-    let (_, _, _, _, _, assembly_addr, _) = instantiate_contracts(&mut app, owner, true, false);
+    let (_, _, _, _, _, assembly_addr, _) =
+        instantiate_contracts(&mut app, owner, false, true, false);
     let emissions_proposal_msg = ExecuteMsg::ExecuteEmissionsProposal {
         title: "Emissions Test title!".to_string(),
         description: "Emissions Test description!".to_string(),
@@ -1071,7 +1078,8 @@ fn test_unauthorised_emissions_proposal() {
     let mut app = mock_app();
     let owner = Addr::unchecked("generator_controller");
 
-    let (_, _, _, _, _, assembly_addr, _) = instantiate_contracts(&mut app, owner, true, false);
+    let (_, _, _, _, _, assembly_addr, _) =
+        instantiate_contracts(&mut app, owner, false, true, false);
     let emissions_proposal_msg = ExecuteMsg::ExecuteEmissionsProposal {
         title: "Emissions Test title!".to_string(),
         description: "Emissions Test description!".to_string(),
@@ -1102,7 +1110,7 @@ fn test_voting_power_changes() {
     let owner = Addr::unchecked("owner");
 
     let (_, staking_instance, xastro_addr, _, _, assembly_addr, _) =
-        instantiate_contracts(&mut app, owner, false, false);
+        instantiate_contracts(&mut app, owner, false, false, false);
 
     // Mint tokens for submitting proposal
     mint_tokens(
@@ -1235,7 +1243,7 @@ fn test_fail_outpost_vote_without_hub() {
     let owner = Addr::unchecked("owner");
 
     let (_, staking_instance, xastro_addr, _, _, assembly_addr, _) =
-        instantiate_contracts(&mut app, owner, false, false);
+        instantiate_contracts(&mut app, owner, false, false, false);
 
     // Mint tokens for submitting proposal
     mint_tokens(
@@ -1325,7 +1333,7 @@ fn test_outpost_vote() {
     let owner = Addr::unchecked("owner");
 
     let (_, staking_instance, xastro_addr, _, _, assembly_addr, _) =
-        instantiate_contracts(&mut app, owner.clone(), false, true);
+        instantiate_contracts(&mut app, owner.clone(), false, false, true);
 
     let user1_voting_power = 10_000_000_000;
     let user2_voting_power = 5_000_000_000;
@@ -1524,7 +1532,7 @@ fn test_block_height_selection() {
     let user3 = Addr::unchecked("user3");
 
     let (_, staking_instance, xastro_addr, _, _, assembly_addr, _) =
-        instantiate_contracts(&mut app, owner, false, false);
+        instantiate_contracts(&mut app, owner, false, false, false);
 
     // Mint tokens for submitting proposal
     mint_tokens(
@@ -1644,7 +1652,7 @@ fn test_unsuccessful_proposal() {
     let owner = Addr::unchecked("owner");
 
     let (_, staking_instance, xastro_addr, _, _, assembly_addr, _) =
-        instantiate_contracts(&mut app, owner, false, false);
+        instantiate_contracts(&mut app, owner, false, false, false);
 
     // Init voting power for users
     let xastro_balances: Vec<(&str, u128)> = vec![
@@ -1783,7 +1791,7 @@ fn test_check_messages() {
     let mut app = mock_app();
     let owner = Addr::unchecked("owner");
     let (_, _, _, vxastro_addr, _, assembly_addr, _) =
-        instantiate_contracts(&mut app, owner, false, false);
+        instantiate_contracts(&mut app, owner, false, false, false);
 
     change_owner(&mut app, &vxastro_addr, &assembly_addr);
     let user = Addr::unchecked("user");
@@ -1801,22 +1809,18 @@ fn test_check_messages() {
         ExecuteMsg::CheckMessages { messages }
     };
 
-    let config_before: astroport_governance::voting_escrow_lite::Config = app
+    let config_before: astroport_governance::voting_escrow::ConfigResponse = app
         .wrap()
         .query_wasm_smart(
             &vxastro_addr,
-            &astroport_governance::voting_escrow_lite::QueryMsg::Config {},
+            &astroport_governance::voting_escrow::QueryMsg::Config {},
         )
         .unwrap();
 
     let vxastro_blacklist_msg = vec![(
         vxastro_addr.to_string(),
         to_binary(
-            &astroport_governance::voting_escrow_lite::ExecuteMsg::UpdateConfig {
-                new_guardian: None,
-                generator_controller: None,
-                outpost: None,
-            },
+            &astroport_governance::voting_escrow::ExecuteMsg::UpdateConfig { new_guardian: None },
         )
         .unwrap(),
     )];
@@ -1833,14 +1837,191 @@ fn test_check_messages() {
         "Messages check passed. Nothing was committed to the blockchain"
     );
 
-    let config_after: astroport_governance::voting_escrow_lite::Config = app
+    let config_after: astroport_governance::voting_escrow::ConfigResponse = app
         .wrap()
         .query_wasm_smart(
             &vxastro_addr,
-            &astroport_governance::voting_escrow_lite::QueryMsg::Config {},
+            &astroport_governance::voting_escrow::QueryMsg::Config {},
         )
         .unwrap();
     assert_eq!(config_before, config_after);
+}
+
+#[test]
+fn test_delegated_vp() {
+    let mut app = mock_app();
+
+    let owner = Addr::unchecked("owner");
+
+    let (_, staking_instance, xastro_addr, vxastro_addr, _, assembly_addr, delegator) =
+        instantiate_contracts(&mut app, owner, true, false, false);
+    let delegator = delegator.unwrap();
+
+    let users = vec![
+        (
+            "user1",
+            103_000_000_000u128,
+            1000u16,
+            "user4",
+            177_278_846_150u128,
+        ),
+        (
+            "user2",
+            612_000_000_000u128,
+            2000u16,
+            "user5",
+            1_053_346_153_800u128,
+        ),
+        (
+            "user3",
+            205_000_000_000u128,
+            3000u16,
+            "user6",
+            352_836_538_450u128,
+        ),
+    ];
+
+    // Mint tokens for submitting proposal
+    mint_tokens(
+        &mut app,
+        &staking_instance,
+        &xastro_addr,
+        &Addr::unchecked("user0"),
+        PROPOSAL_REQUIRED_DEPOSIT,
+    );
+
+    // Mint vxASTRO and delegate it to the other users
+    for (from, amount, bps, to, exp_vp) in users {
+        mint_vxastro(
+            &mut app,
+            &staking_instance,
+            xastro_addr.clone(),
+            &vxastro_addr,
+            Addr::unchecked(from),
+            amount,
+        );
+        delegate_vxastro(
+            &mut app,
+            delegator.clone(),
+            Addr::unchecked(from),
+            Addr::unchecked(to),
+            bps,
+        );
+
+        let from_amount: Uint128 = app
+            .wrap()
+            .query_wasm_smart(
+                &delegator,
+                &DelegatorQueryMsg::AdjustedBalance {
+                    account: from.to_string(),
+                    timestamp: None,
+                },
+            )
+            .unwrap();
+
+        let to_amount: Uint128 = app
+            .wrap()
+            .query_wasm_smart(
+                &delegator,
+                &DelegatorQueryMsg::AdjustedBalance {
+                    account: to.to_string(),
+                    timestamp: None,
+                },
+            )
+            .unwrap();
+
+        assert_eq!(from_amount + to_amount, Uint128::from(exp_vp));
+    }
+
+    app.update_block(|mut block| {
+        block.time = block.time.plus_seconds(WEEK);
+        block.height += WEEK / 5;
+    });
+
+    // Create proposal
+    create_proposal(
+        &mut app,
+        &xastro_addr,
+        &assembly_addr,
+        Addr::unchecked("user0"),
+        Some(vec![CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: assembly_addr.to_string(),
+            msg: to_binary(&ExecuteMsg::UpdateConfig(Box::new(UpdateConfig {
+                xastro_token_addr: None,
+                vxastro_token_addr: None,
+                voting_escrow_delegator_addr: None,
+                ibc_controller: None,
+                generator_controller: None,
+                hub: None,
+                builder_unlock_addr: None,
+                proposal_voting_period: Some(750),
+                proposal_effective_delay: None,
+                proposal_expiration_period: None,
+                proposal_required_deposit: None,
+                proposal_required_quorum: None,
+                proposal_required_threshold: None,
+                whitelist_add: None,
+                whitelist_remove: None,
+            })))
+            .unwrap(),
+            funds: vec![],
+        })]),
+    );
+
+    let votes: Vec<(&str, ProposalVoteOption)> = vec![
+        ("user1", ProposalVoteOption::Against),
+        ("user2", ProposalVoteOption::For),
+        ("user3", ProposalVoteOption::Against),
+        ("user4", ProposalVoteOption::For),
+        ("user5", ProposalVoteOption::Against),
+        ("user6", ProposalVoteOption::For),
+    ];
+
+    for (user, vote) in votes {
+        cast_vote(
+            &mut app,
+            assembly_addr.clone(),
+            1u64,
+            Addr::unchecked(user),
+            vote,
+        )
+        .unwrap();
+    }
+
+    let proposal: Proposal = app
+        .wrap()
+        .query_wasm_smart(
+            assembly_addr.clone(),
+            &QueryMsg::Proposal { proposal_id: 1 },
+        )
+        .unwrap();
+
+    assert_eq!(proposal.for_power, Uint128::from(1_578_255_769_188u128));
+    assert_eq!(proposal.against_power, Uint128::from(925_205_769_212u128));
+
+    // Skip voting period
+    app.update_block(|bi| {
+        bi.height += PROPOSAL_VOTING_PERIOD + 1;
+        bi.time = bi.time.plus_seconds(5 * (PROPOSAL_VOTING_PERIOD + 1));
+    });
+
+    app.execute_contract(
+        Addr::unchecked("user0"),
+        assembly_addr.clone(),
+        &ExecuteMsg::EndProposal { proposal_id: 1 },
+        &[],
+    )
+    .unwrap();
+
+    let proposal: Proposal = app
+        .wrap()
+        .query_wasm_smart(
+            assembly_addr.clone(),
+            &QueryMsg::Proposal { proposal_id: 1 },
+        )
+        .unwrap();
+
+    assert_eq!(proposal.status, ProposalStatus::Passed);
 }
 
 fn mock_app() -> App {
@@ -1861,6 +2042,7 @@ fn mock_app() -> App {
 fn instantiate_contracts(
     router: &mut App,
     owner: Addr,
+    with_delegator: bool,
     with_generator_controller: bool,
     with_hub: bool,
 ) -> (Addr, Addr, Addr, Addr, Addr, Addr, Option<Addr>) {
@@ -1868,6 +2050,16 @@ fn instantiate_contracts(
     let (staking_addr, xastro_token_addr) = instantiate_xastro_token(router, &owner, &token_addr);
     let vxastro_token_addr = instantiate_vxastro_token(router, &owner, &xastro_token_addr);
     let builder_unlock_addr = instantiate_builder_unlock_contract(router, &owner, &token_addr);
+
+    let mut delegator_addr = None;
+
+    if with_delegator {
+        delegator_addr = Some(instantiate_delegator_contract(
+            router,
+            &owner,
+            &vxastro_token_addr,
+        ));
+    }
 
     // If we want to test immediate proposals we need to set the address
     // for the generator controller. Deploying the generator controller in this
@@ -1892,7 +2084,7 @@ fn instantiate_contracts(
         &xastro_token_addr,
         &vxastro_token_addr,
         &builder_unlock_addr,
-        None,
+        delegator_addr.clone().map(String::from),
         generator_controller_addr,
         hub_addr,
     );
@@ -1904,7 +2096,7 @@ fn instantiate_contracts(
         vxastro_token_addr,
         builder_unlock_addr,
         assembly_addr,
-        None,
+        delegator_addr,
     )
 }
 
@@ -1991,9 +2183,9 @@ fn instantiate_xastro_token(router: &mut App, owner: &Addr, astro_token: &Addr) 
 
 fn instantiate_vxastro_token(router: &mut App, owner: &Addr, xastro: &Addr) -> Addr {
     let vxastro_token_contract = Box::new(ContractWrapper::new_with_empty(
-        voting_escrow_lite::execute::execute,
-        voting_escrow_lite::contract::instantiate,
-        voting_escrow_lite::query::query,
+        voting_escrow::contract::execute,
+        voting_escrow::contract::instantiate,
+        voting_escrow::contract::query,
     ));
 
     let vxastro_token_code_id = router.store_code(vxastro_token_contract);
@@ -2002,8 +2194,6 @@ fn instantiate_vxastro_token(router: &mut App, owner: &Addr, xastro: &Addr) -> A
         owner: owner.to_string(),
         guardian_addr: Some(owner.to_string()),
         deposit_token_addr: xastro.to_string(),
-        generator_controller_addr: None,
-        outpost_addr: None,
         marketing: None,
         logo_urls_whitelist: vec![],
     };
@@ -2095,6 +2285,44 @@ fn instantiate_assembly_contract(
         .unwrap()
 }
 
+fn instantiate_delegator_contract(router: &mut App, owner: &Addr, vxastro: &Addr) -> Addr {
+    let nft_contract = Box::new(ContractWrapper::new_with_empty(
+        astroport_nft::contract::execute,
+        astroport_nft::contract::instantiate,
+        astroport_nft::contract::query,
+    ));
+
+    let nft_code_id = router.store_code(nft_contract);
+
+    let delegator_contract = Box::new(
+        ContractWrapper::new_with_empty(
+            voting_escrow_delegation::contract::execute,
+            voting_escrow_delegation::contract::instantiate,
+            voting_escrow_delegation::contract::query,
+        )
+        .with_reply_empty(voting_escrow_delegation::contract::reply),
+    );
+
+    let delegator_code_id = router.store_code(delegator_contract);
+
+    let msg = DelegatorInstantiateMsg {
+        owner: owner.to_string(),
+        nft_code_id,
+        voting_escrow_addr: vxastro.to_string(),
+    };
+
+    router
+        .instantiate_contract(
+            delegator_code_id,
+            owner.clone(),
+            &msg,
+            &[],
+            "Voting Escrow Delegator",
+            Some(owner.to_string()),
+        )
+        .unwrap()
+}
+
 fn mint_tokens(app: &mut App, minter: &Addr, token: &Addr, recipient: &Addr, amount: u128) {
     let msg = Cw20ExecuteMsg::Mint {
         recipient: recipient.to_string(),
@@ -2122,6 +2350,18 @@ fn mint_vxastro(
     };
 
     app.execute_contract(recipient, xastro, &msg, &[]).unwrap();
+}
+
+fn delegate_vxastro(app: &mut App, delegator_addr: Addr, from: Addr, to: Addr, bps: u16) {
+    let msg = DelegatorExecuteMsg::CreateDelegation {
+        bps,
+        expire_time: 2 * 7 * 86400,
+        token_id: format!("{}-{}-{}", from, to, bps),
+        recipient: to.to_string(),
+    };
+
+    app.execute_contract(from, delegator_addr, &msg, &[])
+        .unwrap();
 }
 
 fn create_allocations(
@@ -2260,7 +2500,7 @@ fn cast_outpost_vote(
 }
 
 fn change_owner(app: &mut App, contract: &Addr, assembly: &Addr) {
-    let msg = astroport_governance::voting_escrow_lite::ExecuteMsg::ProposeNewOwner {
+    let msg = astroport_governance::voting_escrow::ExecuteMsg::ProposeNewOwner {
         new_owner: assembly.to_string(),
         expires_in: 100,
     };
@@ -2270,7 +2510,7 @@ fn change_owner(app: &mut App, contract: &Addr, assembly: &Addr) {
     app.execute_contract(
         assembly.clone(),
         contract.clone(),
-        &astroport_governance::voting_escrow_lite::ExecuteMsg::ClaimOwnership {},
+        &astroport_governance::voting_escrow::ExecuteMsg::ClaimOwnership {},
         &[],
     )
     .unwrap();

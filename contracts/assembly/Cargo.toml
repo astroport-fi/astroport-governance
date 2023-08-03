@@ -1,6 +1,6 @@
 [package]
 name = "astro-assembly"
-version = "1.5.0"
+version = "1.6.0"
 authors = ["Astroport"]
 edition = "2021"
 repository = "https://github.com/astroport-fi/astroport-governance"
@@ -29,6 +29,7 @@ cw-multi-test = "0.15"
 astroport-token = { git = "https://github.com/astroport-fi/hidden_astroport_core", branch = "feat/merge_public_20230519" }
 astroport-xastro-token = { git = "https://github.com/astroport-fi/hidden_astroport_core", branch = "feat/merge_public_20230519" }
 voting-escrow = { path = "../voting_escrow" }
+voting-escrow-lite = { path = "../voting_escrow_lite" }
 voting-escrow-delegation = { path = "../voting_escrow_delegation" }
 astroport-nft = { path = "../nft" }
 astroport-staking = { git = "https://github.com/astroport-fi/hidden_astroport_core", branch = "feat/merge_public_20230519" }

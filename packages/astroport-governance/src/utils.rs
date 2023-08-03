@@ -1,9 +1,17 @@
 use std::convert::TryInto;
 
-use cosmwasm_std::{Decimal, Fraction, OverflowError, StdError, StdResult, Uint128, Uint256};
+use cosmwasm_std::{
+    Addr, Decimal, Fraction, IbcQuery, ListChannelsResponse, OverflowError, QuerierWrapper,
+    QueryRequest, StdError, StdResult, Uint128, Uint256,
+};
 
 /// Seconds in one week. It is intended for period number calculation.
 pub const WEEK: u64 = 7 * 86400; // lock period is rounded down by week
+
+/// Default unlock period for a vxASTRO lite lock
+pub const DEFAULT_UNLOCK_PERIOD: u64 = 2 * WEEK;
+
+pub const LITE_VOTING_PERIOD: u64 = 2 * WEEK;
 
 /// Seconds in 2 years which is the maximum lock period.
 pub const MAX_LOCK_TIME: u64 = 2 * 365 * 86400; // 2 years (104 weeks)
@@ -26,9 +34,23 @@ pub fn get_period(time: u64) -> StdResult<u64> {
     }
 }
 
+/// Calculates the voting period number for vxASTRO lite. Time should be formatted as a timestamp.
+pub fn get_lite_period(time: u64) -> StdResult<u64> {
+    if time < EPOCH_START {
+        Err(StdError::generic_err("Invalid time"))
+    } else {
+        Ok((time - EPOCH_START) / LITE_VOTING_PERIOD)
+    }
+}
+
 /// Calculates how many periods are in the specified time interval. The time should be in seconds.
 pub fn get_periods_count(interval: u64) -> u64 {
     interval / WEEK
+}
+
+/// Calculates how many periods are in the specified time interval for vxASTRO lite. The time should be in seconds.
+pub fn get_lite_periods_count(interval: u64) -> u64 {
+    interval / LITE_VOTING_PERIOD
 }
 
 /// This trait was implemented to eliminate Decimal rounding problems.
@@ -104,4 +126,28 @@ pub fn calc_voting_power(
         .checked_mul(Uint128::from(end_period - start_period))
         .unwrap_or_else(|_| Uint128::zero());
     old_vp.saturating_sub(shift)
+}
+
+/// Checks that controller supports given IBC-channel.
+/// ## Params
+/// * **querier** is an object of type [`QuerierWrapper`].
+///
+/// * **ibc_controller** is an ibc controller contract address.
+///
+/// * **given_channel** is an IBC channel id the function needs to check.
+pub fn check_controller_supports_channel(
+    querier: QuerierWrapper,
+    ibc_controller: &Addr,
+    given_channel: &String,
+) -> Result<(), StdError> {
+    let port_id = Some(format!("wasm.{ibc_controller}"));
+    let ListChannelsResponse { channels } =
+        querier.query(&QueryRequest::Ibc(IbcQuery::ListChannels { port_id }))?;
+    channels
+        .iter()
+        .find(|channel| &channel.endpoint.channel_id == given_channel)
+        .map(|_| ())
+        .ok_or_else(|| StdError::GenericErr {
+            msg: format!("IBC controller does not have channel {0}", given_channel),
+        })
 }

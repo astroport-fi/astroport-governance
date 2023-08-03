@@ -1,7 +1,6 @@
 use cosmwasm_std::{
     attr, entry_point, from_binary, to_binary, wasm_execute, Addr, Binary, CosmosMsg, Decimal,
-    Deps, DepsMut, Env, IbcQuery, ListChannelsResponse, MessageInfo, Order, QuerierWrapper,
-    QueryRequest, Response, StdResult, Uint128, Uint64, WasmMsg,
+    Deps, DepsMut, Env, MessageInfo, Order, Response, StdResult, Uint128, Uint64, WasmMsg,
 };
 use cw2::{get_contract_version, set_contract_version};
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20ReceiveMsg};
@@ -20,12 +19,14 @@ use astroport::xastro_token::QueryMsg as XAstroTokenQueryMsg;
 use astroport_governance::builder_unlock::msg::{
     AllocationResponse, QueryMsg as BuilderUnlockQueryMsg, StateResponse,
 };
-use astroport_governance::utils::WEEK;
-use astroport_governance::voting_escrow::{QueryMsg as VotingEscrowQueryMsg, VotingPowerResponse};
+use astroport_governance::utils::{check_controller_supports_channel, WEEK};
 use astroport_governance::voting_escrow_delegation::QueryMsg::AdjustedBalance;
+use astroport_governance::voting_escrow_lite::{
+    QueryMsg as VotingEscrowQueryMsg, VotingPowerResponse,
+};
 
 use crate::error::ContractError;
-use crate::migration::{migrate_config_to_140, migrate_proposals_to_v140, MigrateMsg};
+use crate::migration::{migrate_config_to_160, migrate_proposals_to_v160, MigrateMsg};
 use crate::state::{CONFIG, PROPOSALS, PROPOSAL_COUNT};
 
 use ibc_controller_package::ExecuteMsg as ControllerExecuteMsg;
@@ -64,6 +65,8 @@ pub fn instantiate(
             &msg.voting_escrow_delegator_addr,
         )?,
         ibc_controller: addr_opt_validate(deps.api, &msg.ibc_controller)?,
+        generator_controller: addr_opt_validate(deps.api, &msg.generator_controller_addr)?,
+        hub: addr_opt_validate(deps.api, &msg.hub_addr)?,
         builder_unlock_addr: deps.api.addr_validate(&msg.builder_unlock_addr)?,
         proposal_voting_period: msg.proposal_voting_period,
         proposal_effective_delay: msg.proposal_effective_delay,
@@ -91,9 +94,14 @@ pub fn instantiate(
 ///
 /// * **ExecuteMsg::CastVote { proposal_id, vote }** Cast a vote on a specific proposal.
 ///
+/// * **ExecuteMsg::CastOutpostVote { proposal_id, voter, vote, voting_power }** Cast a vote on a specific proposal from an Outpost.
+///
 /// * **ExecuteMsg::EndProposal { proposal_id }** Sets the status of an expired/finalized proposal.
 ///
 /// * **ExecuteMsg::ExecuteProposal { proposal_id }** Executes a successful proposal.
+///
+/// * **ExecuteMsg::ExecuteEmissionsProposal { title, description, link, messages, ibc_channel }** Loads and executes an
+/// emissions proposal from the generator controller
 ///
 /// * **ExecuteMsg::RemoveCompletedProposal { proposal_id }** Removes a finalized proposal from the proposal list.
 ///
@@ -108,8 +116,28 @@ pub fn execute(
     match msg {
         ExecuteMsg::Receive(cw20_msg) => receive_cw20(deps, env, info, cw20_msg),
         ExecuteMsg::CastVote { proposal_id, vote } => cast_vote(deps, env, info, proposal_id, vote),
+        ExecuteMsg::CastOutpostVote {
+            proposal_id,
+            voter,
+            vote,
+            voting_power,
+        } => cast_outpost_vote(deps, env, info, proposal_id, voter, vote, voting_power),
         ExecuteMsg::EndProposal { proposal_id } => end_proposal(deps, env, proposal_id),
         ExecuteMsg::ExecuteProposal { proposal_id } => execute_proposal(deps, env, proposal_id),
+        ExecuteMsg::ExecuteEmissionsProposal {
+            title,
+            description,
+            messages,
+            ibc_channel,
+        } => submit_execute_emissions_proposal(
+            deps,
+            env,
+            info,
+            title,
+            description,
+            messages,
+            ibc_channel,
+        ),
         ExecuteMsg::CheckMessages { messages } => check_messages(env, messages),
         ExecuteMsg::CheckMessagesPassed {} => Err(ContractError::MessagesCheckPassed {}),
         ExecuteMsg::RemoveCompletedProposal { proposal_id } => {
@@ -271,7 +299,8 @@ pub fn cast_vote(
         return Err(ContractError::VotingPeriodEnded {});
     }
 
-    if proposal.for_voters.contains(&info.sender) || proposal.against_voters.contains(&info.sender)
+    if proposal.for_voters.contains(&info.sender.to_string())
+        || proposal.against_voters.contains(&info.sender.to_string())
     {
         return Err(ContractError::UserAlreadyVoted {});
     }
@@ -285,11 +314,11 @@ pub fn cast_vote(
     match vote_option {
         ProposalVoteOption::For => {
             proposal.for_power = proposal.for_power.checked_add(voting_power)?;
-            proposal.for_voters.push(info.sender.clone());
+            proposal.for_voters.push(info.sender.to_string());
         }
         ProposalVoteOption::Against => {
             proposal.against_power = proposal.against_power.checked_add(voting_power)?;
-            proposal.against_voters.push(info.sender.clone());
+            proposal.against_voters.push(info.sender.to_string());
         }
     };
 
@@ -299,6 +328,85 @@ pub fn cast_vote(
         attr("action", "cast_vote"),
         attr("proposal_id", proposal_id.to_string()),
         attr("voter", &info.sender),
+        attr("vote", vote_option.to_string()),
+        attr("voting_power", voting_power),
+    ]))
+}
+
+/// Cast a vote on a proposal from an Outpost.
+/// This is a special case of `cast_vote` that allows Outposts to forward votes on
+/// behalf of their users. The Hub contract is the only one allowed to call this method.
+///
+/// * **proposal_id** is the identifier of the proposal.
+///
+/// * **voter** is the address of the voter on the Outpost.
+///
+/// * **vote_option** contains the vote option.
+///
+/// * **voting_power** contains the voting power applied to this vote.
+pub fn cast_outpost_vote(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    proposal_id: u64,
+    voter: String,
+    vote_option: ProposalVoteOption,
+    voting_power: Uint128,
+) -> Result<Response, ContractError> {
+    let mut proposal = PROPOSALS.load(deps.storage, proposal_id)?;
+
+    let config = CONFIG.load(deps.storage)?;
+
+    // We only allow the Hub to submit votes on behalf of Outpost user
+    // The Hub is responsible for validating the Hub vote with the Outpost
+    let hub = match config.hub {
+        Some(hub) => hub,
+        None => return Err(ContractError::InvalidHub {}),
+    };
+
+    if info.sender != hub {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    if proposal.status != ProposalStatus::Active {
+        return Err(ContractError::ProposalNotActive {});
+    }
+
+    if proposal.submitter == voter {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    if env.block.height > proposal.end_block {
+        return Err(ContractError::VotingPeriodEnded {});
+    }
+
+    if proposal.for_voters.contains(&voter) || proposal.against_voters.contains(&voter) {
+        return Err(ContractError::UserAlreadyVoted {});
+    }
+
+    if voting_power.is_zero() {
+        return Err(ContractError::NoVotingPower {});
+    }
+
+    // Voting power provided is used as is from the Hub. Validation of the voting
+    // power is done by the Hub contract with the Outpost.
+    match vote_option {
+        ProposalVoteOption::For => {
+            proposal.for_power = proposal.for_power.checked_add(voting_power)?;
+            proposal.for_voters.push(voter.clone());
+        }
+        ProposalVoteOption::Against => {
+            proposal.against_power = proposal.against_power.checked_add(voting_power)?;
+            proposal.against_voters.push(voter.clone());
+        }
+    };
+
+    PROPOSALS.save(deps.storage, proposal_id, &proposal)?;
+
+    Ok(Response::new().add_attributes(vec![
+        attr("action", "cast_outpost_vote"),
+        attr("proposal_id", proposal_id.to_string()),
+        attr("voter", &voter),
         attr("vote", vote_option.to_string()),
         attr("voting_power", voting_power),
     ]))
@@ -428,6 +536,80 @@ pub fn execute_proposal(
         .add_messages(messages))
 }
 
+/// Load and execute a special emissions proposal. This proposal is passed
+/// immediately and is not subject to voting as it is coming from the
+/// generator controller based on emission votes.
+#[allow(clippy::too_many_arguments)]
+pub fn submit_execute_emissions_proposal(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    title: String,
+    description: String,
+    messages: Vec<CosmosMsg>,
+    ibc_channel: Option<String>,
+) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+
+    // Verify that only the generator controller has been set
+    let generator_controller = match config.generator_controller {
+        Some(config_generator_controller) => config_generator_controller,
+        None => return Err(ContractError::InvalidGeneratorController {}),
+    };
+
+    // Only the generator controller may create these proposals. These proposals
+    // are typically for setting alloc points on Outposts
+    if info.sender != generator_controller {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    // Ensure that we have messages to execute
+    if messages.is_empty() {
+        return Err(ContractError::InvalidProposalMessages {});
+    }
+
+    // Check that controller exists and it supports this channel
+    if let Some(ibc_channel) = &ibc_channel {
+        if let Some(ibc_controller) = &config.ibc_controller {
+            check_controller_supports_channel(deps.querier, ibc_controller, ibc_channel)?;
+        } else {
+            return Err(ContractError::MissingIBCController {});
+        }
+    }
+
+    // Update the proposal count
+    let count = PROPOSAL_COUNT.update(deps.storage, |c| -> StdResult<_> {
+        Ok(c.checked_add(Uint64::new(1))?)
+    })?;
+
+    let proposal = Proposal {
+        proposal_id: count,
+        submitter: info.sender,
+        status: ProposalStatus::Passed,
+        for_power: Uint128::zero(),
+        against_power: Uint128::zero(),
+        for_voters: vec![generator_controller.to_string()],
+        against_voters: Vec::new(),
+        start_block: env.block.height,
+        start_time: env.block.time.seconds(),
+        end_block: env.block.height,
+        delayed_end_block: env.block.height,
+        expiration_block: env.block.height + config.proposal_expiration_period,
+        title,
+        description,
+        link: None,
+        messages: Some(messages),
+        deposit_amount: Uint128::zero(),
+        ibc_channel,
+    };
+
+    proposal.validate(config.whitelisted_links)?;
+
+    PROPOSALS.save(deps.storage, count.u64(), &proposal)?;
+
+    execute_proposal(deps, env, proposal.proposal_id.u64())
+}
+
 /// Checks that proposal messages are correct.
 pub fn check_messages(env: Env, mut messages: Vec<CosmosMsg>) -> Result<Response, ContractError> {
     messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
@@ -501,6 +683,14 @@ pub fn update_config(
 
     if let Some(ibc_controller) = updated_config.ibc_controller {
         config.ibc_controller = Some(deps.api.addr_validate(&ibc_controller)?)
+    }
+
+    if let Some(generator_controller) = updated_config.generator_controller {
+        config.generator_controller = Some(deps.api.addr_validate(&generator_controller)?)
+    }
+
+    if let Some(hub) = updated_config.hub {
+        config.hub = Some(deps.api.addr_validate(&hub)?)
     }
 
     if let Some(builder_unlock_addr) = updated_config.builder_unlock_addr {
@@ -687,7 +877,7 @@ pub fn query_proposal_voters(
     vote_option: ProposalVoteOption,
     start: Option<u64>,
     limit: Option<u32>,
-) -> StdResult<Vec<Addr>> {
+) -> StdResult<Vec<String>> {
     let limit = limit.unwrap_or(DEFAULT_VOTERS_LIMIT).min(MAX_VOTERS_LIMIT);
     let start = start.unwrap_or_default();
 
@@ -736,7 +926,6 @@ pub fn calc_voting_power(deps: Deps, sender: String, proposal: &Proposal) -> Std
             block: proposal.start_block,
         },
     )?;
-
     let mut total = xastro_amount.balance;
 
     let locked_amount: AllocationResponse = deps.querier.query_wasm_smart(
@@ -763,6 +952,7 @@ pub fn calc_voting_power(deps: Deps, sender: String, proposal: &Proposal) -> Std
                     },
                 )?
             } else {
+                // For vxASTRO lite, this will always be 0
                 let res: VotingPowerResponse = deps.querier.query_wasm_smart(
                     &vxastro_token_addr,
                     &VotingEscrowQueryMsg::UserVotingPowerAt {
@@ -770,7 +960,6 @@ pub fn calc_voting_power(deps: Deps, sender: String, proposal: &Proposal) -> Std
                         time: proposal.start_time - WEEK,
                     },
                 )?;
-
                 res.voting_power
             };
 
@@ -780,9 +969,9 @@ pub fn calc_voting_power(deps: Deps, sender: String, proposal: &Proposal) -> Std
 
         let locked_xastro: Uint128 = deps.querier.query_wasm_smart(
             vxastro_token_addr,
-            &VotingEscrowQueryMsg::UserDepositAtHeight {
+            &VotingEscrowQueryMsg::UserDepositAt {
                 user: sender,
-                height: proposal.start_block,
+                timestamp: Uint64::from(proposal.start_time),
             },
         )?;
 
@@ -818,6 +1007,7 @@ pub fn calc_total_voting_power_at(deps: Deps, proposal: &Proposal) -> StdResult<
 
     if let Some(vxastro_token_addr) = config.vxastro_token_addr {
         // Total vxASTRO voting power
+        // For vxASTRO lite, this will always be 0
         let vxastro: VotingPowerResponse = deps.querier.query_wasm_smart(
             vxastro_token_addr,
             &VotingEscrowQueryMsg::TotalVotingPowerAt {
@@ -832,28 +1022,6 @@ pub fn calc_total_voting_power_at(deps: Deps, proposal: &Proposal) -> StdResult<
     Ok(total)
 }
 
-/// Checks that controller supports given IBC-channel.
-/// ## Params
-/// * **querier** is an object of type [`QuerierWrapper`].
-///
-/// * **ibc_controller** is an ibc controller contract address.
-///
-/// * **given_channel** is an IBC channel id the function needs to check.
-pub fn check_controller_supports_channel(
-    querier: QuerierWrapper,
-    ibc_controller: &Addr,
-    given_channel: &String,
-) -> Result<(), ContractError> {
-    let port_id = Some(format!("wasm.{ibc_controller}"));
-    let ListChannelsResponse { channels } =
-        querier.query(&QueryRequest::Ibc(IbcQuery::ListChannels { port_id }))?;
-    channels
-        .iter()
-        .find(|channel| &channel.endpoint.channel_id == given_channel)
-        .map(|_| ())
-        .ok_or_else(|| ContractError::InvalidChannel(given_channel.to_string()))
-}
-
 /// Manages contract migration.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(mut deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
@@ -862,8 +1030,8 @@ pub fn migrate(mut deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response
     match contract_version.contract.as_ref() {
         "astro-assembly" => match contract_version.version.as_ref() {
             "1.3.0" => {
-                let cfg = migrate_config_to_140(deps.branch(), msg)?;
-                migrate_proposals_to_v140(deps.branch(), &cfg)?;
+                let cfg = migrate_config_to_160(deps.branch(), msg)?;
+                migrate_proposals_to_v160(deps.branch(), &cfg)?;
             }
             _ => return Err(ContractError::MigrationError {}),
         },

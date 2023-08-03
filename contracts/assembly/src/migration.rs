@@ -14,6 +14,8 @@ pub struct MigrateMsg {
     voting_escrow_delegator_addr: Option<String>,
     vxastro_token_addr: Option<String>,
     ibc_controller: Option<String>,
+    generator_controller: Option<String>,
+    hub: Option<String>,
 }
 
 #[cw_serde]
@@ -84,8 +86,8 @@ pub struct ConfigV130 {
 
 pub const CONFIG_V130: Item<ConfigV130> = Item::new("config");
 
-/// Migrate proposals to V1.4.0
-pub(crate) fn migrate_proposals_to_v140(deps: DepsMut, cfg: &Config) -> StdResult<()> {
+/// Migrate proposals to V1.6.0
+pub(crate) fn migrate_proposals_to_v160(deps: DepsMut, cfg: &Config) -> StdResult<()> {
     let v130_proposals_interface: Map<u64, ProposalV130> = Map::new("proposals");
     let proposals_v130 = v130_proposals_interface
         .range(deps.storage, None, None, cosmwasm_std::Order::Ascending {})
@@ -101,8 +103,16 @@ pub(crate) fn migrate_proposals_to_v140(deps: DepsMut, cfg: &Config) -> StdResul
                 status: proposal.status,
                 for_power: proposal.for_power,
                 against_power: proposal.against_power,
-                for_voters: proposal.for_voters,
-                against_voters: proposal.against_voters,
+                for_voters: proposal
+                    .for_voters
+                    .into_iter()
+                    .map(|addr| addr.to_string())
+                    .collect(),
+                against_voters: proposal
+                    .against_voters
+                    .into_iter()
+                    .map(|addr| addr.to_string())
+                    .collect(),
                 start_block: proposal.start_block,
                 start_time: proposal.start_time,
                 end_block: proposal.end_block,
@@ -123,8 +133,8 @@ pub(crate) fn migrate_proposals_to_v140(deps: DepsMut, cfg: &Config) -> StdResul
     Ok(())
 }
 
-/// Migrate contract config to V1.4.0
-pub(crate) fn migrate_config_to_140(deps: DepsMut, msg: MigrateMsg) -> StdResult<Config> {
+/// Migrate contract config to V1.6.0
+pub(crate) fn migrate_config_to_160(deps: DepsMut, msg: MigrateMsg) -> StdResult<Config> {
     let cfg_v130 = CONFIG_V130.load(deps.storage)?;
 
     let cfg = Config {
@@ -135,6 +145,8 @@ pub(crate) fn migrate_config_to_140(deps: DepsMut, msg: MigrateMsg) -> StdResult
             &msg.voting_escrow_delegator_addr,
         )?,
         ibc_controller: cfg_v130.ibc_controller,
+        generator_controller: addr_opt_validate(deps.api, &msg.generator_controller)?,
+        hub: addr_opt_validate(deps.api, &msg.hub)?,
         builder_unlock_addr: cfg_v130.builder_unlock_addr,
         proposal_voting_period: cfg_v130.proposal_voting_period,
         proposal_effective_delay: cfg_v130.proposal_effective_delay,

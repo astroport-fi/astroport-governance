@@ -61,6 +61,10 @@ pub struct InstantiateMsg {
     pub voting_escrow_delegator_addr: Option<String>,
     /// Astroport IBC controller contract
     pub ibc_controller: Option<String>,
+    /// Generator controller contract capable of immediate proposals
+    pub generator_controller_addr: Option<String>,
+    /// Hub contract that handles voting from Outposts
+    pub hub_addr: Option<String>,
     /// Address of the builder unlock contract
     pub builder_unlock_addr: String,
     /// Proposal voting period
@@ -91,6 +95,16 @@ pub enum ExecuteMsg {
         /// Vote option
         vote: ProposalVoteOption,
     },
+    CastOutpostVote {
+        /// Proposal identifier
+        proposal_id: u64,
+        /// The voter from an Outpost
+        voter: String,
+        /// The vote option
+        vote: ProposalVoteOption,
+        /// The voting power applied to this vote
+        voting_power: Uint128,
+    },
     /// Set the status of a proposal that expired
     EndProposal {
         /// Proposal identifier
@@ -107,6 +121,16 @@ pub enum ExecuteMsg {
     ExecuteProposal {
         /// Proposal identifier
         proposal_id: u64,
+    },
+    /// Load and execute a special emissions proposal. This proposal is passed
+    /// immediately and is not subject to voting as it is coming from the
+    /// generator controller based on emission votes.
+    ExecuteEmissionsProposal {
+        title: String,
+        description: String,
+        messages: Vec<CosmosMsg>,
+        /// If proposal should be executed on a remote chain this field should specify governance channel
+        ibc_channel: Option<String>,
     },
     /// Remove a proposal that was already executed (or failed/expired)
     RemoveCompletedProposal {
@@ -192,6 +216,10 @@ pub struct Config {
     pub voting_escrow_delegator_addr: Option<Addr>,
     /// Astroport IBC controller contract
     pub ibc_controller: Option<Addr>,
+    /// Generator controller contract capable of immediate proposals
+    pub generator_controller: Option<Addr>,
+    /// Hub contract that handles voting from Outposts
+    pub hub: Option<Addr>,
     /// Builder unlock contract address
     pub builder_unlock_addr: Addr,
     /// Proposal voting period
@@ -286,6 +314,10 @@ pub struct UpdateConfig {
     pub voting_escrow_delegator_addr: Option<String>,
     /// Astroport IBC controller contract
     pub ibc_controller: Option<String>,
+    /// Generator controller contract capable of immediate proposals
+    pub generator_controller: Option<String>,
+    /// Hub contract that handles voting from Outposts
+    pub hub: Option<String>,
     /// Builder unlock contract address
     pub builder_unlock_addr: Option<String>,
     /// Proposal voting period
@@ -320,9 +352,9 @@ pub struct Proposal {
     /// `Against` power of proposal
     pub against_power: Uint128,
     /// `For` votes for the proposal
-    pub for_voters: Vec<Addr>,
+    pub for_voters: Vec<String>,
     /// `Against` votes for the proposal
-    pub against_voters: Vec<Addr>,
+    pub against_voters: Vec<String>,
     /// Start block of proposal
     pub start_block: u64,
     /// Start time of proposal

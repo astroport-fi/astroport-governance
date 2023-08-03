@@ -67,6 +67,15 @@ pub enum ContractError {
 
     #[error("Sender is not an IBC controller installed in the assembly")]
     InvalidIBCController {},
+
+    #[error("Sender is not the Generator controller installed in the assembly")]
+    InvalidGeneratorController {},
+
+    #[error("Sender is not the Hub installed in the assembly")]
+    InvalidHub {},
+
+    #[error("The proposal has no messages to execute")]
+    InvalidProposalMessages {},
 }
 
 impl From<OverflowError> for ContractError {
