@@ -1,9 +1,9 @@
-use std::convert::TryInto;
-
 use cosmwasm_std::{
-    Addr, Decimal, Fraction, IbcQuery, ListChannelsResponse, OverflowError, QuerierWrapper,
-    QueryRequest, StdError, StdResult, Uint128, Uint256,
+    to_binary, Addr, Decimal, Fraction, IbcQuery, ListChannelsResponse, OverflowError,
+    QuerierWrapper, QueryRequest, StdError, StdResult, Uint128, Uint256, Uint64, WasmQuery,
 };
+
+use crate::hub::HubBalance;
 
 /// Seconds in one week. It is intended for period number calculation.
 pub const WEEK: u64 = 7 * 86400; // lock period is rounded down by week
@@ -128,19 +128,19 @@ pub fn calc_voting_power(
     old_vp.saturating_sub(shift)
 }
 
-/// Checks that controller supports given IBC-channel.
+/// Checks that a contract supports a given IBC-channel.
 /// ## Params
 /// * **querier** is an object of type [`QuerierWrapper`].
 ///
-/// * **ibc_controller** is an ibc controller contract address.
+/// * **contract** is the contract to check channel support on.
 ///
 /// * **given_channel** is an IBC channel id the function needs to check.
-pub fn check_controller_supports_channel(
+pub fn check_contract_supports_channel(
     querier: QuerierWrapper,
-    ibc_controller: &Addr,
+    contract: &Addr,
     given_channel: &String,
 ) -> Result<(), StdError> {
-    let port_id = Some(format!("wasm.{ibc_controller}"));
+    let port_id = Some(format!("wasm.{contract}"));
     let ListChannelsResponse { channels } =
         querier.query(&QueryRequest::Ibc(IbcQuery::ListChannels { port_id }))?;
     channels
@@ -148,6 +148,27 @@ pub fn check_controller_supports_channel(
         .find(|channel| &channel.endpoint.channel_id == given_channel)
         .map(|_| ())
         .ok_or_else(|| StdError::GenericErr {
-            msg: format!("IBC controller does not have channel {0}", given_channel),
+            msg: format!("The contract does not have channel {0}", given_channel),
         })
+}
+
+/// Retrieves the total amount of voting power held by all Outposts at a given time
+/// ## Params
+/// * **querier** is an object of type [`QuerierWrapper`].
+///
+/// * **contract** is the Hub contract address
+///
+/// * **timestamp** The unix timestamp at which to query the total voting power
+pub fn get_total_outpost_voting_power_at(
+    querier: QuerierWrapper,
+    contract: &Addr,
+    timestamp: u64,
+) -> Result<Uint128, StdError> {
+    let response: HubBalance = querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
+        contract_addr: contract.to_string(),
+        msg: to_binary(&crate::hub::QueryMsg::TotalChannelBalancesAt {
+            timestamp: Uint64::from(timestamp),
+        })?,
+    }))?;
+    Ok(response.balance)
 }

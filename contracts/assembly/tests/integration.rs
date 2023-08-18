@@ -15,6 +15,8 @@ use astroport_governance::voting_escrow_lite::{
     Cw20HookMsg as VXAstroCw20HookMsg, InstantiateMsg as VXAstroInstantiateMsg,
 };
 
+use astroport_governance::hub::InstantiateMsg as HubInstantiateMsg;
+
 use astroport_governance::builder_unlock::msg::{
     InstantiateMsg as BuilderUnlockInstantiateMsg, ReceiveMsg as BuilderUnlockReceiveMsg,
 };
@@ -217,7 +219,7 @@ fn test_proposal_submitting() {
     let owner = Addr::unchecked("owner");
     let user = Addr::unchecked("user1");
 
-    let (_, staking_instance, xastro_addr, _, _, assembly_addr, _) =
+    let (_, staking_instance, xastro_addr, _, _, assembly_addr, _, _) =
         instantiate_contracts(&mut app, owner, false, false);
 
     let proposals: ProposalListResponse = app
@@ -497,6 +499,7 @@ fn test_proposal_submitting() {
                         proposal_required_threshold: None,
                         whitelist_add: None,
                         whitelist_remove: None,
+                        guardian_addr: None,
                     })))
                     .unwrap(),
                     funds: vec![],
@@ -548,6 +551,7 @@ fn test_proposal_submitting() {
                 proposal_required_threshold: None,
                 whitelist_add: None,
                 whitelist_remove: None,
+                guardian_addr: None,
             })))
             .unwrap(),
             funds: vec![],
@@ -573,6 +577,7 @@ fn test_successful_proposal() {
         vxastro_addr,
         builder_unlock_addr,
         assembly_addr,
+        _,
         _,
     ) = instantiate_contracts(&mut app, owner, false, false);
 
@@ -692,6 +697,7 @@ fn test_successful_proposal() {
                     "https://some2.link/".to_string(),
                 ]),
                 whitelist_remove: Some(vec!["https://some.link/".to_string()]),
+                guardian_addr: None,
             })))
             .unwrap(),
             funds: vec![],
@@ -966,7 +972,7 @@ fn test_successful_emissions_proposal() {
     let mut app = mock_app();
     let owner = Addr::unchecked("generator_controller");
 
-    let (_, _, _, _, _, assembly_addr, _) = instantiate_contracts(&mut app, owner, true, false);
+    let (_, _, _, _, _, assembly_addr, _, _) = instantiate_contracts(&mut app, owner, true, false);
 
     // Provide some funds to the Assembly contract to use in the proposal messages
     app.init_modules(|router, _, storage| {
@@ -1011,7 +1017,7 @@ fn test_no_generator_controller_emissions_proposal() {
     let mut app = mock_app();
     let owner = Addr::unchecked("generator_controller");
 
-    let (_, _, _, _, _, assembly_addr, _) = instantiate_contracts(&mut app, owner, false, false);
+    let (_, _, _, _, _, assembly_addr, _, _) = instantiate_contracts(&mut app, owner, false, false);
     let emissions_proposal_msg = ExecuteMsg::ExecuteEmissionsProposal {
         title: "Emissions Test title!".to_string(),
         description: "Emissions Test description!".to_string(),
@@ -1040,7 +1046,7 @@ fn test_empty_messages_emissions_proposal() {
     let mut app = mock_app();
     let owner = Addr::unchecked("generator_controller");
 
-    let (_, _, _, _, _, assembly_addr, _) = instantiate_contracts(&mut app, owner, true, false);
+    let (_, _, _, _, _, assembly_addr, _, _) = instantiate_contracts(&mut app, owner, true, false);
     let emissions_proposal_msg = ExecuteMsg::ExecuteEmissionsProposal {
         title: "Emissions Test title!".to_string(),
         description: "Emissions Test description!".to_string(),
@@ -1071,7 +1077,7 @@ fn test_unauthorised_emissions_proposal() {
     let mut app = mock_app();
     let owner = Addr::unchecked("generator_controller");
 
-    let (_, _, _, _, _, assembly_addr, _) = instantiate_contracts(&mut app, owner, true, false);
+    let (_, _, _, _, _, assembly_addr, _, _) = instantiate_contracts(&mut app, owner, true, false);
     let emissions_proposal_msg = ExecuteMsg::ExecuteEmissionsProposal {
         title: "Emissions Test title!".to_string(),
         description: "Emissions Test description!".to_string(),
@@ -1101,7 +1107,7 @@ fn test_voting_power_changes() {
 
     let owner = Addr::unchecked("owner");
 
-    let (_, staking_instance, xastro_addr, _, _, assembly_addr, _) =
+    let (_, staking_instance, xastro_addr, _, _, assembly_addr, _, _) =
         instantiate_contracts(&mut app, owner, false, false);
 
     // Mint tokens for submitting proposal
@@ -1151,6 +1157,7 @@ fn test_voting_power_changes() {
                 proposal_required_threshold: None,
                 whitelist_add: None,
                 whitelist_remove: None,
+                guardian_addr: None,
             })))
             .unwrap(),
             funds: vec![],
@@ -1234,7 +1241,7 @@ fn test_fail_outpost_vote_without_hub() {
 
     let owner = Addr::unchecked("owner");
 
-    let (_, staking_instance, xastro_addr, _, _, assembly_addr, _) =
+    let (_, staking_instance, xastro_addr, _, _, assembly_addr, _, _) =
         instantiate_contracts(&mut app, owner, false, false);
 
     // Mint tokens for submitting proposal
@@ -1284,6 +1291,7 @@ fn test_fail_outpost_vote_without_hub() {
                 proposal_required_threshold: None,
                 whitelist_add: None,
                 whitelist_remove: None,
+                guardian_addr: None,
             })))
             .unwrap(),
             funds: vec![],
@@ -1324,13 +1332,15 @@ fn test_outpost_vote() {
 
     let owner = Addr::unchecked("owner");
 
-    let (_, staking_instance, xastro_addr, _, _, assembly_addr, _) =
+    let (astro_token, staking_instance, xastro_addr, _, _, assembly_addr, _, hub_addr) =
         instantiate_contracts(&mut app, owner.clone(), false, true);
 
     let user1_voting_power = 10_000_000_000;
     let user2_voting_power = 5_000_000_000;
     let remote_user1_voting_power = 80_000_000_000u128;
-    let remote_user2_voting_power = 3_000_000_000u128;
+    // let remote_user2_voting_power = 3_000_000_000u128;
+
+    let hub_addr = hub_addr.unwrap();
 
     // Mint tokens for submitting proposal
     mint_tokens(
@@ -1357,6 +1367,15 @@ fn test_outpost_vote() {
         &xastro_addr,
         &Addr::unchecked("user2"),
         user2_voting_power,
+    );
+
+    // Mint ASTRO to stake
+    mint_tokens(
+        &mut app,
+        &owner,
+        &astro_token,
+        &Addr::unchecked("cw20ics20"),
+        1_000_000_000_000u128,
     );
 
     app.update_block(|mut block| {
@@ -1388,6 +1407,7 @@ fn test_outpost_vote() {
                 proposal_required_threshold: None,
                 whitelist_add: None,
                 whitelist_remove: None,
+                guardian_addr: None,
             })))
             .unwrap(),
             funds: vec![],
@@ -1409,107 +1429,58 @@ fn test_outpost_vote() {
     .unwrap_err();
     assert_eq!(err.root_cause().to_string(), "Unauthorized");
 
-    cast_outpost_vote(
-        &mut app,
-        assembly_addr.clone(),
-        1,
-        owner.clone(),
-        Addr::unchecked("remote1"),
-        ProposalVoteOption::For,
-        Uint128::from(remote_user1_voting_power),
-    )
-    .unwrap();
-
-    cast_outpost_vote(
-        &mut app,
-        assembly_addr.clone(),
-        1,
-        owner.clone(),
-        Addr::unchecked("remote2"),
-        ProposalVoteOption::Against,
-        Uint128::from(remote_user2_voting_power),
-    )
-    .unwrap();
-
+    // Attempts to vote with no xASTRO minted on Outposts
     let err = cast_outpost_vote(
         &mut app,
         assembly_addr.clone(),
         1,
-        owner,
+        hub_addr,
         Addr::unchecked("remote1"),
         ProposalVoteOption::For,
-        Uint128::from(remote_user2_voting_power),
+        Uint128::from(remote_user1_voting_power),
     )
     .unwrap_err();
-    assert_eq!(err.root_cause().to_string(), "User already voted!");
-
-    // user1 can vote as he had voting power before the proposal submitting.
-    cast_vote(
-        &mut app,
-        assembly_addr.clone(),
-        1,
-        Addr::unchecked("user1"),
-        ProposalVoteOption::For,
-    )
-    .unwrap();
-
-    let err = cast_vote(
-        &mut app,
-        assembly_addr.clone(),
-        1,
-        Addr::unchecked("user1"),
-        ProposalVoteOption::For,
-    )
-    .unwrap_err();
-    assert_eq!(err.root_cause().to_string(), "User already voted!");
-
-    // user2 can vote as he had voting power before the proposal submitting.
-    cast_vote(
-        &mut app,
-        assembly_addr.clone(),
-        1,
-        Addr::unchecked("user2"),
-        ProposalVoteOption::Against,
-    )
-    .unwrap();
-
-    app.update_block(next_block);
-
-    // Skip voting period and delay
-    app.update_block(|bi| {
-        bi.height += PROPOSAL_VOTING_PERIOD + PROPOSAL_EFFECTIVE_DELAY + 1;
-        bi.time = bi
-            .time
-            .plus_seconds(5 * (PROPOSAL_VOTING_PERIOD + PROPOSAL_EFFECTIVE_DELAY + 1));
-    });
-
-    // End proposal
-    app.execute_contract(
-        Addr::unchecked("user0"),
-        assembly_addr.clone(),
-        &ExecuteMsg::EndProposal { proposal_id: 1 },
-        &[],
-    )
-    .unwrap();
-
-    let proposal: Proposal = app
-        .wrap()
-        .query_wasm_smart(
-            assembly_addr.clone(),
-            &QueryMsg::Proposal { proposal_id: 1 },
-        )
-        .unwrap();
-
-    // Check proposal votes, Outpost and Hub votes should be counted
-    let total_for_voting_power = user1_voting_power + remote_user1_voting_power;
-    let total_against_voting_power = user2_voting_power + remote_user2_voting_power;
-    assert_eq!(proposal.for_power, Uint128::from(total_for_voting_power));
     assert_eq!(
-        proposal.against_power,
-        Uint128::from(total_against_voting_power)
+        err.root_cause().to_string(),
+        "Voting power exceeds maximum Outpost power"
     );
-    // Should be passed
-    assert_eq!(proposal.status, ProposalStatus::Passed);
+
+    // Note: Due to cw-multitest not supporting IBC messages we can no longer
+    // test voting with Outpost voting power
+
+    // app.execute_contract(
+    //     owner,
+    //     hub_addr.clone(),
+    //     &astroport_governance::hub::ExecuteMsg::AddOutpost {
+    //         outpost_addr: "outpost1".to_string(),
+    //         outpost_channel: "channel-3".to_string(),
+    //         cw20_ics20_channel: "channel-1".to_string(),
+    //     },
+    //     &[],
+    // )
+    // .unwrap_err();
+
+    // Stake some ASTRO from an Outpost
+    // stake_remote_astro(
+    //     &mut app,
+    //     Addr::unchecked("cw20ics20".to_string()),
+    //     hub_addr.clone(),
+    //     astro_token,
+    //     Uint128::from(remote_user1_voting_power),
+    // )
+    // .unwrap_err();
+
+    // Continue normally
+    // cast_outpost_vote(
+    //     &mut app,
+    //     assembly_addr.clone(),
+    //     1,
+    //     hub_addr.clone(),
+    //     Addr::unchecked("remote1"),
+    //     ProposalVoteOption::For,
+    //     Uint128::from(remote_user1_voting_power),
+    // )
+    // .unwrap();
 }
 
 #[cfg(not(feature = "testnet"))]
@@ -1523,7 +1494,7 @@ fn test_block_height_selection() {
     let user2 = Addr::unchecked("user2");
     let user3 = Addr::unchecked("user3");
 
-    let (_, staking_instance, xastro_addr, _, _, assembly_addr, _) =
+    let (_, staking_instance, xastro_addr, _, _, assembly_addr, _, _) =
         instantiate_contracts(&mut app, owner, false, false);
 
     // Mint tokens for submitting proposal
@@ -1643,7 +1614,7 @@ fn test_unsuccessful_proposal() {
 
     let owner = Addr::unchecked("owner");
 
-    let (_, staking_instance, xastro_addr, _, _, assembly_addr, _) =
+    let (_, staking_instance, xastro_addr, _, _, assembly_addr, _, _) =
         instantiate_contracts(&mut app, owner, false, false);
 
     // Init voting power for users
@@ -1782,7 +1753,7 @@ fn test_unsuccessful_proposal() {
 fn test_check_messages() {
     let mut app = mock_app();
     let owner = Addr::unchecked("owner");
-    let (_, _, _, vxastro_addr, _, assembly_addr, _) =
+    let (_, _, _, vxastro_addr, _, assembly_addr, _, _) =
         instantiate_contracts(&mut app, owner, false, false);
 
     change_owner(&mut app, &vxastro_addr, &assembly_addr);
@@ -1863,7 +1834,16 @@ fn instantiate_contracts(
     owner: Addr,
     with_generator_controller: bool,
     with_hub: bool,
-) -> (Addr, Addr, Addr, Addr, Addr, Addr, Option<Addr>) {
+) -> (
+    Addr,
+    Addr,
+    Addr,
+    Addr,
+    Addr,
+    Addr,
+    Option<Addr>,
+    Option<Addr>,
+) {
     let token_addr = instantiate_astro_token(router, &owner);
     let (staking_addr, xastro_token_addr) = instantiate_xastro_token(router, &owner, &token_addr);
     let vxastro_token_addr = instantiate_vxastro_token(router, &owner, &xastro_token_addr);
@@ -1883,7 +1863,12 @@ fn instantiate_contracts(
     let mut hub_addr = None;
 
     if with_hub {
-        hub_addr = Some(owner.to_string());
+        hub_addr = Some(instantiate_hub(
+            router,
+            &owner,
+            &Addr::unchecked("contract6".to_string()),
+            &staking_addr,
+        ));
     }
 
     let assembly_addr = instantiate_assembly_contract(
@@ -1894,7 +1879,7 @@ fn instantiate_contracts(
         &builder_unlock_addr,
         None,
         generator_controller_addr,
-        hub_addr,
+        hub_addr.clone(),
     );
 
     (
@@ -1905,6 +1890,7 @@ fn instantiate_contracts(
         builder_unlock_addr,
         assembly_addr,
         None,
+        hub_addr,
     )
 }
 
@@ -2020,6 +2006,44 @@ fn instantiate_vxastro_token(router: &mut App, owner: &Addr, xastro: &Addr) -> A
         .unwrap()
 }
 
+fn instantiate_hub(
+    router: &mut App,
+    owner: &Addr,
+    assembly_addr: &Addr,
+    staking_addr: &Addr,
+) -> Addr {
+    let hub_contract = Box::new(
+        ContractWrapper::new_with_empty(
+            astroport_hub::execute::execute,
+            astroport_hub::contract::instantiate,
+            astroport_hub::query::query,
+        )
+        .with_reply(astroport_hub::reply::reply),
+    );
+
+    let hub_code_id = router.store_code(hub_contract);
+
+    let msg = HubInstantiateMsg {
+        owner: owner.to_string(),
+        assembly_addr: assembly_addr.to_string(),
+        cw20_ics20_addr: "cw20ics20".to_string(),
+        generator_controller_addr: "unknown".to_string(),
+        ibc_timeout_seconds: 60,
+        staking_addr: staking_addr.to_string(),
+    };
+
+    router
+        .instantiate_contract(
+            hub_code_id,
+            owner.clone(),
+            &msg,
+            &[],
+            String::from("Hub"),
+            None,
+        )
+        .unwrap()
+}
+
 fn instantiate_builder_unlock_contract(router: &mut App, owner: &Addr, astro_token: &Addr) -> Addr {
     let builder_unlock_contract = Box::new(ContractWrapper::new_with_empty(
         builder_unlock::contract::execute,
@@ -2056,7 +2080,7 @@ fn instantiate_assembly_contract(
     builder: &Addr,
     delegator: Option<String>,
     generator_controller_addr: Option<String>,
-    hub_addr: Option<String>,
+    hub_addr: Option<Addr>,
 ) -> Addr {
     let assembly_contract = Box::new(ContractWrapper::new_with_empty(
         astro_assembly::contract::execute,
@@ -2066,13 +2090,15 @@ fn instantiate_assembly_contract(
 
     let assembly_code = router.store_code(assembly_contract);
 
+    let hub: Option<String> = hub_addr.as_ref().map(|s| s.to_string());
+
     let msg = InstantiateMsg {
         xastro_token_addr: xastro.to_string(),
         vxastro_token_addr: Some(vxastro.to_string()),
         voting_escrow_delegator_addr: delegator,
         ibc_controller: None,
         generator_controller_addr,
-        hub_addr,
+        hub_addr: hub,
         builder_unlock_addr: builder.to_string(),
         proposal_voting_period: PROPOSAL_VOTING_PERIOD,
         proposal_effective_delay: PROPOSAL_EFFECTIVE_DELAY,
@@ -2258,6 +2284,31 @@ fn cast_outpost_vote(
         &[],
     )
 }
+
+// Add back once cw-multitest supports IBC
+// fn stake_remote_astro(
+//     app: &mut App,
+//     sender: Addr,
+//     hub: Addr,
+//     astro_token: Addr,
+//     amount: Uint128,
+// ) -> anyhow::Result<AppResponse> {
+//     let cw20_msg = to_binary(&astroport_governance::hub::Cw20HookMsg::OutpostMemo {
+//         channel: "channel-1".to_string(),
+//         sender: "remoteuser1".to_string(),
+//         receiver: hub.to_string(),
+//         memo: "{\"stake\":{}}".to_string(),
+//     })
+//     .unwrap();
+
+//     let msg = Cw20ExecuteMsg::Send {
+//         contract: hub.to_string(),
+//         amount,
+//         msg: cw20_msg,
+//     };
+
+//     app.execute_contract(sender, astro_token, &msg, &[])
+// }
 
 fn change_owner(app: &mut App, contract: &Addr, assembly: &Addr) {
     let msg = astroport_governance::voting_escrow_lite::ExecuteMsg::ProposeNewOwner {

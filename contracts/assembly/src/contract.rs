@@ -19,7 +19,9 @@ use astroport::xastro_token::QueryMsg as XAstroTokenQueryMsg;
 use astroport_governance::builder_unlock::msg::{
     AllocationResponse, QueryMsg as BuilderUnlockQueryMsg, StateResponse,
 };
-use astroport_governance::utils::{check_controller_supports_channel, WEEK};
+use astroport_governance::utils::{
+    check_contract_supports_channel, get_total_outpost_voting_power_at, WEEK,
+};
 use astroport_governance::voting_escrow_delegation::QueryMsg::AdjustedBalance;
 use astroport_governance::voting_escrow_lite::{
     QueryMsg as VotingEscrowQueryMsg, VotingPowerResponse,
@@ -75,6 +77,8 @@ pub fn instantiate(
         proposal_required_quorum: Decimal::from_str(&msg.proposal_required_quorum)?,
         proposal_required_threshold: Decimal::from_str(&msg.proposal_required_threshold)?,
         whitelisted_links: msg.whitelisted_links,
+        // Guardian is set to None so that Assembly must explicitly allow it
+        guardian_addr: None,
     };
 
     config.validate()?;
@@ -106,6 +110,8 @@ pub fn instantiate(
 /// * **ExecuteMsg::RemoveCompletedProposal { proposal_id }** Removes a finalized proposal from the proposal list.
 ///
 /// * **ExecuteMsg::UpdateConfig(config)** Updates the contract configuration.
+///
+/// * **ExecuteMsg::CancelOutpostVotes(proposal_id)** Removes all votes cast from all Outposts on a specific proposal
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
@@ -148,6 +154,9 @@ pub fn execute(
             proposal_id,
             status,
         } => update_ibc_proposal_status(deps, info, proposal_id, status),
+        ExecuteMsg::RemoveOutpostVotes { proposal_id } => {
+            remove_outpost_votes(deps, env, info, proposal_id)
+        }
     }
 }
 
@@ -226,7 +235,7 @@ pub fn submit_proposal(
     // Check that controller exists and it supports this channel
     if let Some(ibc_channel) = &ibc_channel {
         if let Some(ibc_controller) = &config.ibc_controller {
-            check_controller_supports_channel(deps.querier, ibc_controller, ibc_channel)?;
+            check_contract_supports_channel(deps.querier, ibc_controller, ibc_channel)?;
         } else {
             return Err(ContractError::MissingIBCController {});
         }
@@ -237,7 +246,9 @@ pub fn submit_proposal(
         submitter: sender.clone(),
         status: ProposalStatus::Active,
         for_power: Uint128::zero(),
+        outpost_for_power: Uint128::zero(),
         against_power: Uint128::zero(),
+        outpost_against_power: Uint128::zero(),
         for_voters: Vec::new(),
         against_voters: Vec::new(),
         start_block: env.block.height,
@@ -390,16 +401,33 @@ pub fn cast_outpost_vote(
 
     // Voting power provided is used as is from the Hub. Validation of the voting
     // power is done by the Hub contract with the Outpost.
+    // We track voting power from Outposts separately as well so as to have a
+    // way to cancel votes should a vulnerability be found in IBC or the Hub/Outpost
+    // implementation
     match vote_option {
         ProposalVoteOption::For => {
             proposal.for_power = proposal.for_power.checked_add(voting_power)?;
+            proposal.outpost_for_power = proposal.outpost_for_power.checked_add(voting_power)?;
             proposal.for_voters.push(voter.clone());
         }
         ProposalVoteOption::Against => {
             proposal.against_power = proposal.against_power.checked_add(voting_power)?;
+            proposal.outpost_against_power =
+                proposal.outpost_against_power.checked_add(voting_power)?;
             proposal.against_voters.push(voter.clone());
         }
     };
+
+    // Assert that the total amount of power from Outposts is not greater than the
+    // total amount of power that was available at the time of proposal creation
+    let current_outpost_power = proposal
+        .outpost_for_power
+        .checked_add(proposal.outpost_against_power)?;
+    let max_outpost_power =
+        get_total_outpost_voting_power_at(deps.querier, &hub, proposal.start_time)?;
+    if current_outpost_power > max_outpost_power {
+        return Err(ContractError::InvalidVotingPower {});
+    }
 
     PROPOSALS.save(deps.storage, proposal_id, &proposal)?;
 
@@ -571,7 +599,7 @@ pub fn submit_execute_emissions_proposal(
     // Check that controller exists and it supports this channel
     if let Some(ibc_channel) = &ibc_channel {
         if let Some(ibc_controller) = &config.ibc_controller {
-            check_controller_supports_channel(deps.querier, ibc_controller, ibc_channel)?;
+            check_contract_supports_channel(deps.querier, ibc_controller, ibc_channel)?;
         } else {
             return Err(ContractError::MissingIBCController {});
         }
@@ -587,7 +615,9 @@ pub fn submit_execute_emissions_proposal(
         submitter: info.sender,
         status: ProposalStatus::Passed,
         for_power: Uint128::zero(),
+        outpost_for_power: Uint128::zero(),
         against_power: Uint128::zero(),
+        outpost_against_power: Uint128::zero(),
         for_voters: vec![generator_controller.to_string()],
         against_voters: Vec::new(),
         start_block: env.block.height,
@@ -742,6 +772,10 @@ pub fn update_config(
         }
     }
 
+    if let Some(guardian_addr) = updated_config.guardian_addr {
+        config.guardian_addr = Some(deps.api.addr_validate(&guardian_addr)?);
+    }
+
     config.validate()?;
 
     CONFIG.save(deps.storage, &config)?;
@@ -784,6 +818,90 @@ fn update_ibc_proposal_status(
     } else {
         Err(ContractError::InvalidIBCController {})
     }
+}
+
+/// Remove all votes cast from all Outposts in case of a vulnerability
+/// in IBC or the contracts that allow manipulation of governance. This is the
+/// last line of defence against a malicious actor.
+///
+/// This can only be called by the guardian.
+fn remove_outpost_votes(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    proposal_id: u64,
+) -> Result<Response, ContractError> {
+    let mut proposal = PROPOSALS.load(deps.storage, proposal_id)?;
+
+    let config = CONFIG.load(deps.storage)?;
+
+    // Only the guardian may execute this
+    if Some(info.sender) != config.guardian_addr {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    // EndProposal must be called first to return xASTRO to the proposer
+    if proposal.status == ProposalStatus::Active {
+        return Err(ContractError::ProposalNotInDelayPeriod {});
+    }
+
+    // This may only be called during the "delay" period for a proposal. That is,
+    // the config.proposal_effective_delay blocks between when the voting period
+    // ends and the proposal can be executed. If we allow the removal of votes during
+    // the voting period, we can end up in a battle with the attacker where we
+    // remove the votes and they exploit and vote again.
+    if env.block.height <= proposal.end_block || env.block.height > proposal.delayed_end_block {
+        return Err(ContractError::ProposalNotInDelayPeriod {});
+    }
+
+    // Remove the voting power from Outposts
+    let new_for_power = proposal
+        .for_power
+        .saturating_sub(proposal.outpost_for_power);
+    let new_against_power = proposal
+        .against_power
+        .saturating_sub(proposal.outpost_against_power);
+
+    proposal.for_power = new_for_power;
+    proposal.against_power = new_against_power;
+
+    // Zero out the Outpost voting power after removal
+    proposal.outpost_for_power = Uint128::zero();
+    proposal.outpost_against_power = Uint128::zero();
+
+    let total_votes = proposal.for_power.saturating_add(proposal.against_power);
+    let total_voting_power = calc_total_voting_power_at(deps.as_ref(), &proposal)?;
+
+    // Recalculate proposal state
+    let mut proposal_quorum: Decimal = Decimal::zero();
+    let mut proposal_threshold: Decimal = Decimal::zero();
+
+    if !total_voting_power.is_zero() {
+        proposal_quorum = Decimal::from_ratio(total_votes, total_voting_power);
+    }
+
+    if !total_votes.is_zero() {
+        proposal_threshold = Decimal::from_ratio(proposal.for_power, total_votes);
+    }
+
+    // Determine the proposal result
+    proposal.status = if proposal_quorum >= config.proposal_required_quorum
+        && proposal_threshold > config.proposal_required_threshold
+    {
+        ProposalStatus::Passed
+    } else {
+        ProposalStatus::Rejected
+    };
+
+    PROPOSALS.save(deps.storage, proposal_id, &proposal)?;
+
+    let response = Response::new().add_attributes(vec![
+        attr("action", "remove_outpost_votes"),
+        attr("proposal_id", proposal_id.to_string()),
+        attr("proposal_result", proposal.status.to_string()),
+    ]);
+
+    Ok(response)
 }
 
 /// Expose available contract queries.

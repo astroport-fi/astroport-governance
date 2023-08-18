@@ -148,6 +148,14 @@ pub enum ExecuteMsg {
         proposal_id: u64,
         status: ProposalStatus,
     },
+    /// Remove all votes cast from all Outposts in case of a vulnerability
+    /// in IBC or the contracts that allow manipulation of governance.
+    ///
+    /// This can only be called by the guardian.
+    RemoveOutpostVotes {
+        /// Proposal identifier
+        proposal_id: u64,
+    },
 }
 
 /// Thie enum describes all the queries available in the contract.
@@ -236,6 +244,9 @@ pub struct Config {
     pub proposal_required_threshold: Decimal,
     /// Whitelisted links
     pub whitelisted_links: Vec<String>,
+    /// Guardian address that may cancel Outpost votes in case of a vulnerability
+    /// in IBC or the contracts that allow manipulation of governance
+    pub guardian_addr: Option<Addr>,
 }
 
 impl Config {
@@ -336,6 +347,8 @@ pub struct UpdateConfig {
     pub whitelist_remove: Option<Vec<String>>,
     /// Links to add to whitelist
     pub whitelist_add: Option<Vec<String>>,
+    /// Guardian address that may cancel Outpost votes in case of a vulnerability
+    pub guardian_addr: Option<String>,
 }
 
 /// This structure stores data for a proposal.
@@ -349,8 +362,12 @@ pub struct Proposal {
     pub status: ProposalStatus,
     /// `For` power of proposal
     pub for_power: Uint128,
+    /// `For` power of proposal cast from all Outposts
+    pub outpost_for_power: Uint128,
     /// `Against` power of proposal
     pub against_power: Uint128,
+    /// `Against` power of proposal cast from all Outposts
+    pub outpost_against_power: Uint128,
     /// `For` votes for the proposal
     pub for_voters: Vec<String>,
     /// `Against` votes for the proposal

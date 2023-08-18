@@ -3,6 +3,8 @@ pub mod builder_unlock;
 pub mod escrow_fee_distributor;
 pub mod generator_controller;
 pub mod generator_controller_lite;
+pub mod hub;
+pub mod interchain;
 pub mod nft;
 pub mod outpost;
 pub mod utils;

@@ -20,7 +20,7 @@ use astroport_governance::generator_controller_lite::{
     ConfigResponse, ExecuteMsg, InstantiateMsg, MigrateMsg, NetworkInfo, QueryMsg,
     UserInfoResponse, VOTERS_MAX_LIMIT,
 };
-use astroport_governance::utils::{check_controller_supports_channel, get_lite_period};
+use astroport_governance::utils::{check_contract_supports_channel, get_lite_period};
 use astroport_governance::voting_escrow_lite::QueryMsg::CheckVotersAreBlacklisted;
 use astroport_governance::voting_escrow_lite::{
     get_emissions_voting_power, get_lock_info, BlacklistedVotersResponse,
@@ -291,7 +291,7 @@ fn update_networks(
                     if let Some(ibc_channel) = network_info.ibc_channel.clone() {
                         match &assembly_config.ibc_controller {
                             Some(ibc_controller) => {
-                                check_controller_supports_channel(
+                                check_contract_supports_channel(
                                     deps.querier,
                                     ibc_controller,
                                     &ibc_channel,

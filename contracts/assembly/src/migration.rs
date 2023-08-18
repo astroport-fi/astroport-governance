@@ -102,7 +102,9 @@ pub(crate) fn migrate_proposals_to_v160(deps: DepsMut, cfg: &Config) -> StdResul
                 submitter: proposal.submitter,
                 status: proposal.status,
                 for_power: proposal.for_power,
+                outpost_for_power: Uint128::zero(),
                 against_power: proposal.against_power,
+                outpost_against_power: Uint128::zero(),
                 for_voters: proposal
                     .for_voters
                     .into_iter()
@@ -155,6 +157,7 @@ pub(crate) fn migrate_config_to_160(deps: DepsMut, msg: MigrateMsg) -> StdResult
         proposal_required_quorum: cfg_v130.proposal_required_quorum,
         proposal_required_threshold: cfg_v130.proposal_required_threshold,
         whitelisted_links: cfg_v130.whitelisted_links,
+        guardian_addr: None,
     };
 
     CONFIG.save(deps.storage, &cfg)?;

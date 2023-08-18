@@ -28,6 +28,7 @@ cosmwasm-schema = "1.1"
 cw-multi-test = "0.15"
 astroport-token = { git = "https://github.com/astroport-fi/hidden_astroport_core", branch = "feat/merge_public_20230519" }
 astroport-xastro-token = { git = "https://github.com/astroport-fi/hidden_astroport_core", branch = "feat/merge_public_20230519" }
+astroport-hub = { path = "../hub" }
 voting-escrow = { path = "../voting_escrow" }
 voting-escrow-lite = { path = "../voting_escrow_lite" }
 voting-escrow-delegation = { path = "../voting_escrow_delegation" }

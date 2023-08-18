@@ -41,6 +41,9 @@ pub enum ContractError {
     #[error("Proposal delay not ended!")]
     ProposalDelayNotEnded {},
 
+    #[error("Proposal not in delay period!")]
+    ProposalNotInDelayPeriod {},
+
     #[error("Contract can't be migrated!")]
     MigrationError {},
 
@@ -76,6 +79,9 @@ pub enum ContractError {
 
     #[error("The proposal has no messages to execute")]
     InvalidProposalMessages {},
+
+    #[error("Voting power exceeds maximum Outpost power")]
+    InvalidVotingPower {},
 }
 
 impl From<OverflowError> for ContractError {
