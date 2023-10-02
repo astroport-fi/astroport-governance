@@ -21,7 +21,7 @@ checksum = "3b13c32d80ecc7ab747b80c3784bce54ee8a7a0cc4fbda9bf4cda2cf6fe90854"
 
 [[package]]
 name = "astro-assembly"
-version = "1.6.0"
+version = "1.6.1"
 dependencies = [
  "anyhow",
  "astroport-governance 1.4.0",
@@ -46,20 +46,6 @@ dependencies = [
 
 [[package]]
 name = "astroport"
-version = "2.9.0"
-source = "git+https://github.com/astroport-fi/hidden_astroport_core?branch=feat/merge_public_20230519#f3d99b17d6c6ba017398ded63d8cba74b4a3989f"
-dependencies = [
- "cosmwasm-schema",
- "cosmwasm-std",
- "cw-storage-plus 0.15.1",
- "cw-utils 0.15.1",
- "cw20 0.15.1",
- "itertools",
- "uint",
-]
-
-[[package]]
-name = "astroport"
 version = "2.10.0"
 source = "git+https://github.com/astroport-fi/astroport-core?branch=feat/merge_hidden_2023_05_22#11e7a81d4b18a40bed916177061a549633e02b1b"
 dependencies = [
@@ -75,8 +61,8 @@ dependencies = [
 
 [[package]]
 name = "astroport"
-version = "3.3.2"
-source = "git+https://github.com/astroport-fi/hidden_astroport_core#d881a4ec782a1cef1a0c262880e9d6868b015e15"
+version = "3.6.0"
+source = "git+https://github.com/astroport-fi/hidden_astroport_core#6c753c41e72ef5ea60bfa3363657bbc6e775f72d"
 dependencies = [
  "astroport-circular-buffer",
  "cosmwasm-schema",
@@ -92,7 +78,7 @@ dependencies = [
 [[package]]
 name = "astroport-circular-buffer"
 version = "0.1.0"
-source = "git+https://github.com/astroport-fi/hidden_astroport_core#d881a4ec782a1cef1a0c262880e9d6868b015e15"
+source = "git+https://github.com/astroport-fi/hidden_astroport_core#6c753c41e72ef5ea60bfa3363657bbc6e775f72d"
 dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -118,13 +104,14 @@ dependencies = [
 
 [[package]]
 name = "astroport-factory"
-version = "1.5.1"
-source = "git+https://github.com/astroport-fi/hidden_astroport_core?branch=feat/merge_public_20230519#f3d99b17d6c6ba017398ded63d8cba74b4a3989f"
+version = "1.6.0"
+source = "git+https://github.com/astroport-fi/hidden_astroport_core#6c753c41e72ef5ea60bfa3363657bbc6e775f72d"
 dependencies = [
- "astroport 2.9.0",
+ "astroport 3.6.0",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 0.15.1",
+ "cw-utils 1.0.1",
  "cw2 0.15.1",
  "itertools",
  "protobuf",
@@ -133,14 +120,15 @@ dependencies = [
 
 [[package]]
 name = "astroport-generator"
-version = "2.3.0"
-source = "git+https://github.com/astroport-fi/hidden_astroport_core?branch=feat/merge_public_20230519#f3d99b17d6c6ba017398ded63d8cba74b4a3989f"
+version = "2.3.2"
+source = "git+https://github.com/astroport-fi/hidden_astroport_core#6c753c41e72ef5ea60bfa3363657bbc6e775f72d"
 dependencies = [
- "astroport 2.9.0",
+ "astroport 3.6.0",
  "astroport-governance 1.4.0",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 0.15.1",
+ "cw-utils 1.0.1",
  "cw1-whitelist",
  "cw2 0.15.1",
  "cw20 0.15.1",
@@ -151,7 +139,7 @@ dependencies = [
 [[package]]
 name = "astroport-governance"
 version = "1.2.0"
-source = "git+https://github.com/astroport-fi/astroport-governance?branch=feat/merge_hidden_2023_05_22#1e865abe55093d249b69b538e2d54472b643d6c7"
+source = "git+https://github.com/astroport-fi/astroport-governance#f0ef7c6dde76fc77ce360262923366a5cde3c3f8"
 dependencies = [
  "astroport 2.10.0",
  "cosmwasm-schema",
@@ -164,7 +152,7 @@ dependencies = [
 name = "astroport-governance"
 version = "1.4.0"
 dependencies = [
- "astroport 3.3.2",
+ "astroport 3.6.0",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 0.15.1",
@@ -177,7 +165,7 @@ name = "astroport-hub"
 version = "1.0.0"
 dependencies = [
  "anyhow",
- "astroport 3.3.2",
+ "astroport 3.6.0",
  "astroport-governance 1.4.0",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -193,8 +181,8 @@ dependencies = [
 
 [[package]]
 name = "astroport-ibc"
-version = "0.1.0"
-source = "git+https://github.com/astroport-fi/astroport_ibc?branch=main#f9f4def037d117275de31fffef36ddda388baf48"
+version = "1.2.0"
+source = "git+https://github.com/astroport-fi/astroport_ibc?branch=main#ffb48ebfd7dbbc010cf86c9b02bad236c456fca0"
 dependencies = [
  "cosmwasm-schema",
 ]
@@ -216,7 +204,7 @@ name = "astroport-outpost"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "astroport 3.3.2",
+ "astroport 3.6.0",
  "astroport-governance 1.4.0",
  "base64",
  "cosmwasm-schema",
@@ -235,13 +223,14 @@ dependencies = [
 
 [[package]]
 name = "astroport-pair"
-version = "1.3.1"
-source = "git+https://github.com/astroport-fi/hidden_astroport_core?branch=feat/merge_public_20230519#f3d99b17d6c6ba017398ded63d8cba74b4a3989f"
+version = "1.5.0"
+source = "git+https://github.com/astroport-fi/hidden_astroport_core#6c753c41e72ef5ea60bfa3363657bbc6e775f72d"
 dependencies = [
- "astroport 2.9.0",
+ "astroport 3.6.0",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 0.15.1",
+ "cw-utils 1.0.1",
  "cw2 0.15.1",
  "cw20 0.15.1",
  "integer-sqrt",
@@ -252,12 +241,13 @@ dependencies = [
 [[package]]
 name = "astroport-staking"
 version = "1.1.0"
-source = "git+https://github.com/astroport-fi/hidden_astroport_core?branch=feat/merge_public_20230519#f3d99b17d6c6ba017398ded63d8cba74b4a3989f"
+source = "git+https://github.com/astroport-fi/hidden_astroport_core#6c753c41e72ef5ea60bfa3363657bbc6e775f72d"
 dependencies = [
- "astroport 2.9.0",
+ "astroport 3.6.0",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 0.15.1",
+ "cw-utils 1.0.1",
  "cw2 0.15.1",
  "cw20 0.15.1",
  "protobuf",
@@ -269,7 +259,7 @@ name = "astroport-tests"
 version = "1.0.0"
 dependencies = [
  "anyhow",
- "astroport 2.9.0",
+ "astroport 3.6.0",
  "astroport-escrow-fee-distributor",
  "astroport-factory",
  "astroport-generator",
@@ -293,7 +283,7 @@ version = "1.0.0"
 dependencies = [
  "anyhow",
  "astro-assembly",
- "astroport 2.9.0",
+ "astroport 3.6.0",
  "astroport-escrow-fee-distributor",
  "astroport-factory",
  "astroport-generator",
@@ -314,9 +304,9 @@ dependencies = [
 [[package]]
 name = "astroport-token"
 version = "1.1.1"
-source = "git+https://github.com/astroport-fi/hidden_astroport_core?branch=feat/merge_public_20230519#f3d99b17d6c6ba017398ded63d8cba74b4a3989f"
+source = "git+https://github.com/astroport-fi/hidden_astroport_core#6c753c41e72ef5ea60bfa3363657bbc6e775f72d"
 dependencies = [
- "astroport 2.9.0",
+ "astroport 3.6.0",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw2 0.15.1",
@@ -328,9 +318,9 @@ dependencies = [
 [[package]]
 name = "astroport-whitelist"
 version = "1.0.1"
-source = "git+https://github.com/astroport-fi/hidden_astroport_core?branch=feat/merge_public_20230519#f3d99b17d6c6ba017398ded63d8cba74b4a3989f"
+source = "git+https://github.com/astroport-fi/hidden_astroport_core#6c753c41e72ef5ea60bfa3363657bbc6e775f72d"
 dependencies = [
- "astroport 2.9.0",
+ "astroport 3.6.0",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw1-whitelist",
@@ -340,10 +330,10 @@ dependencies = [
 
 [[package]]
 name = "astroport-xastro-token"
-version = "1.0.2"
-source = "git+https://github.com/astroport-fi/hidden_astroport_core?branch=feat/merge_public_20230519#f3d99b17d6c6ba017398ded63d8cba74b4a3989f"
+version = "1.1.0"
+source = "git+https://github.com/astroport-fi/hidden_astroport_core#6c753c41e72ef5ea60bfa3363657bbc6e775f72d"
 dependencies = [
- "astroport 2.9.0",
+ "astroport 3.6.0",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 0.15.1",
@@ -430,9 +420,9 @@ checksum = "845141a4fade3f790628b7daaaa298a25b204fb28907eb54febe5142db6ce653"
 
 [[package]]
 name = "builder-unlock"
-version = "1.2.3"
+version = "2.0.0"
 dependencies = [
- "astroport 2.9.0",
+ "astroport 3.6.0",
  "astroport-governance 1.4.0",
  "astroport-token",
  "cosmwasm-schema",
@@ -1102,7 +1092,7 @@ dependencies = [
 [[package]]
 name = "ibc-controller-package"
 version = "0.1.0"
-source = "git+https://github.com/astroport-fi/astroport_ibc?branch=main#f9f4def037d117275de31fffef36ddda388baf48"
+source = "git+https://github.com/astroport-fi/astroport_ibc?branch=main#ffb48ebfd7dbbc010cf86c9b02bad236c456fca0"
 dependencies = [
  "astroport-governance 1.2.0",
  "astroport-ibc",

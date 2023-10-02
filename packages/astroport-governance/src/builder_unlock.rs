@@ -1,5 +1,5 @@
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, StdError, Uint128};
+use cosmwasm_std::{Addr, Decimal, StdError, Uint128};
 
 /// This structure stores general parameters for the builder unlock contract.
 #[cw_serde]
@@ -34,6 +34,8 @@ pub struct Schedule {
     pub cliff: u64,
     /// Time after the cliff during which the remaining tokens linearly unlock
     pub duration: u64,
+    /// Percentage of tokens unlocked at the cliff
+    pub percent_at_cliff: Option<Decimal>,
 }
 
 /// This structure stores the parameters used to describe an ASTRO allocation.
@@ -123,10 +125,11 @@ impl AllocationStatus {
 }
 
 pub mod msg {
-    use crate::builder_unlock::Schedule;
     use cosmwasm_schema::{cw_serde, QueryResponses};
     use cosmwasm_std::Uint128;
     use cw20::Cw20ReceiveMsg;
+
+    use crate::builder_unlock::Schedule;
 
     use super::{AllocationParams, AllocationStatus, Config};
 

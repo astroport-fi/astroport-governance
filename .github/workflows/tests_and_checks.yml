@@ -17,7 +17,7 @@ jobs:
 
     steps:
       - name: Cancel Previous Runs
-        uses: styfle/cancel-workflow-action@0.9.1
+        uses: styfle/cancel-workflow-action@0.11.0
         with:
           access_token: ${{ github.token }}
 
@@ -25,11 +25,11 @@ jobs:
         with:
           ssh-private-key: |
             ${{ secrets.CORE_PRIVATE_KEY }}
-            ${{ secrets.IBC_PRIVATE_KEY }}
 
-      - name: Checkout sources
-        uses: actions/checkout@v2
-      - uses: actions/cache@v2
+      - uses: actions/checkout@v3
+
+      - uses: actions/cache@v3
+        if: always()
         with:
           path: |
             ~/.cargo/bin
@@ -39,9 +39,11 @@ jobs:
             ~/.cargo/registry/index
             target
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
       - run: |
           git config url."ssh://git@github.com/astroport-fi/hidden_astroport_core.git".insteadOf "https://github.com/astroport-fi/hidden_astroport_core"
-      #          git config url."ssh://git@github.com/astroport-fi/astroport_ibc.git".insteadOf "https://github.com/astroport-fi/astroport_ibc"
 
       - name: Install stable toolchain
         uses: actions-rs/toolchain@v1

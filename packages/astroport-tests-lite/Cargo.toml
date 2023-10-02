@@ -18,17 +18,17 @@ cosmwasm-std = "1.1"
 
 cosmwasm-schema = "1.1"
 cw-multi-test = "0.16"
-astroport = { git = "https://github.com/astroport-fi/hidden_astroport_core", branch = "feat/merge_public_20230519" }
+astroport = { git = "https://github.com/astroport-fi/hidden_astroport_core" }
 
 astroport-escrow-fee-distributor = { path = "../../contracts/escrow_fee_distributor" }
 astroport-governance = { path = "../astroport-governance" }
 voting-escrow-lite = { path = "../../contracts/voting_escrow_lite" }
 generator-controller-lite = { path = "../../contracts/generator_controller_lite" }
 astro-assembly = { path = "../../contracts/assembly" }
-astroport-generator = { git = "https://github.com/astroport-fi/hidden_astroport_core", branch = "feat/merge_public_20230519" }
-astroport-pair = { git = "https://github.com/astroport-fi/hidden_astroport_core", branch = "feat/merge_public_20230519" }
-astroport-factory = { git = "https://github.com/astroport-fi/hidden_astroport_core", branch = "feat/merge_public_20230519" }
-astroport-token = { git = "https://github.com/astroport-fi/hidden_astroport_core", branch = "feat/merge_public_20230519" }
-astroport-staking = { git = "https://github.com/astroport-fi/hidden_astroport_core", branch = "feat/merge_public_20230519" }
-astroport-whitelist = { git = "https://github.com/astroport-fi/hidden_astroport_core", branch = "feat/merge_public_20230519" }
+astroport-generator = { git = "https://github.com/astroport-fi/hidden_astroport_core" }
+astroport-pair = { git = "https://github.com/astroport-fi/hidden_astroport_core" }
+astroport-factory = { git = "https://github.com/astroport-fi/hidden_astroport_core" }
+astroport-token = { git = "https://github.com/astroport-fi/hidden_astroport_core" }
+astroport-staking = { git = "https://github.com/astroport-fi/hidden_astroport_core" }
+astroport-whitelist = { git = "https://github.com/astroport-fi/hidden_astroport_core" }
 anyhow = "1"

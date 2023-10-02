@@ -1,26 +1,23 @@
-use crate::astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-
 use cosmwasm_std::{
     attr, from_binary, to_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Order, Response,
     StdError, StdResult, Uint128, WasmMsg,
 };
-use cw2::{get_contract_version, set_contract_version};
+use cw2::set_contract_version;
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 use cw_storage_plus::Bound;
 
-use crate::astroport::asset::addr_opt_validate;
-use crate::contract::helpers::{compute_unlocked_amount, compute_withdraw_amount};
-use crate::migration::MigrateMsg;
 use astroport_governance::builder_unlock::msg::{
     AllocationResponse, ExecuteMsg, InstantiateMsg, QueryMsg, ReceiveMsg, SimulateWithdrawResponse,
     StateResponse,
 };
 use astroport_governance::builder_unlock::{AllocationParams, AllocationStatus, Config, Schedule};
-
 use astroport_governance::{DEFAULT_LIMIT, MAX_LIMIT};
 
+use crate::astroport::asset::addr_opt_validate;
+use crate::astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
+use crate::contract::helpers::{compute_unlocked_amount, compute_withdraw_amount};
 use crate::state::{CONFIG, OWNERSHIP_PROPOSAL, PARAMS, STATE, STATUS};
 
 // Version and name used for contract migration.
@@ -743,29 +740,6 @@ fn query_simulate_withdraw(
     ))
 }
 
-/// Manages contract migration
-#[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
-    let contract_version = get_contract_version(deps.storage)?;
-
-    match contract_version.contract.as_ref() {
-        "builder-unlock" => match contract_version.version.as_ref() {
-            "1.2.0" => {}
-            "1.2.2" => {}
-            _ => return Err(StdError::generic_err("Contract can't be migrated!")),
-        },
-        _ => return Err(StdError::generic_err("Contract can't be migrated!")),
-    };
-
-    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-
-    Ok(Response::new()
-        .add_attribute("previous_contract_name", &contract_version.contract)
-        .add_attribute("previous_contract_version", &contract_version.version)
-        .add_attribute("new_contract_name", CONTRACT_NAME)
-        .add_attribute("new_contract_version", CONTRACT_VERSION))
-}
-
 //----------------------------------------------------------------------------------------
 // Helper Functions
 //----------------------------------------------------------------------------------------
@@ -786,11 +760,21 @@ mod helpers {
         // Tokens haven't begun unlocking
         if timestamp < schedule.start_time + schedule.cliff {
             unlock_checkpoint
-        }
-        // Tokens unlock linearly between start time and end time
-        else if (timestamp < schedule.start_time + schedule.duration) && schedule.duration != 0 {
-            let unlocked_amount =
-                amount.multiply_ratio(timestamp - schedule.start_time, schedule.duration);
+        } else if (timestamp < schedule.start_time + schedule.duration) && schedule.duration != 0 {
+            // If percent_at_cliff is set, then this amount should be unlocked at cliff.
+            // The rest of tokens are vested linearly between cliff and end_time
+            let unlocked_amount = if let Some(percent_at_cliff) = schedule.percent_at_cliff {
+                let amount_at_cliff = amount * percent_at_cliff;
+
+                amount_at_cliff
+                    + amount.saturating_sub(amount_at_cliff).multiply_ratio(
+                        timestamp - schedule.start_time - schedule.cliff,
+                        schedule.duration - schedule.cliff,
+                    )
+            } else {
+                // Tokens unlock linearly between start time and end time
+                amount.multiply_ratio(timestamp - schedule.start_time, schedule.duration)
+            };
 
             if unlocked_amount > unlock_checkpoint {
                 unlocked_amount

@@ -1,13 +1,14 @@
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
-use astroport_governance::builder_unlock::{AllocationParams, Schedule};
+use cosmwasm_std::{attr, to_binary, Addr, Decimal, StdResult, Timestamp, Uint128};
+use cw20::BalanceResponse;
+use cw_multi_test::{App, BasicApp, ContractWrapper, Executor};
+use std::time::SystemTime;
 
 use astroport_governance::builder_unlock::msg::{
     AllocationResponse, ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg, ReceiveMsg,
     SimulateWithdrawResponse, StateResponse,
 };
-use cosmwasm_std::{attr, to_binary, Addr, StdResult, Timestamp, Uint128};
-use cw20::BalanceResponse;
-use cw_multi_test::{App, BasicApp, ContractWrapper, Executor};
+use astroport_governance::builder_unlock::{AllocationParams, Schedule};
 
 const OWNER: &str = "owner";
 
@@ -221,6 +222,7 @@ fn test_create_allocations() {
                 start_time: 1642402274u64,
                 cliff: 0u64,
                 duration: 31536000u64,
+                percent_at_cliff: None,
             },
             proposed_receiver: None,
         },
@@ -233,6 +235,7 @@ fn test_create_allocations() {
                 start_time: 1642402274u64,
                 cliff: 7776000u64,
                 duration: 31536000u64,
+                percent_at_cliff: None,
             },
             proposed_receiver: None,
         },
@@ -245,6 +248,7 @@ fn test_create_allocations() {
                 start_time: 1642402274u64,
                 cliff: 7776000u64,
                 duration: 31536000u64,
+                percent_at_cliff: None,
             },
             proposed_receiver: None,
         },
@@ -411,7 +415,8 @@ fn test_create_allocations() {
         Schedule {
             start_time: 1642402274u64,
             cliff: 0u64,
-            duration: 31536000u64
+            duration: 31536000u64,
+            percent_at_cliff: None,
         }
     );
 
@@ -432,7 +437,8 @@ fn test_create_allocations() {
         Schedule {
             start_time: 1642402274u64,
             cliff: 7776000u64,
-            duration: 31536000u64
+            duration: 31536000u64,
+            percent_at_cliff: None,
         }
     );
 
@@ -453,7 +459,8 @@ fn test_create_allocations() {
         Schedule {
             start_time: 1642402274u64,
             cliff: 7776000u64,
-            duration: 31536000u64
+            duration: 31536000u64,
+            percent_at_cliff: None,
         }
     );
 
@@ -501,6 +508,7 @@ fn test_withdraw() {
                 start_time: 1642402274u64,
                 cliff: 0u64,
                 duration: 31536000u64,
+                percent_at_cliff: None,
             },
             proposed_receiver: None,
         },
@@ -513,6 +521,7 @@ fn test_withdraw() {
                 start_time: 1642402274u64,
                 cliff: 7776000u64,
                 duration: 31536000u64,
+                percent_at_cliff: None,
             },
             proposed_receiver: None,
         },
@@ -525,6 +534,7 @@ fn test_withdraw() {
                 start_time: 1642402274u64,
                 cliff: 7776000u64,
                 duration: 31536000u64,
+                percent_at_cliff: None,
             },
             proposed_receiver: None,
         },
@@ -850,6 +860,7 @@ fn test_propose_new_receiver() {
                 start_time: 1642402274u64,
                 cliff: 0u64,
                 duration: 31536000u64,
+                percent_at_cliff: None,
             },
             proposed_receiver: None,
         },
@@ -862,6 +873,7 @@ fn test_propose_new_receiver() {
                 start_time: 1642402274u64,
                 cliff: 7776000u64,
                 duration: 31536000u64,
+                percent_at_cliff: None,
             },
             proposed_receiver: None,
         },
@@ -874,6 +886,7 @@ fn test_propose_new_receiver() {
                 start_time: 1642402274u64,
                 cliff: 7776000u64,
                 duration: 31536000u64,
+                percent_at_cliff: None,
             },
             proposed_receiver: None,
         },
@@ -991,6 +1004,7 @@ fn test_drop_new_receiver() {
                 start_time: 1642402274u64,
                 cliff: 0u64,
                 duration: 31536000u64,
+                percent_at_cliff: None,
             },
             proposed_receiver: None,
         },
@@ -1003,6 +1017,7 @@ fn test_drop_new_receiver() {
                 start_time: 1642402274u64,
                 cliff: 7776000u64,
                 duration: 31536000u64,
+                percent_at_cliff: None,
             },
             proposed_receiver: None,
         },
@@ -1015,6 +1030,7 @@ fn test_drop_new_receiver() {
                 start_time: 1642402274u64,
                 cliff: 7776000u64,
                 duration: 31536000u64,
+                percent_at_cliff: None,
             },
             proposed_receiver: None,
         },
@@ -1132,6 +1148,7 @@ fn test_claim_receiver() {
                 start_time: 1642402274u64,
                 cliff: 0u64,
                 duration: 31536000u64,
+                percent_at_cliff: None,
             },
             proposed_receiver: None,
         },
@@ -1144,6 +1161,7 @@ fn test_claim_receiver() {
                 start_time: 1642402274u64,
                 cliff: 7776000u64,
                 duration: 31536000u64,
+                percent_at_cliff: None,
             },
             proposed_receiver: None,
         },
@@ -1156,6 +1174,7 @@ fn test_claim_receiver() {
                 start_time: 1642402274u64,
                 cliff: 7776000u64,
                 duration: 31536000u64,
+                percent_at_cliff: None,
             },
             proposed_receiver: None,
         },
@@ -1269,6 +1288,7 @@ fn test_claim_receiver() {
                 start_time: 0u64,
                 cliff: 0u64,
                 duration: 0u64,
+                percent_at_cliff: None,
             },
             proposed_receiver: None,
         },
@@ -1293,6 +1313,7 @@ fn test_claim_receiver() {
                 start_time: alloc_resp_before.params.unlock_schedule.start_time,
                 cliff: alloc_resp_before.params.unlock_schedule.cliff,
                 duration: alloc_resp_before.params.unlock_schedule.duration,
+                percent_at_cliff: None,
             },
             proposed_receiver: None,
         },
@@ -1355,6 +1376,7 @@ fn test_increase_and_decrease_allocation() {
                 start_time: 1_571_797_419u64,
                 cliff: 300u64,
                 duration: 1_534_700u64,
+                percent_at_cliff: None,
             },
             proposed_receiver: None,
         },
@@ -1593,6 +1615,7 @@ fn test_updates_schedules() {
                 start_time: 1642402274u64,
                 cliff: 0u64,
                 duration: 31536000u64,
+                percent_at_cliff: None,
             },
             proposed_receiver: None,
         },
@@ -1605,6 +1628,7 @@ fn test_updates_schedules() {
                 start_time: 1642402274u64,
                 cliff: 7776000u64,
                 duration: 31536000u64,
+                percent_at_cliff: None,
             },
             proposed_receiver: None,
         },
@@ -1617,6 +1641,7 @@ fn test_updates_schedules() {
                 start_time: 1642402274u64,
                 cliff: 7776000u64,
                 duration: 31536000u64,
+                percent_at_cliff: None,
             },
             proposed_receiver: None,
         },
@@ -1663,6 +1688,7 @@ fn test_updates_schedules() {
             start_time: 1642402274u64,
             cliff: 0u64,
             duration: 31536000u64,
+            percent_at_cliff: None,
         },
     )
     .unwrap();
@@ -1678,6 +1704,7 @@ fn test_updates_schedules() {
             start_time: 1642402274u64,
             cliff: 7776000u64,
             duration: 31536000u64,
+            percent_at_cliff: None,
         },
     )
     .unwrap();
@@ -1693,6 +1720,7 @@ fn test_updates_schedules() {
             start_time: 1642402274u64,
             cliff: 7776000u64,
             duration: 31536000u64,
+            percent_at_cliff: None,
         },
     )
     .unwrap();
@@ -1709,6 +1737,7 @@ fn test_updates_schedules() {
                         start_time: 123u64,
                         cliff: 123u64,
                         duration: 123u64,
+                        percent_at_cliff: None,
                     },
                 )],
             },
@@ -1732,6 +1761,7 @@ fn test_updates_schedules() {
                             start_time: 123u64,
                             cliff: 123u64,
                             duration: 123u64,
+                            percent_at_cliff: None,
                         },
                     ),
                     (
@@ -1740,6 +1770,7 @@ fn test_updates_schedules() {
                             start_time: 123u64,
                             cliff: 123u64,
                             duration: 123u64,
+                            percent_at_cliff: None,
                         },
                     ),
                 ],
@@ -1763,6 +1794,7 @@ fn test_updates_schedules() {
                         start_time: 1642402284u64,
                         cliff: 8776000u64,
                         duration: 31536001u64,
+                        percent_at_cliff: None,
                     },
                 ),
                 (
@@ -1771,6 +1803,7 @@ fn test_updates_schedules() {
                         start_time: 1642402284u64,
                         cliff: 8776000u64,
                         duration: 31536001u64,
+                        percent_at_cliff: None,
                     },
                 ),
             ],
@@ -1790,6 +1823,7 @@ fn test_updates_schedules() {
             start_time: 1642402284u64,
             cliff: 8776000u64,
             duration: 31536001u64,
+            percent_at_cliff: None,
         },
     )
     .unwrap();
@@ -1805,6 +1839,7 @@ fn test_updates_schedules() {
             start_time: 1642402284u64,
             cliff: 8776000u64,
             duration: 31536001u64,
+            percent_at_cliff: None,
         },
     )
     .unwrap();
@@ -1830,6 +1865,7 @@ fn test_updates_schedules() {
                     start_time: 1642402284u64,
                     cliff: 8776000u64,
                     duration: 31536001u64,
+                    percent_at_cliff: None,
                 },
                 proposed_receiver: None,
             },
@@ -1842,6 +1878,7 @@ fn test_updates_schedules() {
                     start_time: 1642402274,
                     cliff: 0,
                     duration: 31536000,
+                    percent_at_cliff: None,
                 },
                 proposed_receiver: None,
             },
@@ -1854,6 +1891,7 @@ fn test_updates_schedules() {
                     start_time: 1642402284u64,
                     cliff: 8776000u64,
                     duration: 31536001u64,
+                    percent_at_cliff: None,
                 },
                 proposed_receiver: None,
             },
@@ -1880,6 +1918,7 @@ fn test_updates_schedules() {
                 start_time: 1642402284u64,
                 cliff: 8776000u64,
                 duration: 31536001u64,
+                percent_at_cliff: None,
             },
             proposed_receiver: None,
         },
@@ -1904,4 +1943,270 @@ fn check_allocation(
     assert_eq!(resp.params.unlock_schedule, unlock_schedule);
 
     Ok(())
+}
+
+fn query_cw20_bal(app: &mut App, cw20_addr: &Addr, address: &Addr) -> u128 {
+    app.wrap()
+        .query_wasm_smart::<BalanceResponse>(
+            cw20_addr,
+            &cw20::Cw20QueryMsg::Balance {
+                address: address.to_string(),
+            },
+        )
+        .unwrap()
+        .balance
+        .u128()
+}
+
+#[test]
+fn test_create_allocations_with_custom_cliff() {
+    let mut app = mock_app();
+    let (unlock_instance, astro_instance, _) = init_contracts(&mut app);
+    let total_astro = Uint128::new(1_000_000_000000);
+    let owner = Addr::unchecked(OWNER);
+
+    mint_some_astro(
+        &mut app,
+        owner.clone(),
+        astro_instance.clone(),
+        total_astro,
+        owner.to_string(),
+    );
+
+    let now_ts = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    app.update_block(|block| block.time = Timestamp::from_seconds(now_ts));
+    let day = 86400u64;
+
+    let investor1 = Addr::unchecked("investor1");
+    let investor2 = Addr::unchecked("investor2");
+    let investor3 = Addr::unchecked("investor3");
+    let mut allocations = vec![];
+    allocations.push((
+        investor1.to_string(),
+        AllocationParams {
+            amount: Uint128::from(500_000_000000u64),
+            unlock_schedule: Schedule {
+                start_time: now_ts,
+                cliff: day * 365,        // 1 year
+                duration: 3 * day * 365, // 3 years
+                percent_at_cliff: None,
+            },
+            proposed_receiver: None,
+        },
+    ));
+    allocations.push((
+        investor2.to_string(),
+        AllocationParams {
+            amount: Uint128::from(100_000_000000u64),
+            unlock_schedule: Schedule {
+                start_time: now_ts - day * 30,                         // 1 month ago
+                cliff: 6 * day * 30,                                   // 6 months
+                duration: 3 * day * 365,                               // 3 years
+                percent_at_cliff: Some(Decimal::from_ratio(1u8, 6u8)), // one sixth
+            },
+            proposed_receiver: None,
+        },
+    ));
+    allocations.push((
+        investor3.to_string(),
+        AllocationParams {
+            amount: Uint128::from(400_000_000000u64),
+            unlock_schedule: Schedule {
+                start_time: now_ts - day * 365,               // 1 year ago
+                cliff: 6 * day * 30,                          // 6 months
+                duration: 3 * day * 365,                      // 3 years
+                percent_at_cliff: Some(Decimal::percent(20)), // 20% at cliff
+            },
+            proposed_receiver: None,
+        },
+    ));
+
+    // Create allocations
+    app.execute_contract(
+        owner.clone(),
+        astro_instance.clone(),
+        &cw20::Cw20ExecuteMsg::Send {
+            contract: unlock_instance.to_string(),
+            amount: total_astro,
+            msg: to_binary(&ReceiveMsg::CreateAllocations {
+                allocations: allocations.clone(),
+            })
+            .unwrap(),
+        },
+        &[],
+    )
+    .unwrap();
+
+    // Investor1's allocation just has been created
+    let err = app
+        .execute_contract(
+            investor1.clone(),
+            unlock_instance.clone(),
+            &ExecuteMsg::Withdraw {},
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Generic error: No unlocked ASTRO to be withdrawn"
+    );
+
+    // Investor2 needs to wait 5 months more
+    let err = app
+        .execute_contract(
+            investor2.clone(),
+            unlock_instance.clone(),
+            &ExecuteMsg::Withdraw {},
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Generic error: No unlocked ASTRO to be withdrawn"
+    );
+
+    // Investor3 has 20% of his allocation unlocked + linearly unlocked astro for the last 6 months
+    app.execute_contract(
+        investor3.clone(),
+        unlock_instance.clone(),
+        &ExecuteMsg::Withdraw {},
+        &[],
+    )
+    .unwrap();
+    let balance = query_cw20_bal(&mut app, &astro_instance, &investor3);
+    let amount_at_cliff = allocations[2].1.amount.u128() / 5;
+    let amount_linearly_vested = 64699_453551;
+    assert_eq!(balance, amount_at_cliff + amount_linearly_vested);
+
+    // shift by 5 months
+    app.update_block(|block| block.time = block.time.plus_seconds(5 * 30 * day));
+
+    // Investor1 is still waiting
+    let err = app
+        .execute_contract(
+            investor1.clone(),
+            unlock_instance.clone(),
+            &ExecuteMsg::Withdraw {},
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Generic error: No unlocked ASTRO to be withdrawn"
+    );
+
+    // Investor2 receives his one sixth of the allocation
+    app.execute_contract(
+        investor2.clone(),
+        unlock_instance.clone(),
+        &ExecuteMsg::Withdraw {},
+        &[],
+    )
+    .unwrap();
+    let balance = query_cw20_bal(&mut app, &astro_instance, &investor2);
+    assert_eq!(balance, 16666_666666);
+
+    // Investor3 continues to receive linearly unlocked astro
+    app.execute_contract(
+        investor3.clone(),
+        unlock_instance.clone(),
+        &ExecuteMsg::Withdraw {},
+        &[],
+    )
+    .unwrap();
+    let balance = query_cw20_bal(&mut app, &astro_instance, &investor3);
+    assert_eq!(balance, 197158_469945);
+
+    // shift by 7 months
+    app.update_block(|block| block.time = block.time.plus_seconds(215 * day));
+
+    // Investor1 receives his allocation (linearly unlocked from start point)
+    app.execute_contract(
+        investor1.clone(),
+        unlock_instance.clone(),
+        &ExecuteMsg::Withdraw {},
+        &[],
+    )
+    .unwrap();
+    let balance = query_cw20_bal(&mut app, &astro_instance, &investor1);
+    assert_eq!(balance, 166666_666666);
+
+    // Investor2 continues to receive linearly unlocked astro
+    app.execute_contract(
+        investor2.clone(),
+        unlock_instance.clone(),
+        &ExecuteMsg::Withdraw {},
+        &[],
+    )
+    .unwrap();
+    let balance = query_cw20_bal(&mut app, &astro_instance, &investor2);
+    assert_eq!(balance, 36247_723132);
+
+    // Investor3 continues to receive linearly unlocked astro
+    app.execute_contract(
+        investor3.clone(),
+        unlock_instance.clone(),
+        &ExecuteMsg::Withdraw {},
+        &[],
+    )
+    .unwrap();
+    let balance = query_cw20_bal(&mut app, &astro_instance, &investor3);
+    assert_eq!(balance, 272349_726775);
+
+    // shift by 2 years
+    app.update_block(|block| block.time = block.time.plus_seconds(2 * 365 * day));
+
+    // Investor1 receives whole allocation
+    app.execute_contract(
+        investor1.clone(),
+        unlock_instance.clone(),
+        &ExecuteMsg::Withdraw {},
+        &[],
+    )
+    .unwrap();
+    let balance = query_cw20_bal(&mut app, &astro_instance, &investor1);
+    assert_eq!(balance, 500000_000000);
+
+    // Investor2 receives whole allocation
+    app.execute_contract(
+        investor2.clone(),
+        unlock_instance.clone(),
+        &ExecuteMsg::Withdraw {},
+        &[],
+    )
+    .unwrap();
+    let balance = query_cw20_bal(&mut app, &astro_instance, &investor2);
+    assert_eq!(balance, 100000_000000);
+
+    // Investor3 receives whole allocation
+    app.execute_contract(
+        investor3.clone(),
+        unlock_instance.clone(),
+        &ExecuteMsg::Withdraw {},
+        &[],
+    )
+    .unwrap();
+    let balance = query_cw20_bal(&mut app, &astro_instance, &investor3);
+    assert_eq!(balance, 400000_000000);
+
+    app.update_block(|block| block.time = block.time.plus_seconds(day));
+
+    // No more ASTRO left for withdrawals
+    for investor in &[investor1, investor2, investor3] {
+        let err = app
+            .execute_contract(
+                investor.clone(),
+                unlock_instance.clone(),
+                &ExecuteMsg::Withdraw {},
+                &[],
+            )
+            .unwrap_err();
+        assert_eq!(
+            err.root_cause().to_string(),
+            "Generic error: No unlocked ASTRO to be withdrawn"
+        );
+    }
 }

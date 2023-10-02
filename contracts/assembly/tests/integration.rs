@@ -604,6 +604,7 @@ fn test_successful_proposal() {
             start_time: 12_345,
             cliff: 5,
             duration: 500,
+            percent_at_cliff: None,
         },
         proposed_receiver: None,
     };
