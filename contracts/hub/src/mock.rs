@@ -4,8 +4,8 @@ use std::cell::Cell;
 use cosmwasm_std::{from_binary, Uint64};
 use cosmwasm_std::{
     testing::{mock_env, mock_info, MockApi, MockQuerier, MockStorage},
-    to_binary, Addr, Binary, DepsMut, Env, IbcChannel, IbcChannelConnectMsg, IbcChannelOpenMsg,
-    IbcEndpoint, IbcOrder, IbcPacket, IbcQuery, ListChannelsResponse, MessageInfo, OwnedDeps,
+    to_binary, Addr, Binary, ChannelResponse, DepsMut, Env, IbcChannel, IbcChannelConnectMsg,
+    IbcChannelOpenMsg, IbcEndpoint, IbcOrder, IbcPacket, IbcQuery, MessageInfo, OwnedDeps,
     Timestamp, Uint128,
 };
 
@@ -149,67 +149,23 @@ impl WasmMockQuerier {
                     }
                 }
             }
-            QueryRequest::Ibc(IbcQuery::ListChannels { .. }) => {
-                let response = ListChannelsResponse {
-                    channels: vec![
-                        IbcChannel::new(
-                            IbcEndpoint {
-                                port_id: "wasm".to_string(),
-                                channel_id: "channel-1".to_string(),
-                            },
-                            IbcEndpoint {
-                                port_id: "wasm".to_string(),
-                                channel_id: "channel-1".to_string(),
-                            },
-                            IbcOrder::Unordered,
-                            "version",
-                            "connection-1",
-                        ),
-                        IbcChannel::new(
-                            IbcEndpoint {
-                                port_id: "wasm".to_string(),
-                                channel_id: "channel-2".to_string(),
-                            },
-                            IbcEndpoint {
-                                port_id: "wasm".to_string(),
-                                channel_id: "channel-2".to_string(),
-                            },
-                            IbcOrder::Unordered,
-                            "version",
-                            "connection-1",
-                        ),
-                        IbcChannel::new(
-                            IbcEndpoint {
-                                port_id: "wasm".to_string(),
-                                channel_id: "channel-3".to_string(),
-                            },
-                            IbcEndpoint {
-                                port_id: "wasm".to_string(),
-                                channel_id: "channel-1".to_string(),
-                            },
-                            IbcOrder::Unordered,
-                            "version",
-                            "connection-1",
-                        ),
-                        IbcChannel::new(
-                            IbcEndpoint {
-                                port_id: "wasm".to_string(),
-                                channel_id: "channel-100".to_string(),
-                            },
-                            IbcEndpoint {
-                                port_id: "wasm".to_string(),
-                                channel_id: "channel-1".to_string(),
-                            },
-                            IbcOrder::Unordered,
-                            "version",
-                            "connection-1",
-                        ),
-                    ],
+            QueryRequest::Ibc(IbcQuery::Channel { .. }) => {
+                let response = ChannelResponse {
+                    channel: Some(IbcChannel::new(
+                        IbcEndpoint {
+                            port_id: "wasm".to_string(),
+                            channel_id: "channel-1".to_string(),
+                        },
+                        IbcEndpoint {
+                            port_id: "wasm".to_string(),
+                            channel_id: "channel-1".to_string(),
+                        },
+                        IbcOrder::Unordered,
+                        "version",
+                        "connection-1",
+                    )),
                 };
                 SystemResult::Ok(to_binary(&response).into())
-                // if contract_addr != "cw20_ics20" {
-                //     return SystemResult::Err(SystemError::Unknown {});
-                // }
             }
             _ => self.base.handle_query(request),
         }

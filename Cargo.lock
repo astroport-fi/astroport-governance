@@ -21,10 +21,10 @@ checksum = "3b13c32d80ecc7ab747b80c3784bce54ee8a7a0cc4fbda9bf4cda2cf6fe90854"
 
 [[package]]
 name = "astro-assembly"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "anyhow",
- "astroport-governance 1.4.0",
+ "astroport-governance 1.4.1",
  "astroport-hub",
  "astroport-nft",
  "astroport-staking",
@@ -61,8 +61,8 @@ dependencies = [
 
 [[package]]
 name = "astroport"
-version = "3.6.0"
-source = "git+https://github.com/astroport-fi/hidden_astroport_core#6c753c41e72ef5ea60bfa3363657bbc6e775f72d"
+version = "3.6.2"
+source = "git+https://github.com/astroport-fi/hidden_astroport_core#062bb4b1c9ee9ff079f97850135573a426be16bc"
 dependencies = [
  "astroport-circular-buffer",
  "cosmwasm-schema",
@@ -78,7 +78,7 @@ dependencies = [
 [[package]]
 name = "astroport-circular-buffer"
 version = "0.1.0"
-source = "git+https://github.com/astroport-fi/hidden_astroport_core#6c753c41e72ef5ea60bfa3363657bbc6e775f72d"
+source = "git+https://github.com/astroport-fi/hidden_astroport_core#062bb4b1c9ee9ff079f97850135573a426be16bc"
 dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -90,7 +90,7 @@ dependencies = [
 name = "astroport-escrow-fee-distributor"
 version = "1.0.2"
 dependencies = [
- "astroport-governance 1.4.0",
+ "astroport-governance 1.4.1",
  "astroport-tests",
  "astroport-token",
  "cosmwasm-schema",
@@ -107,7 +107,7 @@ name = "astroport-factory"
 version = "1.6.0"
 source = "git+https://github.com/astroport-fi/hidden_astroport_core#6c753c41e72ef5ea60bfa3363657bbc6e775f72d"
 dependencies = [
- "astroport 3.6.0",
+ "astroport 3.6.2",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 0.15.1",
@@ -123,8 +123,8 @@ name = "astroport-generator"
 version = "2.3.2"
 source = "git+https://github.com/astroport-fi/hidden_astroport_core#6c753c41e72ef5ea60bfa3363657bbc6e775f72d"
 dependencies = [
- "astroport 3.6.0",
- "astroport-governance 1.4.0",
+ "astroport 3.6.2",
+ "astroport-governance 1.4.1",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 0.15.1",
@@ -150,9 +150,9 @@ dependencies = [
 
 [[package]]
 name = "astroport-governance"
-version = "1.4.0"
+version = "1.4.1"
 dependencies = [
- "astroport 3.6.0",
+ "astroport 3.6.2",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 0.15.1",
@@ -165,8 +165,8 @@ name = "astroport-hub"
 version = "1.0.0"
 dependencies = [
  "anyhow",
- "astroport 3.6.0",
- "astroport-governance 1.4.0",
+ "astroport 3.6.2",
+ "astroport-governance 1.4.1",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-multi-test 0.16.5",
@@ -191,7 +191,7 @@ dependencies = [
 name = "astroport-nft"
 version = "1.0.0"
 dependencies = [
- "astroport-governance 1.4.0",
+ "astroport-governance 1.4.1",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw2 0.15.1",
@@ -204,8 +204,8 @@ name = "astroport-outpost"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "astroport 3.6.0",
- "astroport-governance 1.4.0",
+ "astroport 3.6.2",
+ "astroport-governance 1.4.1",
  "base64",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -226,7 +226,7 @@ name = "astroport-pair"
 version = "1.5.0"
 source = "git+https://github.com/astroport-fi/hidden_astroport_core#6c753c41e72ef5ea60bfa3363657bbc6e775f72d"
 dependencies = [
- "astroport 3.6.0",
+ "astroport 3.6.2",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 0.15.1",
@@ -243,7 +243,7 @@ name = "astroport-staking"
 version = "1.1.0"
 source = "git+https://github.com/astroport-fi/hidden_astroport_core#6c753c41e72ef5ea60bfa3363657bbc6e775f72d"
 dependencies = [
- "astroport 3.6.0",
+ "astroport 3.6.2",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 0.15.1",
@@ -259,11 +259,11 @@ name = "astroport-tests"
 version = "1.0.0"
 dependencies = [
  "anyhow",
- "astroport 3.6.0",
+ "astroport 3.6.2",
  "astroport-escrow-fee-distributor",
  "astroport-factory",
  "astroport-generator",
- "astroport-governance 1.4.0",
+ "astroport-governance 1.4.1",
  "astroport-pair",
  "astroport-staking",
  "astroport-token",
@@ -283,11 +283,11 @@ version = "1.0.0"
 dependencies = [
  "anyhow",
  "astro-assembly",
- "astroport 3.6.0",
+ "astroport 3.6.2",
  "astroport-escrow-fee-distributor",
  "astroport-factory",
  "astroport-generator",
- "astroport-governance 1.4.0",
+ "astroport-governance 1.4.1",
  "astroport-pair",
  "astroport-staking",
  "astroport-token",
@@ -306,7 +306,7 @@ name = "astroport-token"
 version = "1.1.1"
 source = "git+https://github.com/astroport-fi/hidden_astroport_core#6c753c41e72ef5ea60bfa3363657bbc6e775f72d"
 dependencies = [
- "astroport 3.6.0",
+ "astroport 3.6.2",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw2 0.15.1",
@@ -320,7 +320,7 @@ name = "astroport-whitelist"
 version = "1.0.1"
 source = "git+https://github.com/astroport-fi/hidden_astroport_core#6c753c41e72ef5ea60bfa3363657bbc6e775f72d"
 dependencies = [
- "astroport 3.6.0",
+ "astroport 3.6.2",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw1-whitelist",
@@ -333,7 +333,7 @@ name = "astroport-xastro-token"
 version = "1.1.0"
 source = "git+https://github.com/astroport-fi/hidden_astroport_core#6c753c41e72ef5ea60bfa3363657bbc6e775f72d"
 dependencies = [
- "astroport 3.6.0",
+ "astroport 3.6.2",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 0.15.1",
@@ -422,8 +422,8 @@ checksum = "845141a4fade3f790628b7daaaa298a25b204fb28907eb54febe5142db6ce653"
 name = "builder-unlock"
 version = "2.0.0"
 dependencies = [
- "astroport 3.6.0",
- "astroport-governance 1.4.0",
+ "astroport 3.6.2",
+ "astroport-governance 1.4.1",
  "astroport-token",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -990,7 +990,7 @@ dependencies = [
  "anyhow",
  "astroport-factory",
  "astroport-generator",
- "astroport-governance 1.4.0",
+ "astroport-governance 1.4.1",
  "astroport-pair",
  "astroport-staking",
  "astroport-tests",
@@ -1015,7 +1015,7 @@ dependencies = [
  "anyhow",
  "astroport-factory",
  "astroport-generator",
- "astroport-governance 1.4.0",
+ "astroport-governance 1.4.1",
  "astroport-pair",
  "astroport-staking",
  "astroport-tests-lite",
@@ -1645,7 +1645,7 @@ version = "1.3.0"
 dependencies = [
  "anyhow",
  "astroport-escrow-fee-distributor",
- "astroport-governance 1.4.0",
+ "astroport-governance 1.4.1",
  "astroport-staking",
  "astroport-token",
  "cosmwasm-schema",
@@ -1664,7 +1664,7 @@ name = "voting-escrow-delegation"
 version = "1.0.0"
 dependencies = [
  "anyhow",
- "astroport-governance 1.4.0",
+ "astroport-governance 1.4.1",
  "astroport-nft",
  "astroport-tests",
  "cosmwasm-schema",
@@ -1684,7 +1684,7 @@ name = "voting-escrow-lite"
 version = "1.0.0"
 dependencies = [
  "anyhow",
- "astroport-governance 1.4.0",
+ "astroport-governance 1.4.1",
  "astroport-staking",
  "astroport-token",
  "cosmwasm-schema",

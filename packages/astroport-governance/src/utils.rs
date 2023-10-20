@@ -1,6 +1,6 @@
 use cosmwasm_std::{
-    to_binary, Addr, Decimal, Fraction, IbcQuery, ListChannelsResponse, OverflowError,
-    QuerierWrapper, QueryRequest, StdError, StdResult, Uint128, Uint256, Uint64, WasmQuery,
+    to_binary, Addr, ChannelResponse, Decimal, Fraction, IbcQuery, OverflowError, QuerierWrapper,
+    QueryRequest, StdError, StdResult, Uint128, Uint256, Uint64, WasmQuery,
 };
 
 use crate::hub::HubBalance;
@@ -141,15 +141,18 @@ pub fn check_contract_supports_channel(
     given_channel: &String,
 ) -> Result<(), StdError> {
     let port_id = Some(format!("wasm.{contract}"));
-    let ListChannelsResponse { channels } =
-        querier.query(&QueryRequest::Ibc(IbcQuery::ListChannels { port_id }))?;
-    channels
-        .iter()
-        .find(|channel| &channel.endpoint.channel_id == given_channel)
-        .map(|_| ())
-        .ok_or_else(|| StdError::GenericErr {
-            msg: format!("The contract does not have channel {0}", given_channel),
-        })
+    let ChannelResponse { channel } = querier.query(
+        &IbcQuery::Channel {
+            channel_id: given_channel.to_string(),
+            port_id,
+        }
+        .into(),
+    )?;
+    channel.map(|_| ()).ok_or_else(|| {
+        StdError::generic_err(format!(
+            "The contract does not have channel {given_channel}"
+        ))
+    })
 }
 
 /// Retrieves the total amount of voting power held by all Outposts at a given time
