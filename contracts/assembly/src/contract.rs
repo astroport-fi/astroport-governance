@@ -1,29 +1,26 @@
+use std::str::FromStr;
+
+use astroport::xastro_token::QueryMsg as XAstroTokenQueryMsg;
 use cosmwasm_std::{
-    attr, entry_point, from_binary, to_binary, wasm_execute, Addr, Binary, CosmosMsg, Decimal,
-    Deps, DepsMut, Env, IbcQuery, ListChannelsResponse, MessageInfo, Order, QuerierWrapper,
-    QueryRequest, Response, StdResult, Uint128, Uint64, WasmMsg,
+    attr, entry_point, from_binary, to_binary, wasm_execute, Addr, Binary, ChannelResponse,
+    CosmosMsg, Decimal, Deps, DepsMut, Empty, Env, IbcQuery, MessageInfo, Order, QuerierWrapper,
+    Response, StdResult, Uint128, Uint64, WasmMsg,
 };
 use cw2::{get_contract_version, set_contract_version};
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20ReceiveMsg};
 use cw_storage_plus::Bound;
-use std::str::FromStr;
 
 use astroport_governance::assembly::{
     helpers::validate_links, Config, Cw20HookMsg, ExecuteMsg, InstantiateMsg, Proposal,
     ProposalListResponse, ProposalStatus, ProposalVoteOption, ProposalVotesResponse, QueryMsg,
     UpdateConfig,
 };
-
-use astroport::xastro_token::QueryMsg as XAstroTokenQueryMsg;
 use astroport_governance::builder_unlock::msg::{
     AllocationResponse, QueryMsg as BuilderUnlockQueryMsg, StateResponse,
 };
 use astroport_governance::voting_escrow::{QueryMsg as VotingEscrowQueryMsg, VotingPowerResponse};
 
 use crate::error::ContractError;
-use crate::migration::{
-    migrate_config, migrate_proposals_from_v110, migrate_proposals_from_v121, MigrateMsg,
-};
 use crate::state::{CONFIG, PROPOSALS, PROPOSAL_COUNT};
 
 // Contract name and version used for migration.
@@ -918,11 +915,14 @@ pub fn check_controller_supports_channel(
     given_channel: &String,
 ) -> Result<(), ContractError> {
     let port_id = Some(format!("wasm.{ibc_controller}"));
-    let ListChannelsResponse { channels } =
-        querier.query(&QueryRequest::Ibc(IbcQuery::ListChannels { port_id }))?;
-    channels
-        .iter()
-        .find(|channel| &channel.endpoint.channel_id == given_channel)
+    let ChannelResponse { channel } = querier.query(
+        &IbcQuery::Channel {
+            channel_id: given_channel.to_string(),
+            port_id,
+        }
+        .into(),
+    )?;
+    channel
         .map(|_| ())
         .ok_or_else(|| ContractError::InvalidChannel(given_channel.to_string()))
 }
@@ -936,18 +936,12 @@ pub fn check_controller_supports_channel(
 ///
 /// * **msg** is an object of type [`MigrateMsg`].
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(mut deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
+pub fn migrate(deps: DepsMut, _env: Env, _msg: Empty) -> Result<Response, ContractError> {
     let contract_version = get_contract_version(deps.storage)?;
 
     match contract_version.contract.as_ref() {
         "astro-assembly" => match contract_version.version.as_ref() {
-            "1.1.0" => {
-                migrate_config(&mut deps, &msg)?;
-                migrate_proposals_from_v110(deps.storage)?;
-            }
-            "1.2.1" => {
-                migrate_proposals_from_v121(deps.storage)?;
-            }
+            "1.3.0" => {}
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),
