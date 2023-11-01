@@ -1,21 +1,21 @@
 use cosmwasm_std::{
-    attr, entry_point, from_binary, to_binary, wasm_execute, Addr, Binary, CosmosMsg, Decimal,
-    Deps, DepsMut, Env, MessageInfo, Order, Response, StdResult, Uint128, Uint64, WasmMsg,
+    attr, coin, entry_point, to_binary, wasm_execute, BankMsg, Binary, CosmosMsg, Decimal, Deps,
+    DepsMut, Env, MessageInfo, Order, Response, StdError, StdResult, Uint128, Uint64, WasmMsg,
 };
 use cw2::{get_contract_version, set_contract_version};
-use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20ReceiveMsg};
+use cw20::{BalanceResponse, Cw20ExecuteMsg};
 use cw_storage_plus::Bound;
+use cw_utils::must_pay;
 use std::str::FromStr;
 
 use crate::astroport;
 use astroport_governance::assembly::{
-    helpers::validate_links, Config, Cw20HookMsg, ExecuteMsg, InstantiateMsg, Proposal,
-    ProposalListResponse, ProposalStatus, ProposalVoteOption, ProposalVotesResponse, QueryMsg,
-    UpdateConfig,
+    helpers::validate_links, Config, ExecuteMsg, InstantiateMsg, Proposal, ProposalListResponse,
+    ProposalStatus, ProposalVoteOption, ProposalVotesResponse, QueryMsg, UpdateConfig,
 };
 
 use crate::astroport::asset::addr_opt_validate;
-use astroport::xastro_token::QueryMsg as XAstroTokenQueryMsg;
+use astroport::tokenfactory_tracker::QueryMsg as TokenFactoryTrackerQueryMsg;
 use astroport_governance::builder_unlock::msg::{
     AllocationResponse, QueryMsg as BuilderUnlockQueryMsg, StateResponse,
 };
@@ -28,7 +28,7 @@ use astroport_governance::voting_escrow_lite::{
 };
 
 use crate::error::ContractError;
-use crate::migration::{migrate_config_to_160, migrate_proposals_to_v160, MigrateMsg};
+use crate::migration::MigrateMsg;
 use crate::state::{CONFIG, PROPOSALS, PROPOSAL_COUNT};
 
 use ibc_controller_package::ExecuteMsg as ControllerExecuteMsg;
@@ -59,8 +59,13 @@ pub fn instantiate(
 
     validate_links(&msg.whitelisted_links)?;
 
+    // TODO: Check that the xastro_denom_tracking_address reports the tracked_denom
+    // to be the same as xastro_denom
+
     let config = Config {
-        xastro_token_addr: deps.api.addr_validate(&msg.xastro_token_addr)?,
+        xastro_denom: msg.xastro_denom,
+        // TODO: Address?, check naming
+        xastro_denom_tracking: msg.xastro_denom_tracking_address,
         vxastro_token_addr: addr_opt_validate(deps.api, &msg.vxastro_token_addr)?,
         voting_escrow_delegator_addr: addr_opt_validate(
             deps.api,
@@ -120,7 +125,22 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::Receive(cw20_msg) => receive_cw20(deps, env, info, cw20_msg),
+        ExecuteMsg::SubmitProposal {
+            title,
+            description,
+            link,
+            messages,
+            ibc_channel,
+        } => submit_proposal(
+            deps,
+            env,
+            info,
+            title,
+            description,
+            link,
+            messages,
+            ibc_channel,
+        ),
         ExecuteMsg::CastVote { proposal_id, vote } => cast_vote(deps, env, info, proposal_id, vote),
         ExecuteMsg::CastOutpostVote {
             proposal_id,
@@ -160,37 +180,6 @@ pub fn execute(
     }
 }
 
-/// Receives a message of type [`Cw20ReceiveMsg`] and processes it depending on the received template.
-///
-/// * **cw20_msg** CW20 message to process.
-pub fn receive_cw20(
-    deps: DepsMut,
-    env: Env,
-    info: MessageInfo,
-    cw20_msg: Cw20ReceiveMsg,
-) -> Result<Response, ContractError> {
-    match from_binary(&cw20_msg.msg)? {
-        Cw20HookMsg::SubmitProposal {
-            title,
-            description,
-            link,
-            messages,
-            ibc_channel,
-        } => submit_proposal(
-            deps,
-            env,
-            info,
-            Addr::unchecked(cw20_msg.sender),
-            cw20_msg.amount,
-            title,
-            description,
-            link,
-            messages,
-            ibc_channel,
-        ),
-    }
-}
-
 /// Submit a brand new proposal and locks some xASTRO as an anti-spam mechanism.
 ///
 /// * **sender** proposal submitter.
@@ -209,8 +198,6 @@ pub fn submit_proposal(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    sender: Addr,
-    deposit_amount: Uint128,
     title: String,
     description: String,
     link: Option<String>,
@@ -219,9 +206,9 @@ pub fn submit_proposal(
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
 
-    if info.sender != config.xastro_token_addr {
-        return Err(ContractError::Unauthorized {});
-    }
+    // Ensure that the correct token is sent. This will fail if
+    // zero tokens are sent.
+    let mut deposit_amount = must_pay(&info, &config.xastro_denom)?;
 
     if deposit_amount < config.proposal_required_deposit {
         return Err(ContractError::InsufficientDeposit {});
@@ -243,7 +230,7 @@ pub fn submit_proposal(
 
     let proposal = Proposal {
         proposal_id: count,
-        submitter: sender.clone(),
+        submitter: info.sender.clone(),
         status: ProposalStatus::Active,
         for_power: Uint128::zero(),
         outpost_for_power: Uint128::zero(),
@@ -275,7 +262,7 @@ pub fn submit_proposal(
 
     Ok(Response::new().add_attributes(vec![
         attr("action", "submit_proposal"),
-        attr("submitter", sender),
+        attr("submitter", info.sender),
         attr("proposal_id", count),
         attr(
             "proposal_end_height",
@@ -440,7 +427,8 @@ pub fn cast_outpost_vote(
     ]))
 }
 
-/// Ends proposal voting period and sets the proposal status by id.
+/// Ends proposal voting period, sets the proposal status by id and returns
+/// xASTRO submitted for the proposal.
 pub fn end_proposal(deps: DepsMut, env: Env, proposal_id: u64) -> Result<Response, ContractError> {
     let mut proposal = PROPOSALS.load(deps.storage, proposal_id)?;
 
@@ -488,14 +476,10 @@ pub fn end_proposal(deps: DepsMut, env: Env, proposal_id: u64) -> Result<Respons
             attr("proposal_id", proposal_id.to_string()),
             attr("proposal_result", proposal.status.to_string()),
         ])
-        .add_message(CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: config.xastro_token_addr.to_string(),
-            msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                recipient: proposal.submitter.to_string(),
-                amount: proposal.deposit_amount,
-            })?,
-            funds: vec![],
-        }));
+        .add_message(BankMsg::Send {
+            to_address: proposal.submitter.to_string(),
+            amount: vec![coin(proposal.deposit_amount.into(), config.xastro_denom)],
+        });
 
     Ok(response)
 }
@@ -696,8 +680,8 @@ pub fn update_config(
         return Err(ContractError::Unauthorized {});
     }
 
-    if let Some(xastro_token_addr) = updated_config.xastro_token_addr {
-        config.xastro_token_addr = deps.api.addr_validate(&xastro_token_addr)?;
+    if let Some(xastro_denom) = updated_config.xastro_denom {
+        config.xastro_denom = xastro_denom;
     }
 
     if let Some(vxastro_token_addr) = updated_config.vxastro_token_addr {
@@ -1037,14 +1021,24 @@ pub fn calc_voting_power(deps: Deps, sender: String, proposal: &Proposal) -> Std
     // We use the previous block because it always has an up-to-date checkpoint.
     // BalanceAt will always return the balance information in the previous block,
     // so we don't subtract one block from proposal.start_block.
-    let xastro_amount: BalanceResponse = deps.querier.query_wasm_smart(
-        config.xastro_token_addr,
-        &XAstroTokenQueryMsg::BalanceAt {
+    // let xastro_amount: BalanceResponse = deps.querier.query_wasm_smart(
+    //     config.xastro_token_addr,
+    //     &XAstroTokenQueryMsg::BalanceAt {
+    //         address: sender.clone(),
+    //         block: proposal.start_block,
+    //     },
+    // )?;
+
+    // TODO: Comment, we query the balance tracking contract for xASTRO
+    let xastro_amount: Uint128 = deps.querier.query_wasm_smart(
+        config.xastro_denom_tracking,
+        &TokenFactoryTrackerQueryMsg::BalanceAt {
             address: sender.clone(),
-            block: proposal.start_block,
+            timestamp: Some(Uint64::from(proposal.start_time)),
         },
     )?;
-    let mut total = xastro_amount.balance;
+
+    let mut total = xastro_amount;
 
     let locked_amount: AllocationResponse = deps.querier.query_wasm_smart(
         config.builder_unlock_addr,
@@ -1107,10 +1101,16 @@ pub fn calc_total_voting_power_at(deps: Deps, proposal: &Proposal) -> StdResult<
 
     // This is the address' xASTRO balance at the previous block (proposal.start_block - 1).
     // We use the previous block because it always has an up-to-date checkpoint.
+    // let mut total: Uint128 = deps.querier.query_wasm_smart(
+    //     &config.xastro_token_addr,
+    //     &XAstroTokenQueryMsg::TotalSupplyAt {
+    //         block: proposal.start_block - 1,
+    //     },
+    // )?;
     let mut total: Uint128 = deps.querier.query_wasm_smart(
-        &config.xastro_token_addr,
-        &XAstroTokenQueryMsg::TotalSupplyAt {
-            block: proposal.start_block - 1,
+        config.xastro_denom_tracking,
+        &TokenFactoryTrackerQueryMsg::TotalSupplyAt {
+            timestamp: Some(Uint64::from(proposal.start_time)),
         },
     )?;
 
@@ -1142,25 +1142,8 @@ pub fn calc_total_voting_power_at(deps: Deps, proposal: &Proposal) -> StdResult<
 
 /// Manages contract migration.
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(mut deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
-    let contract_version = get_contract_version(deps.storage)?;
-
-    match contract_version.contract.as_ref() {
-        "astro-assembly" => match contract_version.version.as_ref() {
-            "1.3.0" => {
-                let cfg = migrate_config_to_160(deps.branch(), msg)?;
-                migrate_proposals_to_v160(deps.branch(), &cfg)?;
-            }
-            _ => return Err(ContractError::MigrationError {}),
-        },
-        _ => return Err(ContractError::MigrationError {}),
-    };
-
-    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-
-    Ok(Response::new()
-        .add_attribute("previous_contract_name", &contract_version.contract)
-        .add_attribute("previous_contract_version", &contract_version.version)
-        .add_attribute("new_contract_name", CONTRACT_NAME)
-        .add_attribute("new_contract_version", CONTRACT_VERSION))
+pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
+    Err(ContractError::Std(StdError::generic_err(
+        "This contract cannot be migrated.",
+    )))
 }

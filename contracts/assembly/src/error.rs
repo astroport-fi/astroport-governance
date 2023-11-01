@@ -1,5 +1,6 @@
 use astroport_governance::assembly::ProposalStatus;
 use cosmwasm_std::{OverflowError, StdError};
+use cw_utils::PaymentError;
 use thiserror::Error;
 
 /// This enum describes Assembly contract errors
@@ -82,6 +83,9 @@ pub enum ContractError {
 
     #[error("Voting power exceeds maximum Outpost power")]
     InvalidVotingPower {},
+
+    #[error("{0}")]
+    PaymentError(#[from] PaymentError),
 }
 
 impl From<OverflowError> for ContractError {

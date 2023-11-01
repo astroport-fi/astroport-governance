@@ -1,6 +1,6 @@
 [package]
 name = "astro-assembly"
-version = "1.6.1"
+version = "2.0.0"
 authors = ["Astroport"]
 edition = "2021"
 repository = "https://github.com/astroport-fi/astroport-governance"
@@ -23,6 +23,7 @@ astroport-governance = { path = "../../packages/astroport-governance" }
 ibc-controller-package = { git = "https://github.com/astroport-fi/astroport_ibc", branch = "main" }
 thiserror = { version = "1.0" }
 cosmwasm-schema = "1.1"
+cw-utils = "1.0.1"
 
 [dev-dependencies]
 cw-multi-test = "0.15"

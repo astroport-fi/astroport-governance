@@ -21,7 +21,7 @@ checksum = "3b13c32d80ecc7ab747b80c3784bce54ee8a7a0cc4fbda9bf4cda2cf6fe90854"
 
 [[package]]
 name = "astro-assembly"
-version = "1.6.1"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "astroport-governance 1.4.0",
@@ -35,6 +35,7 @@ dependencies = [
  "cosmwasm-std",
  "cw-multi-test 0.15.1",
  "cw-storage-plus 0.15.1",
+ "cw-utils 1.0.1",
  "cw2 0.15.1",
  "cw20 0.15.1",
  "ibc-controller-package",
@@ -62,9 +63,8 @@ dependencies = [
 [[package]]
 name = "astroport"
 version = "3.6.0"
-source = "git+https://github.com/astroport-fi/hidden_astroport_core#6c753c41e72ef5ea60bfa3363657bbc6e775f72d"
 dependencies = [
- "astroport-circular-buffer",
+ "astroport-circular-buffer 0.1.0",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 0.15.1",
@@ -73,6 +73,32 @@ dependencies = [
  "cw3",
  "itertools",
  "uint",
+]
+
+[[package]]
+name = "astroport"
+version = "3.6.0"
+source = "git+https://github.com/astroport-fi/hidden_astroport_core#6c753c41e72ef5ea60bfa3363657bbc6e775f72d"
+dependencies = [
+ "astroport-circular-buffer 0.1.0 (git+https://github.com/astroport-fi/hidden_astroport_core)",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-storage-plus 0.15.1",
+ "cw-utils 1.0.1",
+ "cw20 0.15.1",
+ "cw3",
+ "itertools",
+ "uint",
+]
+
+[[package]]
+name = "astroport-circular-buffer"
+version = "0.1.0"
+dependencies = [
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-storage-plus 0.15.1",
+ "thiserror",
 ]
 
 [[package]]
@@ -107,7 +133,7 @@ name = "astroport-factory"
 version = "1.6.0"
 source = "git+https://github.com/astroport-fi/hidden_astroport_core#6c753c41e72ef5ea60bfa3363657bbc6e775f72d"
 dependencies = [
- "astroport 3.6.0",
+ "astroport 3.6.0 (git+https://github.com/astroport-fi/hidden_astroport_core)",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 0.15.1",
@@ -123,7 +149,7 @@ name = "astroport-generator"
 version = "2.3.2"
 source = "git+https://github.com/astroport-fi/hidden_astroport_core#6c753c41e72ef5ea60bfa3363657bbc6e775f72d"
 dependencies = [
- "astroport 3.6.0",
+ "astroport 3.6.0 (git+https://github.com/astroport-fi/hidden_astroport_core)",
  "astroport-governance 1.4.0",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -165,7 +191,7 @@ name = "astroport-hub"
 version = "1.0.0"
 dependencies = [
  "anyhow",
- "astroport 3.6.0",
+ "astroport 3.6.0 (git+https://github.com/astroport-fi/hidden_astroport_core)",
  "astroport-governance 1.4.0",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -204,7 +230,7 @@ name = "astroport-outpost"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "astroport 3.6.0",
+ "astroport 3.6.0 (git+https://github.com/astroport-fi/hidden_astroport_core)",
  "astroport-governance 1.4.0",
  "base64",
  "cosmwasm-schema",
@@ -226,7 +252,7 @@ name = "astroport-pair"
 version = "1.5.0"
 source = "git+https://github.com/astroport-fi/hidden_astroport_core#6c753c41e72ef5ea60bfa3363657bbc6e775f72d"
 dependencies = [
- "astroport 3.6.0",
+ "astroport 3.6.0 (git+https://github.com/astroport-fi/hidden_astroport_core)",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 0.15.1",
@@ -243,7 +269,7 @@ name = "astroport-staking"
 version = "1.1.0"
 source = "git+https://github.com/astroport-fi/hidden_astroport_core#6c753c41e72ef5ea60bfa3363657bbc6e775f72d"
 dependencies = [
- "astroport 3.6.0",
+ "astroport 3.6.0 (git+https://github.com/astroport-fi/hidden_astroport_core)",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 0.15.1",
@@ -259,7 +285,7 @@ name = "astroport-tests"
 version = "1.0.0"
 dependencies = [
  "anyhow",
- "astroport 3.6.0",
+ "astroport 3.6.0 (git+https://github.com/astroport-fi/hidden_astroport_core)",
  "astroport-escrow-fee-distributor",
  "astroport-factory",
  "astroport-generator",
@@ -283,7 +309,7 @@ version = "1.0.0"
 dependencies = [
  "anyhow",
  "astro-assembly",
- "astroport 3.6.0",
+ "astroport 3.6.0 (git+https://github.com/astroport-fi/hidden_astroport_core)",
  "astroport-escrow-fee-distributor",
  "astroport-factory",
  "astroport-generator",
@@ -306,7 +332,7 @@ name = "astroport-token"
 version = "1.1.1"
 source = "git+https://github.com/astroport-fi/hidden_astroport_core#6c753c41e72ef5ea60bfa3363657bbc6e775f72d"
 dependencies = [
- "astroport 3.6.0",
+ "astroport 3.6.0 (git+https://github.com/astroport-fi/hidden_astroport_core)",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw2 0.15.1",
@@ -320,7 +346,7 @@ name = "astroport-whitelist"
 version = "1.0.1"
 source = "git+https://github.com/astroport-fi/hidden_astroport_core#6c753c41e72ef5ea60bfa3363657bbc6e775f72d"
 dependencies = [
- "astroport 3.6.0",
+ "astroport 3.6.0 (git+https://github.com/astroport-fi/hidden_astroport_core)",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw1-whitelist",
@@ -333,7 +359,7 @@ name = "astroport-xastro-token"
 version = "1.1.0"
 source = "git+https://github.com/astroport-fi/hidden_astroport_core#6c753c41e72ef5ea60bfa3363657bbc6e775f72d"
 dependencies = [
- "astroport 3.6.0",
+ "astroport 3.6.0 (git+https://github.com/astroport-fi/hidden_astroport_core)",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 0.15.1",
@@ -422,7 +448,7 @@ checksum = "845141a4fade3f790628b7daaaa298a25b204fb28907eb54febe5142db6ce653"
 name = "builder-unlock"
 version = "2.0.0"
 dependencies = [
- "astroport 3.6.0",
+ "astroport 3.6.0 (git+https://github.com/astroport-fi/hidden_astroport_core)",
  "astroport-governance 1.4.0",
  "astroport-token",
  "cosmwasm-schema",

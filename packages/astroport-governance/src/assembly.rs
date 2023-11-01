@@ -54,7 +54,9 @@ const SAFE_TEXT_CHARS: &str = "!&?#()*+'-./\"";
 #[cw_serde]
 pub struct InstantiateMsg {
     /// Address of xASTRO token
-    pub xastro_token_addr: String,
+    pub xastro_denom: String,
+    // TODO: Comment, the address that tracks xASTRO balances
+    pub xastro_denom_tracking_address: String,
     /// Address of vxASTRO token
     pub vxastro_token_addr: Option<String>,
     /// Voting Escrow delegator address
@@ -86,8 +88,15 @@ pub struct InstantiateMsg {
 /// This enum describes all execute functions available in the contract.
 #[cw_serde]
 pub enum ExecuteMsg {
-    /// Receive a message of type [`Cw20ReceiveMsg`]
-    Receive(Cw20ReceiveMsg),
+    /// Submit a new governance proposal
+    SubmitProposal {
+        title: String,
+        description: String,
+        link: Option<String>,
+        messages: Option<Vec<CosmosMsg>>,
+        /// If proposal should be executed on a remote chain this field should specify governance channel
+        ibc_channel: Option<String>,
+    },
     /// Cast a vote for an active proposal
     CastVote {
         /// Proposal identifier
@@ -199,25 +208,13 @@ pub enum QueryMsg {
     TotalVotingPower { proposal_id: u64 },
 }
 
-/// This structure stores data for a CW20 hook message.
-#[cw_serde]
-pub enum Cw20HookMsg {
-    /// Submit a new proposal in the Assembly
-    SubmitProposal {
-        title: String,
-        description: String,
-        link: Option<String>,
-        messages: Option<Vec<CosmosMsg>>,
-        /// If proposal should be executed on a remote chain this field should specify governance channel
-        ibc_channel: Option<String>,
-    },
-}
-
 /// This structure stores general parameters for the Assembly contract.
 #[cw_serde]
 pub struct Config {
-    /// xASTRO token address
-    pub xastro_token_addr: Addr,
+    /// xASTRO token denom
+    pub xastro_denom: String,
+    // TODO: Comments
+    pub xastro_denom_tracking: String,
     /// vxASTRO token address
     pub vxastro_token_addr: Option<Addr>,
     /// Voting Escrow delegator address
@@ -317,8 +314,8 @@ impl Config {
 /// This structure stores the params used when updating the main Assembly contract params.
 #[cw_serde]
 pub struct UpdateConfig {
-    /// xASTRO token address
-    pub xastro_token_addr: Option<String>,
+    /// xASTRO token denom
+    pub xastro_denom: Option<String>,
     /// vxASTRO token address
     pub vxastro_token_addr: Option<String>,
     /// Voting Escrow delegator address
