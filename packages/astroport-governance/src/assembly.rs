@@ -1,7 +1,6 @@
 use crate::assembly::helpers::is_safe_link;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Addr, CosmosMsg, Decimal, StdError, StdResult, Uint128, Uint64};
-use cw20::Cw20ReceiveMsg;
 use std::fmt::{Display, Formatter, Result};
 use std::str::FromStr;
 
@@ -183,14 +182,12 @@ pub enum QueryMsg {
         limit: Option<u32>,
     },
     /// Return proposal voters of specified proposal
-    #[returns(Vec<Addr>)]
+    #[returns(Vec<ProposalVoterResponse>)]
     ProposalVoters {
         /// Proposal unique id
         proposal_id: u64,
-        /// Proposal vote option
-        vote_option: ProposalVoteOption,
-        /// Id from which to start querying
-        start: Option<u64>,
+        /// Address after which to query
+        start_after: Option<String>,
         /// The amount of proposals to return
         limit: Option<u32>,
     },
@@ -365,10 +362,10 @@ pub struct Proposal {
     pub against_power: Uint128,
     /// `Against` power of proposal cast from all Outposts
     pub outpost_against_power: Uint128,
-    /// `For` votes for the proposal
-    pub for_voters: Vec<String>,
-    /// `Against` votes for the proposal
-    pub against_voters: Vec<String>,
+    // /// `For` votes for the proposal
+    // pub for_voters: Vec<String>,
+    // /// `Against` votes for the proposal
+    // pub against_voters: Vec<String>,
     /// Start block of proposal
     pub start_block: u64,
     /// Start time of proposal
@@ -516,6 +513,14 @@ pub struct ProposalListResponse {
     pub proposal_count: Uint64,
     /// The list of proposals that are returned
     pub proposal_list: Vec<Proposal>,
+}
+
+#[cw_serde]
+pub struct ProposalVoterResponse {
+    /// The address of the voter
+    pub address: String,
+    /// The option address voted with
+    pub vote_option: ProposalVoteOption,
 }
 
 pub mod helpers {

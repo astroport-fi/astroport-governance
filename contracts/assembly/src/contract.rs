@@ -2,8 +2,7 @@ use cosmwasm_std::{
     attr, coin, entry_point, to_binary, wasm_execute, BankMsg, Binary, CosmosMsg, Decimal, Deps,
     DepsMut, Env, MessageInfo, Order, Response, StdError, StdResult, Uint128, Uint64, WasmMsg,
 };
-use cw2::{get_contract_version, set_contract_version};
-use cw20::{BalanceResponse, Cw20ExecuteMsg};
+use cw2::set_contract_version;
 use cw_storage_plus::Bound;
 use cw_utils::must_pay;
 use std::str::FromStr;
@@ -16,6 +15,7 @@ use astroport_governance::assembly::{
 
 use crate::astroport::asset::addr_opt_validate;
 use astroport::tokenfactory_tracker::QueryMsg as TokenFactoryTrackerQueryMsg;
+use astroport_governance::assembly::ProposalVoterResponse;
 use astroport_governance::builder_unlock::msg::{
     AllocationResponse, QueryMsg as BuilderUnlockQueryMsg, StateResponse,
 };
@@ -29,12 +29,12 @@ use astroport_governance::voting_escrow_lite::{
 
 use crate::error::ContractError;
 use crate::migration::MigrateMsg;
-use crate::state::{CONFIG, PROPOSALS, PROPOSAL_COUNT};
+use crate::state::{CONFIG, PROPOSALS, PROPOSAL_COUNT, PROPOSAL_VOTERS};
 
 use ibc_controller_package::ExecuteMsg as ControllerExecuteMsg;
 
 // Contract name and version used for migration.
-const CONTRACT_NAME: &str = "astro-assembly";
+const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 // Default pagination constants
@@ -208,7 +208,8 @@ pub fn submit_proposal(
 
     // Ensure that the correct token is sent. This will fail if
     // zero tokens are sent.
-    let mut deposit_amount = must_pay(&info, &config.xastro_denom)?;
+    // TODO: Remove mut
+    let deposit_amount = must_pay(&info, &config.xastro_denom)?;
 
     if deposit_amount < config.proposal_required_deposit {
         return Err(ContractError::InsufficientDeposit {});
@@ -236,8 +237,6 @@ pub fn submit_proposal(
         outpost_for_power: Uint128::zero(),
         against_power: Uint128::zero(),
         outpost_against_power: Uint128::zero(),
-        for_voters: Vec::new(),
-        against_voters: Vec::new(),
         start_block: env.block.height,
         start_time: env.block.time.seconds(),
         end_block: env.block.height + config.proposal_voting_period,
@@ -297,9 +296,7 @@ pub fn cast_vote(
         return Err(ContractError::VotingPeriodEnded {});
     }
 
-    if proposal.for_voters.contains(&info.sender.to_string())
-        || proposal.against_voters.contains(&info.sender.to_string())
-    {
+    if PROPOSAL_VOTERS.has(deps.storage, (proposal_id, info.sender.to_string())) {
         return Err(ContractError::UserAlreadyVoted {});
     }
 
@@ -312,13 +309,16 @@ pub fn cast_vote(
     match vote_option {
         ProposalVoteOption::For => {
             proposal.for_power = proposal.for_power.checked_add(voting_power)?;
-            proposal.for_voters.push(info.sender.to_string());
         }
         ProposalVoteOption::Against => {
             proposal.against_power = proposal.against_power.checked_add(voting_power)?;
-            proposal.against_voters.push(info.sender.to_string());
         }
     };
+    PROPOSAL_VOTERS.save(
+        deps.storage,
+        (proposal_id, info.sender.to_string()),
+        &vote_option,
+    )?;
 
     PROPOSALS.save(deps.storage, proposal_id, &proposal)?;
 
@@ -378,7 +378,7 @@ pub fn cast_outpost_vote(
         return Err(ContractError::VotingPeriodEnded {});
     }
 
-    if proposal.for_voters.contains(&voter) || proposal.against_voters.contains(&voter) {
+    if PROPOSAL_VOTERS.has(deps.storage, (proposal_id, voter.clone())) {
         return Err(ContractError::UserAlreadyVoted {});
     }
 
@@ -395,15 +395,14 @@ pub fn cast_outpost_vote(
         ProposalVoteOption::For => {
             proposal.for_power = proposal.for_power.checked_add(voting_power)?;
             proposal.outpost_for_power = proposal.outpost_for_power.checked_add(voting_power)?;
-            proposal.for_voters.push(voter.clone());
         }
         ProposalVoteOption::Against => {
             proposal.against_power = proposal.against_power.checked_add(voting_power)?;
             proposal.outpost_against_power =
                 proposal.outpost_against_power.checked_add(voting_power)?;
-            proposal.against_voters.push(voter.clone());
         }
     };
+    PROPOSAL_VOTERS.save(deps.storage, (proposal_id, voter.clone()), &vote_option)?;
 
     // Assert that the total amount of power from Outposts is not greater than the
     // total amount of power that was available at the time of proposal creation
@@ -602,8 +601,6 @@ pub fn submit_execute_emissions_proposal(
         outpost_for_power: Uint128::zero(),
         against_power: Uint128::zero(),
         outpost_against_power: Uint128::zero(),
-        for_voters: vec![generator_controller.to_string()],
-        against_voters: Vec::new(),
         start_block: env.block.height,
         start_time: env.block.time.seconds(),
         end_block: env.block.height,
@@ -616,6 +613,11 @@ pub fn submit_execute_emissions_proposal(
         deposit_amount: Uint128::zero(),
         ibc_channel,
     };
+    PROPOSAL_VOTERS.save(
+        deps.storage,
+        (proposal.proposal_id.u64(), generator_controller.to_string()),
+        &ProposalVoteOption::For,
+    )?;
 
     proposal.validate(config.whitelisted_links)?;
 
@@ -933,14 +935,12 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         }
         QueryMsg::ProposalVoters {
             proposal_id,
-            vote_option,
-            start,
+            start_after,
             limit,
         } => to_binary(&query_proposal_voters(
             deps,
             proposal_id,
-            vote_option,
-            start,
+            start_after,
             limit,
         )?),
     }
@@ -972,30 +972,28 @@ pub fn query_proposals(
     })
 }
 
-/// Returns proposal's voters.
+/// Returns a proposal's voters
 pub fn query_proposal_voters(
     deps: Deps,
     proposal_id: u64,
-    vote_option: ProposalVoteOption,
-    start: Option<u64>,
+    start_after: Option<String>,
     limit: Option<u32>,
-) -> StdResult<Vec<String>> {
-    let limit = limit.unwrap_or(DEFAULT_VOTERS_LIMIT).min(MAX_VOTERS_LIMIT);
-    let start = start.unwrap_or_default();
+) -> StdResult<Vec<ProposalVoterResponse>> {
+    let limit = limit.unwrap_or_else(|| DEFAULT_VOTERS_LIMIT.min(MAX_VOTERS_LIMIT)) as usize;
+    let start = start_after.map(|s| Bound::ExclusiveRaw(s.into_bytes()));
 
-    let proposal = PROPOSALS.load(deps.storage, proposal_id)?;
-
-    let voters = match vote_option {
-        ProposalVoteOption::For => proposal.for_voters,
-        ProposalVoteOption::Against => proposal.against_voters,
-    };
-
-    Ok(voters
-        .iter()
-        .skip(start as usize)
-        .take(limit as usize)
-        .cloned()
-        .collect())
+    let voters = PROPOSAL_VOTERS
+        .prefix(proposal_id)
+        .range(deps.storage, start, None, Order::Ascending)
+        .take(limit)
+        .map(|item| {
+            item.map(|(address, vote_option)| ProposalVoterResponse {
+                address,
+                vote_option,
+            })
+        })
+        .collect::<StdResult<Vec<ProposalVoterResponse>>>()?;
+    Ok(voters)
 }
 
 /// Returns proposal votes stored in the [`ProposalVotesResponse`] structure.

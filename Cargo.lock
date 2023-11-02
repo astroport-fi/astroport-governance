@@ -37,7 +37,6 @@ dependencies = [
  "cw-storage-plus 0.15.1",
  "cw-utils 1.0.1",
  "cw2 0.15.1",
- "cw20 0.15.1",
  "ibc-controller-package",
  "thiserror",
  "voting-escrow",
