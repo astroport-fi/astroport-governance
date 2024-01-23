@@ -86,6 +86,7 @@ pub fn instantiate(
         guardian_addr: None,
     };
 
+    #[cfg(not(feature = "testnet"))]
     config.validate()?;
 
     CONFIG.save(deps.storage, &config)?;
@@ -762,6 +763,7 @@ pub fn update_config(
         config.guardian_addr = Some(deps.api.addr_validate(&guardian_addr)?);
     }
 
+    #[cfg(not(feature = "testnet"))]
     config.validate()?;
 
     CONFIG.save(deps.storage, &config)?;

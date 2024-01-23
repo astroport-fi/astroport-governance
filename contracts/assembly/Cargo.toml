@@ -11,8 +11,9 @@ crate-type = ["cdylib", "rlib"]
 
 [features]
 backtraces = ["cosmwasm-std/backtraces"]
-testnet = ["astroport-governance/testnet"]
+testnet = []
 library = []
+default = []
 
 [dependencies]
 cw2 = "0.15"

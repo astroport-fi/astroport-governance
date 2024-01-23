@@ -1,42 +1,22 @@
-use crate::assembly::helpers::is_safe_link;
-use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::{Addr, CosmosMsg, Decimal, StdError, StdResult, Uint128, Uint64};
 use std::fmt::{Display, Formatter, Result};
+use std::ops::RangeInclusive;
 use std::str::FromStr;
 
-#[cfg(not(feature = "testnet"))]
-mod proposal_constants {
-    use std::ops::RangeInclusive;
+use cosmwasm_schema::{cw_serde, QueryResponses};
+use cosmwasm_std::{Addr, CosmosMsg, Decimal, StdError, StdResult, Uint128, Uint64};
 
-    pub const MINIMUM_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE: u64 = 33;
-    pub const MAX_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE: u64 = 100;
-    pub const MAX_PROPOSAL_REQUIRED_QUORUM_PERCENTAGE: &str = "1";
-    pub const MINIMUM_PROPOSAL_REQUIRED_QUORUM_PERCENTAGE: &str = "0.01";
-    pub const VOTING_PERIOD_INTERVAL: RangeInclusive<u64> = 12342..=7 * 12342;
-    // from 0.5 to 1 day in blocks (7 seconds per block)
-    pub const DELAY_INTERVAL: RangeInclusive<u64> = 6171..=14400;
-    pub const EXPIRATION_PERIOD_INTERVAL: RangeInclusive<u64> = 12342..=100_800;
-    // from 10k to 60k $xASTRO
-    pub const DEPOSIT_INTERVAL: RangeInclusive<u128> = 10000000000..=60000000000;
-}
+use crate::assembly::helpers::is_safe_link;
 
-#[cfg(feature = "testnet")]
-mod proposal_constants {
-    use std::ops::RangeInclusive;
-
-    pub const MINIMUM_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE: u64 = 33;
-    pub const MAX_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE: u64 = 100;
-    pub const MAX_PROPOSAL_REQUIRED_QUORUM_PERCENTAGE: &str = "1";
-    pub const MINIMUM_PROPOSAL_REQUIRED_QUORUM_PERCENTAGE: &str = "0.001";
-    pub const VOTING_PERIOD_INTERVAL: RangeInclusive<u64> = 200..=7 * 12342;
-    // from ~350 sec to 1 day in blocks (7 seconds per block)
-    pub const DELAY_INTERVAL: RangeInclusive<u64> = 50..=14400;
-    pub const EXPIRATION_PERIOD_INTERVAL: RangeInclusive<u64> = 400..=100_800;
-    // from 0.001 to 60k $xASTRO
-    pub const DEPOSIT_INTERVAL: RangeInclusive<u128> = 1000..=60000000000;
-}
-
-pub use proposal_constants::*;
+pub const MINIMUM_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE: u64 = 33;
+pub const MAX_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE: u64 = 100;
+pub const MAX_PROPOSAL_REQUIRED_QUORUM_PERCENTAGE: &str = "1";
+pub const MINIMUM_PROPOSAL_REQUIRED_QUORUM_PERCENTAGE: &str = "0.01";
+pub const VOTING_PERIOD_INTERVAL: RangeInclusive<u64> = 12342..=7 * 12342;
+// from 0.5 to 1 day in blocks (7 seconds per block)
+pub const DELAY_INTERVAL: RangeInclusive<u64> = 6171..=14400;
+pub const EXPIRATION_PERIOD_INTERVAL: RangeInclusive<u64> = 12342..=100_800;
+// from 10k to 60k $xASTRO
+pub const DEPOSIT_INTERVAL: RangeInclusive<u128> = 10000000000..=60000000000;
 
 /// Proposal validation attributes
 const MIN_TITLE_LENGTH: usize = 4;
