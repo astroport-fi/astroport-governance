@@ -1,6 +1,6 @@
 use astroport::querier::query_token_balance;
 use cosmwasm_std::{
-    entry_point, from_binary, to_binary, Deps, DepsMut, Env, Ibc3ChannelOpenResponse,
+    entry_point, from_json, to_json_binary, Deps, DepsMut, Env, Ibc3ChannelOpenResponse,
     IbcBasicResponse, IbcChannelCloseMsg, IbcChannelConnectMsg, IbcChannelOpenMsg,
     IbcChannelOpenResponse, IbcOrder, IbcPacketAckMsg, IbcPacketReceiveMsg, IbcPacketTimeoutMsg,
     IbcReceiveResponse, Never, StdError, StdResult, SubMsg,
@@ -107,7 +107,7 @@ pub fn ibc_packet_receive(
 ) -> Result<IbcReceiveResponse, Never> {
     do_packet_receive(deps, env, msg).or_else(|err| {
         // Construct an error acknowledgement that can be handled on the Outpost
-        let ack_data = to_binary(&Response::new_error(err.to_string())).unwrap();
+        let ack_data = to_json_binary(&Response::new_error(err.to_string())).unwrap();
 
         Ok(IbcReceiveResponse::new()
             .add_attribute("action", "ibc_packet_receive")
@@ -135,7 +135,7 @@ fn do_packet_receive(
     )?;
 
     // Parse the packet data into a Hub message
-    let outpost_msg: Hub = from_binary(&msg.packet.data)?;
+    let outpost_msg: Hub = from_json(&msg.packet.data)?;
     match outpost_msg {
         Hub::QueryProposal { id } => handle_ibc_query_proposal(deps, id),
         Hub::CastAssemblyVote {
@@ -187,7 +187,7 @@ pub fn ibc_packet_timeout(
     env: Env,
     msg: IbcPacketTimeoutMsg,
 ) -> Result<IbcBasicResponse, ContractError> {
-    let failed_msg: Outpost = from_binary(&msg.packet.data)?;
+    let failed_msg: Outpost = from_json(&msg.packet.data)?;
     match failed_msg {
         Outpost::MintXAstro { receiver, amount } => {
             let config = CONFIG.load(deps.storage)?;
@@ -490,14 +490,14 @@ mod tests {
         // The Hub doesn't do anything with acks, we just check that
         // it doesn't fail
         let ack = IbcAcknowledgement::new(
-            to_binary(&Response::Result {
+            to_json_binary(&Response::Result {
                 action: None,
                 address: None,
                 error: None,
             })
             .unwrap(),
         );
-        let mint_msg = to_binary(&Outpost::MintXAstro {
+        let mint_msg = to_json_binary(&Outpost::MintXAstro {
             receiver: "user".to_owned(),
             amount: Uint128::one(),
         })
@@ -626,7 +626,7 @@ mod tests {
         // We don't need to test every type of Hub message as the safety check
         // happens in do_packet_receive which is the entrypoint for all messages
         // being received
-        let ibc_unstake_msg = to_binary(&Hub::Unstake {
+        let ibc_unstake_msg = to_json_binary(&Hub::Unstake {
             receiver: "unstaker".to_string(),
             amount: Uint128::from(100u128),
         })
@@ -635,7 +635,7 @@ mod tests {
 
         let msg = IbcPacketReceiveMsg::new(recv_packet, Addr::unchecked("relayer"));
         let res = ibc_packet_receive(deps.as_mut(), env.clone(), msg).unwrap();
-        let ack: Response = from_binary(&res.acknowledgement).unwrap();
+        let ack: Response = from_json(&res.acknowledgement).unwrap();
         match ack {
             Response::Result { error, .. } => {
                 assert!(
@@ -662,7 +662,7 @@ mod tests {
         let recv_packet = mock_ibc_packet("channel-55", ibc_unstake_msg.clone());
         let msg = IbcPacketReceiveMsg::new(recv_packet, Addr::unchecked("relayer"));
         let res = ibc_packet_receive(deps.as_mut(), env.clone(), msg).unwrap();
-        let ack: Response = from_binary(&res.acknowledgement).unwrap();
+        let ack: Response = from_json(&res.acknowledgement).unwrap();
         match ack {
             Response::Result { error, .. } => {
                 assert!(error == Some("Unauthorized".to_string()));

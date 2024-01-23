@@ -1,6 +1,6 @@
 use cosmwasm_std::{
-    to_binary, Addr, Decimal, Fraction, IbcQuery, ListChannelsResponse, OverflowError,
-    QuerierWrapper, QueryRequest, StdError, StdResult, Uint128, Uint256, Uint64, WasmQuery,
+    Addr, Decimal, Fraction, IbcQuery, ListChannelsResponse, OverflowError, QuerierWrapper,
+    QueryRequest, StdError, StdResult, Uint128, Uint256, Uint64,
 };
 
 use crate::hub::HubBalance;
@@ -147,8 +147,10 @@ pub fn check_contract_supports_channel(
         .iter()
         .find(|channel| &channel.endpoint.channel_id == given_channel)
         .map(|_| ())
-        .ok_or_else(|| StdError::GenericErr {
-            msg: format!("The contract does not have channel {0}", given_channel),
+        .ok_or_else(|| {
+            StdError::generic_err(format!(
+                "The contract does not have channel {given_channel}"
+            ))
         })
 }
 
@@ -164,11 +166,11 @@ pub fn get_total_outpost_voting_power_at(
     contract: &Addr,
     timestamp: u64,
 ) -> Result<Uint128, StdError> {
-    let response: HubBalance = querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-        contract_addr: contract.to_string(),
-        msg: to_binary(&crate::hub::QueryMsg::TotalChannelBalancesAt {
+    let response: HubBalance = querier.query_wasm_smart(
+        contract,
+        &crate::hub::QueryMsg::TotalChannelBalancesAt {
             timestamp: Uint64::from(timestamp),
-        })?,
-    }))?;
+        },
+    )?;
     Ok(response.balance)
 }

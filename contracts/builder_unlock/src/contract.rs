@@ -1,8 +1,8 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, from_binary, to_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Order, Response,
-    StdError, StdResult, Uint128, WasmMsg,
+    attr, from_json, to_json_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Order,
+    Response, StdError, StdResult, Uint128, WasmMsg,
 };
 use cw2::set_contract_version;
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
@@ -150,7 +150,7 @@ fn execute_receive_cw20(
     info: MessageInfo,
     cw20_msg: Cw20ReceiveMsg,
 ) -> StdResult<Response> {
-    match from_binary(&cw20_msg.msg)? {
+    match from_json(&cw20_msg.msg)? {
         ReceiveMsg::CreateAllocations { allocations } => execute_create_allocations(
             deps,
             cw20_msg.sender,
@@ -190,17 +190,17 @@ fn execute_receive_cw20(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::Config {} => to_binary(&CONFIG.load(deps.storage)?),
-        QueryMsg::State {} => to_binary(&query_state(deps)?),
-        QueryMsg::Allocation { account } => to_binary(&query_allocation(deps, account)?),
+        QueryMsg::Config {} => to_json_binary(&CONFIG.load(deps.storage)?),
+        QueryMsg::State {} => to_json_binary(&query_state(deps)?),
+        QueryMsg::Allocation { account } => to_json_binary(&query_allocation(deps, account)?),
         QueryMsg::UnlockedTokens { account } => {
-            to_binary(&query_tokens_unlocked(deps, env, account)?)
+            to_json_binary(&query_tokens_unlocked(deps, env, account)?)
         }
         QueryMsg::SimulateWithdraw { account, timestamp } => {
-            to_binary(&query_simulate_withdraw(deps, env, account, timestamp)?)
+            to_json_binary(&query_simulate_withdraw(deps, env, account, timestamp)?)
         }
         QueryMsg::Allocations { start_after, limit } => {
-            to_binary(&query_allocations(deps, start_after, limit)?)
+            to_json_binary(&query_allocations(deps, start_after, limit)?)
         }
     }
 }
@@ -304,7 +304,7 @@ fn execute_withdraw(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Res
     Ok(Response::new()
         .add_message(WasmMsg::Execute {
             contract_addr: config.astro_token.to_string(),
-            msg: to_binary(&Cw20ExecuteMsg::Transfer {
+            msg: to_json_binary(&Cw20ExecuteMsg::Transfer {
                 recipient: info.sender.to_string(),
                 amount: astro_to_withdraw,
             })?,
@@ -511,7 +511,7 @@ fn execute_transfer_unallocated(
     let recipient = addr_opt_validate(deps.api, &recipient)?.unwrap_or_else(|| info.sender.clone());
     let msg = WasmMsg::Execute {
         contract_addr: config.astro_token.to_string(),
-        msg: to_binary(&Cw20ExecuteMsg::Transfer {
+        msg: to_json_binary(&Cw20ExecuteMsg::Transfer {
             recipient: recipient.to_string(),
             amount,
         })?,

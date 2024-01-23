@@ -1,33 +1,33 @@
-use astroport_governance::utils::{calc_voting_power, get_period, get_periods_count};
-use astroport_governance::voting_escrow::{get_voting_power, get_voting_power_at, MAX_LIMIT};
 use std::marker::PhantomData;
-
-use crate::error::ContractError;
-use crate::state::{CONFIG, DELEGATED, OWNERSHIP_PROPOSAL, TOKENS};
-use astroport_governance::astroport::common::{
-    claim_ownership, drop_ownership_proposal, propose_new_owner,
-};
-use astroport_governance::voting_escrow_delegation::{
-    Config, ExecuteMsg, InstantiateMsg, QueryMsg,
-};
 
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, to_binary, Addr, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Reply, ReplyOn,
+    attr, to_json_binary, Addr, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Reply, ReplyOn,
     Response, StdError, StdResult, SubMsg, Uint128, WasmMsg,
 };
 use cw2::set_contract_version;
 use cw721::NftInfoResponse;
+use cw721_base::helpers as cw721_helpers;
+use cw721_base::msg::{ExecuteMsg as ExecuteMsgNFT, InstantiateMsg as InstantiateMsgNFT};
+use cw721_base::{Extension, MintMsg};
 use cw_utils::parse_reply_instantiate_data;
 
+use astroport_governance::astroport::common::{
+    claim_ownership, drop_ownership_proposal, propose_new_owner,
+};
+use astroport_governance::utils::{calc_voting_power, get_period, get_periods_count};
+use astroport_governance::voting_escrow::{get_voting_power, get_voting_power_at, MAX_LIMIT};
+use astroport_governance::voting_escrow_delegation::{
+    Config, ExecuteMsg, InstantiateMsg, QueryMsg,
+};
+
+use crate::error::ContractError;
 use crate::helpers::{
     calc_delegation, calc_extend_delegation, calc_not_delegated_vp, calc_total_delegated_vp,
     validate_parameters,
 };
-use cw721_base::helpers as cw721_helpers;
-use cw721_base::msg::{ExecuteMsg as ExecuteMsgNFT, InstantiateMsg as InstantiateMsgNFT};
-use cw721_base::{Extension, MintMsg};
+use crate::state::{CONFIG, DELEGATED, OWNERSHIP_PROPOSAL, TOKENS};
 
 // Version info for contract migration.
 const CONTRACT_NAME: &str = "voting-escrow-delegation";
@@ -59,7 +59,7 @@ pub fn instantiate(
         msg: WasmMsg::Instantiate {
             admin: Some(config.owner.to_string()),
             code_id: msg.nft_code_id,
-            msg: to_binary(&InstantiateMsgNFT {
+            msg: to_json_binary(&InstantiateMsgNFT {
                 name: TOKEN_NAME.to_string(),
                 symbol: TOKEN_SYMBOL.to_string(),
                 minter: env.contract.address.to_string(),
@@ -242,7 +242,7 @@ pub fn create_delegation(
         ])
         .add_submessage(SubMsg::new(WasmMsg::Execute {
             contract_addr: cfg.nft_addr.to_string(),
-            msg: to_binary(&ExecuteMsgNFT::<Extension, Empty>::Mint(MintMsg::<
+            msg: to_json_binary(&ExecuteMsgNFT::<Extension, Empty>::Mint(MintMsg::<
                 Extension,
             > {
                 token_id,
@@ -357,12 +357,12 @@ fn update_config(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::Config {} => to_binary(&CONFIG.load(deps.storage)?),
+        QueryMsg::Config {} => to_json_binary(&CONFIG.load(deps.storage)?),
         QueryMsg::AdjustedBalance { account, timestamp } => {
-            to_binary(&adjusted_balance(deps, env, account, timestamp)?)
+            to_json_binary(&adjusted_balance(deps, env, account, timestamp)?)
         }
         QueryMsg::DelegatedVotingPower { account, timestamp } => {
-            to_binary(&delegated_vp(deps, env, account, timestamp)?)
+            to_json_binary(&delegated_vp(deps, env, account, timestamp)?)
         }
     }
 }

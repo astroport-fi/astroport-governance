@@ -1,5 +1,5 @@
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
-use cosmwasm_std::{attr, to_binary, Addr, Decimal, StdResult, Timestamp, Uint128};
+use cosmwasm_std::{attr, to_json_binary, Addr, Decimal, StdResult, Timestamp, Uint128};
 use cw20::BalanceResponse;
 use cw_multi_test::{App, BasicApp, ContractWrapper, Executor};
 use std::time::SystemTime;
@@ -270,7 +270,7 @@ fn test_create_allocations() {
             &cw20::Cw20ExecuteMsg::Send {
                 contract: unlock_instance.clone().to_string(),
                 amount: Uint128::from(1_000u64),
-                msg: to_binary(&ReceiveMsg::CreateAllocations {
+                msg: to_json_binary(&ReceiveMsg::CreateAllocations {
                     allocations: allocations.clone(),
                 })
                 .unwrap(),
@@ -334,7 +334,7 @@ fn test_create_allocations() {
             &cw20::Cw20ExecuteMsg::Send {
                 contract: unlock_instance.clone().to_string(),
                 amount: Uint128::from(15_000_000_000000u64),
-                msg: to_binary(&ReceiveMsg::CreateAllocations {
+                msg: to_json_binary(&ReceiveMsg::CreateAllocations {
                     allocations: allocations.clone(),
                 })
                 .unwrap(),
@@ -355,7 +355,7 @@ fn test_create_allocations() {
             &cw20::Cw20ExecuteMsg::Send {
                 contract: unlock_instance.clone().to_string(),
                 amount: Uint128::from(15_000_000_000001u64),
-                msg: to_binary(&ReceiveMsg::CreateAllocations {
+                msg: to_json_binary(&ReceiveMsg::CreateAllocations {
                     allocations: allocations.clone(),
                 })
                 .unwrap(),
@@ -375,7 +375,7 @@ fn test_create_allocations() {
         &cw20::Cw20ExecuteMsg::Send {
             contract: unlock_instance.clone().to_string(),
             amount: Uint128::from(15_000_000_000000u64),
-            msg: to_binary(&ReceiveMsg::CreateAllocations {
+            msg: to_json_binary(&ReceiveMsg::CreateAllocations {
                 allocations: allocations.clone(),
             })
             .unwrap(),
@@ -472,7 +472,7 @@ fn test_create_allocations() {
             &cw20::Cw20ExecuteMsg::Send {
                 contract: unlock_instance.clone().to_string(),
                 amount: Uint128::from(5_000_000_000000u64),
-                msg: to_binary(&ReceiveMsg::CreateAllocations {
+                msg: to_json_binary(&ReceiveMsg::CreateAllocations {
                     allocations: vec![allocations[0].clone()],
                 })
                 .unwrap(),
@@ -547,7 +547,7 @@ fn test_withdraw() {
         &cw20::Cw20ExecuteMsg::Send {
             contract: unlock_instance.clone().to_string(),
             amount: Uint128::from(15_000_000_000000u64),
-            msg: to_binary(&ReceiveMsg::CreateAllocations {
+            msg: to_json_binary(&ReceiveMsg::CreateAllocations {
                 allocations: allocations.clone(),
             })
             .unwrap(),
@@ -899,7 +899,7 @@ fn test_propose_new_receiver() {
         &cw20::Cw20ExecuteMsg::Send {
             contract: unlock_instance.clone().to_string(),
             amount: Uint128::from(15_000_000_000000u64),
-            msg: to_binary(&ReceiveMsg::CreateAllocations {
+            msg: to_json_binary(&ReceiveMsg::CreateAllocations {
                 allocations: allocations.clone(),
             })
             .unwrap(),
@@ -1043,7 +1043,7 @@ fn test_drop_new_receiver() {
         &cw20::Cw20ExecuteMsg::Send {
             contract: unlock_instance.clone().to_string(),
             amount: Uint128::from(15_000_000_000000u64),
-            msg: to_binary(&ReceiveMsg::CreateAllocations {
+            msg: to_json_binary(&ReceiveMsg::CreateAllocations {
                 allocations: allocations.clone(),
             })
             .unwrap(),
@@ -1187,7 +1187,7 @@ fn test_claim_receiver() {
         &cw20::Cw20ExecuteMsg::Send {
             contract: unlock_instance.clone().to_string(),
             amount: Uint128::from(15_000_000_000000u64),
-            msg: to_binary(&ReceiveMsg::CreateAllocations {
+            msg: to_json_binary(&ReceiveMsg::CreateAllocations {
                 allocations: allocations.clone(),
             })
             .unwrap(),
@@ -1388,7 +1388,7 @@ fn test_increase_and_decrease_allocation() {
         &cw20::Cw20ExecuteMsg::Send {
             contract: unlock_instance.clone().to_string(),
             amount: Uint128::from(5_000_000_000000u64),
-            msg: to_binary(&ReceiveMsg::CreateAllocations {
+            msg: to_json_binary(&ReceiveMsg::CreateAllocations {
                 allocations: allocations.clone(),
             })
             .unwrap(),
@@ -1529,7 +1529,7 @@ fn test_increase_and_decrease_allocation() {
         &cw20::Cw20ExecuteMsg::Send {
             contract: unlock_instance.clone().to_string(),
             amount: Uint128::from(1_000u64),
-            msg: to_binary(&ReceiveMsg::IncreaseAllocation {
+            msg: to_json_binary(&ReceiveMsg::IncreaseAllocation {
                 amount: Uint128::from(500_000_001_000u128),
                 user: "investor".to_string(),
             })
@@ -1654,7 +1654,7 @@ fn test_updates_schedules() {
         &cw20::Cw20ExecuteMsg::Send {
             contract: unlock_instance.clone().to_string(),
             amount: Uint128::from(15_000_000_000000u64),
-            msg: to_binary(&ReceiveMsg::CreateAllocations {
+            msg: to_json_binary(&ReceiveMsg::CreateAllocations {
                 allocations: allocations.clone(),
             })
             .unwrap(),
@@ -2031,7 +2031,7 @@ fn test_create_allocations_with_custom_cliff() {
         &cw20::Cw20ExecuteMsg::Send {
             contract: unlock_instance.to_string(),
             amount: total_astro,
-            msg: to_binary(&ReceiveMsg::CreateAllocations {
+            msg: to_json_binary(&ReceiveMsg::CreateAllocations {
                 allocations: allocations.clone(),
             })
             .unwrap(),

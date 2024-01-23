@@ -1,4 +1,4 @@
-use cosmwasm_std::{to_binary, Addr, DepsMut, Env, IbcReceiveResponse, Uint128, WasmMsg};
+use cosmwasm_std::{to_json_binary, Addr, DepsMut, Env, IbcReceiveResponse, Uint128, WasmMsg};
 
 use astroport_governance::{
     assembly::{Proposal, ProposalVoteOption},
@@ -36,7 +36,7 @@ pub fn handle_ibc_cast_assembly_vote(
     };
     let wasm_msg = WasmMsg::Execute {
         contract_addr: config.assembly_addr.to_string(),
-        msg: to_binary(&vote_msg)?,
+        msg: to_json_binary(&vote_msg)?,
         funds: vec![],
     };
 
@@ -54,7 +54,7 @@ pub fn handle_ibc_cast_assembly_vote(
     }
 
     // If the vote succeeds, the ack will be sent back to the Outpost
-    let ack_data = to_binary(&Response::new_success(
+    let ack_data = to_json_binary(&Response::new_success(
         "cast_assembly_vote".to_owned(),
         voter.to_string(),
     ))?;
@@ -89,7 +89,7 @@ pub fn handle_ibc_cast_emissions_vote(
     };
     let msg = WasmMsg::Execute {
         contract_addr: config.generator_controller_addr.to_string(),
-        msg: to_binary(&vote_msg)?,
+        msg: to_json_binary(&vote_msg)?,
         funds: vec![],
     };
 
@@ -101,7 +101,7 @@ pub fn handle_ibc_cast_emissions_vote(
     }
 
     // If the vote succeeds, the ack will be sent back to the Outpost
-    let ack_data = to_binary(&Response::new_success(
+    let ack_data = to_json_binary(&Response::new_success(
         "cast_emissions_vote".to_owned(),
         voter.to_string(),
     ))?;
@@ -122,12 +122,12 @@ pub fn handle_ibc_unlock(deps: DepsMut, user: Addr) -> Result<IbcReceiveResponse
     };
     let msg = WasmMsg::Execute {
         contract_addr: config.generator_controller_addr.to_string(),
-        msg: to_binary(&unlock_msg)?,
+        msg: to_json_binary(&unlock_msg)?,
         funds: vec![],
     };
 
     // If the unlock succeeds, the ack will be sent back to the Outpost
-    let ack_data = to_binary(&Response::new_success(
+    let ack_data = to_json_binary(&Response::new_success(
         "unlock".to_owned(),
         user.to_string(),
     ))?;
@@ -151,12 +151,12 @@ pub fn handle_ibc_blacklisted(
     };
     let msg = WasmMsg::Execute {
         contract_addr: config.generator_controller_addr.to_string(),
-        msg: to_binary(&blacklist_msg)?,
+        msg: to_json_binary(&blacklist_msg)?,
         funds: vec![],
     };
 
     // If the vote succeeds, the ack will be sent back to the Outpost
-    let ack_data = to_binary(&Response::new_success(
+    let ack_data = to_json_binary(&Response::new_success(
         "kick_blacklisted".to_owned(),
         user.to_string(),
     ))?;
@@ -168,7 +168,7 @@ pub fn handle_ibc_blacklisted(
 mod tests {
     use astroport_governance::interchain::Hub;
     use cosmwasm_std::{
-        from_binary,
+        from_json,
         testing::{mock_info, MOCK_CONTRACT_ADDR},
         IbcPacketReceiveMsg, Reply, ReplyOn, SubMsg, SubMsgResponse, SubMsgResult,
     };
@@ -241,7 +241,7 @@ mod tests {
             astroport_governance::hub::ExecuteMsg::Receive(Cw20ReceiveMsg {
                 sender: CW20ICS20.to_string(),
                 amount: user1_funds,
-                msg: to_binary(&astroport_governance::hub::Cw20HookMsg::OutpostMemo {
+                msg: to_json_binary(&astroport_governance::hub::Cw20HookMsg::OutpostMemo {
                     channel: "channel-1".to_string(),
                     sender: user1.to_string(),
                     receiver: MOCK_CONTRACT_ADDR.to_owned(),
@@ -253,8 +253,8 @@ mod tests {
         .unwrap();
 
         // Verify that the stake message matches the expected message
-        let stake_msg = to_binary(&astroport::staking::Cw20HookMsg::Enter {}).unwrap();
-        let send_msg = to_binary(&Cw20ExecuteMsg::Send {
+        let stake_msg = to_json_binary(&astroport::staking::Cw20HookMsg::Enter {}).unwrap();
+        let send_msg = to_json_binary(&Cw20ExecuteMsg::Send {
             contract: STAKING.to_string(),
             amount: user1_funds,
             msg: stake_msg,
@@ -298,7 +298,7 @@ mod tests {
         let vote_option = ProposalVoteOption::For;
 
         // Attempt a vote with double the voting power
-        let ibc_vote = to_binary(&Hub::CastAssemblyVote {
+        let ibc_vote = to_json_binary(&Hub::CastAssemblyVote {
             proposal_id,
             voter: Addr::unchecked(voter),
             vote_option: vote_option.clone(),
@@ -310,7 +310,7 @@ mod tests {
         let msg = IbcPacketReceiveMsg::new(recv_packet, Addr::unchecked("relayer"));
         let res = ibc_packet_receive(deps.as_mut(), env.clone(), msg).unwrap();
 
-        let hub_respone: Response = from_binary(&res.acknowledgement).unwrap();
+        let hub_respone: Response = from_json(&res.acknowledgement).unwrap();
         match hub_respone {
             Response::Result { error, .. } => {
                 assert_eq!(
@@ -322,7 +322,7 @@ mod tests {
         }
 
         // Attempt a vote with the correct voting power
-        let ibc_vote = to_binary(&Hub::CastAssemblyVote {
+        let ibc_vote = to_json_binary(&Hub::CastAssemblyVote {
             proposal_id,
             voter: Addr::unchecked(voter),
             vote_option,
@@ -334,7 +334,7 @@ mod tests {
         let msg = IbcPacketReceiveMsg::new(recv_packet, Addr::unchecked("relayer"));
         let res = ibc_packet_receive(deps.as_mut(), env, msg).unwrap();
 
-        let hub_respone: Response = from_binary(&res.acknowledgement).unwrap();
+        let hub_respone: Response = from_json(&res.acknowledgement).unwrap();
         match hub_respone {
             Response::Result { error, .. } => {
                 assert!(error.is_none());
@@ -344,7 +344,7 @@ mod tests {
 
         assert_eq!(res.messages.len(), 1);
 
-        let assembly_msg = to_binary(
+        let assembly_msg = to_json_binary(
             &astroport_governance::assembly::ExecuteMsg::CastOutpostVote {
                 proposal_id,
                 vote: ProposalVoteOption::For,
@@ -417,7 +417,7 @@ mod tests {
         .unwrap();
 
         // Voting must fail if the channel balance in insufficient
-        let ibc_unstake = to_binary(&Hub::CastEmissionsVote {
+        let ibc_unstake = to_json_binary(&Hub::CastEmissionsVote {
             voter: Addr::unchecked(voter),
             voting_power,
             votes: votes.clone(),
@@ -428,7 +428,7 @@ mod tests {
         let msg = IbcPacketReceiveMsg::new(recv_packet, Addr::unchecked("relayer"));
         let res = ibc_packet_receive(deps.as_mut(), env.clone(), msg).unwrap();
 
-        let hub_respone: Response = from_binary(&res.acknowledgement).unwrap();
+        let hub_respone: Response = from_json(&res.acknowledgement).unwrap();
         match hub_respone {
             Response::Result { error, .. } => {
                 assert_eq!(
@@ -450,7 +450,7 @@ mod tests {
             astroport_governance::hub::ExecuteMsg::Receive(Cw20ReceiveMsg {
                 sender: CW20ICS20.to_string(),
                 amount: user1_funds,
-                msg: to_binary(&astroport_governance::hub::Cw20HookMsg::OutpostMemo {
+                msg: to_json_binary(&astroport_governance::hub::Cw20HookMsg::OutpostMemo {
                     channel: "channel-1".to_string(),
                     sender: user1.to_string(),
                     receiver: MOCK_CONTRACT_ADDR.to_owned(),
@@ -462,8 +462,8 @@ mod tests {
         .unwrap();
 
         // Verify that the stake message matches the expected message
-        let stake_msg = to_binary(&astroport::staking::Cw20HookMsg::Enter {}).unwrap();
-        let send_msg = to_binary(&Cw20ExecuteMsg::Send {
+        let stake_msg = to_json_binary(&astroport::staking::Cw20HookMsg::Enter {}).unwrap();
+        let send_msg = to_json_binary(&Cw20ExecuteMsg::Send {
             contract: STAKING.to_string(),
             amount: user1_funds,
             msg: stake_msg,
@@ -501,7 +501,7 @@ mod tests {
         // We must have one IBC message
         assert_eq!(res.messages.len(), 1);
 
-        let ibc_vote = to_binary(&Hub::CastEmissionsVote {
+        let ibc_vote = to_json_binary(&Hub::CastEmissionsVote {
             voter: Addr::unchecked(voter),
             voting_power,
             votes: votes.clone(),
@@ -512,7 +512,7 @@ mod tests {
         let msg = IbcPacketReceiveMsg::new(recv_packet, Addr::unchecked("relayer"));
         let res = ibc_packet_receive(deps.as_mut(), env, msg).unwrap();
 
-        let hub_respone: Response = from_binary(&res.acknowledgement).unwrap();
+        let hub_respone: Response = from_json(&res.acknowledgement).unwrap();
         match hub_respone {
             Response::Result { error, .. } => {
                 assert!(error.is_none(),);
@@ -522,7 +522,7 @@ mod tests {
 
         assert_eq!(res.messages.len(), 1);
 
-        let generator_controller_msg = to_binary(
+        let generator_controller_msg = to_json_binary(
             &astroport_governance::generator_controller_lite::ExecuteMsg::OutpostVote {
                 voter: voter.to_string(),
                 voting_power,
@@ -592,7 +592,7 @@ mod tests {
         .unwrap();
 
         // Kick the voter
-        let ibc_kick_unlocked = to_binary(&Hub::KickUnlockedVoter {
+        let ibc_kick_unlocked = to_json_binary(&Hub::KickUnlockedVoter {
             voter: Addr::unchecked(voter),
         })
         .unwrap();
@@ -601,7 +601,7 @@ mod tests {
         let msg = IbcPacketReceiveMsg::new(recv_packet, Addr::unchecked("relayer"));
         let res = ibc_packet_receive(deps.as_mut(), env, msg).unwrap();
 
-        let hub_respone: Response = from_binary(&res.acknowledgement).unwrap();
+        let hub_respone: Response = from_json(&res.acknowledgement).unwrap();
         match hub_respone {
             Response::Result { error, .. } => {
                 assert!(error.is_none());
@@ -613,7 +613,7 @@ mod tests {
         assert_eq!(res.messages.len(), 1);
 
         // Verify that the message matches the expected message
-        let controller_msg = to_binary(
+        let controller_msg = to_json_binary(
         &astroport_governance::generator_controller_lite::ExecuteMsg::KickUnlockedOutpostVoter {
             unlocked_voter:voter.to_string(),
         },
@@ -681,7 +681,7 @@ mod tests {
         .unwrap();
 
         // Kick the voter
-        let ibc_kick_blacklisted = to_binary(&Hub::KickBlacklistedVoter {
+        let ibc_kick_blacklisted = to_json_binary(&Hub::KickBlacklistedVoter {
             voter: Addr::unchecked(voter),
         })
         .unwrap();
@@ -690,7 +690,7 @@ mod tests {
         let msg = IbcPacketReceiveMsg::new(recv_packet, Addr::unchecked("relayer"));
         let res = ibc_packet_receive(deps.as_mut(), env, msg).unwrap();
 
-        let hub_respone: Response = from_binary(&res.acknowledgement).unwrap();
+        let hub_respone: Response = from_json(&res.acknowledgement).unwrap();
         match hub_respone {
             Response::Result { error, .. } => {
                 assert!(error.is_none());
@@ -702,7 +702,7 @@ mod tests {
         assert_eq!(res.messages.len(), 1);
 
         // Verify that the message matches the expected message
-        let controller_msg = to_binary(
+        let controller_msg = to_json_binary(
             &astroport_governance::generator_controller_lite::ExecuteMsg::KickBlacklistedVoters {
                 blacklisted_voters: vec![voter.to_string()],
             },

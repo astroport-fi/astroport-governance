@@ -1,6 +1,7 @@
 use astroport::{cw20_ics20::TransferMsg, querier::query_token_balance};
 use cosmwasm_std::{
-    entry_point, to_binary, CosmosMsg, DepsMut, Env, IbcMsg, Reply, Response, SubMsgResult, WasmMsg,
+    entry_point, to_json_binary, CosmosMsg, DepsMut, Env, IbcMsg, Reply, Response, SubMsgResult,
+    WasmMsg,
 };
 use cw20::Cw20ExecuteMsg;
 
@@ -61,7 +62,7 @@ fn handle_stake_reply(deps: DepsMut, env: Env, reply: Reply) -> Result<Response,
             };
             let msg = CosmosMsg::Ibc(IbcMsg::SendPacket {
                 channel_id: outpost_channels.outpost.clone(),
-                data: to_binary(&mint_remote)?,
+                data: to_json_binary(&mint_remote)?,
                 timeout: env
                     .block
                     .time
@@ -130,12 +131,12 @@ fn handle_unstake_reply(deps: DepsMut, env: Env, reply: Reply) -> Result<Respons
             let transfer = Cw20ExecuteMsg::Send {
                 contract: config.cw20_ics20_addr.to_string(),
                 amount: astro_received,
-                msg: to_binary(&transfer_msg)?,
+                msg: to_json_binary(&transfer_msg)?,
             };
 
             let wasm_msg = WasmMsg::Execute {
                 contract_addr: config.token_addr.to_string(),
-                msg: to_binary(&transfer)?,
+                msg: to_json_binary(&transfer)?,
                 funds: vec![],
             };
 

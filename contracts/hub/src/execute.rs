@@ -1,5 +1,5 @@
 use cosmwasm_std::{
-    entry_point, from_binary, to_binary, Addr, DepsMut, Env, MessageInfo, Response, StdError,
+    entry_point, from_json, to_json_binary, Addr, DepsMut, Env, MessageInfo, Response, StdError,
     StdResult, SubMsg, WasmMsg,
 };
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
@@ -136,7 +136,7 @@ fn receive_cw20(
     }
 
     // Match the CW20 template
-    match from_binary(&cw20_msg.msg)? {
+    match from_json(&cw20_msg.msg)? {
         Cw20HookMsg::OutpostMemo {
             channel,
             sender,
@@ -226,13 +226,13 @@ fn handle_stake_instruction(
     let send_msg = Cw20ExecuteMsg::Send {
         contract: config.staking_addr.to_string(),
         amount: msg.amount,
-        msg: to_binary(&enter_msg)?,
+        msg: to_json_binary(&enter_msg)?,
     };
 
     // Execute the message, we're using a CW20, so no funds added here
     let stake_msg = WasmMsg::Execute {
         contract_addr: config.token_addr.to_string(),
-        msg: to_binary(&send_msg)?,
+        msg: to_json_binary(&send_msg)?,
         funds: vec![],
     };
 
@@ -466,7 +466,7 @@ mod tests {
 
         assert_eq!(
             outposts,
-            to_binary(&vec![astroport_governance::hub::OutpostConfig {
+            to_json_binary(&vec![astroport_governance::hub::OutpostConfig {
                 address: "wasm1contractaddress1".to_string(),
                 channel: "channel-2".to_string(),
                 cw20_ics20_channel: "channel-1".to_string(),
@@ -487,7 +487,7 @@ mod tests {
 
         assert_eq!(
             outposts,
-            to_binary(&vec![astroport_governance::hub::OutpostConfig {
+            to_json_binary(&vec![astroport_governance::hub::OutpostConfig {
                 address: "wasm1contractaddress2".to_string(),
                 channel: "channel-2".to_string(),
                 cw20_ics20_channel: "channel-2".to_string(),
@@ -508,7 +508,7 @@ mod tests {
 
         assert_eq!(
             outposts,
-            to_binary(&vec![
+            to_json_binary(&vec![
                 astroport_governance::hub::OutpostConfig {
                     address: "wasm1contractaddress1".to_string(),
                     channel: "channel-2".to_string(),
@@ -545,7 +545,7 @@ mod tests {
 
         assert_eq!(
             outposts,
-            to_binary(&vec![astroport_governance::hub::OutpostConfig {
+            to_json_binary(&vec![astroport_governance::hub::OutpostConfig {
                 address: "wasm1contractaddress2".to_string(),
                 channel: "channel-2".to_string(),
                 cw20_ics20_channel: "channel-2".to_string(),
@@ -635,7 +635,7 @@ mod tests {
         // Ensure the config set during instantiation is correct
         assert_eq!(
             config,
-            to_binary(&astroport_governance::hub::Config {
+            to_json_binary(&astroport_governance::hub::Config {
                 owner: Addr::unchecked(OWNER),
                 assembly_addr: Addr::unchecked(ASSEMBLY),
                 cw20_ics20_addr: Addr::unchecked(CW20ICS20),
@@ -706,7 +706,7 @@ mod tests {
 
         assert_eq!(
             config,
-            to_binary(&astroport_governance::hub::Config {
+            to_json_binary(&astroport_governance::hub::Config {
                 owner: Addr::unchecked(OWNER),
                 assembly_addr: Addr::unchecked(ASSEMBLY),
                 cw20_ics20_addr: Addr::unchecked(CW20ICS20),
@@ -791,7 +791,7 @@ mod tests {
             astroport_governance::hub::ExecuteMsg::Receive(Cw20ReceiveMsg {
                 sender: "not_cw20_ics20".to_string(),
                 amount: user1_funds,
-                msg: to_binary(&astroport_governance::hub::Cw20HookMsg::TransferFailure {
+                msg: to_json_binary(&astroport_governance::hub::Cw20HookMsg::TransferFailure {
                     receiver: user1.to_owned(),
                 })
                 .unwrap(),
@@ -809,7 +809,7 @@ mod tests {
             astroport_governance::hub::ExecuteMsg::Receive(Cw20ReceiveMsg {
                 sender: CW20ICS20.to_string(),
                 amount: user1_funds,
-                msg: to_binary(&astroport_governance::hub::Cw20HookMsg::TransferFailure {
+                msg: to_json_binary(&astroport_governance::hub::Cw20HookMsg::TransferFailure {
                     receiver: user1.to_owned(),
                 })
                 .unwrap(),
@@ -827,7 +827,7 @@ mod tests {
             astroport_governance::hub::ExecuteMsg::Receive(Cw20ReceiveMsg {
                 sender: CW20ICS20.to_string(),
                 amount: Uint128::zero(),
-                msg: to_binary(&astroport_governance::hub::Cw20HookMsg::TransferFailure {
+                msg: to_json_binary(&astroport_governance::hub::Cw20HookMsg::TransferFailure {
                     receiver: user1.to_owned(),
                 })
                 .unwrap(),
@@ -845,7 +845,7 @@ mod tests {
             astroport_governance::hub::ExecuteMsg::Receive(Cw20ReceiveMsg {
                 sender: CW20ICS20.to_string(),
                 amount: user1_funds,
-                msg: to_binary(&astroport_governance::hub::Cw20HookMsg::TransferFailure {
+                msg: to_json_binary(&astroport_governance::hub::Cw20HookMsg::TransferFailure {
                     receiver: user1.to_owned(),
                 })
                 .unwrap(),
@@ -865,7 +865,7 @@ mod tests {
 
         assert_eq!(
             balance,
-            to_binary(&HubBalance {
+            to_json_binary(&HubBalance {
                 balance: user1_funds
             })
             .unwrap()
@@ -878,7 +878,7 @@ mod tests {
             astroport_governance::hub::ExecuteMsg::Receive(Cw20ReceiveMsg {
                 sender: CW20ICS20.to_string(),
                 amount: user2_funds,
-                msg: to_binary(&astroport_governance::hub::Cw20HookMsg::TransferFailure {
+                msg: to_json_binary(&astroport_governance::hub::Cw20HookMsg::TransferFailure {
                     receiver: user2.to_owned(),
                 })
                 .unwrap(),
@@ -949,7 +949,7 @@ mod tests {
             astroport_governance::hub::ExecuteMsg::Receive(Cw20ReceiveMsg {
                 sender: CW20ICS20.to_string(),
                 amount: user1_funds,
-                msg: to_binary(&astroport_governance::hub::Cw20HookMsg::OutpostMemo {
+                msg: to_json_binary(&astroport_governance::hub::Cw20HookMsg::OutpostMemo {
                     channel: "channel-1".to_string(),
                     sender: user1.to_string(),
                     receiver: MOCK_CONTRACT_ADDR.to_string(),
@@ -970,7 +970,7 @@ mod tests {
             astroport_governance::hub::ExecuteMsg::Receive(Cw20ReceiveMsg {
                 sender: CW20ICS20.to_string(),
                 amount: user1_funds,
-                msg: to_binary(&astroport_governance::hub::Cw20HookMsg::OutpostMemo {
+                msg: to_json_binary(&astroport_governance::hub::Cw20HookMsg::OutpostMemo {
                     channel: "channel-1".to_string(),
                     sender: user1.to_string(),
                     receiver: MOCK_CONTRACT_ADDR.to_string(),
@@ -991,7 +991,7 @@ mod tests {
             astroport_governance::hub::ExecuteMsg::Receive(Cw20ReceiveMsg {
                 sender: CW20ICS20.to_string(),
                 amount: Uint128::zero(),
-                msg: to_binary(&astroport_governance::hub::Cw20HookMsg::OutpostMemo {
+                msg: to_json_binary(&astroport_governance::hub::Cw20HookMsg::OutpostMemo {
                     channel: "channel-1".to_string(),
                     sender: user1.to_string(),
                     receiver: MOCK_CONTRACT_ADDR.to_string(),
@@ -1058,7 +1058,7 @@ mod tests {
             astroport_governance::hub::ExecuteMsg::Receive(Cw20ReceiveMsg {
                 sender: CW20ICS20.to_string(),
                 amount: user1_funds,
-                msg: to_binary(&astroport_governance::hub::Cw20HookMsg::OutpostMemo {
+                msg: to_json_binary(&astroport_governance::hub::Cw20HookMsg::OutpostMemo {
                     channel: "channel-1".to_string(),
                     sender: user1.to_string(),
                     receiver: MOCK_CONTRACT_ADDR.to_string(),
@@ -1084,7 +1084,7 @@ mod tests {
             astroport_governance::hub::ExecuteMsg::Receive(Cw20ReceiveMsg {
                 sender: CW20ICS20.to_string(),
                 amount: user1_funds,
-                msg: to_binary(&astroport_governance::hub::Cw20HookMsg::OutpostMemo {
+                msg: to_json_binary(&astroport_governance::hub::Cw20HookMsg::OutpostMemo {
                     channel: "channel-1".to_string(),
                     sender: user1.to_string(),
                     receiver: MOCK_CONTRACT_ADDR.to_string(),
@@ -1154,7 +1154,7 @@ mod tests {
             astroport_governance::hub::ExecuteMsg::Receive(Cw20ReceiveMsg {
                 sender: CW20ICS20.to_string(),
                 amount: user1_funds,
-                msg: to_binary(&astroport_governance::hub::Cw20HookMsg::OutpostMemo {
+                msg: to_json_binary(&astroport_governance::hub::Cw20HookMsg::OutpostMemo {
                     channel: "channel-1".to_string(),
                     sender: user1.to_string(),
                     receiver: receiving_user.to_string(),
@@ -1219,7 +1219,7 @@ mod tests {
             astroport_governance::hub::ExecuteMsg::Receive(Cw20ReceiveMsg {
                 sender: CW20ICS20.to_string(),
                 amount: user1_funds,
-                msg: to_binary(&astroport_governance::hub::Cw20HookMsg::OutpostMemo {
+                msg: to_json_binary(&astroport_governance::hub::Cw20HookMsg::OutpostMemo {
                     channel: "channel-1".to_string(),
                     sender: user1.to_string(),
                     receiver: MOCK_CONTRACT_ADDR.to_owned(),
@@ -1231,8 +1231,8 @@ mod tests {
         .unwrap();
 
         // Verify that the stake message matches the expected message
-        let stake_msg = to_binary(&astroport::staking::Cw20HookMsg::Enter {}).unwrap();
-        let send_msg = to_binary(&Cw20ExecuteMsg::Send {
+        let stake_msg = to_json_binary(&astroport::staking::Cw20HookMsg::Enter {}).unwrap();
+        let send_msg = to_json_binary(&Cw20ExecuteMsg::Send {
             contract: STAKING.to_string(),
             amount: user1_funds,
             msg: stake_msg,
@@ -1271,7 +1271,7 @@ mod tests {
         assert_eq!(res.messages.len(), 1);
 
         // Once staked, we mint the xASTRO on the remote chain
-        let mint_msg = to_binary(&Outpost::MintXAstro {
+        let mint_msg = to_json_binary(&Outpost::MintXAstro {
             receiver: user1.to_string(),
             amount: user1_funds,
         })
@@ -1308,7 +1308,7 @@ mod tests {
             balance: user1_funds,
         };
 
-        assert_eq!(balances, to_binary(&expected).unwrap());
+        assert_eq!(balances, to_json_binary(&expected).unwrap());
 
         // At this point the total channel balance must have a balance that matches the amount
         let total_balance = query(
@@ -1324,7 +1324,7 @@ mod tests {
             balance: user1_funds,
         };
 
-        assert_eq!(total_balance, to_binary(&total_expected).unwrap());
+        assert_eq!(total_balance, to_json_binary(&total_expected).unwrap());
     }
 
     // Test Cases:
@@ -1379,7 +1379,7 @@ mod tests {
             astroport_governance::hub::ExecuteMsg::Receive(Cw20ReceiveMsg {
                 sender: CW20ICS20.to_string(),
                 amount: user1_funds,
-                msg: to_binary(&astroport_governance::hub::Cw20HookMsg::OutpostMemo {
+                msg: to_json_binary(&astroport_governance::hub::Cw20HookMsg::OutpostMemo {
                     channel: "channel-1".to_string(),
                     sender: user1.to_string(),
                     receiver: MOCK_CONTRACT_ADDR.to_owned(),
@@ -1391,8 +1391,8 @@ mod tests {
         .unwrap();
 
         // Verify that the stake message matches the expected message
-        let stake_msg = to_binary(&astroport::staking::Cw20HookMsg::Enter {}).unwrap();
-        let send_msg = to_binary(&Cw20ExecuteMsg::Send {
+        let stake_msg = to_json_binary(&astroport::staking::Cw20HookMsg::Enter {}).unwrap();
+        let send_msg = to_json_binary(&Cw20ExecuteMsg::Send {
             contract: STAKING.to_string(),
             amount: user1_funds,
             msg: stake_msg,
@@ -1445,7 +1445,7 @@ mod tests {
             balance: user1_funds,
         };
 
-        assert_eq!(balances, to_binary(&expected).unwrap());
+        assert_eq!(balances, to_json_binary(&expected).unwrap());
 
         // At this point the total channel balance must have a balance that matches the amount
         let total_balance = query(
@@ -1461,10 +1461,10 @@ mod tests {
             balance: user1_funds,
         };
 
-        assert_eq!(total_balance, to_binary(&total_expected).unwrap());
+        assert_eq!(total_balance, to_json_binary(&total_expected).unwrap());
 
         // Trigger a timeout on minting xASTRO remotely
-        let mint_msg = to_binary(&Outpost::MintXAstro {
+        let mint_msg = to_json_binary(&Outpost::MintXAstro {
             receiver: user1.to_owned(),
             amount: user1_funds,
         })
@@ -1491,8 +1491,8 @@ mod tests {
         assert_eq!(res.messages.len(), 1);
 
         // Verify that the unstake message matches the expected message
-        let unstake_msg = to_binary(&astroport::staking::Cw20HookMsg::Leave {}).unwrap();
-        let send_msg = to_binary(&Cw20ExecuteMsg::Send {
+        let unstake_msg = to_json_binary(&astroport::staking::Cw20HookMsg::Leave {}).unwrap();
+        let send_msg = to_json_binary(&Cw20ExecuteMsg::Send {
             contract: STAKING.to_string(),
             amount: user1_funds,
             msg: unstake_msg,
@@ -1530,7 +1530,7 @@ mod tests {
             balance: user1_funds,
         };
 
-        assert_eq!(balances, to_binary(&expected).unwrap());
+        assert_eq!(balances, to_json_binary(&expected).unwrap());
 
         // And the total must still match
         let total_balance = query(
@@ -1546,7 +1546,7 @@ mod tests {
             balance: user1_funds,
         };
 
-        assert_eq!(total_balance, to_binary(&total_expected).unwrap());
+        assert_eq!(total_balance, to_json_binary(&total_expected).unwrap());
 
         // Construct the reply from the staking contract that will be returned
         // to the contract
@@ -1579,7 +1579,7 @@ mod tests {
             balance: Uint128::zero(),
         };
 
-        assert_eq!(balances, to_binary(&expected).unwrap());
+        assert_eq!(balances, to_json_binary(&expected).unwrap());
 
         // And now it shoul be zero
         let total_balance = query(
@@ -1595,7 +1595,7 @@ mod tests {
             balance: Uint128::zero(),
         };
 
-        assert_eq!(total_balance, to_binary(&total_expected).unwrap());
+        assert_eq!(total_balance, to_json_binary(&total_expected).unwrap());
 
         // The rest of the unstaking flow is covered in ibc_staking tests
     }

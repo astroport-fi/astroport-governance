@@ -1,7 +1,7 @@
 use std::cmp::min;
 
 use cosmwasm_std::{
-    to_binary, Addr, CosmosMsg, DepsMut, StdError, StdResult, Storage, Uint128, WasmMsg,
+    to_json_binary, Addr, CosmosMsg, DepsMut, StdError, StdResult, Storage, Uint128, WasmMsg,
 };
 use cw20::Cw20ExecuteMsg;
 
@@ -27,7 +27,7 @@ pub(crate) fn transfer_token_amount(
     let messages = if !amount.is_zero() {
         vec![CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: contract_addr.to_string(),
-            msg: to_binary(&Cw20ExecuteMsg::Transfer {
+            msg: to_json_binary(&Cw20ExecuteMsg::Transfer {
                 recipient: recipient.to_string(),
                 amount,
             })?,

@@ -1,15 +1,14 @@
 #[cfg(test)]
-use cosmwasm_std::from_binary;
 use cosmwasm_std::{
     testing::{mock_env, mock_info, MockApi, MockQuerier, MockStorage},
-    to_binary, Binary, DepsMut, Env, IbcChannel, IbcChannelConnectMsg, IbcChannelOpenMsg,
+    to_json_binary, Binary, DepsMut, Env, IbcChannel, IbcChannelConnectMsg, IbcChannelOpenMsg,
     IbcEndpoint, IbcOrder, IbcPacket, IbcQuery, ListChannelsResponse, MessageInfo, OwnedDeps,
     Timestamp, Uint128,
 };
 
 use cosmwasm_std::testing::MOCK_CONTRACT_ADDR;
 use cosmwasm_std::{
-    from_slice, Empty, Querier, QuerierResult, QueryRequest, SystemError, SystemResult, WasmQuery,
+    from_json, Empty, Querier, QuerierResult, QueryRequest, SystemError, SystemResult, WasmQuery,
 };
 
 use crate::ibc::{ibc_channel_connect, ibc_channel_open, IBC_APP_VERSION};
@@ -45,7 +44,7 @@ pub struct WasmMockQuerier {
 impl Querier for WasmMockQuerier {
     fn raw_query(&self, bin_request: &[u8]) -> QuerierResult {
         // MockQuerier doesn't support Custom, so we ignore it completely
-        let request: QueryRequest<Empty> = match from_slice(bin_request) {
+        let request: QueryRequest<Empty> = match from_json(bin_request) {
             Ok(v) => v,
             Err(e) => {
                 return SystemResult::Err(SystemError::InvalidRequest {
@@ -63,7 +62,7 @@ impl WasmMockQuerier {
         match &request {
             QueryRequest::Wasm(WasmQuery::Smart { contract_addr, msg }) => {
                 if contract_addr == XASTRO_TOKEN {
-                    match from_binary(msg).unwrap() {
+                    match from_json(msg).unwrap() {
                         astroport::xastro_outpost_token::QueryMsg::BalanceAt {
                             address: _,
                             timestamp: _,
@@ -71,14 +70,14 @@ impl WasmMockQuerier {
                             let balance = astroport::token::BalanceResponse {
                                 balance: Uint128::from(1000u128),
                             };
-                            SystemResult::Ok(to_binary(&balance).into())
+                            SystemResult::Ok(to_json_binary(&balance).into())
                         }
                         _ => {
                             panic!("DO NOT ENTER HERE")
                         }
                     }
                 } else {
-                    match from_binary(msg).unwrap() {
+                    match from_json(msg).unwrap() {
                         astroport_governance::voting_escrow_lite::QueryMsg::UserDepositAt {
                             user:_,
                             timestamp:_,
@@ -86,7 +85,7 @@ impl WasmMockQuerier {
                             let balance = astroport::token::BalanceResponse {
                                 balance: Uint128::zero(),
                             };
-                            SystemResult::Ok(to_binary(&balance).into())
+                            SystemResult::Ok(to_json_binary(&balance).into())
                         }
                        astroport_governance::voting_escrow_lite::QueryMsg::UserEmissionsVotingPower {
                             user:_,
@@ -94,7 +93,7 @@ impl WasmMockQuerier {
                             let balance = astroport_governance::voting_escrow_lite::VotingPowerResponse {
                                 voting_power: Uint128::from(1000u128),
                             };
-                            SystemResult::Ok(to_binary(&balance).into())
+                            SystemResult::Ok(to_json_binary(&balance).into())
                         }
                         _ => {
                             panic!("DO NOT ENTER HERE")
@@ -133,7 +132,7 @@ impl WasmMockQuerier {
                         ),
                     ],
                 };
-                SystemResult::Ok(to_binary(&response).into())
+                SystemResult::Ok(to_json_binary(&response).into())
             }
             _ => self.base.handle_query(request),
         }

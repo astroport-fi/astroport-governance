@@ -62,6 +62,7 @@ impl ControllerHelper {
                 maker_fee_bps: 10,
                 is_disabled: false,
                 is_generator_disabled: false,
+                permissioned: false,
             }],
             token_code_id: escrow_helper.astro_token_code_id,
             fee_address: None,
@@ -115,13 +116,13 @@ impl ControllerHelper {
         let assembly_contract = Box::new(ContractWrapper::new_with_empty(
             astro_assembly::contract::execute,
             astro_assembly::contract::instantiate,
-            astro_assembly::contract::query,
+            astro_assembly::queries::query,
         ));
 
         let assembly_code = router.store_code(assembly_contract);
 
         let assembly_default_instantiate_msg = astroport_governance::assembly::InstantiateMsg {
-            xastro_token_addr: escrow_helper.xastro_token.to_string(),
+            staking_addr: escrow_helper.staking_instance.to_string(),
             vxastro_token_addr: None,
             voting_escrow_delegator_addr: None,
             ibc_controller: None,

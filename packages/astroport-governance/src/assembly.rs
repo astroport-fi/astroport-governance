@@ -70,7 +70,8 @@ pub enum ExecuteMsg {
         title: String,
         description: String,
         link: Option<String>,
-        messages: Option<Vec<CosmosMsg>>,
+        #[serde(default)]
+        messages: Vec<CosmosMsg>,
         /// If proposal should be executed on a remote chain this field should specify governance channel
         ibc_channel: Option<String>,
     },
@@ -358,7 +359,7 @@ pub struct Proposal {
     /// Proposal link
     pub link: Option<String>,
     /// Proposal messages
-    pub messages: Option<Vec<CosmosMsg>>,
+    pub messages: Vec<CosmosMsg>,
     /// Amount of xASTRO deposited in order to post the proposal
     pub deposit_amount: Uint128,
     /// IBC channel

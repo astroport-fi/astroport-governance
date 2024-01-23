@@ -1,4 +1,4 @@
-use cosmwasm_std::{to_binary, DepsMut, IbcReceiveResponse};
+use cosmwasm_std::{to_json_binary, DepsMut, IbcReceiveResponse};
 
 use astroport_governance::{
     assembly::Proposal,
@@ -29,7 +29,7 @@ pub fn handle_ibc_query_proposal(
         start_time: proposal.start_time,
     };
 
-    let ack_data = to_binary(&Response::QueryProposal(proposal_snapshot))?;
+    let ack_data = to_json_binary(&Response::QueryProposal(proposal_snapshot))?;
     Ok(IbcReceiveResponse::new()
         .set_ack(ack_data)
         .add_attribute("query", "proposal")
@@ -40,7 +40,7 @@ pub fn handle_ibc_query_proposal(
 mod tests {
     use super::*;
     use astroport_governance::interchain::Hub;
-    use cosmwasm_std::{from_binary, testing::mock_info, Addr, IbcPacketReceiveMsg, Uint64};
+    use cosmwasm_std::{from_json, testing::mock_info, Addr, IbcPacketReceiveMsg, Uint64};
 
     use crate::{
         contract::instantiate,
@@ -92,13 +92,13 @@ mod tests {
         )
         .unwrap();
 
-        let ibc_query_proposal = to_binary(&Hub::QueryProposal { id: 1 }).unwrap();
+        let ibc_query_proposal = to_json_binary(&Hub::QueryProposal { id: 1 }).unwrap();
         let recv_packet = mock_ibc_packet("channel-3", ibc_query_proposal);
 
         let msg = IbcPacketReceiveMsg::new(recv_packet, Addr::unchecked("relayer"));
         let res = ibc_packet_receive(deps.as_mut(), env, msg).unwrap();
 
-        let ack: Response = from_binary(&res.acknowledgement).unwrap();
+        let ack: Response = from_json(&res.acknowledgement).unwrap();
         match ack {
             Response::Result { error, .. } => {
                 assert!(error.is_some());
@@ -150,13 +150,13 @@ mod tests {
         )
         .unwrap();
 
-        let ibc_query_proposal = to_binary(&Hub::QueryProposal { id: 1 }).unwrap();
+        let ibc_query_proposal = to_json_binary(&Hub::QueryProposal { id: 1 }).unwrap();
         let recv_packet = mock_ibc_packet("channel-3", ibc_query_proposal);
 
         let msg = IbcPacketReceiveMsg::new(recv_packet, Addr::unchecked("relayer"));
         let res = ibc_packet_receive(deps.as_mut(), env, msg).unwrap();
 
-        let ack: Response = from_binary(&res.acknowledgement).unwrap();
+        let ack: Response = from_json(&res.acknowledgement).unwrap();
         match ack {
             Response::QueryProposal(proposal) => {
                 assert_eq!(proposal.id, Uint64::from(1u64));

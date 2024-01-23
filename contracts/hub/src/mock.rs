@@ -1,17 +1,17 @@
 use std::cell::Cell;
 
 #[cfg(test)]
-use cosmwasm_std::{from_binary, Uint64};
+use cosmwasm_std::{from_json, Uint64};
 use cosmwasm_std::{
     testing::{mock_env, mock_info, MockApi, MockQuerier, MockStorage},
-    to_binary, Addr, Binary, DepsMut, Env, IbcChannel, IbcChannelConnectMsg, IbcChannelOpenMsg,
-    IbcEndpoint, IbcOrder, IbcPacket, IbcQuery, ListChannelsResponse, MessageInfo, OwnedDeps,
-    Timestamp, Uint128,
+    to_json_binary, Addr, Binary, DepsMut, Env, IbcChannel, IbcChannelConnectMsg,
+    IbcChannelOpenMsg, IbcEndpoint, IbcOrder, IbcPacket, IbcQuery, ListChannelsResponse,
+    MessageInfo, OwnedDeps, Timestamp, Uint128,
 };
 
 use cosmwasm_std::testing::MOCK_CONTRACT_ADDR;
 use cosmwasm_std::{
-    from_slice, Empty, Querier, QuerierResult, QueryRequest, SystemError, SystemResult, WasmQuery,
+    Empty, Querier, QuerierResult, QueryRequest, SystemError, SystemResult, WasmQuery,
 };
 use cw20::BalanceResponse as Cw20BalanceResponse;
 
@@ -54,7 +54,7 @@ pub struct WasmMockQuerier {
 impl Querier for WasmMockQuerier {
     fn raw_query(&self, bin_request: &[u8]) -> QuerierResult {
         // MockQuerier doesn't support Custom, so we ignore it completely
-        let request: QueryRequest<Empty> = match from_slice(bin_request) {
+        let request: QueryRequest<Empty> = match from_json(bin_request) {
             Ok(v) => v,
             Err(e) => {
                 return SystemResult::Err(SystemError::InvalidRequest {
@@ -72,14 +72,14 @@ impl WasmMockQuerier {
         match &request {
             QueryRequest::Wasm(WasmQuery::Smart { contract_addr, msg }) => {
                 if contract_addr == STAKING {
-                    match from_binary(msg).unwrap() {
+                    match from_json(msg).unwrap() {
                         astroport::staking::QueryMsg::Config {} => {
                             let config = astroport::staking::ConfigResponse {
                                 deposit_token_addr: Addr::unchecked("astro"),
                                 share_token_addr: Addr::unchecked("xastro"),
                             };
 
-                            SystemResult::Ok(to_binary(&config).into())
+                            SystemResult::Ok(to_json_binary(&config).into())
                         }
                         _ => {
                             panic!("DO NOT ENTER HERE")
@@ -98,7 +98,7 @@ impl WasmMockQuerier {
                                 .checked_add(Uint128::from(100u128))
                                 .unwrap(),
                         );
-                        return SystemResult::Ok(to_binary(&response).into());
+                        return SystemResult::Ok(to_json_binary(&response).into());
                     }
                     if contract_addr == XASTRO_TOKEN {
                         // Manually increase the ASTRO balance every query
@@ -112,12 +112,12 @@ impl WasmMockQuerier {
                                 .checked_add(Uint128::from(100u128))
                                 .unwrap(),
                         );
-                        return SystemResult::Ok(to_binary(&response).into());
+                        return SystemResult::Ok(to_json_binary(&response).into());
                     }
                     if contract_addr != ASSEMBLY {
                         return SystemResult::Err(SystemError::Unknown {});
                     }
-                    match from_binary(msg).unwrap() {
+                    match from_json(msg).unwrap() {
                         astroport_governance::assembly::QueryMsg::Proposal { proposal_id } => {
                             let proposal = astroport_governance::assembly::Proposal {
                                 proposal_id: Uint64::from(proposal_id),
@@ -127,8 +127,6 @@ impl WasmMockQuerier {
                                 outpost_against_power: Uint128::zero(),
                                 against_power: Uint128::zero(),
                                 outpost_for_power: Uint128::zero(),
-                                for_voters: vec![],
-                                against_voters: vec![],
                                 start_block: 1,
                                 start_time: 1571797419,
                                 end_block: 5,
@@ -137,11 +135,11 @@ impl WasmMockQuerier {
                                 title: "Test title".to_string(),
                                 description: "Test description".to_string(),
                                 link: None,
-                                messages: None,
+                                messages: vec![],
                                 deposit_amount: Uint128::one(),
                                 ibc_channel: None,
                             };
-                            SystemResult::Ok(to_binary(&proposal).into())
+                            SystemResult::Ok(to_json_binary(&proposal).into())
                         }
                         _ => {
                             panic!("DO NOT ENTER HERE")
@@ -206,7 +204,7 @@ impl WasmMockQuerier {
                         ),
                     ],
                 };
-                SystemResult::Ok(to_binary(&response).into())
+                SystemResult::Ok(to_json_binary(&response).into())
                 // if contract_addr != "cw20_ics20" {
                 //     return SystemResult::Err(SystemError::Unknown {});
                 // }

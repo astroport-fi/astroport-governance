@@ -24,7 +24,7 @@ use astroport_governance::builder_unlock::{AllocationParams, Schedule};
 use astroport_governance::utils::{EPOCH_START, WEEK};
 use cosmwasm_std::{
     testing::{mock_env, MockApi, MockStorage},
-    to_binary, Addr, Binary, CosmosMsg, Decimal, QueryRequest, StdResult, Timestamp, Uint128,
+    to_json_binary, Addr, Binary, CosmosMsg, Decimal, QueryRequest, StdResult, Timestamp, Uint128,
     Uint64, WasmMsg, WasmQuery,
 };
 use cw20::{BalanceResponse, Cw20ExecuteMsg, MinterResponse};
@@ -249,7 +249,7 @@ fn test_proposal_submitting() {
     // Try to create proposal with insufficient token deposit
     let submit_proposal_msg = Cw20ExecuteMsg::Send {
         contract: assembly_addr.to_string(),
-        msg: to_binary(&Cw20HookMsg::SubmitProposal {
+        msg: to_json_binary(&Cw20HookMsg::SubmitProposal {
             title: String::from("Title"),
             description: String::from("Description"),
             link: Some(String::from("https://some.link")),
@@ -273,7 +273,7 @@ fn test_proposal_submitting() {
             xastro_addr.clone(),
             &Cw20ExecuteMsg::Send {
                 contract: assembly_addr.to_string(),
-                msg: to_binary(&Cw20HookMsg::SubmitProposal {
+                msg: to_json_binary(&Cw20HookMsg::SubmitProposal {
                     title: String::from("X"),
                     description: String::from("Description"),
                     link: Some(String::from("https://some.link/")),
@@ -298,7 +298,7 @@ fn test_proposal_submitting() {
             xastro_addr.clone(),
             &Cw20ExecuteMsg::Send {
                 contract: assembly_addr.to_string(),
-                msg: to_binary(&Cw20HookMsg::SubmitProposal {
+                msg: to_json_binary(&Cw20HookMsg::SubmitProposal {
                     title: String::from_utf8(vec![b'X'; 65]).unwrap(),
                     description: String::from("Description"),
                     link: Some(String::from("https://some.link/")),
@@ -324,7 +324,7 @@ fn test_proposal_submitting() {
             xastro_addr.clone(),
             &Cw20ExecuteMsg::Send {
                 contract: assembly_addr.to_string(),
-                msg: to_binary(&Cw20HookMsg::SubmitProposal {
+                msg: to_json_binary(&Cw20HookMsg::SubmitProposal {
                     title: String::from("Title"),
                     description: String::from("X"),
                     link: Some(String::from("https://some.link/")),
@@ -349,7 +349,7 @@ fn test_proposal_submitting() {
             xastro_addr.clone(),
             &Cw20ExecuteMsg::Send {
                 contract: assembly_addr.to_string(),
-                msg: to_binary(&Cw20HookMsg::SubmitProposal {
+                msg: to_json_binary(&Cw20HookMsg::SubmitProposal {
                     title: String::from("Title"),
                     description: String::from_utf8(vec![b'X'; 1025]).unwrap(),
                     link: Some(String::from("https://some.link/")),
@@ -375,7 +375,7 @@ fn test_proposal_submitting() {
             xastro_addr.clone(),
             &Cw20ExecuteMsg::Send {
                 contract: assembly_addr.to_string(),
-                msg: to_binary(&Cw20HookMsg::SubmitProposal {
+                msg: to_json_binary(&Cw20HookMsg::SubmitProposal {
                     title: String::from("Title"),
                     description: String::from("Description"),
                     link: Some(String::from("X")),
@@ -400,7 +400,7 @@ fn test_proposal_submitting() {
             xastro_addr.clone(),
             &Cw20ExecuteMsg::Send {
                 contract: assembly_addr.to_string(),
-                msg: to_binary(&Cw20HookMsg::SubmitProposal {
+                msg: to_json_binary(&Cw20HookMsg::SubmitProposal {
                     title: String::from("Title"),
                     description: String::from("Description"),
                     link: Some(String::from_utf8(vec![b'X'; 129]).unwrap()),
@@ -425,7 +425,7 @@ fn test_proposal_submitting() {
             xastro_addr.clone(),
             &Cw20ExecuteMsg::Send {
                 contract: assembly_addr.to_string(),
-                msg: to_binary(&Cw20HookMsg::SubmitProposal {
+                msg: to_json_binary(&Cw20HookMsg::SubmitProposal {
                     title: String::from("Title"),
                     description: String::from("Description"),
                     link: Some(String::from("https://some1.link")),
@@ -450,7 +450,7 @@ fn test_proposal_submitting() {
             xastro_addr.clone(),
             &Cw20ExecuteMsg::Send {
                 contract: assembly_addr.to_string(),
-                msg: to_binary(&Cw20HookMsg::SubmitProposal {
+                msg: to_json_binary(&Cw20HookMsg::SubmitProposal {
                     title: String::from("Title"),
                     description: String::from("Description"),
                     link: Some(String::from(
@@ -477,13 +477,13 @@ fn test_proposal_submitting() {
         xastro_addr.clone(),
         &Cw20ExecuteMsg::Send {
             contract: assembly_addr.to_string(),
-            msg: to_binary(&Cw20HookMsg::SubmitProposal {
+            msg: to_json_binary(&Cw20HookMsg::SubmitProposal {
                 title: String::from("Title"),
                 description: String::from("Description"),
                 link: Some(String::from("https://some.link/q/")),
                 messages: Some(vec![CosmosMsg::Wasm(WasmMsg::Execute {
                     contract_addr: assembly_addr.to_string(),
-                    msg: to_binary(&ExecuteMsg::UpdateConfig(Box::new(UpdateConfig {
+                    msg: to_json_binary(&ExecuteMsg::UpdateConfig(Box::new(UpdateConfig {
                         xastro_token_addr: None,
                         vxastro_token_addr: None,
                         voting_escrow_delegator_addr: None,
@@ -535,7 +535,7 @@ fn test_proposal_submitting() {
         proposal.messages,
         Some(vec![CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: assembly_addr.to_string(),
-            msg: to_binary(&ExecuteMsg::UpdateConfig(Box::new(UpdateConfig {
+            msg: to_json_binary(&ExecuteMsg::UpdateConfig(Box::new(UpdateConfig {
                 xastro_token_addr: None,
                 vxastro_token_addr: None,
                 voting_escrow_delegator_addr: None,
@@ -679,7 +679,7 @@ fn test_successful_proposal() {
         Addr::unchecked("user0"),
         Some(vec![CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: assembly_addr.to_string(),
-            msg: to_binary(&ExecuteMsg::UpdateConfig(Box::new(UpdateConfig {
+            msg: to_json_binary(&ExecuteMsg::UpdateConfig(Box::new(UpdateConfig {
                 xastro_token_addr: None,
                 vxastro_token_addr: None,
                 voting_escrow_delegator_addr: None,
@@ -1142,7 +1142,7 @@ fn test_voting_power_changes() {
         Addr::unchecked("user0"),
         Some(vec![CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: assembly_addr.to_string(),
-            msg: to_binary(&ExecuteMsg::UpdateConfig(Box::new(UpdateConfig {
+            msg: to_json_binary(&ExecuteMsg::UpdateConfig(Box::new(UpdateConfig {
                 xastro_token_addr: None,
                 vxastro_token_addr: None,
                 voting_escrow_delegator_addr: None,
@@ -1276,7 +1276,7 @@ fn test_fail_outpost_vote_without_hub() {
         Addr::unchecked("user0"),
         Some(vec![CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: assembly_addr.to_string(),
-            msg: to_binary(&ExecuteMsg::UpdateConfig(Box::new(UpdateConfig {
+            msg: to_json_binary(&ExecuteMsg::UpdateConfig(Box::new(UpdateConfig {
                 xastro_token_addr: None,
                 vxastro_token_addr: None,
                 voting_escrow_delegator_addr: None,
@@ -1392,7 +1392,7 @@ fn test_outpost_vote() {
         Addr::unchecked("user0"),
         Some(vec![CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: assembly_addr.to_string(),
-            msg: to_binary(&ExecuteMsg::UpdateConfig(Box::new(UpdateConfig {
+            msg: to_json_binary(&ExecuteMsg::UpdateConfig(Box::new(UpdateConfig {
                 xastro_token_addr: None,
                 vxastro_token_addr: None,
                 voting_escrow_delegator_addr: None,
@@ -1783,7 +1783,7 @@ fn test_check_messages() {
 
     let vxastro_blacklist_msg = vec![(
         vxastro_addr.to_string(),
-        to_binary(
+        to_json_binary(
             &astroport_governance::voting_escrow_lite::ExecuteMsg::UpdateConfig {
                 new_guardian: None,
                 generator_controller: None,
@@ -1969,7 +1969,7 @@ fn instantiate_xastro_token(router: &mut App, owner: &Addr, astro_token: &Addr) 
         .wrap()
         .query::<astroport::staking::ConfigResponse>(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: staking_instance.to_string(),
-            msg: to_binary(&astroport::staking::QueryMsg::Config {}).unwrap(),
+            msg: to_json_binary(&astroport::staking::QueryMsg::Config {}).unwrap(),
         }))
         .unwrap();
 
@@ -2145,7 +2145,7 @@ fn mint_vxastro(
     let msg = Cw20ExecuteMsg::Send {
         contract: vxastro.to_string(),
         amount: Uint128::from(amount),
-        msg: to_binary(&VXAstroCw20HookMsg::CreateLock { time: WEEK * 50 }).unwrap(),
+        msg: to_json_binary(&VXAstroCw20HookMsg::CreateLock { time: WEEK * 50 }).unwrap(),
     };
 
     app.execute_contract(recipient, xastro, &msg, &[]).unwrap();
@@ -2176,7 +2176,8 @@ fn create_allocations(
         &Cw20ExecuteMsg::Send {
             contract: builder_unlock_contract_addr.to_string(),
             amount: Uint128::from(amount),
-            msg: to_binary(&BuilderUnlockReceiveMsg::CreateAllocations { allocations }).unwrap(),
+            msg: to_json_binary(&BuilderUnlockReceiveMsg::CreateAllocations { allocations })
+                .unwrap(),
         },
         &[],
     )
@@ -2204,7 +2205,7 @@ fn create_proposal(
         &Cw20ExecuteMsg::Send {
             contract: assembly.to_string(),
             amount: Uint128::from(PROPOSAL_REQUIRED_DEPOSIT),
-            msg: to_binary(&submit_proposal_msg).unwrap(),
+            msg: to_json_binary(&submit_proposal_msg).unwrap(),
         },
         &[],
     )
@@ -2294,7 +2295,7 @@ fn cast_outpost_vote(
 //     astro_token: Addr,
 //     amount: Uint128,
 // ) -> anyhow::Result<AppResponse> {
-//     let cw20_msg = to_binary(&astroport_governance::hub::Cw20HookMsg::OutpostMemo {
+//     let cw20_msg = to_json_binary(&astroport_governance::hub::Cw20HookMsg::OutpostMemo {
 //         channel: "channel-1".to_string(),
 //         sender: "remoteuser1".to_string(),
 //         receiver: hub.to_string(),

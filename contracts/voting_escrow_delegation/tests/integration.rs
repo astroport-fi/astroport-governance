@@ -1,7 +1,7 @@
 use astroport_governance::utils::WEEK;
 use astroport_governance::voting_escrow_delegation::Config;
 use astroport_governance::voting_escrow_delegation::QueryMsg;
-use cosmwasm_std::{to_binary, Addr, Empty, QueryRequest, Uint128, WasmQuery};
+use cosmwasm_std::{to_json_binary, Addr, Empty, QueryRequest, Uint128, WasmQuery};
 use cw721_base::{ExecuteMsg as ExecuteMsgNFT, Extension, MintMsg, QueryMsg as QueryMsgNFT};
 use cw_multi_test::Executor;
 
@@ -25,7 +25,7 @@ fn config() {
         .wrap()
         .query::<Config>(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: helper.delegation_instance.to_string(),
-            msg: to_binary(&QueryMsg::Config {}).unwrap(),
+            msg: to_json_binary(&QueryMsg::Config {}).unwrap(),
         }))
         .unwrap();
 
@@ -43,7 +43,7 @@ fn mint() {
         .wrap()
         .query::<ContractInfoResponse>(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: helper.nft_instance.to_string(),
-            msg: to_binary(&QueryMsgNFT::<Empty>::ContractInfo {}).unwrap(),
+            msg: to_json_binary(&QueryMsgNFT::<Empty>::ContractInfo {}).unwrap(),
         }))
         .unwrap();
     assert_eq!("Delegated VP NFT", resp.name);
@@ -84,7 +84,7 @@ fn mint() {
         .wrap()
         .query::<NumTokensResponse>(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: helper.nft_instance.to_string(),
-            msg: to_binary(&QueryMsgNFT::<Empty>::NumTokens {}).unwrap(),
+            msg: to_json_binary(&QueryMsgNFT::<Empty>::NumTokens {}).unwrap(),
         }))
         .unwrap();
     assert_eq!(1, resp.count);
@@ -93,7 +93,7 @@ fn mint() {
         .wrap()
         .query::<TokensResponse>(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: helper.nft_instance.to_string(),
-            msg: to_binary(&QueryMsgNFT::<Empty>::Tokens {
+            msg: to_json_binary(&QueryMsgNFT::<Empty>::Tokens {
                 owner: USER.to_string(),
                 start_after: None,
                 limit: None,
@@ -137,7 +137,7 @@ fn mint() {
         .wrap()
         .query::<TokensResponse>(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: helper.nft_instance.to_string(),
-            msg: to_binary(&QueryMsgNFT::<Empty>::Tokens {
+            msg: to_json_binary(&QueryMsgNFT::<Empty>::Tokens {
                 owner: USER.to_string(),
                 start_after: None,
                 limit: None,

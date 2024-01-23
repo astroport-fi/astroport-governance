@@ -1,4 +1,4 @@
-use cosmwasm_std::{to_binary, DepsMut, IbcBasicResponse, WasmMsg};
+use cosmwasm_std::{to_json_binary, DepsMut, IbcBasicResponse, WasmMsg};
 
 use astroport_governance::{interchain::Hub, voting_escrow_lite};
 
@@ -61,7 +61,7 @@ pub fn handle_failed_messages(
 
             let msg = WasmMsg::Execute {
                 contract_addr: config.vxastro_token_addr.to_string(),
-                msg: to_binary(&relock_msg)?,
+                msg: to_json_binary(&relock_msg)?,
                 funds: vec![],
             };
 
@@ -89,8 +89,8 @@ mod tests {
     use cosmwasm_std::{
         attr,
         testing::{mock_info, MOCK_CONTRACT_ADDR},
-        to_binary, Addr, IbcEndpoint, IbcPacket, IbcPacketTimeoutMsg, ReplyOn, StdError, SubMsg,
-        Uint128, WasmMsg,
+        to_json_binary, Addr, IbcEndpoint, IbcPacket, IbcPacketTimeoutMsg, ReplyOn, StdError,
+        SubMsg, Uint128, WasmMsg,
     };
 
     use super::*;
@@ -147,7 +147,7 @@ mod tests {
         .unwrap();
 
         // Attempt to get timeout from different contract
-        let original_unstake_msg = to_binary(&Hub::Unstake {
+        let original_unstake_msg = to_json_binary(&Hub::Unstake {
             receiver: user.to_string(),
             amount,
         })
@@ -175,7 +175,7 @@ mod tests {
         assert_eq!(res.messages.len(), 1);
 
         // Verify that the mint message matches the expected message
-        let xastro_mint_msg = to_binary(&cw20::Cw20ExecuteMsg::Mint {
+        let xastro_mint_msg = to_json_binary(&cw20::Cw20ExecuteMsg::Mint {
             recipient: user.to_string(),
             amount,
         })
@@ -241,7 +241,7 @@ mod tests {
         .unwrap();
 
         // Construct the original message
-        let original_msg = to_binary(&Hub::CastAssemblyVote {
+        let original_msg = to_json_binary(&Hub::CastAssemblyVote {
             proposal_id,
             voter: Addr::unchecked(user),
             vote_option: astroport_governance::assembly::ProposalVoteOption::For,
@@ -327,7 +327,7 @@ mod tests {
         .unwrap();
 
         // Construct the original message
-        let original_msg = to_binary(&Hub::CastEmissionsVote {
+        let original_msg = to_json_binary(&Hub::CastEmissionsVote {
             voter: Addr::unchecked(user),
             voting_power,
             votes,
@@ -411,7 +411,7 @@ mod tests {
         .unwrap();
 
         // Construct the original message
-        let original_msg = to_binary(&Hub::QueryProposal { id: proposal_id }).unwrap();
+        let original_msg = to_json_binary(&Hub::QueryProposal { id: proposal_id }).unwrap();
         // Authorised channels
         let packet = IbcPacket::new(
             original_msg,
@@ -512,7 +512,7 @@ mod tests {
         .unwrap();
 
         // Construct the original message
-        let original_msg = to_binary(&Hub::KickUnlockedVoter {
+        let original_msg = to_json_binary(&Hub::KickUnlockedVoter {
             voter: Addr::unchecked(user),
         })
         .unwrap();
@@ -560,7 +560,7 @@ mod tests {
                 reply_on: ReplyOn::Never,
                 msg: WasmMsg::Execute {
                     contract_addr: VXASTRO_TOKEN.to_string(),
-                    msg: to_binary(
+                    msg: to_json_binary(
                         &astroport_governance::voting_escrow_lite::ExecuteMsg::Relock {
                             user: user.to_string()
                         }
@@ -614,7 +614,7 @@ mod tests {
         .unwrap();
 
         // Construct the original message
-        let original_msg = to_binary(&Hub::WithdrawFunds {
+        let original_msg = to_json_binary(&Hub::WithdrawFunds {
             user: Addr::unchecked(user),
         })
         .unwrap();

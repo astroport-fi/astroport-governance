@@ -7,7 +7,7 @@ use astroport_governance::voting_escrow::{
     Cw20HookMsg, ExecuteMsg, InstantiateMsg as AstroVotingEscrowInstantiateMsg, QueryMsg,
     VotingPowerResponse,
 };
-use cosmwasm_std::{attr, to_binary, Addr, QueryRequest, StdResult, Uint128, WasmQuery};
+use cosmwasm_std::{attr, to_json_binary, Addr, QueryRequest, StdResult, Uint128, WasmQuery};
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
 
 use anyhow::Result;
@@ -131,7 +131,7 @@ impl BaseAstroportTestPackage {
             .wrap()
             .query::<staking::ConfigResponse>(&QueryRequest::Wasm(WasmQuery::Smart {
                 contract_addr: self.staking.clone().unwrap().address.to_string(),
-                msg: to_binary(&staking::QueryMsg::Config {}).unwrap(),
+                msg: to_json_binary(&staking::QueryMsg::Config {}).unwrap(),
             }))
             .unwrap();
 
@@ -217,7 +217,7 @@ impl BaseAstroportTestPackage {
         let cw20msg = Cw20ExecuteMsg::Send {
             contract: self.voting_escrow.clone().unwrap().address.to_string(),
             amount: Uint128::from(amount),
-            msg: to_binary(&Cw20HookMsg::CreateLock { time }).unwrap(),
+            msg: to_json_binary(&Cw20HookMsg::CreateLock { time }).unwrap(),
         };
 
         router.execute_contract(user, self.get_staking_xastro(router), &cw20msg, &[])
@@ -233,7 +233,7 @@ impl BaseAstroportTestPackage {
         let cw20msg = Cw20ExecuteMsg::Send {
             contract: self.voting_escrow.clone().unwrap().address.to_string(),
             amount: Uint128::from(amount),
-            msg: to_binary(&Cw20HookMsg::ExtendLockAmount {}).unwrap(),
+            msg: to_json_binary(&Cw20HookMsg::ExtendLockAmount {}).unwrap(),
         };
         router.execute_contract(
             Addr::unchecked(user),

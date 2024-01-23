@@ -5,8 +5,8 @@ use astroport_governance::{generator_controller_lite, outpost};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, from_binary, to_binary, Addr, CosmosMsg, DepsMut, Env, MessageInfo, Response, StdError,
-    StdResult, Storage, Uint128, WasmMsg,
+    attr, from_json, to_json_binary, Addr, CosmosMsg, DepsMut, Env, MessageInfo, Response,
+    StdError, StdResult, Storage, Uint128, WasmMsg,
 };
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 use cw20_base::contract::{execute_update_marketing, execute_upload_logo};
@@ -143,7 +143,7 @@ fn receive_cw20(
     let sender = Addr::unchecked(cw20_msg.sender);
     blacklist_check(deps.storage, &sender)?;
 
-    match from_binary(&cw20_msg.msg)? {
+    match from_json(&cw20_msg.msg)? {
         Cw20HookMsg::CreateLock { .. } => create_lock(deps, env, sender, cw20_msg.amount),
         Cw20HookMsg::ExtendLockAmount {} => deposit_for(deps, env, cw20_msg.amount, sender),
         Cw20HookMsg::DepositFor { user } => {
@@ -255,7 +255,7 @@ fn unlock(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, Contra
                     // Voting power is removed immediately after a user unlocks
                     CosmosMsg::Wasm(WasmMsg::Execute {
                         contract_addr: generator_controller.to_string(),
-                        msg: to_binary(
+                        msg: to_json_binary(
                             &generator_controller_lite::ExecuteMsg::KickUnlockedVoters {
                                 unlocked_voters: vec![sender.to_string()],
                             },
@@ -269,7 +269,7 @@ fn unlock(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, Contra
                     // the funds will be locked again
                     CosmosMsg::Wasm(WasmMsg::Execute {
                         contract_addr: outpost.to_string(),
-                        msg: to_binary(&outpost::ExecuteMsg::KickUnlocked { user: sender })?,
+                        msg: to_json_binary(&outpost::ExecuteMsg::KickUnlocked { user: sender })?,
                         funds: vec![],
                     })
                 }
@@ -365,7 +365,7 @@ fn withdraw(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, Cont
             let config = CONFIG.load(deps.storage)?;
             let transfer_msg = CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: config.deposit_token_addr.to_string(),
-                msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                msg: to_json_binary(&Cw20ExecuteMsg::Transfer {
                     recipient: sender.to_string(),
                     amount: lock.amount,
                 })?,

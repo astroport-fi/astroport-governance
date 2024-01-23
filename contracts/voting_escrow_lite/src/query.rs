@@ -1,6 +1,6 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{to_binary, Addr, Binary, Deps, Env, StdError, StdResult, Uint128, Uint64};
+use cosmwasm_std::{to_json_binary, Addr, Binary, Deps, Env, StdError, StdResult, Uint128, Uint64};
 
 use cw20::{BalanceResponse, TokenInfoResponse};
 use cw20_base::contract::{query_download_logo, query_marketing_info};
@@ -59,53 +59,53 @@ use crate::utils::fetch_last_checkpoint;
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::CheckVotersAreBlacklisted { voters } => {
-            to_binary(&check_voters_are_blacklisted(deps, voters)?)
+            to_json_binary(&check_voters_are_blacklisted(deps, voters)?)
         }
         QueryMsg::BlacklistedVoters { start_after, limit } => {
-            to_binary(&get_blacklisted_voters(deps, start_after, limit)?)
+            to_json_binary(&get_blacklisted_voters(deps, start_after, limit)?)
         }
-        QueryMsg::TotalVotingPower {} => to_binary(&VotingPowerResponse {
+        QueryMsg::TotalVotingPower {} => to_json_binary(&VotingPowerResponse {
             voting_power: Uint128::zero(),
         }),
-        QueryMsg::TotalVotingPowerAt { .. } => to_binary(&VotingPowerResponse {
+        QueryMsg::TotalVotingPowerAt { .. } => to_json_binary(&VotingPowerResponse {
             voting_power: Uint128::zero(),
         }),
-        QueryMsg::TotalVotingPowerAtPeriod { .. } => to_binary(&VotingPowerResponse {
+        QueryMsg::TotalVotingPowerAtPeriod { .. } => to_json_binary(&VotingPowerResponse {
             voting_power: Uint128::zero(),
         }),
-        QueryMsg::UserVotingPower { .. } => to_binary(&VotingPowerResponse {
+        QueryMsg::UserVotingPower { .. } => to_json_binary(&VotingPowerResponse {
             voting_power: Uint128::zero(),
         }),
-        QueryMsg::UserVotingPowerAt { .. } => to_binary(&VotingPowerResponse {
+        QueryMsg::UserVotingPowerAt { .. } => to_json_binary(&VotingPowerResponse {
             voting_power: Uint128::zero(),
         }),
-        QueryMsg::UserVotingPowerAtPeriod { .. } => to_binary(&VotingPowerResponse {
+        QueryMsg::UserVotingPowerAtPeriod { .. } => to_json_binary(&VotingPowerResponse {
             voting_power: Uint128::zero(),
         }),
         QueryMsg::TotalEmissionsVotingPower {} => {
-            to_binary(&get_total_emissions_voting_power(deps, env, None)?)
+            to_json_binary(&get_total_emissions_voting_power(deps, env, None)?)
         }
         QueryMsg::TotalEmissionsVotingPowerAt { time } => {
-            to_binary(&get_total_emissions_voting_power(deps, env, Some(time))?)
+            to_json_binary(&get_total_emissions_voting_power(deps, env, Some(time))?)
         }
         QueryMsg::UserEmissionsVotingPower { user } => {
-            to_binary(&get_user_emissions_voting_power(deps, env, user, None)?)
+            to_json_binary(&get_user_emissions_voting_power(deps, env, user, None)?)
         }
-        QueryMsg::UserEmissionsVotingPowerAt { user, time } => to_binary(
+        QueryMsg::UserEmissionsVotingPowerAt { user, time } => to_json_binary(
             &get_user_emissions_voting_power(deps, env, user, Some(time))?,
         ),
-        QueryMsg::LockInfo { user } => to_binary(&get_user_lock_info(deps, env, user)?),
+        QueryMsg::LockInfo { user } => to_json_binary(&get_user_lock_info(deps, env, user)?),
         QueryMsg::UserDepositAt { user, timestamp } => {
-            to_binary(&get_user_deposit_at_time(deps, user, timestamp)?)
+            to_json_binary(&get_user_deposit_at_time(deps, user, timestamp)?)
         }
         QueryMsg::Config {} => {
             let config = CONFIG.load(deps.storage)?;
-            to_binary(&config)
+            to_json_binary(&config)
         }
-        QueryMsg::Balance { address } => to_binary(&get_user_balance(deps, env, address)?),
-        QueryMsg::TokenInfo {} => to_binary(&query_token_info(deps, env)?),
-        QueryMsg::MarketingInfo {} => to_binary(&query_marketing_info(deps)?),
-        QueryMsg::DownloadLogo {} => to_binary(&query_download_logo(deps)?),
+        QueryMsg::Balance { address } => to_json_binary(&get_user_balance(deps, env, address)?),
+        QueryMsg::TokenInfo {} => to_json_binary(&query_token_info(deps, env)?),
+        QueryMsg::MarketingInfo {} => to_json_binary(&query_marketing_info(deps)?),
+        QueryMsg::DownloadLogo {} => to_json_binary(&query_download_logo(deps)?),
     }
 }
 

@@ -1,5 +1,5 @@
 use astroport::cw20_ics20::TransferMsg;
-use cosmwasm_std::{to_binary, Addr, DepsMut, IbcReceiveResponse, WasmMsg};
+use cosmwasm_std::{to_json_binary, Addr, DepsMut, IbcReceiveResponse, WasmMsg};
 use cw20::Cw20ExecuteMsg;
 
 use astroport_governance::interchain::Response;
@@ -48,18 +48,18 @@ pub fn handle_ibc_withdraw_stuck_funds(
     let send_msg = Cw20ExecuteMsg::Send {
         contract: config.cw20_ics20_addr.to_string(),
         amount: balance,
-        msg: to_binary(&transfer_msg)?,
+        msg: to_json_binary(&transfer_msg)?,
     };
 
     let msg = WasmMsg::Execute {
         contract_addr: config.token_addr.to_string(),
-        msg: to_binary(&send_msg)?,
+        msg: to_json_binary(&send_msg)?,
         funds: vec![],
     };
 
     // This acknowledgement only indicates that the withdraw was processed without
     // error, not that the funds were successfully transferred over IBC to the user
-    let ack_data = to_binary(&Response::new_success(
+    let ack_data = to_json_binary(&Response::new_success(
         "withdraw_funds".to_owned(),
         user.to_string(),
     ))?;
@@ -76,7 +76,7 @@ mod tests {
     use super::*;
     use astroport_governance::interchain::{self, Hub};
     use cosmwasm_std::{
-        from_binary, testing::mock_info, IbcPacketReceiveMsg, ReplyOn, SubMsg, Uint128,
+        from_json, testing::mock_info, IbcPacketReceiveMsg, ReplyOn, SubMsg, Uint128,
     };
     use cw20::Cw20ReceiveMsg;
 
@@ -146,7 +146,7 @@ mod tests {
             astroport_governance::hub::ExecuteMsg::Receive(Cw20ReceiveMsg {
                 sender: CW20ICS20.to_string(),
                 amount: stuck_amount,
-                msg: to_binary(&astroport_governance::hub::Cw20HookMsg::TransferFailure {
+                msg: to_json_binary(&astroport_governance::hub::Cw20HookMsg::TransferFailure {
                     receiver: user.to_owned(),
                 })
                 .unwrap(),
@@ -155,7 +155,7 @@ mod tests {
         .unwrap();
 
         // Withdraw must fail if the user has no funds stuck
-        let ibc_withdraw = to_binary(&Hub::WithdrawFunds {
+        let ibc_withdraw = to_json_binary(&Hub::WithdrawFunds {
             user: Addr::unchecked("not_user"),
         })
         .unwrap();
@@ -163,7 +163,7 @@ mod tests {
         let msg = IbcPacketReceiveMsg::new(recv_packet, Addr::unchecked("relayer"));
         let res = ibc_packet_receive(deps.as_mut(), env.clone(), msg).unwrap();
 
-        let hub_respone: interchain::Response = from_binary(&res.acknowledgement).unwrap();
+        let hub_respone: interchain::Response = from_json(&res.acknowledgement).unwrap();
         match hub_respone {
             interchain::Response::Result { error, .. } => {
                 assert!(error.is_some());
@@ -176,7 +176,7 @@ mod tests {
         }
 
         // Our user has funds stuck, so withdrawal must succeed
-        let ibc_withdraw = to_binary(&Hub::WithdrawFunds {
+        let ibc_withdraw = to_json_binary(&Hub::WithdrawFunds {
             user: Addr::unchecked(user),
         })
         .unwrap();
@@ -185,7 +185,7 @@ mod tests {
         let msg = IbcPacketReceiveMsg::new(recv_packet, Addr::unchecked("relayer"));
         let res = ibc_packet_receive(deps.as_mut(), env, msg).unwrap();
 
-        let hub_respone: interchain::Response = from_binary(&res.acknowledgement).unwrap();
+        let hub_respone: interchain::Response = from_json(&res.acknowledgement).unwrap();
         match hub_respone {
             interchain::Response::Result { address, error, .. } => {
                 assert!(error.is_none());
@@ -198,14 +198,14 @@ mod tests {
         assert_eq!(res.messages.len(), 1);
 
         // It must be a CW20-ICS20 transfer message
-        let ibc_transfer_msg = to_binary(&TransferMsg {
+        let ibc_transfer_msg = to_json_binary(&TransferMsg {
             remote_address: user.to_string(),
             channel: "channel-1".to_string(),
             timeout: Some(10),
             memo: None,
         })
         .unwrap();
-        let cw_send_msg = to_binary(&Cw20ExecuteMsg::Send {
+        let cw_send_msg = to_json_binary(&Cw20ExecuteMsg::Send {
             contract: CW20ICS20.to_string(),
             amount: stuck_amount,
             msg: ibc_transfer_msg,

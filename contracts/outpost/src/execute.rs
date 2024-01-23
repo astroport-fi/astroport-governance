@@ -2,8 +2,8 @@ use astroport_governance::interchain::{MAX_IBC_TIMEOUT_SECONDS, MIN_IBC_TIMEOUT_
 use astroport_governance::utils::check_contract_supports_channel;
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    from_binary, to_binary, Addr, CosmosMsg, DepsMut, Env, IbcMsg, MessageInfo, Response, StdError,
-    WasmMsg,
+    from_json, to_json_binary, Addr, CosmosMsg, DepsMut, Env, IbcMsg, MessageInfo, Response,
+    StdError, WasmMsg,
 };
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 
@@ -130,7 +130,7 @@ fn receive_cw20(
         return Err(ContractError::Unauthorized {});
     }
 
-    match from_binary(&cw20_msg.msg)? {
+    match from_json(&cw20_msg.msg)? {
         Cw20HookMsg::Unstake {} => execute_remote_unstake(deps, env, cw20_msg),
     }
 }
@@ -154,7 +154,7 @@ fn execute_remote_unstake(
     let burn_msg = Cw20ExecuteMsg::Burn { amount: msg.amount };
     let wasm_msg = WasmMsg::Execute {
         contract_addr: config.xastro_token_addr.to_string(),
-        msg: to_binary(&burn_msg)?,
+        msg: to_json_binary(&burn_msg)?,
         funds: vec![],
     };
 
@@ -169,7 +169,7 @@ fn execute_remote_unstake(
     };
     let hub_unstake_msg: CosmosMsg = CosmosMsg::Ibc(IbcMsg::SendPacket {
         channel_id: hub_channel.clone(),
-        data: to_binary(&unstake)?,
+        data: to_json_binary(&unstake)?,
         timeout: env
             .block
             .time
@@ -277,7 +277,7 @@ fn cast_assembly_vote(
         };
         let hub_msg = CosmosMsg::Ibc(IbcMsg::SendPacket {
             channel_id: hub_channel,
-            data: to_binary(&cast_vote)?,
+            data: to_json_binary(&cast_vote)?,
             timeout: env
                 .block
                 .time
@@ -321,7 +321,7 @@ fn cast_assembly_vote(
     let query_proposal = Hub::QueryProposal { id: proposal_id };
     let hub_query_msg = CosmosMsg::Ibc(IbcMsg::SendPacket {
         channel_id: hub_channel,
-        data: to_binary(&query_proposal)?,
+        data: to_json_binary(&query_proposal)?,
         timeout: env
             .block
             .time
@@ -369,7 +369,7 @@ fn cast_emissions_vote(
     };
     let hub_msg = CosmosMsg::Ibc(IbcMsg::SendPacket {
         channel_id: hub_channel,
-        data: to_binary(&cast_vote)?,
+        data: to_json_binary(&cast_vote)?,
         timeout: env
             .block
             .time
@@ -410,7 +410,7 @@ fn kick_unlocked(
     };
     let hub_msg = CosmosMsg::Ibc(IbcMsg::SendPacket {
         channel_id: hub_channel,
-        data: to_binary(&kick_unlocked)?,
+        data: to_json_binary(&kick_unlocked)?,
         timeout: env
             .block
             .time
@@ -451,7 +451,7 @@ fn kick_blacklisted(
     };
     let hub_msg = CosmosMsg::Ibc(IbcMsg::SendPacket {
         channel_id: hub_channel,
-        data: to_binary(&kick_blacklisted)?,
+        data: to_json_binary(&kick_blacklisted)?,
         timeout: env
             .block
             .time
@@ -486,7 +486,7 @@ fn withdraw_hub_funds(
     };
     let hub_msg = CosmosMsg::Ibc(IbcMsg::SendPacket {
         channel_id: hub_channel,
-        data: to_binary(&withdraw)?,
+        data: to_json_binary(&withdraw)?,
         timeout: env
             .block
             .time
@@ -570,7 +570,8 @@ mod tests {
             astroport_governance::outpost::ExecuteMsg::Receive(Cw20ReceiveMsg {
                 sender: user.to_string(),
                 amount: user_funds,
-                msg: to_binary(&astroport_governance::outpost::Cw20HookMsg::Unstake {}).unwrap(),
+                msg: to_json_binary(&astroport_governance::outpost::Cw20HookMsg::Unstake {})
+                    .unwrap(),
             }),
         )
         .unwrap_err();
@@ -585,13 +586,14 @@ mod tests {
             astroport_governance::outpost::ExecuteMsg::Receive(Cw20ReceiveMsg {
                 sender: user.to_string(),
                 amount: user_funds,
-                msg: to_binary(&astroport_governance::outpost::Cw20HookMsg::Unstake {}).unwrap(),
+                msg: to_json_binary(&astroport_governance::outpost::Cw20HookMsg::Unstake {})
+                    .unwrap(),
             }),
         )
         .unwrap();
 
         // Build the expected message
-        let ibc_message = to_binary(&Hub::Unstake {
+        let ibc_message = to_json_binary(&Hub::Unstake {
             receiver: user.to_string(),
             amount: user_funds,
         })
@@ -609,7 +611,7 @@ mod tests {
                 reply_on: ReplyOn::Never,
                 msg: WasmMsg::Execute {
                     contract_addr: XASTRO_TOKEN.to_string(),
-                    msg: to_binary(&Cw20ExecuteMsg::Burn { amount: user_funds }).unwrap(),
+                    msg: to_json_binary(&Cw20ExecuteMsg::Burn { amount: user_funds }).unwrap(),
                     funds: vec![],
                 }
                 .into(),
@@ -685,7 +687,7 @@ mod tests {
         // Ensure the config set during instantiation is still there
         assert_eq!(
             config,
-            to_binary(&astroport_governance::outpost::Config {
+            to_json_binary(&astroport_governance::outpost::Config {
                 owner: Addr::unchecked(OWNER),
                 xastro_token_addr: Addr::unchecked(XASTRO_TOKEN),
                 vxastro_token_addr: Addr::unchecked(VXASTRO_TOKEN),
@@ -721,7 +723,7 @@ mod tests {
         // connection
         assert_eq!(
             config,
-            to_binary(&astroport_governance::outpost::Config {
+            to_json_binary(&astroport_governance::outpost::Config {
                 owner: Addr::unchecked(OWNER),
                 xastro_token_addr: Addr::unchecked(XASTRO_TOKEN),
                 vxastro_token_addr: Addr::unchecked(VXASTRO_TOKEN),
@@ -757,7 +759,7 @@ mod tests {
         // connection
         assert_eq!(
             config,
-            to_binary(&astroport_governance::outpost::Config {
+            to_json_binary(&astroport_governance::outpost::Config {
                 owner: Addr::unchecked(OWNER),
                 xastro_token_addr: Addr::unchecked(XASTRO_TOKEN),
                 vxastro_token_addr: Addr::unchecked(VXASTRO_TOKEN),
@@ -793,7 +795,7 @@ mod tests {
         // connection
         assert_eq!(
             config,
-            to_binary(&astroport_governance::outpost::Config {
+            to_json_binary(&astroport_governance::outpost::Config {
                 owner: Addr::unchecked(OWNER),
                 xastro_token_addr: Addr::unchecked(XASTRO_TOKEN),
                 vxastro_token_addr: Addr::unchecked(VXASTRO_TOKEN),
@@ -866,7 +868,7 @@ mod tests {
         .unwrap();
 
         // Wrap the query
-        let ibc_message = to_binary(&Hub::QueryProposal { id: proposal_id }).unwrap();
+        let ibc_message = to_json_binary(&Hub::QueryProposal { id: proposal_id }).unwrap();
 
         // Ensure a query is emitted
         assert_eq!(
@@ -909,7 +911,7 @@ mod tests {
         .unwrap();
 
         // Build the expected message
-        let ibc_message = to_binary(&Hub::CastAssemblyVote {
+        let ibc_message = to_json_binary(&Hub::CastAssemblyVote {
             proposal_id,
             voter: Addr::unchecked(user),
             vote_option: astroport_governance::assembly::ProposalVoteOption::For,
@@ -961,7 +963,7 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(vote_data, to_binary(&ProposalVoteOption::For).unwrap());
+        assert_eq!(vote_data, to_json_binary(&ProposalVoteOption::For).unwrap());
     }
 
     // Test Cases:
@@ -1023,7 +1025,7 @@ mod tests {
         .unwrap();
 
         // Build the expected message
-        let ibc_message = to_binary(&Hub::CastEmissionsVote {
+        let ibc_message = to_json_binary(&Hub::CastEmissionsVote {
             voter: Addr::unchecked(user),
             votes,
             voting_power: Uint128::from(voting_power),
@@ -1120,7 +1122,7 @@ mod tests {
         .unwrap();
 
         // Build the expected message
-        let ibc_message = to_binary(&Hub::KickUnlockedVoter {
+        let ibc_message = to_json_binary(&Hub::KickUnlockedVoter {
             voter: Addr::unchecked(user),
         })
         .unwrap();
@@ -1215,7 +1217,7 @@ mod tests {
         .unwrap();
 
         // Build the expected message
-        let ibc_message = to_binary(&Hub::KickBlacklistedVoter {
+        let ibc_message = to_json_binary(&Hub::KickBlacklistedVoter {
             voter: Addr::unchecked(user),
         })
         .unwrap();
@@ -1295,7 +1297,7 @@ mod tests {
         .unwrap();
 
         // Build the expected message
-        let ibc_message = to_binary(&Hub::WithdrawFunds {
+        let ibc_message = to_json_binary(&Hub::WithdrawFunds {
             user: Addr::unchecked(user),
         })
         .unwrap();

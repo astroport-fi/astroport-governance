@@ -13,12 +13,11 @@ crate-type = ["cdylib", "rlib"]
 backtraces = ["cosmwasm-std/backtraces"]
 testnet = []
 library = []
-default = []
 
 [dependencies]
-cw2 = "0.15"
+cw2 = "1"
 cosmwasm-std = { version = "1.5", features = ["ibc3", "cosmwasm_1_1"] }
-cw-storage-plus = "0.15"
+cw-storage-plus = "1.2.0"
 astroport-governance = { path = "../../packages/astroport-governance" }
 astroport = { git = "https://github.com/astroport-fi/hidden_astroport_core", branch = "feat/neutron-migration" }
 ibc-controller-package = "1.0.0"
