@@ -52,10 +52,8 @@ const SAFE_TEXT_CHARS: &str = "!&?#()*+'-./\"";
 /// This structure holds the parameters used for creating an Assembly contract.
 #[cw_serde]
 pub struct InstantiateMsg {
-    /// Address of xASTRO token
-    pub xastro_denom: String,
-    // TODO: Comment, the address that tracks xASTRO balances
-    pub xastro_denom_tracking_address: String,
+    /// Astroport xASTRO staking address. xASTRO denom and tracker contract address are queried on assembly instantiation.
+    pub staking_addr: String,
     /// Address of vxASTRO token
     pub vxastro_token_addr: Option<String>,
     /// Voting Escrow delegator address
@@ -119,10 +117,7 @@ pub enum ExecuteMsg {
         proposal_id: u64,
     },
     /// Checks that proposal messages are correct.
-    CheckMessages {
-        /// messages
-        messages: Vec<CosmosMsg>,
-    },
+    CheckMessages(Vec<CosmosMsg>),
     /// The last endpoint which is executed only if all proposal messages have been passed
     CheckMessagesPassed {},
     /// Execute a successful proposal
@@ -210,7 +205,7 @@ pub enum QueryMsg {
 pub struct Config {
     /// xASTRO token denom
     pub xastro_denom: String,
-    // TODO: Comments
+    // xASTRO denom tracking contract
     pub xastro_denom_tracking: String,
     /// vxASTRO token address
     pub vxastro_token_addr: Option<Addr>,

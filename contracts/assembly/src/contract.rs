@@ -1,19 +1,19 @@
 use cosmwasm_std::{
-    attr, coin, entry_point, to_binary, wasm_execute, BankMsg, Binary, CosmosMsg, Decimal, Deps,
-    DepsMut, Env, MessageInfo, Order, Response, StdError, StdResult, Uint128, Uint64, WasmMsg,
+    attr, coin, entry_point, to_json_binary, wasm_execute, BankMsg, Binary, CosmosMsg, Decimal,
+    Deps, DepsMut, Env, MessageInfo, Order, Response, StdError, StdResult, Uint128, Uint64,
+    WasmMsg,
 };
 use cw2::set_contract_version;
 use cw_storage_plus::Bound;
 use cw_utils::must_pay;
 use std::str::FromStr;
 
-use crate::astroport;
 use astroport_governance::assembly::{
     helpers::validate_links, Config, ExecuteMsg, InstantiateMsg, Proposal, ProposalListResponse,
     ProposalStatus, ProposalVoteOption, ProposalVotesResponse, QueryMsg, UpdateConfig,
 };
 
-use crate::astroport::asset::addr_opt_validate;
+use astroport::asset::addr_opt_validate;
 use astroport::tokenfactory_tracker::QueryMsg as TokenFactoryTrackerQueryMsg;
 use astroport_governance::assembly::ProposalVoterResponse;
 use astroport_governance::builder_unlock::msg::{
@@ -630,7 +630,7 @@ pub fn submit_execute_emissions_proposal(
 pub fn check_messages(env: Env, mut messages: Vec<CosmosMsg>) -> Result<Response, ContractError> {
     messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: env.contract.address.to_string(),
-        msg: to_binary(&ExecuteMsg::CheckMessagesPassed {})?,
+        msg: to_json_binary(&ExecuteMsg::CheckMessagesPassed {})?,
         funds: vec![],
     }));
 
@@ -914,30 +914,32 @@ fn remove_outpost_votes(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::Config {} => to_binary(&CONFIG.load(deps.storage)?),
-        QueryMsg::Proposals { start, limit } => to_binary(&query_proposals(deps, start, limit)?),
+        QueryMsg::Config {} => to_json_binary(&CONFIG.load(deps.storage)?),
+        QueryMsg::Proposals { start, limit } => {
+            to_json_binary(&query_proposals(deps, start, limit)?)
+        }
         QueryMsg::Proposal { proposal_id } => {
-            to_binary(&PROPOSALS.load(deps.storage, proposal_id)?)
+            to_json_binary(&PROPOSALS.load(deps.storage, proposal_id)?)
         }
         QueryMsg::ProposalVotes { proposal_id } => {
-            to_binary(&query_proposal_votes(deps, proposal_id)?)
+            to_json_binary(&query_proposal_votes(deps, proposal_id)?)
         }
         QueryMsg::UserVotingPower { user, proposal_id } => {
             let proposal = PROPOSALS.load(deps.storage, proposal_id)?;
 
             deps.api.addr_validate(&user)?;
 
-            to_binary(&calc_voting_power(deps, user, &proposal)?)
+            to_json_binary(&calc_voting_power(deps, user, &proposal)?)
         }
         QueryMsg::TotalVotingPower { proposal_id } => {
             let proposal = PROPOSALS.load(deps.storage, proposal_id)?;
-            to_binary(&calc_total_voting_power_at(deps, &proposal)?)
+            to_json_binary(&calc_total_voting_power_at(deps, &proposal)?)
         }
         QueryMsg::ProposalVoters {
             proposal_id,
             start_after,
             limit,
-        } => to_binary(&query_proposal_voters(
+        } => to_json_binary(&query_proposal_voters(
             deps,
             proposal_id,
             start_after,
