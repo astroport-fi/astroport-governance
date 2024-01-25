@@ -96,7 +96,6 @@ pub enum QueryMsg {
         start_after: Option<String>,
         limit: Option<u32>,
     },
-    // TODO: change to track by nano seconds
     /// Returns the current balance of xASTRO minted via a specific Outpost channel
     #[returns(HubBalance)]
     ChannelBalanceAt { channel: String, timestamp: Uint64 },

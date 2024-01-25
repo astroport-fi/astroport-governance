@@ -29,6 +29,7 @@ dependencies = [
  "astroport-hub",
  "astroport-nft",
  "astroport-staking 2.0.0",
+ "astroport-tokenfactory-tracker",
  "builder-unlock",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -37,8 +38,8 @@ dependencies = [
  "cw-utils 1.0.3",
  "cw2 1.1.2",
  "ibc-controller-package",
+ "osmosis-std",
  "thiserror",
- "voting-escrow",
  "voting-escrow-delegation",
  "voting-escrow-lite",
 ]
@@ -61,7 +62,7 @@ dependencies = [
 [[package]]
 name = "astroport"
 version = "3.8.0"
-source = "git+https://github.com/astroport-fi/hidden_astroport_core?branch=feat/neutron-migration#07c45e88c139fced103c034fe426ed017bb64060"
+source = "git+https://github.com/astroport-fi/hidden_astroport_core?branch=feat/neutron-migration#84fb6364a0581d2f22ce8538fd308b395494812e"
 dependencies = [
  "astroport-circular-buffer 0.1.0 (git+https://github.com/astroport-fi/hidden_astroport_core?branch=feat/neutron-migration)",
  "cosmwasm-schema",
@@ -93,7 +94,7 @@ dependencies = [
 [[package]]
 name = "astroport-circular-buffer"
 version = "0.1.0"
-source = "git+https://github.com/astroport-fi/hidden_astroport_core?branch=feat/neutron-migration#07c45e88c139fced103c034fe426ed017bb64060"
+source = "git+https://github.com/astroport-fi/hidden_astroport_core?branch=feat/neutron-migration#84fb6364a0581d2f22ce8538fd308b395494812e"
 dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -285,7 +286,7 @@ dependencies = [
 [[package]]
 name = "astroport-staking"
 version = "2.0.0"
-source = "git+https://github.com/astroport-fi/hidden_astroport_core?branch=feat/neutron-migration#07c45e88c139fced103c034fe426ed017bb64060"
+source = "git+https://github.com/astroport-fi/hidden_astroport_core?branch=feat/neutron-migration#84fb6364a0581d2f22ce8538fd308b395494812e"
 dependencies = [
  "astroport 3.8.0 (git+https://github.com/astroport-fi/hidden_astroport_core?branch=feat/neutron-migration)",
  "cosmwasm-std",
@@ -355,6 +356,19 @@ dependencies = [
  "cw20 0.15.1",
  "cw20-base",
  "snafu",
+]
+
+[[package]]
+name = "astroport-tokenfactory-tracker"
+version = "1.0.0"
+source = "git+https://github.com/astroport-fi/hidden_astroport_core?branch=feat/neutron-migration#84fb6364a0581d2f22ce8538fd308b395494812e"
+dependencies = [
+ "astroport 3.8.0 (git+https://github.com/astroport-fi/hidden_astroport_core?branch=feat/neutron-migration)",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-storage-plus 1.2.0",
+ "cw2 1.1.2",
+ "thiserror",
 ]
 
 [[package]]

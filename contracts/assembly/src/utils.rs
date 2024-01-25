@@ -1,5 +1,5 @@
 use astroport::tokenfactory_tracker;
-use cosmwasm_std::{Deps, StdResult, Timestamp, Uint128, Uint64};
+use cosmwasm_std::{Deps, StdResult, Uint128, Uint64};
 
 use astroport_governance::assembly::Proposal;
 use astroport_governance::builder_unlock::msg::{
@@ -25,7 +25,7 @@ pub fn calc_voting_power(deps: Deps, sender: String, proposal: &Proposal) -> Std
         &config.xastro_denom_tracking,
         &tokenfactory_tracker::QueryMsg::BalanceAt {
             address: sender.clone(),
-            timestamp: Some(Timestamp::from_seconds(proposal.start_time).nanos()),
+            timestamp: Some(proposal.start_time),
         },
     )?;
 
@@ -51,11 +51,13 @@ pub fn calc_voting_power(deps: Deps, sender: String, proposal: &Proposal) -> Std
                     },
                 )?
             } else {
+                // TODO: why?
                 // For vxASTRO lite, this will always be 0
                 let res: VotingPowerResponse = deps.querier.query_wasm_smart(
                     &vxastro_token_addr,
                     &VotingEscrowQueryMsg::UserVotingPowerAt {
                         user: sender.clone(),
+                        // TODO: remove - WEEK
                         time: proposal.start_time - WEEK,
                     },
                 )?;
@@ -87,7 +89,7 @@ pub fn calc_total_voting_power_at(deps: Deps, proposal: &Proposal) -> StdResult<
     let mut total: Uint128 = deps.querier.query_wasm_smart(
         config.xastro_denom_tracking,
         &tokenfactory_tracker::QueryMsg::TotalSupplyAt {
-            timestamp: Some(Timestamp::from_seconds(proposal.start_time).nanos()),
+            timestamp: Some(proposal.start_time),
         },
     )?;
 
@@ -98,6 +100,7 @@ pub fn calc_total_voting_power_at(deps: Deps, proposal: &Proposal) -> StdResult<
 
     total += builder_state.remaining_astro_tokens;
 
+    // TODO: remove it since it is always 0?
     if let Some(vxastro_token_addr) = config.vxastro_token_addr {
         // Total vxASTRO voting power
         // For vxASTRO lite, this will always be 0
