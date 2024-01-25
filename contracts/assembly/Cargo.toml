@@ -36,3 +36,4 @@ astroport-staking = { git = "https://github.com/astroport-fi/hidden_astroport_co
 astroport-tokenfactory-tracker = { git = "https://github.com/astroport-fi/hidden_astroport_core", branch = "feat/neutron-migration" }
 builder-unlock = { path = "../builder_unlock" }
 anyhow = "1"
+test-case = "3.3.1"

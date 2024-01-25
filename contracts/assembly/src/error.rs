@@ -4,7 +4,7 @@ use cw_utils::PaymentError;
 use thiserror::Error;
 
 /// This enum describes Assembly contract errors
-#[derive(Error, Debug)]
+#[derive(Error, Debug, PartialEq)]
 pub enum ContractError {
     #[error("{0}")]
     Std(#[from] StdError),

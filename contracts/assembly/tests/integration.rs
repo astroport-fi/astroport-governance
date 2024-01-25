@@ -38,561 +38,161 @@
 // const PROPOSAL_REQUIRED_THRESHOLD: &str = "0.60";
 //
 
+use astroport_governance::assembly;
+use cosmwasm_std::{coins, Addr, Uint128};
+use cw_multi_test::Executor;
+
+use astroport_governance::assembly::{Config, InstantiateMsg, ProposalListResponse, QueryMsg};
+use astroport_governance::builder_unlock::{AllocationParams, Schedule};
+
+use crate::common::helper::{default_init_msg, Helper, PROPOSAL_REQUIRED_DEPOSIT};
+
 mod common;
 
-use crate::common::helper::Helper;
-use cosmwasm_std::Addr;
-
 #[test]
-fn test_new_suite() {
+fn test_contract_instantiation() {
     let owner = Addr::unchecked("owner");
-
     let mut helper = Helper::new(&owner).unwrap();
+
+    let assembly_code = helper.assembly_code_id;
+    let staking = helper.staking.clone();
+    let builder_unlock = helper.builder_unlock.clone();
+
+    // Try to instantiate assembly with wrong threshold
+    let err = helper
+        .app
+        .instantiate_contract(
+            assembly_code,
+            owner.clone(),
+            &InstantiateMsg {
+                proposal_required_threshold: "0.3".to_string(),
+                ..default_init_msg(&staking, &builder_unlock)
+            },
+            &[],
+            "Assembly".to_string(),
+            Some(owner.to_string()),
+        )
+        .unwrap_err();
+
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Generic error: The required threshold for a proposal cannot be lower than 33% or higher than 100%"
+    );
+
+    let err = helper
+        .app
+        .instantiate_contract(
+            assembly_code,
+            owner.clone(),
+            &InstantiateMsg {
+                proposal_required_threshold: "1.1".to_string(),
+                ..default_init_msg(&staking, &builder_unlock)
+            },
+            &[],
+            "Assembly".to_string(),
+            Some(owner.to_string()),
+        )
+        .unwrap_err();
+
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Generic error: The required threshold for a proposal cannot be lower than 33% or higher than 100%"
+    );
+
+    let err = helper
+        .app
+        .instantiate_contract(
+            assembly_code,
+            owner.clone(),
+            &InstantiateMsg {
+                proposal_required_quorum: "1.1".to_string(),
+                ..default_init_msg(&staking, &builder_unlock)
+            },
+            &[],
+            "Assembly".to_string(),
+            Some(owner.to_string()),
+        )
+        .unwrap_err();
+
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Generic error: The required quorum for a proposal cannot be lower than 1% or higher than 100%"
+    );
+
+    let err = helper
+        .app
+        .instantiate_contract(
+            assembly_code,
+            owner.clone(),
+            &InstantiateMsg {
+                proposal_expiration_period: 500,
+                ..default_init_msg(&staking, &builder_unlock)
+            },
+            &[],
+            "Assembly".to_string(),
+            Some(owner.to_string()),
+        )
+        .unwrap_err();
+
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Generic error: The expiration period for a proposal cannot be lower than 12342 or higher than 100800"
+    );
+
+    let err = helper
+        .app
+        .instantiate_contract(
+            assembly_code,
+            owner.clone(),
+            &InstantiateMsg {
+                proposal_effective_delay: 400,
+                ..default_init_msg(&staking, &builder_unlock)
+            },
+            &[],
+            "Assembly".to_string(),
+            Some(owner.to_string()),
+        )
+        .unwrap_err();
+
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Generic error: The effective delay for a proposal cannot be lower than 6171 or higher than 14400"
+    );
+
+    let assembly_instance = helper
+        .app
+        .instantiate_contract(
+            assembly_code,
+            owner.clone(),
+            &default_init_msg(&staking, &builder_unlock),
+            &[],
+            "Assembly".to_string(),
+            Some(owner.to_string()),
+        )
+        .unwrap();
+
+    let res: Config = helper
+        .app
+        .wrap()
+        .query_wasm_smart(assembly_instance, &QueryMsg::Config {})
+        .unwrap();
+
+    assert_eq!(res.xastro_denom, helper.xastro_denom);
+    assert_eq!(res.builder_unlock_addr, helper.builder_unlock);
+    assert_eq!(
+        res.whitelisted_links,
+        vec!["https://some.link/".to_string(),]
+    );
 }
 
 // #[test]
-// fn test_contract_instantiation() {
-//     let mut app = mock_app();
-//
-//     let owner = Addr::unchecked("owner");
-//
-//     // Instantiate needed contracts
-//     let token_addr = instantiate_astro_token(&mut app, &owner);
-//     let (staking_addr, xastro_token_addr) = instantiate_xastro_token(&mut app, &owner, &token_addr);
-//     let vxastro_token_addr = instantiate_vxastro_token(&mut app, &owner, &xastro_token_addr);
-//     let builder_unlock_addr = instantiate_builder_unlock_contract(&mut app, &owner, &token_addr);
-//
-//     let assembly_contract = Box::new(ContractWrapper::new_with_empty(
-//         astro_assembly::contract::execute,
-//         astro_assembly::contract::instantiate,
-//         astro_assembly::queries::query,
-//     ));
-//
-//     let assembly_code = app.store_code(assembly_contract);
-//
-//     let assembly_default_instantiate_msg = InstantiateMsg {
-//         staking_addr: staking_addr.to_string(),
-//         vxastro_token_addr: Some(vxastro_token_addr.to_string()),
-//         voting_escrow_delegator_addr: None,
-//         ibc_controller: None,
-//         generator_controller_addr: None,
-//         hub_addr: None,
-//         builder_unlock_addr: builder_unlock_addr.to_string(),
-//         proposal_voting_period: PROPOSAL_VOTING_PERIOD,
-//         proposal_effective_delay: PROPOSAL_EFFECTIVE_DELAY,
-//         proposal_expiration_period: PROPOSAL_EXPIRATION_PERIOD,
-//         proposal_required_deposit: Uint128::from(PROPOSAL_REQUIRED_DEPOSIT),
-//         proposal_required_quorum: String::from(PROPOSAL_REQUIRED_QUORUM),
-//         proposal_required_threshold: String::from(PROPOSAL_REQUIRED_THRESHOLD),
-//         whitelisted_links: vec!["https://some.link/".to_string()],
-//     };
-//
-//     // Try to instantiate assembly with wrong threshold
-//     let err = app
-//         .instantiate_contract(
-//             assembly_code,
-//             owner.clone(),
-//             &InstantiateMsg {
-//                 proposal_required_threshold: "0.3".to_string(),
-//                 ..assembly_default_instantiate_msg.clone()
-//             },
-//             &[],
-//             "Assembly".to_string(),
-//             Some(owner.to_string()),
-//         )
-//         .unwrap_err();
-//
-//     assert_eq!(
-//         err.root_cause().to_string(),
-//         "Generic error: The required threshold for a proposal cannot be lower than 33% or higher than 100%"
-//     );
-//
-//     let err = app
-//         .instantiate_contract(
-//             assembly_code,
-//             owner.clone(),
-//             &InstantiateMsg {
-//                 proposal_required_threshold: "1.1".to_string(),
-//                 ..assembly_default_instantiate_msg.clone()
-//             },
-//             &[],
-//             "Assembly".to_string(),
-//             Some(owner.to_string()),
-//         )
-//         .unwrap_err();
-//
-//     assert_eq!(
-//         err.root_cause().to_string(),
-//         "Generic error: The required threshold for a proposal cannot be lower than 33% or higher than 100%"
-//     );
-//
-//     let err = app
-//         .instantiate_contract(
-//             assembly_code,
-//             owner.clone(),
-//             &InstantiateMsg {
-//                 proposal_required_quorum: "1.1".to_string(),
-//                 ..assembly_default_instantiate_msg.clone()
-//             },
-//             &[],
-//             "Assembly".to_string(),
-//             Some(owner.to_string()),
-//         )
-//         .unwrap_err();
-//
-//     assert_eq!(
-//         err.root_cause().to_string(),
-//         "Generic error: The required quorum for a proposal cannot be lower than 1% or higher than 100%"
-//     );
-//
-//     let err = app
-//         .instantiate_contract(
-//             assembly_code,
-//             owner.clone(),
-//             &InstantiateMsg {
-//                 proposal_expiration_period: 500,
-//                 ..assembly_default_instantiate_msg.clone()
-//             },
-//             &[],
-//             "Assembly".to_string(),
-//             Some(owner.to_string()),
-//         )
-//         .unwrap_err();
-//
-//     assert_eq!(
-//         err.root_cause().to_string(),
-//         "Generic error: The expiration period for a proposal cannot be lower than 12342 or higher than 100800"
-//     );
-//
-//     let err = app
-//         .instantiate_contract(
-//             assembly_code,
-//             owner.clone(),
-//             &InstantiateMsg {
-//                 proposal_effective_delay: 400,
-//                 ..assembly_default_instantiate_msg.clone()
-//             },
-//             &[],
-//             "Assembly".to_string(),
-//             Some(owner.to_string()),
-//         )
-//         .unwrap_err();
-//
-//     assert_eq!(
-//         err.root_cause().to_string(),
-//         "Generic error: The effective delay for a proposal cannot be lower than 6171 or higher than 14400"
-//     );
-//
-//     let assembly_instance = app
-//         .instantiate_contract(
-//             assembly_code,
-//             owner.clone(),
-//             &assembly_default_instantiate_msg,
-//             &[],
-//             "Assembly".to_string(),
-//             Some(owner.to_string()),
-//         )
-//         .unwrap();
-//
-//     let res: Config = app
-//         .wrap()
-//         .query_wasm_smart(assembly_instance, &QueryMsg::Config {})
-//         .unwrap();
-//
-//     assert_eq!(res.xastro_token_addr, xastro_token_addr);
-//     assert_eq!(res.builder_unlock_addr, builder_unlock_addr);
-//     assert_eq!(res.proposal_voting_period, PROPOSAL_VOTING_PERIOD);
-//     assert_eq!(res.proposal_effective_delay, PROPOSAL_EFFECTIVE_DELAY);
-//     assert_eq!(res.proposal_expiration_period, PROPOSAL_EXPIRATION_PERIOD);
-//     assert_eq!(
-//         res.proposal_required_deposit,
-//         Uint128::from(PROPOSAL_REQUIRED_DEPOSIT)
-//     );
-//     assert_eq!(
-//         res.proposal_required_quorum,
-//         Decimal::from_str(PROPOSAL_REQUIRED_QUORUM).unwrap()
-//     );
-//     assert_eq!(
-//         res.proposal_required_threshold,
-//         Decimal::from_str(PROPOSAL_REQUIRED_THRESHOLD).unwrap()
-//     );
-//     assert_eq!(
-//         res.whitelisted_links,
-//         vec!["https://some.link/".to_string(),]
-//     );
-// }
-//
-// #[test]
-// fn test_proposal_submitting() {
-//     let mut app = mock_app();
-//
-//     let owner = Addr::unchecked("owner");
-//     let user = Addr::unchecked("user1");
-//
-//     let (_, staking_instance, xastro_addr, _, _, assembly_addr, _, _) =
-//         instantiate_contracts(&mut app, owner, false, false);
-//
-//     let proposals: ProposalListResponse = app
-//         .wrap()
-//         .query_wasm_smart(
-//             assembly_addr.clone(),
-//             &QueryMsg::Proposals {
-//                 start: None,
-//                 limit: None,
-//             },
-//         )
-//         .unwrap();
-//
-//     assert_eq!(proposals.proposal_count, Uint64::from(0u32));
-//     assert_eq!(proposals.proposal_list, vec![]);
-//
-//     mint_tokens(
-//         &mut app,
-//         &staking_instance,
-//         &xastro_addr,
-//         &user,
-//         PROPOSAL_REQUIRED_DEPOSIT,
-//     );
-//
-//     check_token_balance(&mut app, &xastro_addr, &user, PROPOSAL_REQUIRED_DEPOSIT);
-//
-//     // Try to create proposal with insufficient token deposit
-//     let submit_proposal_msg = Cw20ExecuteMsg::Send {
-//         contract: assembly_addr.to_string(),
-//         msg: to_json_binary(&Cw20HookMsg::SubmitProposal {
-//             title: String::from("Title"),
-//             description: String::from("Description"),
-//             link: Some(String::from("https://some.link")),
-//             messages: None,
-//             ibc_channel: None,
-//         })
-//         .unwrap(),
-//         amount: Uint128::from(PROPOSAL_REQUIRED_DEPOSIT - 1),
-//     };
-//
-//     let err = app
-//         .execute_contract(user.clone(), xastro_addr.clone(), &submit_proposal_msg, &[])
-//         .unwrap_err();
-//
-//     assert_eq!(err.root_cause().to_string(), "Insufficient token deposit!");
-//
-//     // Try to create a proposal with wrong title
-//     let err = app
-//         .execute_contract(
-//             user.clone(),
-//             xastro_addr.clone(),
-//             &Cw20ExecuteMsg::Send {
-//                 contract: assembly_addr.to_string(),
-//                 msg: to_json_binary(&Cw20HookMsg::SubmitProposal {
-//                     title: String::from("X"),
-//                     description: String::from("Description"),
-//                     link: Some(String::from("https://some.link/")),
-//                     messages: None,
-//                     ibc_channel: None,
-//                 })
-//                 .unwrap(),
-//                 amount: Uint128::from(PROPOSAL_REQUIRED_DEPOSIT),
-//             },
-//             &[],
-//         )
-//         .unwrap_err();
-//
-//     assert_eq!(
-//         err.root_cause().to_string(),
-//         "Generic error: Title too short!"
-//     );
-//
-//     let err = app
-//         .execute_contract(
-//             user.clone(),
-//             xastro_addr.clone(),
-//             &Cw20ExecuteMsg::Send {
-//                 contract: assembly_addr.to_string(),
-//                 msg: to_json_binary(&Cw20HookMsg::SubmitProposal {
-//                     title: String::from_utf8(vec![b'X'; 65]).unwrap(),
-//                     description: String::from("Description"),
-//                     link: Some(String::from("https://some.link/")),
-//                     messages: None,
-//                     ibc_channel: None,
-//                 })
-//                 .unwrap(),
-//                 amount: Uint128::from(PROPOSAL_REQUIRED_DEPOSIT),
-//             },
-//             &[],
-//         )
-//         .unwrap_err();
-//
-//     assert_eq!(
-//         err.root_cause().to_string(),
-//         "Generic error: Title too long!"
-//     );
-//
-//     // Try to create a proposal with wrong description
-//     let err = app
-//         .execute_contract(
-//             user.clone(),
-//             xastro_addr.clone(),
-//             &Cw20ExecuteMsg::Send {
-//                 contract: assembly_addr.to_string(),
-//                 msg: to_json_binary(&Cw20HookMsg::SubmitProposal {
-//                     title: String::from("Title"),
-//                     description: String::from("X"),
-//                     link: Some(String::from("https://some.link/")),
-//                     messages: None,
-//                     ibc_channel: None,
-//                 })
-//                 .unwrap(),
-//                 amount: Uint128::from(PROPOSAL_REQUIRED_DEPOSIT),
-//             },
-//             &[],
-//         )
-//         .unwrap_err();
-//
-//     assert_eq!(
-//         err.root_cause().to_string(),
-//         "Generic error: Description too short!"
-//     );
-//
-//     let err = app
-//         .execute_contract(
-//             user.clone(),
-//             xastro_addr.clone(),
-//             &Cw20ExecuteMsg::Send {
-//                 contract: assembly_addr.to_string(),
-//                 msg: to_json_binary(&Cw20HookMsg::SubmitProposal {
-//                     title: String::from("Title"),
-//                     description: String::from_utf8(vec![b'X'; 1025]).unwrap(),
-//                     link: Some(String::from("https://some.link/")),
-//                     messages: None,
-//                     ibc_channel: None,
-//                 })
-//                 .unwrap(),
-//                 amount: Uint128::from(PROPOSAL_REQUIRED_DEPOSIT),
-//             },
-//             &[],
-//         )
-//         .unwrap_err();
-//
-//     assert_eq!(
-//         err.root_cause().to_string(),
-//         "Generic error: Description too long!"
-//     );
-//
-//     // Try to create a proposal with wrong link
-//     let err = app
-//         .execute_contract(
-//             user.clone(),
-//             xastro_addr.clone(),
-//             &Cw20ExecuteMsg::Send {
-//                 contract: assembly_addr.to_string(),
-//                 msg: to_json_binary(&Cw20HookMsg::SubmitProposal {
-//                     title: String::from("Title"),
-//                     description: String::from("Description"),
-//                     link: Some(String::from("X")),
-//                     messages: None,
-//                     ibc_channel: None,
-//                 })
-//                 .unwrap(),
-//                 amount: Uint128::from(PROPOSAL_REQUIRED_DEPOSIT),
-//             },
-//             &[],
-//         )
-//         .unwrap_err();
-//
-//     assert_eq!(
-//         err.root_cause().to_string(),
-//         "Generic error: Link too short!"
-//     );
-//
-//     let err = app
-//         .execute_contract(
-//             user.clone(),
-//             xastro_addr.clone(),
-//             &Cw20ExecuteMsg::Send {
-//                 contract: assembly_addr.to_string(),
-//                 msg: to_json_binary(&Cw20HookMsg::SubmitProposal {
-//                     title: String::from("Title"),
-//                     description: String::from("Description"),
-//                     link: Some(String::from_utf8(vec![b'X'; 129]).unwrap()),
-//                     messages: None,
-//                     ibc_channel: None,
-//                 })
-//                 .unwrap(),
-//                 amount: Uint128::from(PROPOSAL_REQUIRED_DEPOSIT),
-//             },
-//             &[],
-//         )
-//         .unwrap_err();
-//
-//     assert_eq!(
-//         err.root_cause().to_string(),
-//         "Generic error: Link too long!"
-//     );
-//
-//     let err = app
-//         .execute_contract(
-//             user.clone(),
-//             xastro_addr.clone(),
-//             &Cw20ExecuteMsg::Send {
-//                 contract: assembly_addr.to_string(),
-//                 msg: to_json_binary(&Cw20HookMsg::SubmitProposal {
-//                     title: String::from("Title"),
-//                     description: String::from("Description"),
-//                     link: Some(String::from("https://some1.link")),
-//                     messages: None,
-//                     ibc_channel: None,
-//                 })
-//                 .unwrap(),
-//                 amount: Uint128::from(PROPOSAL_REQUIRED_DEPOSIT),
-//             },
-//             &[],
-//         )
-//         .unwrap_err();
-//
-//     assert_eq!(
-//         err.root_cause().to_string(),
-//         "Generic error: Link is not whitelisted!"
-//     );
-//
-//     let err = app
-//         .execute_contract(
-//             user.clone(),
-//             xastro_addr.clone(),
-//             &Cw20ExecuteMsg::Send {
-//                 contract: assembly_addr.to_string(),
-//                 msg: to_json_binary(&Cw20HookMsg::SubmitProposal {
-//                     title: String::from("Title"),
-//                     description: String::from("Description"),
-//                     link: Some(String::from(
-//                         "https://some.link/<script>alert('test');</script>",
-//                     )),
-//                     messages: None,
-//                     ibc_channel: None,
-//                 })
-//                 .unwrap(),
-//                 amount: Uint128::from(PROPOSAL_REQUIRED_DEPOSIT),
-//             },
-//             &[],
-//         )
-//         .unwrap_err();
-//
-//     assert_eq!(
-//         err.root_cause().to_string(),
-//         "Generic error: Link is not properly formatted or contains unsafe characters!"
-//     );
-//
-//     // Valid proposal submission
-//     app.execute_contract(
-//         user.clone(),
-//         xastro_addr.clone(),
-//         &Cw20ExecuteMsg::Send {
-//             contract: assembly_addr.to_string(),
-//             msg: to_json_binary(&Cw20HookMsg::SubmitProposal {
-//                 title: String::from("Title"),
-//                 description: String::from("Description"),
-//                 link: Some(String::from("https://some.link/q/")),
-//                 messages: Some(vec![CosmosMsg::Wasm(WasmMsg::Execute {
-//                     contract_addr: assembly_addr.to_string(),
-//                     msg: to_json_binary(&ExecuteMsg::UpdateConfig(Box::new(UpdateConfig {
-//                         xastro_token_addr: None,
-//                         vxastro_token_addr: None,
-//                         voting_escrow_delegator_addr: None,
-//                         ibc_controller: None,
-//                         generator_controller: None,
-//                         hub: None,
-//                         builder_unlock_addr: None,
-//                         proposal_voting_period: Some(750),
-//                         proposal_effective_delay: None,
-//                         proposal_expiration_period: None,
-//                         proposal_required_deposit: None,
-//                         proposal_required_quorum: None,
-//                         proposal_required_threshold: None,
-//                         whitelist_add: None,
-//                         whitelist_remove: None,
-//                         guardian_addr: None,
-//                     })))
-//                     .unwrap(),
-//                     funds: vec![],
-//                 })]),
-//                 ibc_channel: None,
-//             })
-//             .unwrap(),
-//             amount: Uint128::from(PROPOSAL_REQUIRED_DEPOSIT),
-//         },
-//         &[],
-//     )
-//     .unwrap();
-//
-//     let proposal: Proposal = app
-//         .wrap()
-//         .query_wasm_smart(
-//             assembly_addr.clone(),
-//             &QueryMsg::Proposal { proposal_id: 1 },
-//         )
-//         .unwrap();
-//
-//     assert_eq!(proposal.proposal_id, Uint64::from(1u64));
-//     assert_eq!(proposal.submitter, user);
-//     assert_eq!(proposal.status, ProposalStatus::Active);
-//     assert_eq!(proposal.for_power, Uint128::zero());
-//     assert_eq!(proposal.against_power, Uint128::zero());
-//     assert_eq!(proposal.start_block, 12_345);
-//     assert_eq!(proposal.end_block, 12_345 + PROPOSAL_VOTING_PERIOD);
-//     assert_eq!(proposal.title, String::from("Title"));
-//     assert_eq!(proposal.description, String::from("Description"));
-//     assert_eq!(proposal.link, Some(String::from("https://some.link/q/")));
-//     assert_eq!(
-//         proposal.messages,
-//         Some(vec![CosmosMsg::Wasm(WasmMsg::Execute {
-//             contract_addr: assembly_addr.to_string(),
-//             msg: to_json_binary(&ExecuteMsg::UpdateConfig(Box::new(UpdateConfig {
-//                 xastro_token_addr: None,
-//                 vxastro_token_addr: None,
-//                 voting_escrow_delegator_addr: None,
-//                 ibc_controller: None,
-//                 generator_controller: None,
-//                 hub: None,
-//                 builder_unlock_addr: None,
-//                 proposal_voting_period: Some(750),
-//                 proposal_effective_delay: None,
-//                 proposal_expiration_period: None,
-//                 proposal_required_deposit: None,
-//                 proposal_required_quorum: None,
-//                 proposal_required_threshold: None,
-//                 whitelist_add: None,
-//                 whitelist_remove: None,
-//                 guardian_addr: None,
-//             })))
-//             .unwrap(),
-//             funds: vec![],
-//         })])
-//     );
-//     assert_eq!(
-//         proposal.deposit_amount,
-//         Uint128::from(PROPOSAL_REQUIRED_DEPOSIT)
-//     )
-// }
-//
-// #[test]
 // fn test_successful_proposal() {
-//     let mut app = mock_app();
-//
 //     let owner = Addr::unchecked("owner");
-//
-//     let (
-//         token_addr,
-//         staking_instance,
-//         xastro_addr,
-//         vxastro_addr,
-//         builder_unlock_addr,
-//         assembly_addr,
-//         _,
-//         _,
-//     ) = instantiate_contracts(&mut app, owner, false, false);
+//     let mut helper = Helper::new(&owner).unwrap();
 //
 //     // Init voting power for users
 //     let balances: Vec<(&str, u128, u128)> = vec![
-//         ("user0", PROPOSAL_REQUIRED_DEPOSIT, 0), // proposal submitter
+//         ("user0", PROPOSAL_REQUIRED_DEPOSIT.u128(), 0), // proposal submitter
 //         ("user1", 20, 80),
 //         ("user2", 100, 100),
 //         ("user3", 300, 100),
@@ -651,13 +251,7 @@ fn test_new_suite() {
 //
 //     for (addr, xastro, vxastro) in balances {
 //         if xastro > 0 {
-//             mint_tokens(
-//                 &mut app,
-//                 &staking_instance,
-//                 &xastro_addr,
-//                 &Addr::unchecked(addr),
-//                 xastro,
-//             );
+//             helper.mint_tokens(&Addr::unchecked(addr), xastro);
 //         }
 //
 //         if vxastro > 0 {
@@ -2125,15 +1719,6 @@ fn test_new_suite() {
 //         .unwrap()
 // }
 //
-// fn mint_tokens(app: &mut App, minter: &Addr, token: &Addr, recipient: &Addr, amount: u128) {
-//     let msg = Cw20ExecuteMsg::Mint {
-//         recipient: recipient.to_string(),
-//         amount: Uint128::from(amount),
-//     };
-//
-//     app.execute_contract(minter.clone(), token.to_owned(), &msg, &[])
-//         .unwrap();
-// }
 //
 // fn mint_vxastro(
 //     app: &mut App,

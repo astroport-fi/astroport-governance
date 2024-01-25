@@ -12,9 +12,8 @@ use cw_multi_test::{
     Executor, FailingModule, StakeKeeper, WasmKeeper, TOKEN_FACTORY_MODULE,
 };
 
-use astroport_governance::assembly;
 use astroport_governance::assembly::{
-    DELAY_INTERVAL, DEPOSIT_INTERVAL, EXPIRATION_PERIOD_INTERVAL,
+    InstantiateMsg, DELAY_INTERVAL, DEPOSIT_INTERVAL, EXPIRATION_PERIOD_INTERVAL,
     MINIMUM_PROPOSAL_REQUIRED_QUORUM_PERCENTAGE, MINIMUM_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE,
     VOTING_PERIOD_INTERVAL,
 };
@@ -61,6 +60,40 @@ fn builder_contract() -> Box<dyn Contract<Empty>> {
     ))
 }
 
+fn vxastro_contract() -> Box<dyn Contract<Empty>> {
+    Box::new(ContractWrapper::new_with_empty(
+        voting_escrow_lite::execute::execute,
+        voting_escrow_lite::contract::instantiate,
+        voting_escrow_lite::query::query,
+    ))
+}
+
+pub const PROPOSAL_REQUIRED_DEPOSIT: Uint128 = Uint128::new(*DEPOSIT_INTERVAL.start());
+
+pub fn default_init_msg(staking: &Addr, builder_unlock: &Addr) -> InstantiateMsg {
+    InstantiateMsg {
+        staking_addr: staking.to_string(),
+        vxastro_token_addr: None,
+        voting_escrow_delegator_addr: None,
+        ibc_controller: None,
+        generator_controller_addr: None,
+        hub_addr: None,
+        builder_unlock_addr: builder_unlock.to_string(),
+        proposal_voting_period: *VOTING_PERIOD_INTERVAL.start(),
+        proposal_effective_delay: *DELAY_INTERVAL.start(),
+        proposal_expiration_period: *EXPIRATION_PERIOD_INTERVAL.start(),
+        proposal_required_deposit: PROPOSAL_REQUIRED_DEPOSIT,
+        proposal_required_quorum: MINIMUM_PROPOSAL_REQUIRED_QUORUM_PERCENTAGE.to_string(),
+        proposal_required_threshold: Decimal::from_atomics(
+            MINIMUM_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE,
+            2,
+        )
+        .unwrap()
+        .to_string(),
+        whitelisted_links: vec!["https://some.link/".to_string()],
+    }
+}
+
 pub type CustomizedApp = App<
     BankKeeper,
     MockApi,
@@ -80,7 +113,9 @@ pub struct Helper {
     pub staking: Addr,
     pub assembly: Addr,
     pub builder_unlock: Addr,
+    pub vxastro: Addr,
     pub xastro_denom: String,
+    pub assembly_code_id: u64,
 }
 
 pub const ASTRO_DENOM: &str = "factory/assembly/ASTRO";
@@ -100,7 +135,7 @@ impl Helper {
         let tracker_code_id = app.store_code(tracker_contract());
         let assembly_code_id = app.store_code(assembly_contract());
 
-        let msg = astroport::staking::InstantiateMsg {
+        let msg = staking::InstantiateMsg {
             deposit_token_denom: ASTRO_DENOM.to_string(),
             tracking_admin: owner.to_string(),
             tracking_code_id: tracker_code_id,
@@ -140,32 +175,37 @@ impl Helper {
             )
             .unwrap();
 
-        let msg = assembly::InstantiateMsg {
-            staking_addr: staking.to_string(),
-            vxastro_token_addr: None,
-            voting_escrow_delegator_addr: None,
-            ibc_controller: None,
+        let vxastro_code_id = app.store_code(vxastro_contract());
+
+        let msg = astroport_governance::voting_escrow_lite::InstantiateMsg {
+            owner: owner.to_string(),
+            guardian_addr: Some(owner.to_string()),
+            deposit_token_addr: xastro_denom.to_string(),
             generator_controller_addr: None,
-            hub_addr: None,
-            builder_unlock_addr: builder_unlock.to_string(),
-            proposal_voting_period: *VOTING_PERIOD_INTERVAL.start(),
-            proposal_effective_delay: *DELAY_INTERVAL.start(),
-            proposal_expiration_period: *EXPIRATION_PERIOD_INTERVAL.start(),
-            proposal_required_deposit: (*DEPOSIT_INTERVAL.start()).into(),
-            proposal_required_quorum: MINIMUM_PROPOSAL_REQUIRED_QUORUM_PERCENTAGE.to_string(),
-            proposal_required_threshold: Decimal::from_atomics(
-                MINIMUM_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE,
-                2,
-            )
-            .unwrap()
-            .to_string(),
-            whitelisted_links: vec!["https://some.link/".to_string()],
+            outpost_addr: None,
+            marketing: None,
+            logo_urls_whitelist: vec![],
         };
+
+        let vxastro = app
+            .instantiate_contract(
+                vxastro_code_id,
+                owner.clone(),
+                &msg,
+                &[],
+                "vxASTRO".to_string(),
+                None,
+            )
+            .unwrap();
+
         let assembly = app
             .instantiate_contract(
                 assembly_code_id,
                 owner.clone(),
-                &msg,
+                &InstantiateMsg {
+                    vxastro_token_addr: Some(vxastro.to_string()),
+                    ..default_init_msg(&staking, &builder_unlock)
+                },
                 &[],
                 String::from("Astroport Assembly"),
                 None,
@@ -178,7 +218,9 @@ impl Helper {
             staking,
             assembly,
             builder_unlock,
+            vxastro,
             xastro_denom,
+            assembly_code_id,
         })
     }
 
@@ -208,6 +250,16 @@ impl Helper {
             &staking::ExecuteMsg::Leave {},
             &coins(amount, &self.xastro_denom),
         )
+    }
+
+    pub fn mint_tokens(&mut self, recipient: &Addr, amount: impl Into<u128> + Copy) {
+        self.give_astro(amount.into(), recipient);
+        self.stake(recipient, amount.into()).unwrap();
+    }
+
+    pub fn mint_vxastro(&mut self, recipient: &Addr, amount: impl Into<u128> + Copy) {
+        self.mint_tokens(recipient, amount);
+        // TODO: stake in voting escrow
     }
 
     pub fn query_balance(&self, sender: &Addr, denom: &str) -> StdResult<Uint128> {
