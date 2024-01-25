@@ -1,6 +1,6 @@
 [package]
 name = "builder-unlock"
-version = "2.0.0"
+version = "3.0.0"
 authors = ["Astroport"]
 edition = "2021"
 repository = "https://github.com/astroport-fi/astroport-governance"
@@ -15,15 +15,13 @@ backtraces = ["cosmwasm-std/backtraces"]
 library = []
 
 [dependencies]
-cw2 = "0.15"
-cw20 = "0.15"
-cosmwasm-std = "1.1"
+cw2 = "1.1"
+cw-utils = "1"
+cosmwasm-std = "1.5"
 cw-storage-plus = "0.15"
 astroport-governance = { path = "../../packages/astroport-governance" }
 astroport = { git = "https://github.com/astroport-fi/hidden_astroport_core" }
-thiserror = { version = "1.0" }
-cosmwasm-schema = "1.1"
+cosmwasm-schema = "1.5"
 
 [dev-dependencies]
-cw-multi-test = "0.15"
-astroport-token = { git = "https://github.com/astroport-fi/hidden_astroport_core" }
+cw-multi-test = "0.20"

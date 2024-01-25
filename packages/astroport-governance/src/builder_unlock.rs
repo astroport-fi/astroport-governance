@@ -6,8 +6,8 @@ use cosmwasm_std::{Addr, Decimal, StdError, Uint128};
 pub struct Config {
     /// Account that can create new unlock schedules
     pub owner: Addr,
-    /// Address of ASTRO token
-    pub astro_token: Addr,
+    /// ASTRO token denom
+    pub astro_denom: String,
     /// Max ASTRO tokens to allocate
     pub max_allocations_amount: Uint128,
 }
@@ -127,7 +127,6 @@ impl AllocationStatus {
 pub mod msg {
     use cosmwasm_schema::{cw_serde, QueryResponses};
     use cosmwasm_std::Uint128;
-    use cw20::Cw20ReceiveMsg;
 
     use crate::builder_unlock::Schedule;
 
@@ -138,8 +137,8 @@ pub mod msg {
     pub struct InstantiateMsg {
         /// Account that can create new allocations
         pub owner: String,
-        /// ASTRO token address
-        pub astro_token: String,
+        /// ASTRO token denom
+        pub astro_denom: String,
         /// Max ASTRO tokens to allocate
         pub max_allocations_amount: Uint128,
     }
@@ -147,8 +146,10 @@ pub mod msg {
     /// This enum describes all the execute functions available in the contract.
     #[cw_serde]
     pub enum ExecuteMsg {
-        /// Receive is an implementation for the CW20 receive msg
-        Receive(Cw20ReceiveMsg),
+        /// CreateAllocations creates new ASTRO allocations
+        CreateAllocations {
+            allocations: Vec<(String, AllocationParams)>,
+        },
         /// Withdraw claims withdrawable ASTRO
         Withdraw {},
         /// ProposeNewReceiver allows a user to change the receiver address for their ASTRO allocation
@@ -178,17 +179,6 @@ pub mod msg {
         UpdateUnlockSchedules {
             new_unlock_schedules: Vec<(String, Schedule)>,
         },
-    }
-
-    /// This enum describes receive msg templates.
-    #[cw_serde]
-    pub enum ReceiveMsg {
-        /// CreateAllocations creates new ASTRO allocations
-        CreateAllocations {
-            allocations: Vec<(String, AllocationParams)>,
-        },
-        /// Increase the ASTRO allocation for a receiver
-        IncreaseAllocation { user: String, amount: Uint128 },
     }
 
     /// Thie enum describes all the queries available in the contract.

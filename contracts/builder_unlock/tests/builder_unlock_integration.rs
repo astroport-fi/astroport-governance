@@ -1,54 +1,35 @@
-use astroport::token::InstantiateMsg as TokenInstantiateMsg;
-use cosmwasm_std::{attr, to_json_binary, Addr, Decimal, StdResult, Timestamp, Uint128};
-use cw20::BalanceResponse;
-use cw_multi_test::{App, BasicApp, ContractWrapper, Executor};
 use std::time::SystemTime;
 
+use cosmwasm_std::{coin, coins, Addr, Decimal, StdResult, Timestamp, Uint128};
+use cw_multi_test::{App, BasicApp, ContractWrapper, Executor};
+
 use astroport_governance::builder_unlock::msg::{
-    AllocationResponse, ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg, ReceiveMsg,
+    AllocationResponse, ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg,
     SimulateWithdrawResponse, StateResponse,
 };
 use astroport_governance::builder_unlock::{AllocationParams, Schedule};
 
+pub const ASTRO_DENOM: &str = "factory/assembly/ASTRO";
+
 const OWNER: &str = "owner";
 
 fn mock_app() -> App {
-    BasicApp::default()
+    let mut app = BasicApp::default();
+    app.init_modules(|router, _, storage| {
+        router
+            .bank
+            .init_balance(
+                storage,
+                &Addr::unchecked(OWNER),
+                vec![coin(u128::MAX, ASTRO_DENOM), coin(u128::MAX, "random")],
+            )
+            .unwrap()
+    });
+
+    app
 }
 
-fn init_contracts(app: &mut App) -> (Addr, Addr, InstantiateMsg) {
-    // Instantiate ASTRO token contract
-    let astro_token_contract = Box::new(ContractWrapper::new(
-        astroport_token::contract::execute,
-        astroport_token::contract::instantiate,
-        astroport_token::contract::query,
-    ));
-
-    let astro_token_code_id = app.store_code(astro_token_contract);
-
-    let msg = TokenInstantiateMsg {
-        name: String::from("Astro token"),
-        symbol: String::from("ASTRO"),
-        decimals: 6,
-        initial_balances: vec![],
-        mint: Some(cw20::MinterResponse {
-            minter: OWNER.clone().to_string(),
-            cap: None,
-        }),
-        marketing: None,
-    };
-
-    let astro_token_instance = app
-        .instantiate_contract(
-            astro_token_code_id,
-            Addr::unchecked(OWNER.clone().to_string()),
-            &msg,
-            &[],
-            String::from("ASTRO"),
-            None,
-        )
-        .unwrap();
-
+fn init_contracts(app: &mut App) -> (Addr, InstantiateMsg) {
     // Instantiate the contract
     let unlock_contract = Box::new(ContractWrapper::new(
         builder_unlock::contract::execute,
@@ -59,8 +40,8 @@ fn init_contracts(app: &mut App) -> (Addr, Addr, InstantiateMsg) {
     let unlock_code_id = app.store_code(unlock_contract);
 
     let unlock_instantiate_msg = InstantiateMsg {
-        owner: OWNER.clone().to_string(),
-        astro_token: astro_token_instance.to_string(),
+        owner: OWNER.to_string(),
+        astro_denom: ASTRO_DENOM.to_string(),
         max_allocations_amount: Uint128::new(300_000_000_000_000u128),
     };
 
@@ -68,7 +49,7 @@ fn init_contracts(app: &mut App) -> (Addr, Addr, InstantiateMsg) {
     let unlock_instance = app
         .instantiate_contract(
             unlock_code_id,
-            Addr::unchecked(OWNER.clone()),
+            Addr::unchecked(OWNER),
             &unlock_instantiate_msg,
             &[],
             "unlock",
@@ -76,30 +57,16 @@ fn init_contracts(app: &mut App) -> (Addr, Addr, InstantiateMsg) {
         )
         .unwrap();
 
-    (
-        unlock_instance,
-        astro_token_instance,
-        unlock_instantiate_msg,
-    )
+    (unlock_instance, unlock_instantiate_msg)
 }
 
-fn mint_some_astro(
-    app: &mut App,
-    owner: Addr,
-    astro_token_instance: Addr,
-    amount: Uint128,
-    to: String,
-) {
-    let msg = cw20::Cw20ExecuteMsg::Mint {
-        recipient: to.clone(),
-        amount: amount,
-    };
-    let res = app
-        .execute_contract(owner.clone(), astro_token_instance.clone(), &msg, &[])
-        .unwrap();
-    assert_eq!(res.events[1].attributes[1], attr("action", "mint"));
-    assert_eq!(res.events[1].attributes[2], attr("to", to));
-    assert_eq!(res.events[1].attributes[3], attr("amount", amount));
+fn mint_some_astro(app: &mut App, amount: Uint128, to: String) {
+    app.send_tokens(
+        Addr::unchecked(OWNER),
+        Addr::unchecked(to),
+        &coins(amount.u128(), ASTRO_DENOM),
+    )
+    .unwrap();
 }
 
 fn check_alloc_amount(app: &mut App, contract_addr: &Addr, account: &Addr, amount: Uint128) {
@@ -131,7 +98,7 @@ fn check_unlock_amount(app: &mut App, contract_addr: &Addr, account: &Addr, amou
 #[test]
 fn proper_initialization() {
     let mut app = mock_app();
-    let (unlock_instance, _astro_instance, init_msg) = init_contracts(&mut app);
+    let (unlock_instance, init_msg) = init_contracts(&mut app);
 
     let resp: ConfigResponse = app
         .wrap()
@@ -140,7 +107,7 @@ fn proper_initialization() {
 
     // Check config
     assert_eq!(init_msg.owner, resp.owner);
-    assert_eq!(init_msg.astro_token, resp.astro_token);
+    assert_eq!(init_msg.astro_denom, resp.astro_denom);
 
     // Check state
     let resp: StateResponse = app
@@ -155,7 +122,7 @@ fn proper_initialization() {
 #[test]
 fn test_transfer_ownership() {
     let mut app = mock_app();
-    let (unlock_instance, _, init_msg) = init_contracts(&mut app);
+    let (unlock_instance, init_msg) = init_contracts(&mut app);
 
     // ######    ERROR :: Unauthorized     ######
     let err = app
@@ -197,21 +164,13 @@ fn test_transfer_ownership() {
 
     // Check config
     assert_eq!("new_owner".to_string(), resp.owner);
-    assert_eq!(init_msg.astro_token, resp.astro_token);
+    assert_eq!(init_msg.astro_denom, resp.astro_denom);
 }
 
 #[test]
 fn test_create_allocations() {
     let mut app = mock_app();
-    let (unlock_instance, astro_instance, _) = init_contracts(&mut app);
-
-    mint_some_astro(
-        &mut app,
-        Addr::unchecked(OWNER.clone()),
-        astro_instance.clone(),
-        Uint128::new(1_000_000_000_000000),
-        OWNER.to_string(),
-    );
+    let (unlock_instance, _) = init_contracts(&mut app);
 
     let mut allocations: Vec<(String, AllocationParams)> = vec![];
     allocations.push((
@@ -255,27 +214,16 @@ fn test_create_allocations() {
     ));
 
     // ######    ERROR :: Only owner can create allocations     ######
-    mint_some_astro(
-        &mut app,
-        Addr::unchecked(OWNER.clone()),
-        astro_instance.clone(),
-        Uint128::new(1_000),
-        "not_owner".to_string(),
-    );
+    mint_some_astro(&mut app, Uint128::new(1_000), "not_owner".to_string());
 
-    let mut err = app
+    let err = app
         .execute_contract(
             Addr::unchecked("not_owner".to_string()),
-            astro_instance.clone(),
-            &cw20::Cw20ExecuteMsg::Send {
-                contract: unlock_instance.clone().to_string(),
-                amount: Uint128::from(1_000u64),
-                msg: to_json_binary(&ReceiveMsg::CreateAllocations {
-                    allocations: allocations.clone(),
-                })
-                .unwrap(),
+            unlock_instance.clone(),
+            &ExecuteMsg::CreateAllocations {
+                allocations: allocations.clone(),
             },
-            &[],
+            &coins(1_000, ASTRO_DENOM),
         )
         .unwrap_err();
     assert_eq!(
@@ -284,83 +232,32 @@ fn test_create_allocations() {
     );
 
     // ######    ERROR :: Only ASTRO can be can be deposited     ######
-    // Instantiate the ASTRO token contract
-    let not_astro_token_contract = Box::new(ContractWrapper::new(
-        astroport_token::contract::execute,
-        astroport_token::contract::instantiate,
-        astroport_token::contract::query,
-    ));
 
-    let not_astro_token_code_id = app.store_code(not_astro_token_contract);
-
-    let msg = TokenInstantiateMsg {
-        name: String::from("Astro Token"),
-        symbol: String::from("ASTRO"),
-        decimals: 6,
-        initial_balances: vec![],
-        mint: Some(cw20::MinterResponse {
-            minter: OWNER.clone().to_string(),
-            cap: None,
-        }),
-        marketing: None,
-    };
-
-    let not_astro_token_instance = app
-        .instantiate_contract(
-            not_astro_token_code_id,
-            Addr::unchecked(OWNER.clone().to_string()),
-            &msg,
-            &[],
-            String::from("FAKE_ASTRO"),
-            None,
-        )
-        .unwrap();
-
-    app.execute_contract(
-        Addr::unchecked(OWNER.clone()),
-        not_astro_token_instance.clone(),
-        &cw20::Cw20ExecuteMsg::Mint {
-            recipient: OWNER.clone().to_string(),
-            amount: Uint128::from(15_000_000_000000u64),
-        },
-        &[],
-    )
-    .unwrap();
-
-    err = app
+    let err = app
         .execute_contract(
-            Addr::unchecked(OWNER.clone()),
-            not_astro_token_instance.clone(),
-            &cw20::Cw20ExecuteMsg::Send {
-                contract: unlock_instance.clone().to_string(),
-                amount: Uint128::from(15_000_000_000000u64),
-                msg: to_json_binary(&ReceiveMsg::CreateAllocations {
-                    allocations: allocations.clone(),
-                })
-                .unwrap(),
+            Addr::unchecked(OWNER),
+            unlock_instance.clone(),
+            &ExecuteMsg::CreateAllocations {
+                allocations: allocations.clone(),
             },
-            &[],
+            &coins(15_000_000_000000, "random"),
         )
         .unwrap_err();
+
     assert_eq!(
         err.root_cause().to_string(),
-        "Generic error: Only ASTRO can be deposited"
+        format!("Generic error: Must send reserve token '{ASTRO_DENOM}'")
     );
 
     // ######    ERROR :: ASTRO deposit amount mismatch     ######
-    err = app
+    let err = app
         .execute_contract(
-            Addr::unchecked(OWNER.clone()),
-            astro_instance.clone(),
-            &cw20::Cw20ExecuteMsg::Send {
-                contract: unlock_instance.clone().to_string(),
-                amount: Uint128::from(15_000_000_000001u64),
-                msg: to_json_binary(&ReceiveMsg::CreateAllocations {
-                    allocations: allocations.clone(),
-                })
-                .unwrap(),
+            Addr::unchecked(OWNER),
+            unlock_instance.clone(),
+            &ExecuteMsg::CreateAllocations {
+                allocations: allocations.clone(),
             },
-            &[],
+            &coins(15_000_000_000001, ASTRO_DENOM),
         )
         .unwrap_err();
     assert_eq!(
@@ -370,17 +267,12 @@ fn test_create_allocations() {
 
     // ######    SUCCESSFULLY CREATES ALLOCATIONS    ######
     app.execute_contract(
-        Addr::unchecked(OWNER.clone()),
-        astro_instance.clone(),
-        &cw20::Cw20ExecuteMsg::Send {
-            contract: unlock_instance.clone().to_string(),
-            amount: Uint128::from(15_000_000_000000u64),
-            msg: to_json_binary(&ReceiveMsg::CreateAllocations {
-                allocations: allocations.clone(),
-            })
-            .unwrap(),
+        Addr::unchecked(OWNER),
+        unlock_instance.clone(),
+        &ExecuteMsg::CreateAllocations {
+            allocations: allocations.clone(),
         },
-        &[],
+        &coins(15_000_000_000000, ASTRO_DENOM),
     )
     .unwrap();
 
@@ -465,19 +357,14 @@ fn test_create_allocations() {
     );
 
     // ######    ERROR :: Allocation already exists for user {}     ######
-    err = app
+    let err = app
         .execute_contract(
-            Addr::unchecked(OWNER.clone()),
-            astro_instance.clone(),
-            &cw20::Cw20ExecuteMsg::Send {
-                contract: unlock_instance.clone().to_string(),
-                amount: Uint128::from(5_000_000_000000u64),
-                msg: to_json_binary(&ReceiveMsg::CreateAllocations {
-                    allocations: vec![allocations[0].clone()],
-                })
-                .unwrap(),
+            Addr::unchecked(OWNER),
+            unlock_instance.clone(),
+            &ExecuteMsg::CreateAllocations {
+                allocations: vec![allocations[0].clone()],
             },
-            &[],
+            &coins(5_000_000_000000, ASTRO_DENOM),
         )
         .unwrap_err();
     assert_eq!(
@@ -489,15 +376,7 @@ fn test_create_allocations() {
 #[test]
 fn test_withdraw() {
     let mut app = mock_app();
-    let (unlock_instance, astro_instance, _) = init_contracts(&mut app);
-
-    mint_some_astro(
-        &mut app,
-        Addr::unchecked(OWNER.clone()),
-        astro_instance.clone(),
-        Uint128::new(1_000_000_000_000000),
-        OWNER.to_string(),
-    );
+    let (unlock_instance, _) = init_contracts(&mut app);
 
     let mut allocations: Vec<(String, AllocationParams)> = vec![];
     allocations.push((
@@ -542,24 +421,19 @@ fn test_withdraw() {
 
     // SUCCESSFULLY CREATES ALLOCATIONS
     app.execute_contract(
-        Addr::unchecked(OWNER.clone()),
-        astro_instance.clone(),
-        &cw20::Cw20ExecuteMsg::Send {
-            contract: unlock_instance.clone().to_string(),
-            amount: Uint128::from(15_000_000_000000u64),
-            msg: to_json_binary(&ReceiveMsg::CreateAllocations {
-                allocations: allocations.clone(),
-            })
-            .unwrap(),
+        Addr::unchecked(OWNER),
+        unlock_instance.clone(),
+        &ExecuteMsg::CreateAllocations {
+            allocations: allocations.clone(),
         },
-        &[],
+        &coins(15_000_000_000000, ASTRO_DENOM),
     )
     .unwrap();
 
     // ######    ERROR :: Allocation doesn't exist    ######
     let err = app
         .execute_contract(
-            Addr::unchecked(OWNER.clone()),
+            Addr::unchecked(OWNER),
             unlock_instance.clone(),
             &ExecuteMsg::Withdraw {},
             &[],
@@ -576,18 +450,10 @@ fn test_withdraw() {
         b.time = Timestamp::from_seconds(1642402275)
     });
 
-    let astro_bal_before: BalanceResponse = app
-        .wrap()
-        .query_wasm_smart(
-            &astro_instance,
-            &cw20::Cw20QueryMsg::Balance {
-                address: "investor_1".to_string(),
-            },
-        )
-        .unwrap();
+    let astro_bal_before = app.wrap().query_balance("investor_1", ASTRO_DENOM).unwrap();
 
     app.execute_contract(
-        Addr::unchecked("investor_1".clone()),
+        Addr::unchecked("investor_1"),
         unlock_instance.clone(),
         &ExecuteMsg::Withdraw {},
         &[],
@@ -621,18 +487,10 @@ fn test_withdraw() {
     assert_eq!(alloc_resp.params.amount, Uint128::from(5_000_000_000000u64));
     assert_eq!(alloc_resp.status.astro_withdrawn, Uint128::from(158548u64));
 
-    let astro_bal_after: BalanceResponse = app
-        .wrap()
-        .query_wasm_smart(
-            &astro_instance,
-            &cw20::Cw20QueryMsg::Balance {
-                address: "investor_1".to_string(),
-            },
-        )
-        .unwrap();
+    let astro_bal_after = app.wrap().query_balance("investor_1", ASTRO_DENOM).unwrap();
 
     assert_eq!(
-        astro_bal_after.balance - astro_bal_before.balance,
+        astro_bal_after.amount - astro_bal_before.amount,
         alloc_resp.status.astro_withdrawn
     );
 
@@ -651,7 +509,7 @@ fn test_withdraw() {
     // ######    ERROR :: No unlocked ASTRO to be withdrawn   ######
     let err = app
         .execute_contract(
-            Addr::unchecked("investor_1".clone()),
+            Addr::unchecked("investor_1"),
             unlock_instance.clone(),
             &ExecuteMsg::Withdraw {},
             &[],
@@ -698,7 +556,7 @@ fn test_withdraw() {
     );
 
     app.execute_contract(
-        Addr::unchecked("investor_1".clone()),
+        Addr::unchecked("investor_1"),
         unlock_instance.clone(),
         &ExecuteMsg::Withdraw {},
         &[],
@@ -720,7 +578,7 @@ fn test_withdraw() {
     // ######    ERROR :: No unlocked ASTRO to be withdrawn   ######
     let err = app
         .execute_contract(
-            Addr::unchecked("investor_1".clone()),
+            Addr::unchecked("investor_1"),
             unlock_instance.clone(),
             &ExecuteMsg::Withdraw {},
             &[],
@@ -802,7 +660,7 @@ fn test_withdraw() {
     );
 
     app.execute_contract(
-        Addr::unchecked("team_1".clone()),
+        Addr::unchecked("team_1"),
         unlock_instance.clone(),
         &ExecuteMsg::Withdraw {},
         &[],
@@ -841,15 +699,7 @@ fn test_withdraw() {
 #[test]
 fn test_propose_new_receiver() {
     let mut app = mock_app();
-    let (unlock_instance, astro_instance, _) = init_contracts(&mut app);
-
-    mint_some_astro(
-        &mut app,
-        Addr::unchecked(OWNER.clone()),
-        astro_instance.clone(),
-        Uint128::new(1_000_000_000_000000),
-        OWNER.to_string(),
-    );
+    let (unlock_instance, _) = init_contracts(&mut app);
 
     let mut allocations: Vec<(String, AllocationParams)> = vec![];
     allocations.push((
@@ -894,24 +744,19 @@ fn test_propose_new_receiver() {
 
     // SUCCESSFULLY CREATES ALLOCATIONS
     app.execute_contract(
-        Addr::unchecked(OWNER.clone()),
-        astro_instance.clone(),
-        &cw20::Cw20ExecuteMsg::Send {
-            contract: unlock_instance.clone().to_string(),
-            amount: Uint128::from(15_000_000_000000u64),
-            msg: to_json_binary(&ReceiveMsg::CreateAllocations {
-                allocations: allocations.clone(),
-            })
-            .unwrap(),
+        Addr::unchecked(OWNER),
+        unlock_instance.clone(),
+        &ExecuteMsg::CreateAllocations {
+            allocations: allocations.clone(),
         },
-        &[],
+        &coins(15_000_000_000000, ASTRO_DENOM),
     )
     .unwrap();
 
     // ######    ERROR :: Allocation doesn't exist    ######
     let err = app
         .execute_contract(
-            Addr::unchecked(OWNER.clone()),
+            Addr::unchecked(OWNER),
             unlock_instance.clone(),
             &ExecuteMsg::ProposeNewReceiver {
                 new_receiver: "investor_1_new".to_string(),
@@ -927,7 +772,7 @@ fn test_propose_new_receiver() {
     // ######    ERROR :: Invalid new_receiver    ######
     let err = app
         .execute_contract(
-            Addr::unchecked("investor_1".clone()),
+            Addr::unchecked("investor_1"),
             unlock_instance.clone(),
             &ExecuteMsg::ProposeNewReceiver {
                 new_receiver: "team_1".to_string(),
@@ -942,7 +787,7 @@ fn test_propose_new_receiver() {
 
     // ######   SUCCESSFULLY PROPOSES NEW RECEIVER   ######
     app.execute_contract(
-        Addr::unchecked("investor_1".clone()),
+        Addr::unchecked("investor_1"),
         unlock_instance.clone(),
         &ExecuteMsg::ProposeNewReceiver {
             new_receiver: "investor_1_new".to_string(),
@@ -968,7 +813,7 @@ fn test_propose_new_receiver() {
     // ######    ERROR ::"Proposed receiver already set"   ######
     let err = app
         .execute_contract(
-            Addr::unchecked("investor_1".clone()),
+            Addr::unchecked("investor_1"),
             unlock_instance.clone(),
             &ExecuteMsg::ProposeNewReceiver {
                 new_receiver: "investor_1_new_".to_string(),
@@ -985,15 +830,7 @@ fn test_propose_new_receiver() {
 #[test]
 fn test_drop_new_receiver() {
     let mut app = mock_app();
-    let (unlock_instance, astro_instance, _) = init_contracts(&mut app);
-
-    mint_some_astro(
-        &mut app,
-        Addr::unchecked(OWNER.clone()),
-        astro_instance.clone(),
-        Uint128::new(1_000_000_000_000000),
-        OWNER.to_string(),
-    );
+    let (unlock_instance, _) = init_contracts(&mut app);
 
     let mut allocations: Vec<(String, AllocationParams)> = vec![];
     allocations.push((
@@ -1038,24 +875,19 @@ fn test_drop_new_receiver() {
 
     // SUCCESSFULLY CREATES ALLOCATIONS
     app.execute_contract(
-        Addr::unchecked(OWNER.clone()),
-        astro_instance.clone(),
-        &cw20::Cw20ExecuteMsg::Send {
-            contract: unlock_instance.clone().to_string(),
-            amount: Uint128::from(15_000_000_000000u64),
-            msg: to_json_binary(&ReceiveMsg::CreateAllocations {
-                allocations: allocations.clone(),
-            })
-            .unwrap(),
+        Addr::unchecked(OWNER),
+        unlock_instance.clone(),
+        &ExecuteMsg::CreateAllocations {
+            allocations: allocations.clone(),
         },
-        &[],
+        &coins(15_000_000_000000, ASTRO_DENOM),
     )
     .unwrap();
 
     // ######    ERROR :: Allocation doesn't exist    ######
     let err = app
         .execute_contract(
-            Addr::unchecked(OWNER.clone()),
+            Addr::unchecked(OWNER),
             unlock_instance.clone(),
             &ExecuteMsg::DropNewReceiver {},
             &[],
@@ -1069,7 +901,7 @@ fn test_drop_new_receiver() {
     // ######    ERROR ::"Proposed receiver not set"   ######
     let err = app
         .execute_contract(
-            Addr::unchecked("investor_1".clone()),
+            Addr::unchecked("investor_1"),
             unlock_instance.clone(),
             &ExecuteMsg::DropNewReceiver {},
             &[],
@@ -1083,7 +915,7 @@ fn test_drop_new_receiver() {
     // ######   SUCCESSFULLY DROP NEW RECEIVER   ######
     // SUCCESSFULLY PROPOSES NEW RECEIVER
     app.execute_contract(
-        Addr::unchecked("investor_1".clone()),
+        Addr::unchecked("investor_1"),
         unlock_instance.clone(),
         &ExecuteMsg::ProposeNewReceiver {
             new_receiver: "investor_1_new".to_string(),
@@ -1107,7 +939,7 @@ fn test_drop_new_receiver() {
     );
 
     app.execute_contract(
-        Addr::unchecked("investor_1".clone()),
+        Addr::unchecked("investor_1"),
         unlock_instance.clone(),
         &ExecuteMsg::DropNewReceiver {},
         &[],
@@ -1129,15 +961,7 @@ fn test_drop_new_receiver() {
 #[test]
 fn test_claim_receiver() {
     let mut app = mock_app();
-    let (unlock_instance, astro_instance, _) = init_contracts(&mut app);
-
-    mint_some_astro(
-        &mut app,
-        Addr::unchecked(OWNER.clone()),
-        astro_instance.clone(),
-        Uint128::new(1_000_000_000_000000),
-        OWNER.to_string(),
-    );
+    let (unlock_instance, _) = init_contracts(&mut app);
 
     let mut allocations: Vec<(String, AllocationParams)> = vec![];
     allocations.push((
@@ -1182,24 +1006,19 @@ fn test_claim_receiver() {
 
     // SUCCESSFULLY CREATES ALLOCATIONS
     app.execute_contract(
-        Addr::unchecked(OWNER.clone()),
-        astro_instance.clone(),
-        &cw20::Cw20ExecuteMsg::Send {
-            contract: unlock_instance.clone().to_string(),
-            amount: Uint128::from(15_000_000_000000u64),
-            msg: to_json_binary(&ReceiveMsg::CreateAllocations {
-                allocations: allocations.clone(),
-            })
-            .unwrap(),
+        Addr::unchecked(OWNER),
+        unlock_instance.clone(),
+        &ExecuteMsg::CreateAllocations {
+            allocations: allocations.clone(),
         },
-        &[],
+        &coins(15_000_000_000000, ASTRO_DENOM),
     )
     .unwrap();
 
     // ######    ERROR :: Allocation doesn't exist    ######
     let err = app
         .execute_contract(
-            Addr::unchecked(OWNER.clone()),
+            Addr::unchecked(OWNER),
             unlock_instance.clone(),
             &ExecuteMsg::Withdraw {},
             &[],
@@ -1213,7 +1032,7 @@ fn test_claim_receiver() {
     // ######    ERROR ::"Proposed receiver not set"   ######
     let err = app
         .execute_contract(
-            Addr::unchecked("investor_1_new".clone()),
+            Addr::unchecked("investor_1_new"),
             unlock_instance.clone(),
             &ExecuteMsg::ClaimReceiver {
                 prev_receiver: "investor_1".to_string(),
@@ -1229,7 +1048,7 @@ fn test_claim_receiver() {
     // ######   SUCCESSFULLY CLAIMED BY NEW RECEIVER   ######
     // SUCCESSFULLY PROPOSES NEW RECEIVER
     app.execute_contract(
-        Addr::unchecked("investor_1".clone()),
+        Addr::unchecked("investor_1"),
         unlock_instance.clone(),
         &ExecuteMsg::ProposeNewReceiver {
             new_receiver: "investor_1_new".to_string(),
@@ -1262,7 +1081,7 @@ fn test_claim_receiver() {
 
     // Claimed by new receiver
     app.execute_contract(
-        Addr::unchecked("investor_1_new".clone()),
+        Addr::unchecked("investor_1_new"),
         unlock_instance.clone(),
         &ExecuteMsg::ClaimReceiver {
             prev_receiver: "investor_1".to_string(),
@@ -1357,15 +1176,7 @@ fn test_claim_receiver() {
 #[test]
 fn test_increase_and_decrease_allocation() {
     let mut app = mock_app();
-    let (unlock_instance, astro_instance, _) = init_contracts(&mut app);
-
-    mint_some_astro(
-        &mut app,
-        Addr::unchecked(OWNER.clone()),
-        astro_instance.clone(),
-        Uint128::new(1_000_000_000_000_000),
-        OWNER.to_string(),
-    );
+    let (unlock_instance, _) = init_contracts(&mut app);
 
     // Create allocations
     let allocations: Vec<(String, AllocationParams)> = vec![(
@@ -1383,17 +1194,12 @@ fn test_increase_and_decrease_allocation() {
     )];
 
     app.execute_contract(
-        Addr::unchecked(OWNER.clone()),
-        astro_instance.clone(),
-        &cw20::Cw20ExecuteMsg::Send {
-            contract: unlock_instance.clone().to_string(),
-            amount: Uint128::from(5_000_000_000000u64),
-            msg: to_json_binary(&ReceiveMsg::CreateAllocations {
-                allocations: allocations.clone(),
-            })
-            .unwrap(),
+        Addr::unchecked(OWNER),
+        unlock_instance.clone(),
+        &ExecuteMsg::CreateAllocations {
+            allocations: allocations.clone(),
         },
-        &[],
+        &coins(5_000_000_000000, ASTRO_DENOM),
     )
     .unwrap();
 
@@ -1436,7 +1242,7 @@ fn test_increase_and_decrease_allocation() {
     // Try to decrease 4918550856846 ASTRO
     let err = app
         .execute_contract(
-            Addr::unchecked(OWNER.clone()),
+            Addr::unchecked(OWNER),
             unlock_instance.clone(),
             &ExecuteMsg::DecreaseAllocation {
                 receiver: "investor".to_string(),
@@ -1451,7 +1257,7 @@ fn test_increase_and_decrease_allocation() {
     );
 
     app.execute_contract(
-        Addr::unchecked(OWNER.clone()),
+        Addr::unchecked(OWNER),
         unlock_instance.clone(),
         &ExecuteMsg::DecreaseAllocation {
             receiver: "investor".to_string(),
@@ -1485,7 +1291,7 @@ fn test_increase_and_decrease_allocation() {
     // Try to increase
     let err = app
         .execute_contract(
-            Addr::unchecked(OWNER.clone()),
+            Addr::unchecked(OWNER),
             unlock_instance.clone(),
             &ExecuteMsg::IncreaseAllocation {
                 receiver: "investor".to_string(),
@@ -1499,6 +1305,8 @@ fn test_increase_and_decrease_allocation() {
         "Generic error: Insufficient unallocated ASTRO to increase allocation. Contract has: 1000000000000 unallocated ASTRO."
     );
 
+    let balance_before = app.wrap().query_balance(OWNER, ASTRO_DENOM).unwrap().amount;
+
     // Transfer unallocated tokens to owner
     app.execute_contract(
         Addr::unchecked("owner".to_string()),
@@ -1511,31 +1319,18 @@ fn test_increase_and_decrease_allocation() {
     )
     .unwrap();
 
-    let res: BalanceResponse = app
-        .wrap()
-        .query_wasm_smart(
-            &astro_instance,
-            &cw20::Cw20QueryMsg::Balance {
-                address: OWNER.to_string(),
-            },
-        )
-        .unwrap();
-    assert_eq!(res.balance, Uint128::from(995_500_000_000_000u128));
+    let balance_after = app.wrap().query_balance(OWNER, ASTRO_DENOM).unwrap().amount;
+    assert_eq!((balance_after - balance_before).u128(), 500_000_000_000u128);
 
-    // Increase allocations with sending cw20
+    // Increase allocations
     app.execute_contract(
         Addr::unchecked(OWNER),
-        astro_instance.clone(),
-        &cw20::Cw20ExecuteMsg::Send {
-            contract: unlock_instance.clone().to_string(),
-            amount: Uint128::from(1_000u64),
-            msg: to_json_binary(&ReceiveMsg::IncreaseAllocation {
-                amount: Uint128::from(500_000_001_000u128),
-                user: "investor".to_string(),
-            })
-            .unwrap(),
+        unlock_instance.clone(),
+        &ExecuteMsg::IncreaseAllocation {
+            amount: Uint128::from(500_000_001_000u128),
+            receiver: "investor".to_string(),
         },
-        &[],
+        &coins(1_000, ASTRO_DENOM),
     )
     .unwrap();
 
@@ -1548,16 +1343,8 @@ fn test_increase_and_decrease_allocation() {
     )
     .unwrap();
 
-    let res: BalanceResponse = app
-        .wrap()
-        .query_wasm_smart(
-            &astro_instance,
-            &cw20::Cw20QueryMsg::Balance {
-                address: "investor".to_string(),
-            },
-        )
-        .unwrap();
-    assert_eq!(res.balance, Uint128::from(81_449_143_155u128));
+    let balance = app.wrap().query_balance("investor", ASTRO_DENOM).unwrap();
+    assert_eq!(balance.amount, Uint128::from(81_449_143_155u128));
 
     // Check allocation amount after decreasing and increasing
     check_alloc_amount(
@@ -1596,15 +1383,7 @@ fn test_increase_and_decrease_allocation() {
 #[test]
 fn test_updates_schedules() {
     let mut app = mock_app();
-    let (unlock_instance, astro_instance, _) = init_contracts(&mut app);
-
-    mint_some_astro(
-        &mut app,
-        Addr::unchecked(OWNER.clone()),
-        astro_instance.clone(),
-        Uint128::new(1_000_000_000_000000),
-        OWNER.to_string(),
-    );
+    let (unlock_instance, _) = init_contracts(&mut app);
 
     let mut allocations: Vec<(String, AllocationParams)> = vec![];
     allocations.push((
@@ -1649,17 +1428,12 @@ fn test_updates_schedules() {
 
     // ######    SUCCESSFULLY CREATES ALLOCATIONS    ######
     app.execute_contract(
-        Addr::unchecked(OWNER.clone()),
-        astro_instance.clone(),
-        &cw20::Cw20ExecuteMsg::Send {
-            contract: unlock_instance.clone().to_string(),
-            amount: Uint128::from(15_000_000_000000u64),
-            msg: to_json_binary(&ReceiveMsg::CreateAllocations {
-                allocations: allocations.clone(),
-            })
-            .unwrap(),
+        Addr::unchecked(OWNER),
+        unlock_instance.clone(),
+        &ExecuteMsg::CreateAllocations {
+            allocations: allocations.clone(),
         },
-        &[],
+        &coins(15_000_000_000000, ASTRO_DENOM),
     )
     .unwrap();
 
@@ -1728,7 +1502,7 @@ fn test_updates_schedules() {
     // not owner try to update configs
     let err = app
         .execute_contract(
-            Addr::unchecked("not_owner".clone()),
+            Addr::unchecked("not_owner"),
             unlock_instance.clone(),
             &ExecuteMsg::UpdateUnlockSchedules {
                 new_unlock_schedules: vec![(
@@ -1751,7 +1525,7 @@ fn test_updates_schedules() {
 
     let err = app
         .execute_contract(
-            Addr::unchecked(OWNER.clone()),
+            Addr::unchecked(OWNER),
             unlock_instance.clone(),
             &ExecuteMsg::UpdateUnlockSchedules {
                 new_unlock_schedules: vec![
@@ -1784,7 +1558,7 @@ fn test_updates_schedules() {
     );
 
     app.execute_contract(
-        Addr::unchecked(OWNER.clone()),
+        Addr::unchecked(OWNER),
         unlock_instance.clone(),
         &ExecuteMsg::UpdateUnlockSchedules {
             new_unlock_schedules: vec![
@@ -1945,33 +1719,19 @@ fn check_allocation(
     Ok(())
 }
 
-fn query_cw20_bal(app: &mut App, cw20_addr: &Addr, address: &Addr) -> u128 {
+fn query_bal(app: &mut App, address: &Addr) -> u128 {
     app.wrap()
-        .query_wasm_smart::<BalanceResponse>(
-            cw20_addr,
-            &cw20::Cw20QueryMsg::Balance {
-                address: address.to_string(),
-            },
-        )
+        .query_balance(address, ASTRO_DENOM)
         .unwrap()
-        .balance
+        .amount
         .u128()
 }
 
 #[test]
 fn test_create_allocations_with_custom_cliff() {
     let mut app = mock_app();
-    let (unlock_instance, astro_instance, _) = init_contracts(&mut app);
+    let (unlock_instance, _) = init_contracts(&mut app);
     let total_astro = Uint128::new(1_000_000_000000);
-    let owner = Addr::unchecked(OWNER);
-
-    mint_some_astro(
-        &mut app,
-        owner.clone(),
-        astro_instance.clone(),
-        total_astro,
-        owner.to_string(),
-    );
 
     let now_ts = SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)
@@ -2026,17 +1786,12 @@ fn test_create_allocations_with_custom_cliff() {
 
     // Create allocations
     app.execute_contract(
-        owner.clone(),
-        astro_instance.clone(),
-        &cw20::Cw20ExecuteMsg::Send {
-            contract: unlock_instance.to_string(),
-            amount: total_astro,
-            msg: to_json_binary(&ReceiveMsg::CreateAllocations {
-                allocations: allocations.clone(),
-            })
-            .unwrap(),
+        Addr::unchecked(OWNER),
+        unlock_instance.clone(),
+        &ExecuteMsg::CreateAllocations {
+            allocations: allocations.clone(),
         },
-        &[],
+        &coins(total_astro.u128(), ASTRO_DENOM),
     )
     .unwrap();
 
@@ -2076,7 +1831,7 @@ fn test_create_allocations_with_custom_cliff() {
         &[],
     )
     .unwrap();
-    let balance = query_cw20_bal(&mut app, &astro_instance, &investor3);
+    let balance = query_bal(&mut app, &investor3);
     let amount_at_cliff = allocations[2].1.amount.u128() / 5;
     let amount_linearly_vested = 64699_453551;
     assert_eq!(balance, amount_at_cliff + amount_linearly_vested);
@@ -2106,7 +1861,7 @@ fn test_create_allocations_with_custom_cliff() {
         &[],
     )
     .unwrap();
-    let balance = query_cw20_bal(&mut app, &astro_instance, &investor2);
+    let balance = query_bal(&mut app, &investor2);
     assert_eq!(balance, 16666_666666);
 
     // Investor3 continues to receive linearly unlocked astro
@@ -2117,7 +1872,7 @@ fn test_create_allocations_with_custom_cliff() {
         &[],
     )
     .unwrap();
-    let balance = query_cw20_bal(&mut app, &astro_instance, &investor3);
+    let balance = query_bal(&mut app, &investor3);
     assert_eq!(balance, 197158_469945);
 
     // shift by 7 months
@@ -2131,7 +1886,7 @@ fn test_create_allocations_with_custom_cliff() {
         &[],
     )
     .unwrap();
-    let balance = query_cw20_bal(&mut app, &astro_instance, &investor1);
+    let balance = query_bal(&mut app, &investor1);
     assert_eq!(balance, 166666_666666);
 
     // Investor2 continues to receive linearly unlocked astro
@@ -2142,7 +1897,7 @@ fn test_create_allocations_with_custom_cliff() {
         &[],
     )
     .unwrap();
-    let balance = query_cw20_bal(&mut app, &astro_instance, &investor2);
+    let balance = query_bal(&mut app, &investor2);
     assert_eq!(balance, 36247_723132);
 
     // Investor3 continues to receive linearly unlocked astro
@@ -2153,7 +1908,7 @@ fn test_create_allocations_with_custom_cliff() {
         &[],
     )
     .unwrap();
-    let balance = query_cw20_bal(&mut app, &astro_instance, &investor3);
+    let balance = query_bal(&mut app, &investor3);
     assert_eq!(balance, 272349_726775);
 
     // shift by 2 years
@@ -2167,7 +1922,7 @@ fn test_create_allocations_with_custom_cliff() {
         &[],
     )
     .unwrap();
-    let balance = query_cw20_bal(&mut app, &astro_instance, &investor1);
+    let balance = query_bal(&mut app, &investor1);
     assert_eq!(balance, 500000_000000);
 
     // Investor2 receives whole allocation
@@ -2178,7 +1933,7 @@ fn test_create_allocations_with_custom_cliff() {
         &[],
     )
     .unwrap();
-    let balance = query_cw20_bal(&mut app, &astro_instance, &investor2);
+    let balance = query_bal(&mut app, &investor2);
     assert_eq!(balance, 100000_000000);
 
     // Investor3 receives whole allocation
@@ -2189,7 +1944,7 @@ fn test_create_allocations_with_custom_cliff() {
         &[],
     )
     .unwrap();
-    let balance = query_cw20_bal(&mut app, &astro_instance, &investor3);
+    let balance = query_bal(&mut app, &investor3);
     assert_eq!(balance, 400000_000000);
 
     app.update_block(|block| block.time = block.time.plus_seconds(day));

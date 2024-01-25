@@ -33,7 +33,7 @@ dependencies = [
  "builder-unlock",
  "cosmwasm-schema",
  "cosmwasm-std",
- "cw-multi-test 0.20.0",
+ "cw-multi-test 0.20.0 (git+https://github.com/astroport-fi/cw-multi-test?branch=feat/bank_with_send_hooks)",
  "cw-storage-plus 1.2.0",
  "cw-utils 1.0.3",
  "cw2 1.1.2",
@@ -479,18 +479,16 @@ checksum = "ab9008b6bb9fc80b5277f2fe481c09e828743d9151203e804583eb4c9e15b31d"
 
 [[package]]
 name = "builder-unlock"
-version = "2.0.0"
+version = "3.0.0"
 dependencies = [
  "astroport 3.8.0 (git+https://github.com/astroport-fi/hidden_astroport_core)",
  "astroport-governance 1.4.0",
- "astroport-token",
  "cosmwasm-schema",
  "cosmwasm-std",
- "cw-multi-test 0.15.1",
+ "cw-multi-test 0.20.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "cw-storage-plus 0.15.1",
- "cw2 0.15.1",
- "cw20 0.15.1",
- "thiserror",
+ "cw-utils 1.0.3",
+ "cw2 1.1.2",
 ]
 
 [[package]]
@@ -702,6 +700,26 @@ dependencies = [
  "prost 0.9.0",
  "schemars",
  "serde",
+ "thiserror",
+]
+
+[[package]]
+name = "cw-multi-test"
+version = "0.20.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "67fff029689ae89127cf6d7655809a68d712f3edbdb9686c70b018ba438b26ca"
+dependencies = [
+ "anyhow",
+ "bech32",
+ "cosmwasm-std",
+ "cw-storage-plus 1.2.0",
+ "cw-utils 1.0.3",
+ "derivative",
+ "itertools 0.12.0",
+ "prost 0.12.3",
+ "schemars",
+ "serde",
+ "sha2 0.10.8",
  "thiserror",
 ]
 

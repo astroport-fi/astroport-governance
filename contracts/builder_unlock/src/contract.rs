@@ -1,27 +1,28 @@
+use astroport::asset::addr_opt_validate;
+use astroport::asset::validate_native_denom;
+use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, from_json, to_json_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Order,
-    Response, StdError, StdResult, Uint128, WasmMsg,
+    attr, coins, ensure, to_json_binary, Addr, BankMsg, Binary, Deps, DepsMut, Env, MessageInfo,
+    Order, Response, StdError, StdResult, Uint128,
 };
 use cw2::set_contract_version;
-use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 use cw_storage_plus::Bound;
+use cw_utils::{may_pay, must_pay};
 
 use astroport_governance::builder_unlock::msg::{
-    AllocationResponse, ExecuteMsg, InstantiateMsg, QueryMsg, ReceiveMsg, SimulateWithdrawResponse,
+    AllocationResponse, ExecuteMsg, InstantiateMsg, QueryMsg, SimulateWithdrawResponse,
     StateResponse,
 };
 use astroport_governance::builder_unlock::{AllocationParams, AllocationStatus, Config, Schedule};
 use astroport_governance::{DEFAULT_LIMIT, MAX_LIMIT};
 
-use crate::astroport::asset::addr_opt_validate;
-use crate::astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use crate::contract::helpers::{compute_unlocked_amount, compute_withdraw_amount};
 use crate::state::{CONFIG, OWNERSHIP_PROPOSAL, PARAMS, STATE, STATUS};
 
 // Version and name used for contract migration.
-const CONTRACT_NAME: &str = "builder-unlock";
+const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Creates a new contract with the specified parameters in the `msg` variable.
@@ -32,25 +33,28 @@ pub fn instantiate(
     _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> StdResult<Response> {
-    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-
-    STATE.save(deps.storage, &Default::default())?;
+    validate_native_denom(&msg.astro_denom)?;
 
     CONFIG.save(
         deps.storage,
         &Config {
             owner: deps.api.addr_validate(&msg.owner)?,
-            astro_token: deps.api.addr_validate(&msg.astro_token)?,
+            astro_denom: msg.astro_denom,
             max_allocations_amount: msg.max_allocations_amount,
         },
     )?;
+
+    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    STATE.save(deps.storage, &Default::default())?;
+
     Ok(Response::default())
 }
 
 /// Exposes all the execute functions available in the contract.
 ///
 /// ## Execute messages
-/// * **ExecuteMsg::Receive(cw20_msg)** Parse incoming messages coming from the ASTRO token contract.
+/// * **ExecuteMsg::CreateAllocations** Create allocations.
 ///
 /// * **ExecuteMsg::Withdraw** Withdraw unlocked ASTRO.
 ///
@@ -78,7 +82,9 @@ pub fn instantiate(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> StdResult<Response> {
     match msg {
-        ExecuteMsg::Receive(cw20_msg) => execute_receive_cw20(deps, info, cw20_msg),
+        ExecuteMsg::CreateAllocations { allocations } => {
+            execute_create_allocations(deps, info, allocations)
+        }
         ExecuteMsg::Withdraw {} => execute_withdraw(deps, env, info),
         ExecuteMsg::ProposeNewReceiver { new_receiver } => {
             execute_propose_new_receiver(deps, info, new_receiver)
@@ -92,9 +98,13 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             if info.sender != config.owner {
                 return Err(StdError::generic_err(
                     "Only the contract owner can increase allocations",
-                ));
+                )
+                .into());
             }
-            execute_increase_allocation(deps, &config, receiver, amount, None)
+            let deposit_amount = may_pay(&info, &config.astro_denom)
+                .map_err(|err| StdError::generic_err(err.to_string()))?;
+
+            execute_increase_allocation(deps, &config, receiver, amount, deposit_amount)
         }
         ExecuteMsg::DecreaseAllocation { receiver, amount } => {
             execute_decrease_allocation(deps, env, info, receiver, amount)
@@ -142,39 +152,6 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
     }
 }
 
-/// Receives a message of type [`Cw20ReceiveMsg`] and processes it depending on the received template.
-///
-/// * **cw20_msg** CW20 message to process.
-fn execute_receive_cw20(
-    deps: DepsMut,
-    info: MessageInfo,
-    cw20_msg: Cw20ReceiveMsg,
-) -> StdResult<Response> {
-    match from_json(&cw20_msg.msg)? {
-        ReceiveMsg::CreateAllocations { allocations } => execute_create_allocations(
-            deps,
-            cw20_msg.sender,
-            info.sender,
-            cw20_msg.amount,
-            allocations,
-        ),
-        ReceiveMsg::IncreaseAllocation { user, amount } => {
-            let config = CONFIG.load(deps.storage)?;
-
-            if config.astro_token != info.sender {
-                return Err(StdError::generic_err("Only ASTRO can be deposited"));
-            }
-            if deps.api.addr_validate(&cw20_msg.sender)? != config.owner {
-                return Err(StdError::generic_err(
-                    "Only the contract owner can increase allocations",
-                ));
-            }
-
-            execute_increase_allocation(deps, &config, user, amount, Some(cw20_msg.amount))
-        }
-    }
-}
-
 /// Expose available contract queries.
 ///
 /// ## Queries
@@ -216,23 +193,18 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 /// * **deposit_amount** new allocations being created.
 fn execute_create_allocations(
     deps: DepsMut,
-    creator: String,
-    deposit_token: Addr,
-    deposit_amount: Uint128,
+    info: MessageInfo,
     allocations: Vec<(String, AllocationParams)>,
 ) -> StdResult<Response> {
     let config = CONFIG.load(deps.storage)?;
-    let mut state = STATE.load(deps.storage)?;
 
-    if deps.api.addr_validate(&creator)? != config.owner {
-        return Err(StdError::generic_err(
-            "Only the contract owner can create allocations",
-        ));
-    }
+    ensure!(
+        info.sender == config.owner,
+        StdError::generic_err("Only the contract owner can create allocations",)
+    );
 
-    if deposit_token != config.astro_token {
-        return Err(StdError::generic_err("Only ASTRO can be deposited"));
-    }
+    let deposit_amount = must_pay(&info, &config.astro_denom)
+        .map_err(|err| StdError::generic_err(err.to_string()))?;
 
     if deposit_amount
         != allocations
@@ -242,6 +214,8 @@ fn execute_create_allocations(
     {
         return Err(StdError::generic_err("ASTRO deposit amount mismatch"));
     }
+
+    let mut state = STATE.load(deps.storage)?;
 
     state.total_astro_deposited += deposit_amount;
     state.remaining_astro_tokens += deposit_amount;
@@ -272,9 +246,6 @@ fn execute_create_allocations(
 
 /// Allow allocation recipients to withdraw unlocked ASTRO.
 fn execute_withdraw(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Response> {
-    let config = CONFIG.load(deps.storage)?;
-    let mut state = STATE.load(deps.storage)?;
-
     let params = PARAMS.load(deps.storage, &info.sender)?;
 
     if params.proposed_receiver.is_some() {
@@ -292,6 +263,8 @@ fn execute_withdraw(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Res
         return Err(StdError::generic_err("No unlocked ASTRO to be withdrawn"));
     }
 
+    let mut state = STATE.load(deps.storage)?;
+
     status.astro_withdrawn += astro_to_withdraw;
     state.remaining_astro_tokens -= astro_to_withdraw;
 
@@ -301,15 +274,15 @@ fn execute_withdraw(deps: DepsMut, env: Env, info: MessageInfo) -> StdResult<Res
     // Update status
     STATUS.save(deps.storage, &info.sender, &status)?;
 
+    let config = CONFIG.load(deps.storage)?;
+
+    let bank_msg = BankMsg::Send {
+        to_address: info.sender.to_string(),
+        amount: coins(astro_to_withdraw.u128(), config.astro_denom),
+    };
+
     Ok(Response::new()
-        .add_message(WasmMsg::Execute {
-            contract_addr: config.astro_token.to_string(),
-            msg: to_json_binary(&Cw20ExecuteMsg::Transfer {
-                recipient: info.sender.to_string(),
-                amount: astro_to_withdraw,
-            })?,
-            funds: vec![],
-        })
+        .add_message(bank_msg)
         .add_attribute("astro_withdrawn", astro_to_withdraw))
 }
 
@@ -431,7 +404,7 @@ fn execute_increase_allocation(
     config: &Config,
     receiver: String,
     amount: Uint128,
-    deposit_amount: Option<Uint128>,
+    deposit_amount: Uint128,
 ) -> StdResult<Response> {
     let receiver = deps.api.addr_validate(&receiver)?;
 
@@ -439,17 +412,15 @@ fn execute_increase_allocation(
         Some(mut params) => {
             let mut state = STATE.load(deps.storage)?;
 
-            if let Some(deposit_amount) = deposit_amount {
-                state.total_astro_deposited =
-                    state.total_astro_deposited.checked_add(deposit_amount)?;
-                state.unallocated_tokens = state.unallocated_tokens.checked_add(deposit_amount)?;
+            state.total_astro_deposited =
+                state.total_astro_deposited.checked_add(deposit_amount)?;
+            state.unallocated_tokens = state.unallocated_tokens.checked_add(deposit_amount)?;
 
-                if state.total_astro_deposited > config.max_allocations_amount {
-                    return Err(StdError::generic_err(format!(
-                        "The total allocation for all recipients cannot exceed total ASTRO amount allocated to unlock (currently {} ASTRO)",
-                        config.max_allocations_amount,
-                    )));
-                }
+            if state.total_astro_deposited > config.max_allocations_amount {
+                return Err(StdError::generic_err(format!(
+                    "The total allocation for all recipients cannot exceed total ASTRO amount allocated to unlock (currently {} ASTRO)",
+                    config.max_allocations_amount,
+                )));
             }
 
             if state.unallocated_tokens < amount {
@@ -509,13 +480,9 @@ fn execute_transfer_unallocated(
     state.total_astro_deposited = state.total_astro_deposited.checked_sub(amount)?;
 
     let recipient = addr_opt_validate(deps.api, &recipient)?.unwrap_or_else(|| info.sender.clone());
-    let msg = WasmMsg::Execute {
-        contract_addr: config.astro_token.to_string(),
-        msg: to_json_binary(&Cw20ExecuteMsg::Transfer {
-            recipient: recipient.to_string(),
-            amount,
-        })?,
-        funds: vec![],
+    let bank_msg = BankMsg::Send {
+        to_address: recipient.to_string(),
+        amount: coins(amount.u128(), config.astro_denom),
     };
 
     STATE.save(deps.storage, &state)?;
@@ -523,7 +490,7 @@ fn execute_transfer_unallocated(
     Ok(Response::new()
         .add_attribute("action", "execute_transfer_unallocated")
         .add_attribute("amount", amount)
-        .add_message(msg))
+        .add_message(bank_msg))
 }
 
 /// Allows a newly proposed allocation receiver to claim the ownership of that allocation.

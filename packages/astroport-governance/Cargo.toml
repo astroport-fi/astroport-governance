@@ -1,5 +1,6 @@
 [package]
 name = "astroport-governance"
+# TODO: bump version and set version in all dependent contracts
 version = "1.4.0"
 authors = ["Astroport"]
 edition = "2021"

@@ -1,4 +1,4 @@
-use crate::astroport::common::OwnershipProposal;
+use astroport::common::OwnershipProposal;
 use cosmwasm_std::Addr;
 use cw_storage_plus::{Item, Map};
 

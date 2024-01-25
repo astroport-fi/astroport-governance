@@ -125,7 +125,7 @@ impl Helper {
 
         let msg = astroport_governance::builder_unlock::msg::InstantiateMsg {
             owner: owner.to_string(),
-            astro_token: ASTRO_DENOM.to_string(),
+            astro_denom: ASTRO_DENOM.to_string(),
             max_allocations_amount: Uint128::new(300_000_000_000000),
         };
 
