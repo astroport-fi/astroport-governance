@@ -1,22 +1,12 @@
-use crate::{error::ContractError, state::VOTING_POWER_HISTORY};
-
 use cosmwasm_std::{Addr, Order, StdResult, Storage, Uint128};
 use cw_storage_plus::Bound;
 
-use crate::state::{BLACKLIST, CONFIG};
-
-/// Checks that the sender is the xASTRO token.
-pub(crate) fn xastro_token_check(storage: &dyn Storage, sender: Addr) -> Result<(), ContractError> {
-    let config = CONFIG.load(storage)?;
-    if sender != config.deposit_token_addr {
-        Err(ContractError::Unauthorized {})
-    } else {
-        Ok(())
-    }
-}
+use crate::state::BLACKLIST;
+use crate::{error::ContractError, state::VOTING_POWER_HISTORY};
 
 /// Checks if the blacklist contains a specific address.
 pub(crate) fn blacklist_check(storage: &dyn Storage, addr: &Addr) -> Result<(), ContractError> {
+    // TODO: use Map instead of raw array which could be potentially hit gas limit
     let blacklist = BLACKLIST.load(storage)?;
     if blacklist.contains(addr) {
         Err(ContractError::AddressBlacklisted(addr.to_string()))

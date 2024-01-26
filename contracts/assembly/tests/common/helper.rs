@@ -180,7 +180,7 @@ impl Helper {
         let msg = astroport_governance::voting_escrow_lite::InstantiateMsg {
             owner: owner.to_string(),
             guardian_addr: Some(owner.to_string()),
-            deposit_token_addr: xastro_denom.to_string(),
+            deposit_denom: xastro_denom.to_string(),
             generator_controller_addr: None,
             outpost_addr: None,
             marketing: None,

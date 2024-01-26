@@ -1,5 +1,6 @@
 use cosmwasm_std::{OverflowError, StdError};
 use cw20_base::ContractError as cw20baseError;
+use cw_utils::PaymentError;
 use thiserror::Error;
 
 /// This enum describes vxASTRO contract errors
@@ -11,6 +12,12 @@ pub enum ContractError {
     #[error("{0}")]
     Cw20Base(#[from] cw20baseError),
 
+    #[error("{0}")]
+    OverflowError(#[from] OverflowError),
+
+    #[error("{0}")]
+    PaymentError(#[from] PaymentError),
+
     #[error("Unauthorized")]
     Unauthorized {},
 
@@ -19,9 +26,6 @@ pub enum ContractError {
 
     #[error("Lock does not exist")]
     LockDoesNotExist {},
-
-    #[error("Lock time must be within limits (week <= lock time < 2 years)")]
-    LockTimeLimitsError {},
 
     #[error("The lock time has not yet expired")]
     LockHasNotExpired {},
@@ -35,18 +39,9 @@ pub enum ContractError {
     #[error("Marketing info validation error: {0}")]
     MarketingInfoValidationError(String),
 
-    #[error("Contract can't be migrated!")]
-    MigrationError {},
-
     #[error("Already unlocking")]
     Unlocking {},
 
     #[error("The lock has not been unlocked, call unlock first")]
-    NotUnlocked,
-}
-
-impl From<OverflowError> for ContractError {
-    fn from(o: OverflowError) -> Self {
-        StdError::from(o).into()
-    }
+    NotUnlocked {},
 }

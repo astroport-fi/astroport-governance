@@ -1,14 +1,13 @@
+use std::fmt;
+
+use cosmwasm_schema::{cw_serde, QueryResponses};
+use cosmwasm_std::{Addr, Binary, QuerierWrapper, StdResult, Uint128, Uint64};
+use cw20::{BalanceResponse, DownloadLogoResponse, Logo, MarketingInfoResponse, TokenInfoResponse};
+
 use crate::voting_escrow_lite::QueryMsg::{
     LockInfo, TotalVotingPower, TotalVotingPowerAt, UserDepositAt, UserEmissionsVotingPower,
     UserVotingPower, UserVotingPowerAt,
 };
-use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::{Addr, Binary, QuerierWrapper, StdResult, Uint128, Uint64};
-use cw20::{
-    BalanceResponse, Cw20ReceiveMsg, DownloadLogoResponse, Logo, MarketingInfoResponse,
-    TokenInfoResponse,
-};
-use std::fmt;
 
 /// ## Pagination settings
 /// The maximum amount of items that can be read at once from
@@ -40,7 +39,7 @@ pub struct InstantiateMsg {
     /// Address that's allowed to black or whitelist contracts
     pub guardian_addr: Option<String>,
     /// xASTRO token address
-    pub deposit_token_addr: String,
+    pub deposit_denom: String,
     /// Marketing info for vxASTRO
     pub marketing: Option<UpdateMarketingInfo>,
     /// The list of whitelisted logo urls prefixes
@@ -54,9 +53,12 @@ pub struct InstantiateMsg {
 /// This structure describes the execute functions in the contract.
 #[cw_serde]
 pub enum ExecuteMsg {
-    /// Receives a message of type [`Cw20ReceiveMsg`] and processes it depending on the received
-    /// template.
-    Receive(Cw20ReceiveMsg),
+    /// Create a vxASTRO position and lock xASTRO for `time` amount of time
+    CreateLock {},
+    /// Deposit xASTRO in another user's vxASTRO position
+    DepositFor { user: String },
+    /// Add more xASTRO to your vxASTRO position
+    ExtendLockAmount {},
     /// Unlock xASTRO from the vxASTRO contract
     Unlock {},
     /// Relock all xASTRO from an unlocking position if the Hub could not be notified
@@ -71,8 +73,10 @@ pub enum ExecuteMsg {
     ClaimOwnership {},
     /// Add or remove accounts from the blacklist
     UpdateBlacklist {
-        append_addrs: Option<Vec<String>>,
-        remove_addrs: Option<Vec<String>>,
+        #[serde(default)]
+        append_addrs: Vec<String>,
+        #[serde(default)]
+        remove_addrs: Vec<String>,
     },
     /// Update the marketing info for the vxASTRO contract
     UpdateMarketing {
@@ -93,17 +97,6 @@ pub enum ExecuteMsg {
     },
     /// Set whitelisted logo urls
     SetLogoUrlsWhitelist { whitelist: Vec<String> },
-}
-
-/// This structure describes a CW20 hook message.
-#[cw_serde]
-pub enum Cw20HookMsg {
-    /// Create a vxASTRO position and lock xASTRO for `time` amount of time
-    CreateLock { time: u64 },
-    /// Deposit xASTRO in another user's vxASTRO position
-    DepositFor { user: String },
-    /// Add more xASTRO to your vxASTRO position
-    ExtendLockAmount {},
 }
 
 /// This enum describes voters status.
@@ -216,7 +209,7 @@ pub struct Config {
     /// Address that can only blacklist vxASTRO stakers and remove their governance power
     pub guardian_addr: Option<Addr>,
     /// The xASTRO token contract address
-    pub deposit_token_addr: Addr,
+    pub deposit_denom: String,
     /// The list of whitelisted logo urls prefixes
     pub logo_urls_whitelist: Vec<String>,
     /// Minimum unlock wait time in seconds

@@ -98,7 +98,7 @@ impl EscrowHelper {
         let msg = InstantiateMsg {
             owner: owner.to_string(),
             guardian_addr: Some("guardian".to_string()),
-            deposit_token_addr: res.share_token_addr.to_string(),
+            deposit_denom: res.share_token_addr.to_string(),
             marketing: None,
             logo_urls_whitelist: vec![],
             generator_controller_addr: None,

@@ -1,30 +1,28 @@
-use crate::astroport;
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
-
-use astroport_governance::{generator_controller_lite, outpost};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, from_json, to_json_binary, Addr, CosmosMsg, DepsMut, Env, MessageInfo, Response,
-    StdError, StdResult, Storage, Uint128, WasmMsg,
+    attr, to_json_binary, Addr, CosmosMsg, DepsMut, Env, MessageInfo, Response, StdError,
+    StdResult, Storage, Uint128, WasmMsg,
 };
-use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
+use cw20::Cw20ExecuteMsg;
 use cw20_base::contract::{execute_update_marketing, execute_upload_logo};
 use cw20_base::state::MARKETING_INFO;
+use cw_utils::must_pay;
 
+use astroport_governance::voting_escrow_lite::{Config, ExecuteMsg};
+use astroport_governance::{generator_controller_lite, outpost};
+
+use crate::astroport;
 use crate::astroport::common::validate_addresses;
-use astroport_governance::voting_escrow_lite::{Config, Cw20HookMsg, ExecuteMsg};
-
 use crate::error::ContractError;
 use crate::marketing_validation::{validate_marketing_info, validate_whitelist_links};
 use crate::state::{Lock, BLACKLIST, CONFIG, LOCKED, OWNERSHIP_PROPOSAL, VOTING_POWER_HISTORY};
-use crate::utils::{blacklist_check, fetch_last_checkpoint, xastro_token_check};
+use crate::utils::{blacklist_check, fetch_last_checkpoint};
 
 /// Exposes all the execute functions available in the contract.
 ///
 /// ## Execute messages
-/// * **ExecuteMsg::Receive(msg)** Parse incoming messages coming from the xASTRO token contract.
-///
 /// * **ExecuteMsg::Unlock {}** Unlock all xASTRO from a lock position, subject to a waiting period until withdrawal is possible.
 ///
 /// * **ExecuteMsg::Relock {}** Relock all xASTRO from an unlocking position if the Hub could not be notified
@@ -54,7 +52,31 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
+        ExecuteMsg::CreateLock {} => {
+            blacklist_check(deps.storage, &info.sender)?;
+
+            let config = CONFIG.load(deps.storage)?;
+            let amount = must_pay(&info, &config.deposit_denom)?;
+
+            create_lock(deps, env, info.sender, amount)
+        }
+        ExecuteMsg::DepositFor { user } => {
+            let addr = deps.api.addr_validate(&user)?;
+            blacklist_check(deps.storage, &addr)?;
+
+            let config = CONFIG.load(deps.storage)?;
+            let amount = must_pay(&info, &config.deposit_denom)?;
+
+            deposit_for(deps, env, amount, addr)
+        }
+        ExecuteMsg::ExtendLockAmount {} => {
+            blacklist_check(deps.storage, &info.sender)?;
+
+            let config = CONFIG.load(deps.storage)?;
+            let amount = must_pay(&info, &config.deposit_denom)?;
+
+            deposit_for(deps, env, amount, info.sender)
+        }
         ExecuteMsg::Unlock {} => unlock(deps, env, info),
         ExecuteMsg::Relock { user } => relock(deps, env, info, user),
         ExecuteMsg::Withdraw {} => withdraw(deps, env, info),
@@ -126,31 +148,6 @@ pub fn execute(
             generator_controller,
             outpost,
         } => execute_update_config(deps, info, new_guardian, generator_controller, outpost),
-    }
-}
-
-/// Receives a message of type [`Cw20ReceiveMsg`] and processes it depending on the received template.
-/// Only allows messages coming from the xASTRO token contract.
-///
-/// * **cw20_msg** CW20 message to process.
-fn receive_cw20(
-    deps: DepsMut,
-    env: Env,
-    info: MessageInfo,
-    cw20_msg: Cw20ReceiveMsg,
-) -> Result<Response, ContractError> {
-    xastro_token_check(deps.storage, info.sender)?;
-    let sender = Addr::unchecked(cw20_msg.sender);
-    blacklist_check(deps.storage, &sender)?;
-
-    match from_json(&cw20_msg.msg)? {
-        Cw20HookMsg::CreateLock { .. } => create_lock(deps, env, sender, cw20_msg.amount),
-        Cw20HookMsg::ExtendLockAmount {} => deposit_for(deps, env, cw20_msg.amount, sender),
-        Cw20HookMsg::DepositFor { user } => {
-            let addr = deps.api.addr_validate(&user)?;
-            blacklist_check(deps.storage, &addr)?;
-            deposit_for(deps, env, cw20_msg.amount, addr)
-        }
     }
 }
 
@@ -274,9 +271,10 @@ fn unlock(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, Contra
                     })
                 }
                 _ => {
-                    return Err(ContractError::Std(StdError::GenericErr {
-                        msg: "Either Generator Controller or Outpost must be set".to_string(),
-                    }));
+                    return Err(StdError::generic_err(
+                        "Either Generator Controller or Outpost must be set",
+                    )
+                    .into());
                 }
             };
 
@@ -364,7 +362,7 @@ fn withdraw(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, Cont
             // Unlocked, withdrawal is now allowed
             let config = CONFIG.load(deps.storage)?;
             let transfer_msg = CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: config.deposit_token_addr.to_string(),
+                contract_addr: config.deposit_denom.to_string(),
                 msg: to_json_binary(&Cw20ExecuteMsg::Transfer {
                     recipient: sender.to_string(),
                     amount: lock.amount,
@@ -392,16 +390,18 @@ fn update_blacklist(
     mut deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    append_addrs: Option<Vec<String>>,
-    remove_addrs: Option<Vec<String>>,
+    append_addrs: Vec<String>,
+    remove_addrs: Vec<String>,
 ) -> Result<Response, ContractError> {
+    if append_addrs.is_empty() && remove_addrs.is_empty() {
+        return Err(StdError::generic_err("Append and remove arrays are empty").into());
+    }
+
     let config = CONFIG.load(deps.storage)?;
     // Permission check
     if info.sender != config.owner && Some(info.sender) != config.guardian_addr {
         return Err(ContractError::Unauthorized {});
     }
-    let append_addrs = append_addrs.unwrap_or_default();
-    let remove_addrs = remove_addrs.unwrap_or_default();
     let blacklist = BLACKLIST.load(deps.storage)?;
     let append: Vec<_> = validate_addresses(deps.api, &append_addrs)?
         .into_iter()
@@ -411,10 +411,6 @@ fn update_blacklist(
         .into_iter()
         .filter(|addr| blacklist.contains(addr))
         .collect();
-
-    if append.is_empty() && remove.is_empty() {
-        return Err(StdError::generic_err("Append and remove arrays are empty").into());
-    }
 
     let timestamp = env.block.time.seconds();
     let mut reduce_total_vp = Uint128::zero(); // accumulator for decreasing total voting power

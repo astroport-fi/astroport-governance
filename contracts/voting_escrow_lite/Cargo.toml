@@ -1,5 +1,5 @@
 [package]
-name = "voting-escrow-lite"
+name = "astroport-voting-escrow-lite"
 version = "1.0.0"
 authors = ["Astroport"]
 edition = "2021"
@@ -21,21 +21,22 @@ crate-type = ["cdylib", "rlib"]
 # for quicker tests, cargo test --lib
 # for more explicit tests, cargo test --features=backtraces
 backtraces = ["cosmwasm-std/backtraces"]
+library = []
 
 [dependencies]
-cw2 = "0.15"
-cw20 = "0.15"
-cw20-base = { version = "0.15", features = ["library"] }
-cosmwasm-std = "1.1"
+cw2 = "1.1"
+cw20 = "1.1"
+cw-utils = "1"
+cosmwasm-std = "1.5"
 cw-storage-plus = "0.15"
-thiserror = { version = "1.0" }
+thiserror = "1"
 astroport-governance = { path = "../../packages/astroport-governance" }
-cosmwasm-schema = "1.1"
+cosmwasm-schema = "1.5"
 
 [dev-dependencies]
-cw-multi-test = "0.15"
-astroport-token = { git = "https://github.com/astroport-fi/hidden_astroport_core" }
-astroport-staking = { git = "https://github.com/astroport-fi/hidden_astroport_core" }
+cw-multi-test = "0.20"
 astroport-generator-controller = { path = "../../contracts/generator_controller_lite", package = "generator-controller-lite" }
+astroport = { git = "https://github.com/astroport-fi/hidden_astroport_core", branch = "feat/neutron-migration" }
+cw20-base = { version = "1.1", features = ["library"] }
 anyhow = "1"
 proptest = "1.0"

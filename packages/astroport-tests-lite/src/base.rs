@@ -151,7 +151,7 @@ impl BaseAstroportTestPackage {
             guardian_addr: Some("guardian".to_string()),
             marketing: None,
             owner: owner.to_string(),
-            deposit_token_addr: self.get_staking_xastro(router).to_string(),
+            deposit_denom: self.get_staking_xastro(router).to_string(),
             logo_urls_whitelist: vec![],
             generator_controller_addr: None,
             outpost_addr: None,

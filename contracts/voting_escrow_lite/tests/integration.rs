@@ -2,25 +2,19 @@ use astroport::token as astro;
 use cosmwasm_std::{attr, to_json_binary, Addr, StdError, Uint128, Uint64};
 use cw20::{Cw20ExecuteMsg, Logo, LogoInfo, MarketingInfoResponse, MinterResponse};
 use cw_multi_test::{next_block, ContractWrapper, Executor};
-use voting_escrow_lite::astroport;
 
 use astroport_governance::utils::{get_lite_period, WEEK};
-use astroport_governance::voting_escrow_lite::{
-    Config, Cw20HookMsg, ExecuteMsg, LockInfoResponse, QueryMsg,
-};
+use astroport_governance::voting_escrow_lite::{Config, ExecuteMsg, LockInfoResponse, QueryMsg};
 
-use crate::test_utils::{mock_app, Helper, MULTIPLIER};
+use crate::test_utils::{Helper, MULTIPLIER};
 
 mod test_utils;
 
 #[test]
 fn lock_unlock_logic() {
-    let mut router = mock_app();
-    let router_ref = &mut router;
-    let owner = Addr::unchecked("owner");
-    let helper = Helper::init(router_ref, owner);
+    let mut helper = Helper::init();
 
-    helper.mint_xastro(router_ref, "owner", 100);
+    helper.mint_xastro("owner", 100);
 
     // Mint ASTRO, stake it and mint xASTRO
     helper.mint_xastro(router_ref, "user", 100);
@@ -127,8 +121,6 @@ fn lock_unlock_logic() {
 
 #[test]
 fn random_token_lock() {
-    let mut router = mock_app();
-    let router_ref = &mut router;
     let owner = Addr::unchecked("owner");
     let helper = Helper::init(router_ref, owner);
 
@@ -185,8 +177,6 @@ fn random_token_lock() {
 
 #[test]
 fn new_lock_after_unlock() {
-    let mut router = mock_app();
-    let router_ref = &mut router;
     let helper = Helper::init(router_ref, Addr::unchecked("owner"));
     helper.mint_xastro(router_ref, "owner", 100);
 
@@ -243,8 +233,6 @@ fn new_lock_after_unlock() {
 /// Plot for this test case is generated at tests/plots/variable_decay.png
 #[test]
 fn emissions_voting_no_decay() {
-    let mut router = mock_app();
-    let router_ref = &mut router;
     let helper = Helper::init(router_ref, Addr::unchecked("owner"));
     helper.mint_xastro(router_ref, "owner", 100);
 
@@ -336,8 +324,6 @@ fn emissions_voting_no_decay() {
 
 #[test]
 fn check_queries() {
-    let mut router = mock_app();
-    let router_ref = &mut router;
     let owner = Addr::unchecked("owner");
     let helper = Helper::init(router_ref, owner);
     helper.mint_xastro(router_ref, "owner", 100);
@@ -601,8 +587,6 @@ fn check_queries() {
 
 #[test]
 fn check_deposit_for() {
-    let mut router = mock_app();
-    let router_ref = &mut router;
     let owner = Addr::unchecked("owner");
     let helper = Helper::init(router_ref, owner);
     helper.mint_xastro(router_ref, "owner", 100);
@@ -713,8 +697,6 @@ fn check_update_owner() {
 
 #[test]
 fn check_blacklist() {
-    let mut router = mock_app();
-    let router_ref = &mut router;
     let owner = Addr::unchecked("owner");
     let helper = Helper::init(router_ref, owner);
 
@@ -878,8 +860,6 @@ fn check_blacklist() {
 
 #[test]
 fn check_residual() {
-    let mut router = mock_app();
-    let router_ref = &mut router;
     let owner = Addr::unchecked("owner");
     let helper = Helper::init(router_ref, owner);
     let lock_duration = 104;
@@ -969,8 +949,6 @@ fn check_residual() {
 
 #[test]
 fn total_vp_multiple_slope_subtraction() {
-    let mut router = mock_app();
-    let router_ref = &mut router;
     let owner = Addr::unchecked("owner");
     let helper = Helper::init(router_ref, owner);
 
@@ -1019,8 +997,6 @@ fn total_vp_multiple_slope_subtraction() {
 
 #[test]
 fn marketing_info() {
-    let mut router = mock_app();
-    let router_ref = &mut router;
     let owner = Addr::unchecked("owner");
     let helper = Helper::init(router_ref, owner);
 

@@ -30,6 +30,7 @@ dependencies = [
  "astroport-nft",
  "astroport-staking 2.0.0",
  "astroport-tokenfactory-tracker",
+ "astroport-voting-escrow-lite",
  "builder-unlock",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -42,7 +43,6 @@ dependencies = [
  "test-case",
  "thiserror",
  "voting-escrow-delegation",
- "voting-escrow-lite",
 ]
 
 [[package]]
@@ -185,7 +185,7 @@ dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 0.15.1",
- "cw20 0.15.1",
+ "cw20 1.1.2",
  "thiserror",
 ]
 
@@ -335,6 +335,7 @@ dependencies = [
  "astroport-pair",
  "astroport-staking 1.1.0",
  "astroport-token",
+ "astroport-voting-escrow-lite",
  "astroport-whitelist",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -342,7 +343,6 @@ dependencies = [
  "cw2 0.15.1",
  "cw20 0.15.1",
  "generator-controller-lite",
- "voting-escrow-lite",
 ]
 
 [[package]]
@@ -355,7 +355,7 @@ dependencies = [
  "cosmwasm-std",
  "cw2 0.15.1",
  "cw20 0.15.1",
- "cw20-base",
+ "cw20-base 0.15.1",
  "snafu",
 ]
 
@@ -369,6 +369,26 @@ dependencies = [
  "cosmwasm-std",
  "cw-storage-plus 1.2.0",
  "cw2 1.1.2",
+ "thiserror",
+]
+
+[[package]]
+name = "astroport-voting-escrow-lite"
+version = "1.0.0"
+dependencies = [
+ "anyhow",
+ "astroport 3.8.0 (git+https://github.com/astroport-fi/hidden_astroport_core?branch=feat/neutron-migration)",
+ "astroport-governance 1.4.0",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-multi-test 0.20.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "cw-storage-plus 0.15.1",
+ "cw-utils 1.0.3",
+ "cw2 1.1.2",
+ "cw20 1.1.2",
+ "cw20-base 1.1.2",
+ "generator-controller-lite",
+ "proptest",
  "thiserror",
 ]
 
@@ -890,6 +910,23 @@ dependencies = [
  "cw-utils 0.15.1",
  "cw2 0.15.1",
  "cw20 0.15.1",
+ "schemars",
+ "semver",
+ "serde",
+ "thiserror",
+]
+
+[[package]]
+name = "cw20-base"
+version = "1.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "17ad79e86ea3707229bf78df94e08732e8f713207b4a77b2699755596725e7d9"
+dependencies = [
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-storage-plus 1.2.0",
+ "cw2 1.1.2",
+ "cw20 1.1.2",
  "schemars",
  "semver",
  "serde",
@@ -2044,7 +2081,7 @@ dependencies = [
  "cw-storage-plus 0.15.1",
  "cw2 0.15.1",
  "cw20 0.15.1",
- "cw20-base",
+ "cw20-base 0.15.1",
  "proptest",
  "thiserror",
 ]
@@ -2065,26 +2102,6 @@ dependencies = [
  "cw2 0.15.1",
  "cw721",
  "cw721-base",
- "proptest",
- "thiserror",
-]
-
-[[package]]
-name = "voting-escrow-lite"
-version = "1.0.0"
-dependencies = [
- "anyhow",
- "astroport-governance 1.4.0",
- "astroport-staking 1.1.0",
- "astroport-token",
- "cosmwasm-schema",
- "cosmwasm-std",
- "cw-multi-test 0.15.1",
- "cw-storage-plus 0.15.1",
- "cw2 0.15.1",
- "cw20 0.15.1",
- "cw20-base",
- "generator-controller-lite",
  "proptest",
  "thiserror",
 ]
