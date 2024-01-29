@@ -1,10 +1,8 @@
 #![allow(dead_code)]
 
 use anyhow::Result;
-use cosmwasm_std::{
-    attr, coins, to_json_binary, Addr, BlockInfo, StdResult, Timestamp, Uint128, Uint64,
-};
-use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, Logo};
+use cosmwasm_std::{coins, Addr, BlockInfo, StdResult, Timestamp, Uint128, Uint64};
+use cw20::Logo;
 use cw_multi_test::{App, AppBuilder, AppResponse, ContractWrapper, Executor};
 
 use astroport_governance::utils::EPOCH_START;
@@ -13,7 +11,7 @@ use astroport_governance::voting_escrow_lite::{
     VotingPowerResponse,
 };
 
-pub const MULTIPLIER: u64 = 1_000000;
+pub const MULTIPLIER: u128 = 1_000000;
 
 pub const XASTRO_DENOM: &str = "factory/assembly/xASTRO";
 
@@ -127,17 +125,18 @@ impl Helper {
         }
     }
 
-    pub fn mint_xastro(&mut self, to: &str, amount: impl Into<u128> + Copy) {
+    pub fn mint_xastro(&mut self, to: &str, amount: u128) {
+        let amount = amount * MULTIPLIER;
         self.app
             .send_tokens(
                 self.owner.clone(),
                 Addr::unchecked(to),
-                &coins(amount.into(), XASTRO_DENOM),
+                &coins(amount, XASTRO_DENOM),
             )
             .unwrap();
     }
 
-    pub fn check_xastro_balance(&self, user: &str, amount: u64) {
+    pub fn check_xastro_balance(&self, user: &str, amount: u128) {
         let amount = amount * MULTIPLIER;
         let balance = self
             .app
@@ -145,7 +144,7 @@ impl Helper {
             .query_balance(user, XASTRO_DENOM)
             .unwrap()
             .amount;
-        assert_eq!(balance.u128(), amount as u128);
+        assert_eq!(balance.u128(), amount);
     }
 
     pub fn create_lock(&mut self, user: &str, amount: f32) -> Result<AppResponse> {
@@ -158,48 +157,27 @@ impl Helper {
         )
     }
 
-    pub fn create_lock_u128(
-        &self,
-        router: &mut App,
-        user: &str,
-        time: u64,
-        amount: u128,
-    ) -> Result<AppResponse> {
-        let cw20msg = Cw20ExecuteMsg::Send {
-            contract: self.vxastro.to_string(),
-            amount: Uint128::from(amount),
-            msg: to_json_binary(&Cw20HookMsg::CreateLock { time }).unwrap(),
-        };
-        router.execute_contract(
+    pub fn create_lock_u128(&mut self, user: &str, amount: u128) -> Result<AppResponse> {
+        self.app.execute_contract(
             Addr::unchecked(user),
-            self.xastro_denom.clone(),
-            &cw20msg,
-            &[],
+            self.vxastro.clone(),
+            &ExecuteMsg::CreateLock {},
+            &coins(amount, XASTRO_DENOM),
         )
     }
 
-    pub fn extend_lock_amount(
-        &self,
-        router: &mut App,
-        user: &str,
-        amount: f32,
-    ) -> Result<AppResponse> {
-        let amount = (amount * MULTIPLIER as f32) as u64;
-        let cw20msg = Cw20ExecuteMsg::Send {
-            contract: self.vxastro.to_string(),
-            amount: Uint128::from(amount),
-            msg: to_json_binary(&Cw20HookMsg::ExtendLockAmount {}).unwrap(),
-        };
-        router.execute_contract(
+    pub fn extend_lock_amount(&mut self, user: &str, amount: f32) -> Result<AppResponse> {
+        let amount = (amount * MULTIPLIER as f32) as u128;
+        self.app.execute_contract(
             Addr::unchecked(user),
-            self.xastro_denom.clone(),
-            &cw20msg,
-            &[],
+            self.vxastro.clone(),
+            &ExecuteMsg::ExtendLockAmount {},
+            &coins(amount, XASTRO_DENOM),
         )
     }
 
-    pub fn relock(&self, router: &mut App, user: &str) -> Result<AppResponse> {
-        router.execute_contract(
+    pub fn relock(&mut self, user: &str) -> Result<AppResponse> {
+        self.app.execute_contract(
             Addr::unchecked("outpost"),
             self.vxastro.clone(),
             &ExecuteMsg::Relock {
@@ -209,32 +187,20 @@ impl Helper {
         )
     }
 
-    pub fn deposit_for(
-        &self,
-        router: &mut App,
-        from: &str,
-        to: &str,
-        amount: f32,
-    ) -> Result<AppResponse> {
-        let amount = (amount * MULTIPLIER as f32) as u64;
-        let cw20msg = Cw20ExecuteMsg::Send {
-            contract: self.vxastro.to_string(),
-            amount: Uint128::from(amount),
-            msg: to_json_binary(&Cw20HookMsg::DepositFor {
-                user: to.to_string(),
-            })
-            .unwrap(),
-        };
-        router.execute_contract(
+    pub fn deposit_for(&mut self, from: &str, to: &str, amount: f32) -> Result<AppResponse> {
+        let amount = (amount * MULTIPLIER as f32) as u128;
+        self.app.execute_contract(
             Addr::unchecked(from),
-            self.xastro_denom.clone(),
-            &cw20msg,
-            &[],
+            self.vxastro.clone(),
+            &ExecuteMsg::DepositFor {
+                user: to.to_string(),
+            },
+            &coins(amount, XASTRO_DENOM),
         )
     }
 
-    pub fn unlock(&self, router: &mut App, user: &str) -> Result<AppResponse> {
-        router.execute_contract(
+    pub fn unlock(&mut self, user: &str) -> Result<AppResponse> {
+        self.app.execute_contract(
             Addr::unchecked(user),
             self.vxastro.clone(),
             &ExecuteMsg::Unlock {},
@@ -242,8 +208,8 @@ impl Helper {
         )
     }
 
-    pub fn withdraw(&self, router: &mut App, user: &str) -> Result<AppResponse> {
-        router.execute_contract(
+    pub fn withdraw(&mut self, user: &str) -> Result<AppResponse> {
+        self.app.execute_contract(
             Addr::unchecked(user),
             self.vxastro.clone(),
             &ExecuteMsg::Withdraw {},
@@ -252,12 +218,11 @@ impl Helper {
     }
 
     pub fn update_blacklist(
-        &self,
-        router: &mut App,
-        append_addrs: Option<Vec<String>>,
-        remove_addrs: Option<Vec<String>>,
+        &mut self,
+        append_addrs: Vec<String>,
+        remove_addrs: Vec<String>,
     ) -> Result<AppResponse> {
-        router.execute_contract(
+        self.app.execute_contract(
             Addr::unchecked("owner"),
             self.vxastro.clone(),
             &ExecuteMsg::UpdateBlacklist {
@@ -268,12 +233,8 @@ impl Helper {
         )
     }
 
-    pub fn update_outpost_address(
-        &self,
-        router: &mut App,
-        new_address: String,
-    ) -> Result<AppResponse> {
-        router.execute_contract(
+    pub fn update_outpost_address(&mut self, new_address: String) -> Result<AppResponse> {
+        self.app.execute_contract(
             Addr::unchecked("owner"),
             self.vxastro.clone(),
             &ExecuteMsg::UpdateConfig {
@@ -285,8 +246,8 @@ impl Helper {
         )
     }
 
-    pub fn query_user_vp(&self, router: &mut App, user: &str) -> StdResult<f32> {
-        router
+    pub fn query_user_vp(&self, user: &str) -> StdResult<f32> {
+        self.app
             .wrap()
             .query_wasm_smart(
                 self.vxastro.clone(),
@@ -297,8 +258,8 @@ impl Helper {
             .map(|vp: VotingPowerResponse| vp.voting_power.u128() as f32 / MULTIPLIER as f32)
     }
 
-    pub fn query_user_emissions_vp(&self, router: &mut App, user: &str) -> StdResult<f32> {
-        router
+    pub fn query_user_emissions_vp(&self, user: &str) -> StdResult<f32> {
+        self.app
             .wrap()
             .query_wasm_smart(
                 self.vxastro.clone(),
@@ -309,8 +270,8 @@ impl Helper {
             .map(|vp: VotingPowerResponse| vp.voting_power.u128() as f32 / MULTIPLIER as f32)
     }
 
-    pub fn query_exact_user_vp(&self, router: &mut App, user: &str) -> StdResult<u128> {
-        router
+    pub fn query_exact_user_vp(&self, user: &str) -> StdResult<u128> {
+        self.app
             .wrap()
             .query_wasm_smart(
                 self.vxastro.clone(),
@@ -321,8 +282,8 @@ impl Helper {
             .map(|vp: VotingPowerResponse| vp.voting_power.u128())
     }
 
-    pub fn query_exact_user_emissions_vp(&self, router: &mut App, user: &str) -> StdResult<u128> {
-        router
+    pub fn query_exact_user_emissions_vp(&self, user: &str) -> StdResult<u128> {
+        self.app
             .wrap()
             .query_wasm_smart(
                 self.vxastro.clone(),
@@ -333,8 +294,8 @@ impl Helper {
             .map(|vp: VotingPowerResponse| vp.voting_power.u128())
     }
 
-    pub fn query_user_vp_at(&self, router: &mut App, user: &str, time: u64) -> StdResult<f32> {
-        router
+    pub fn query_user_vp_at(&self, user: &str, time: u64) -> StdResult<f32> {
+        self.app
             .wrap()
             .query_wasm_smart(
                 self.vxastro.clone(),
@@ -346,13 +307,8 @@ impl Helper {
             .map(|vp: VotingPowerResponse| vp.voting_power.u128() as f32 / MULTIPLIER as f32)
     }
 
-    pub fn query_user_emissions_vp_at(
-        &self,
-        router: &mut App,
-        user: &str,
-        time: u64,
-    ) -> StdResult<f32> {
-        router
+    pub fn query_user_emissions_vp_at(&self, user: &str, time: u64) -> StdResult<f32> {
+        self.app
             .wrap()
             .query_wasm_smart(
                 self.vxastro.clone(),
@@ -364,13 +320,8 @@ impl Helper {
             .map(|vp: VotingPowerResponse| vp.voting_power.u128() as f32 / MULTIPLIER as f32)
     }
 
-    pub fn query_user_vp_at_period(
-        &self,
-        router: &mut App,
-        user: &str,
-        period: u64,
-    ) -> StdResult<f32> {
-        router
+    pub fn query_user_vp_at_period(&self, user: &str, period: u64) -> StdResult<f32> {
+        self.app
             .wrap()
             .query_wasm_smart(
                 self.vxastro.clone(),
@@ -382,15 +333,15 @@ impl Helper {
             .map(|vp: VotingPowerResponse| vp.voting_power.u128() as f32 / MULTIPLIER as f32)
     }
 
-    pub fn query_total_vp(&self, router: &mut App) -> StdResult<f32> {
-        router
+    pub fn query_total_vp(&self) -> StdResult<f32> {
+        self.app
             .wrap()
             .query_wasm_smart(self.vxastro.clone(), &QueryMsg::TotalVotingPower {})
             .map(|vp: VotingPowerResponse| vp.voting_power.u128() as f32 / MULTIPLIER as f32)
     }
 
-    pub fn query_total_emissions_vp(&self, router: &mut App) -> StdResult<f32> {
-        router
+    pub fn query_total_emissions_vp(&self) -> StdResult<f32> {
+        self.app
             .wrap()
             .query_wasm_smart(
                 self.vxastro.clone(),
@@ -399,15 +350,15 @@ impl Helper {
             .map(|vp: VotingPowerResponse| vp.voting_power.u128() as f32 / MULTIPLIER as f32)
     }
 
-    pub fn query_exact_total_vp(&self, router: &mut App) -> StdResult<u128> {
-        router
+    pub fn query_exact_total_vp(&self) -> StdResult<u128> {
+        self.app
             .wrap()
             .query_wasm_smart(self.vxastro.clone(), &QueryMsg::TotalVotingPower {})
             .map(|vp: VotingPowerResponse| vp.voting_power.u128())
     }
 
-    pub fn query_exact_total_emissions_vp(&self, router: &mut App) -> StdResult<u128> {
-        router
+    pub fn query_exact_total_emissions_vp(&self) -> StdResult<u128> {
+        self.app
             .wrap()
             .query_wasm_smart(
                 self.vxastro.clone(),
@@ -416,15 +367,15 @@ impl Helper {
             .map(|vp: VotingPowerResponse| vp.voting_power.u128())
     }
 
-    pub fn query_total_vp_at(&self, router: &mut App, time: u64) -> StdResult<f32> {
-        router
+    pub fn query_total_vp_at(&self, time: u64) -> StdResult<f32> {
+        self.app
             .wrap()
             .query_wasm_smart(self.vxastro.clone(), &QueryMsg::TotalVotingPowerAt { time })
             .map(|vp: VotingPowerResponse| vp.voting_power.u128() as f32 / MULTIPLIER as f32)
     }
 
-    pub fn query_total_emissions_vp_at(&self, router: &mut App, time: u64) -> StdResult<f32> {
-        router
+    pub fn query_total_emissions_vp_at(&self, time: u64) -> StdResult<f32> {
+        self.app
             .wrap()
             .query_wasm_smart(
                 self.vxastro.clone(),
@@ -433,8 +384,8 @@ impl Helper {
             .map(|vp: VotingPowerResponse| vp.voting_power.u128() as f32 / MULTIPLIER as f32)
     }
 
-    pub fn query_total_vp_at_period(&self, router: &mut App, period: u64) -> StdResult<f32> {
-        router
+    pub fn query_total_vp_at_period(&self, period: u64) -> StdResult<f32> {
+        self.app
             .wrap()
             .query_wasm_smart(
                 self.vxastro.clone(),
@@ -443,12 +394,8 @@ impl Helper {
             .map(|vp: VotingPowerResponse| vp.voting_power.u128() as f32 / MULTIPLIER as f32)
     }
 
-    pub fn query_total_emissions_vp_at_period(
-        &self,
-        router: &mut App,
-        timestamp: u64,
-    ) -> StdResult<f32> {
-        router
+    pub fn query_total_emissions_vp_at_period(&self, timestamp: u64) -> StdResult<f32> {
+        self.app
             .wrap()
             .query_wasm_smart(
                 self.vxastro.clone(),
@@ -457,13 +404,8 @@ impl Helper {
             .map(|vp: VotingPowerResponse| vp.voting_power.u128() as f32 / MULTIPLIER as f32)
     }
 
-    pub fn query_locked_balance_at(
-        &self,
-        router: &mut App,
-        user: &str,
-        timestamp: Uint64,
-    ) -> StdResult<f32> {
-        router
+    pub fn query_locked_balance_at(&self, user: &str, timestamp: Uint64) -> StdResult<f32> {
+        self.app
             .wrap()
             .query_wasm_smart(
                 self.vxastro.clone(),
@@ -477,11 +419,10 @@ impl Helper {
 
     pub fn query_blacklisted_voters(
         &self,
-        router: &mut App,
         start_after: Option<String>,
         limit: Option<u32>,
     ) -> StdResult<Vec<Addr>> {
-        router.wrap().query_wasm_smart(
+        self.app.wrap().query_wasm_smart(
             self.vxastro.clone(),
             &QueryMsg::BlacklistedVoters { start_after, limit },
         )
@@ -489,10 +430,9 @@ impl Helper {
 
     pub fn check_voters_are_blacklisted(
         &self,
-        router: &mut App,
         voters: Vec<String>,
     ) -> StdResult<BlacklistedVotersResponse> {
-        router.wrap().query_wasm_smart(
+        self.app.wrap().query_wasm_smart(
             self.vxastro.clone(),
             &QueryMsg::CheckVotersAreBlacklisted { voters },
         )

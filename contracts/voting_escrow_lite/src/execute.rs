@@ -1,11 +1,9 @@
-use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, to_json_binary, Addr, CosmosMsg, DepsMut, Env, MessageInfo, Response, StdError,
-    StdResult, Storage, Uint128, WasmMsg,
+    attr, coins, to_json_binary, Addr, BankMsg, CosmosMsg, DepsMut, Env, MessageInfo, Response,
+    StdError, StdResult, Storage, Uint128, WasmMsg,
 };
-use cw20::Cw20ExecuteMsg;
 use cw20_base::contract::{execute_update_marketing, execute_upload_logo};
 use cw20_base::state::MARKETING_INFO;
 use cw_utils::must_pay;
@@ -13,8 +11,9 @@ use cw_utils::must_pay;
 use astroport_governance::voting_escrow_lite::{Config, ExecuteMsg};
 use astroport_governance::{generator_controller_lite, outpost};
 
-use crate::astroport;
-use crate::astroport::common::validate_addresses;
+use crate::astroport::common::{
+    claim_ownership, drop_ownership_proposal, propose_new_owner, validate_addresses,
+};
 use crate::error::ContractError;
 use crate::marketing_validation::{validate_marketing_info, validate_whitelist_links};
 use crate::state::{Lock, BLACKLIST, CONFIG, LOCKED, OWNERSHIP_PROPOSAL, VOTING_POWER_HISTORY};
@@ -61,6 +60,8 @@ pub fn execute(
             create_lock(deps, env, info.sender, amount)
         }
         ExecuteMsg::DepositFor { user } => {
+            blacklist_check(deps.storage, &info.sender)?;
+
             let addr = deps.api.addr_validate(&user)?;
             blacklist_check(deps.storage, &addr)?;
 
@@ -361,14 +362,11 @@ fn withdraw(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, Cont
             }
             // Unlocked, withdrawal is now allowed
             let config = CONFIG.load(deps.storage)?;
-            let transfer_msg = CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: config.deposit_denom.to_string(),
-                msg: to_json_binary(&Cw20ExecuteMsg::Transfer {
-                    recipient: sender.to_string(),
-                    amount: lock.amount,
-                })?,
-                funds: vec![],
-            });
+
+            let transfer_msg = BankMsg::Send {
+                to_address: sender.to_string(),
+                amount: coins(lock.amount.u128(), &config.deposit_denom),
+            };
             lock.amount = Uint128::zero();
             LOCKED.save(deps.storage, sender, &lock, env.block.time.seconds())?;
 

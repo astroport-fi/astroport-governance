@@ -1,6 +1,14 @@
 [workspace]
 resolver = "2"
-members = ["packages/*", "contracts/*"]
+members = [
+    "packages/*",
+    "contracts/assembly",
+    "contracts/builder_unlock",
+    "contracts/generator_controller_lite",
+    "contracts/hub",
+    "contracts/outpost",
+    "contracts/voting_escrow_lite",
+]
 
 [profile.release]
 opt-level = "z"

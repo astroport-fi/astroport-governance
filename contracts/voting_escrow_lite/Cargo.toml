@@ -26,6 +26,7 @@ library = []
 [dependencies]
 cw2 = "1.1"
 cw20 = "1.1"
+cw20-base = { version = "1.1", features = ["library"] }
 cw-utils = "1"
 cosmwasm-std = "1.5"
 cw-storage-plus = "0.15"
@@ -37,6 +38,5 @@ cosmwasm-schema = "1.5"
 cw-multi-test = "0.20"
 astroport-generator-controller = { path = "../../contracts/generator_controller_lite", package = "generator-controller-lite" }
 astroport = { git = "https://github.com/astroport-fi/hidden_astroport_core", branch = "feat/neutron-migration" }
-cw20-base = { version = "1.1", features = ["library"] }
 anyhow = "1"
 proptest = "1.0"
