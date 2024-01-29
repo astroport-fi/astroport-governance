@@ -155,10 +155,6 @@ pub fn execute(
         ),
         ExecuteMsg::CheckMessages(messages) => check_messages(env, messages),
         ExecuteMsg::CheckMessagesPassed {} => Err(ContractError::MessagesCheckPassed {}),
-        // TODO: remove this redundant endpoint
-        ExecuteMsg::RemoveCompletedProposal { proposal_id } => {
-            remove_completed_proposal(deps, env, proposal_id)
-        }
         ExecuteMsg::UpdateConfig(config) => update_config(deps, env, info, config),
         ExecuteMsg::IBCProposalCompleted {
             proposal_id,
@@ -605,33 +601,6 @@ pub fn check_messages(env: Env, mut messages: Vec<CosmosMsg>) -> Result<Response
     Ok(Response::new()
         .add_attribute("action", "check_messages")
         .add_messages(messages))
-}
-
-/// Removes an expired or rejected proposal from the general proposal list.
-pub fn remove_completed_proposal(
-    deps: DepsMut,
-    env: Env,
-    proposal_id: u64,
-) -> Result<Response, ContractError> {
-    let config = CONFIG.load(deps.storage)?;
-
-    let mut proposal = PROPOSALS.load(deps.storage, proposal_id)?;
-
-    if env.block.height
-        > (proposal.end_block + config.proposal_effective_delay + config.proposal_expiration_period)
-    {
-        proposal.status = ProposalStatus::Expired;
-    }
-
-    if proposal.status != ProposalStatus::Expired && proposal.status != ProposalStatus::Rejected {
-        return Err(ContractError::ProposalNotCompleted {});
-    }
-
-    PROPOSALS.remove(deps.storage, proposal_id);
-
-    Ok(Response::new()
-        .add_attribute("action", "remove_completed_proposal")
-        .add_attribute("proposal_id", proposal_id.to_string()))
 }
 
 /// Updates Assembly contract parameters.

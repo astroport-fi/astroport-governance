@@ -116,11 +116,6 @@ pub enum ExecuteMsg {
         /// If proposal should be executed on a remote chain this field should specify governance channel
         ibc_channel: Option<String>,
     },
-    /// Remove a proposal that was already executed (or failed/expired)
-    RemoveCompletedProposal {
-        /// Proposal identifier
-        proposal_id: u64,
-    },
     /// Update parameters in the Assembly contract
     /// ## Executor
     /// Only the Assembly contract is allowed to update its own parameters
