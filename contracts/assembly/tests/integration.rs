@@ -1,51 +1,12 @@
-// use std::str::FromStr;
-//
-// use astroport::{
-//     token::InstantiateMsg as TokenInstantiateMsg, xastro_token::QueryMsg as XAstroQueryMsg,
-// };
-// use cosmwasm_std::coins;
-// use cosmwasm_std::{
-//     testing::{mock_env, MockApi, MockStorage},
-//     to_json_binary, Addr, Binary, CosmosMsg, Decimal, QueryRequest, StdResult, Timestamp, Uint128,
-//     Uint64, WasmMsg, WasmQuery,
-// };
-// use cw_multi_test::{
-//     next_block, App, AppBuilder, AppResponse, BankKeeper, ContractWrapper, Executor,
-// };
-//
-// use astroport_governance::assembly::{
-//     Config, ExecuteMsg, InstantiateMsg, Proposal, ProposalListResponse, ProposalStatus,
-//     ProposalVoteOption, ProposalVotesResponse, QueryMsg, UpdateConfig, DEPOSIT_INTERVAL,
-//     VOTING_PERIOD_INTERVAL,
-// };
-// use astroport_governance::builder_unlock::msg::{
-//     InstantiateMsg as BuilderUnlockInstantiateMsg, ReceiveMsg as BuilderUnlockReceiveMsg,
-// };
-// use astroport_governance::builder_unlock::{AllocationParams, Schedule};
-// use astroport_governance::hub::InstantiateMsg as HubInstantiateMsg;
-// use astroport_governance::utils::{EPOCH_START, WEEK};
-// use astroport_governance::voting_escrow_lite::{
-//     Cw20HookMsg as VXAstroCw20HookMsg, InstantiateMsg as VXAstroInstantiateMsg,
-// };
-//
-// mod common;
-//
-// const PROPOSAL_VOTING_PERIOD: u64 = *VOTING_PERIOD_INTERVAL.start();
-// const PROPOSAL_EFFECTIVE_DELAY: u64 = 12_342;
-// const PROPOSAL_EXPIRATION_PERIOD: u64 = 86_399;
-// const PROPOSAL_REQUIRED_DEPOSIT: u128 = *DEPOSIT_INTERVAL.start();
-// const PROPOSAL_REQUIRED_QUORUM: &str = "0.50";
-// const PROPOSAL_REQUIRED_THRESHOLD: &str = "0.60";
-//
-
-use astroport_governance::assembly;
-use cosmwasm_std::{coins, Addr, Uint128};
+use astro_assembly::error::ContractError;
+use cosmwasm_std::{coin, coins, Addr, BankMsg, Uint128};
 use cw_multi_test::Executor;
 
-use astroport_governance::assembly::{Config, InstantiateMsg, ProposalListResponse, QueryMsg};
-use astroport_governance::builder_unlock::{AllocationParams, Schedule};
+use astroport_governance::assembly::{Config, InstantiateMsg, ProposalVoteOption, QueryMsg};
 
-use crate::common::helper::{default_init_msg, Helper, PROPOSAL_REQUIRED_DEPOSIT};
+use crate::common::helper::{
+    default_init_msg, Helper, PROPOSAL_DELAY, PROPOSAL_REQUIRED_DEPOSIT, PROPOSAL_VOTING_PERIOD,
+};
 
 mod common;
 
@@ -185,6 +146,179 @@ fn test_contract_instantiation() {
     );
 }
 
+#[test]
+fn test_proposal_lifecycle() {
+    let owner = Addr::unchecked("owner");
+    let mut helper = Helper::new(&owner).unwrap();
+
+    let user = Addr::unchecked("user");
+    helper.get_xastro(&user, 2 * PROPOSAL_REQUIRED_DEPOSIT.u128() + 1000); // initial stake consumes 1000 xASTRO
+    let late_voter = Addr::unchecked("late_voter");
+    helper.get_xastro(&late_voter, 2 * PROPOSAL_REQUIRED_DEPOSIT.u128());
+
+    helper.next_block(10);
+
+    // Proposal messages coins one simple transfer
+    let assembly = helper.assembly.clone();
+    helper.mint_coin(&assembly, coin(1, "some_coin"));
+    helper.submit_proposal(
+        &user,
+        vec![BankMsg::Send {
+            to_address: "receiver".to_string(),
+            amount: coins(1, "some_coin"),
+        }
+        .into()],
+    );
+
+    // Check voting power
+    assert_eq!(
+        helper.user_vp(&user, 1).u128(),
+        2 * PROPOSAL_REQUIRED_DEPOSIT.u128()
+    );
+    assert_eq!(
+        helper.user_vp(&late_voter, 1).u128(),
+        2 * PROPOSAL_REQUIRED_DEPOSIT.u128()
+    );
+    assert_eq!(
+        helper.proposal_total_vp(1).unwrap().u128(),
+        4 * PROPOSAL_REQUIRED_DEPOSIT.u128() + 1000 // 1000 locked forever in the staking contract
+    );
+
+    // Unstake after proposal submission
+    helper
+        .unstake(&user, PROPOSAL_REQUIRED_DEPOSIT.u128())
+        .unwrap();
+    // Current voting power is 0
+    assert_eq!(helper.query_xastro_bal_at(&user, None), Uint128::zero());
+
+    // However voting power for the 1st proposal is still == 2 * PROPOSAL_REQUIRED_DEPOSIT
+    assert_eq!(
+        helper.user_vp(&user, 1).u128(),
+        2 * PROPOSAL_REQUIRED_DEPOSIT.u128()
+    );
+
+    helper.cast_vote(1, &user, ProposalVoteOption::For).unwrap();
+
+    // One more voter got voting power in the middle of voting period.
+    // His voting power as well as total xASTRO supply increase are not accounted at the proposal start block.
+    let behind_voter = Addr::unchecked("behind_voter");
+    helper.get_xastro(&behind_voter, 20 * PROPOSAL_REQUIRED_DEPOSIT.u128());
+    let err = helper
+        .cast_vote(1, &behind_voter, ProposalVoteOption::For)
+        .unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::NoVotingPower {}
+    );
+
+    helper.next_block(10);
+
+    // Try to vote again
+    let err = helper
+        .cast_vote(1, &user, ProposalVoteOption::For)
+        .unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::UserAlreadyVoted {}
+    );
+
+    // Try to vote without voting power
+    let err = helper
+        .cast_vote(1, &Addr::unchecked("stranger"), ProposalVoteOption::Against)
+        .unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::NoVotingPower {}
+    );
+
+    // Try to end proposal
+    let err = helper.end_proposal(1).unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::VotingPeriodNotEnded {}
+    );
+
+    // Try to execute proposal
+    let err = helper.execute_proposal(1).unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::ProposalNotPassed {}
+    );
+
+    helper.next_block_height(PROPOSAL_VOTING_PERIOD);
+
+    // Late voter tries to vote after voting period
+    let err = helper
+        .cast_vote(1, &late_voter, ProposalVoteOption::Against)
+        .unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::VotingPeriodEnded {}
+    );
+
+    // Try to execute proposal before it is ended
+    let err = helper.execute_proposal(1).unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::ProposalNotPassed {}
+    );
+
+    helper.end_proposal(1).unwrap();
+
+    // Try to end proposal again
+    let err = helper.end_proposal(1).unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::ProposalNotActive {}
+    );
+
+    // Submitter received his deposit back
+    assert_eq!(
+        helper.query_balance(&user, &helper.xastro_denom).unwrap(),
+        PROPOSAL_REQUIRED_DEPOSIT
+    );
+
+    // Try to execute proposal before the delay is ended
+    let err = helper.execute_proposal(1).unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::ProposalDelayNotEnded {}
+    );
+
+    // Late voter has no chance to vote
+    let err = helper
+        .cast_vote(1, &late_voter, ProposalVoteOption::Against)
+        .unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::ProposalNotActive {}
+    );
+
+    helper.next_block_height(PROPOSAL_DELAY);
+
+    // Finally execute proposal
+    helper.execute_proposal(1).unwrap();
+
+    // Try to execute proposal again
+    let err = helper.execute_proposal(1).unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::ProposalNotPassed {}
+    );
+    // Try to end proposal
+    let err = helper.end_proposal(1).unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::ProposalNotActive {}
+    );
+
+    // Ensure proposal message was executed
+    assert_eq!(
+        helper.query_balance("receiver", "some_coin").unwrap(),
+        Uint128::one()
+    );
+}
+
 // #[test]
 // fn test_successful_proposal() {
 //     let owner = Addr::unchecked("owner");
@@ -255,58 +389,20 @@ fn test_contract_instantiation() {
 //         }
 //
 //         if vxastro > 0 {
-//             mint_vxastro(
-//                 &mut app,
-//                 &staking_instance,
-//                 xastro_addr.clone(),
-//                 &vxastro_addr,
-//                 Addr::unchecked(addr),
-//                 vxastro,
-//             );
+//             helper.mint_vxastro(&Addr::unchecked(addr), vxastro);
 //         }
 //     }
 //
-//     create_allocations(&mut app, token_addr, builder_unlock_addr, locked_balances);
+//     helper.create_allocations(locked_balances);
 //
 //     // Skip period
-//     app.update_block(|mut block| {
+//     helper.app.update_block(|mut block| {
 //         block.time = block.time.plus_seconds(WEEK);
 //         block.height += WEEK / 5;
 //     });
 //
 //     // Create default proposal
-//     create_proposal(
-//         &mut app,
-//         &xastro_addr,
-//         &assembly_addr,
-//         Addr::unchecked("user0"),
-//         Some(vec![CosmosMsg::Wasm(WasmMsg::Execute {
-//             contract_addr: assembly_addr.to_string(),
-//             msg: to_json_binary(&ExecuteMsg::UpdateConfig(Box::new(UpdateConfig {
-//                 xastro_token_addr: None,
-//                 vxastro_token_addr: None,
-//                 voting_escrow_delegator_addr: None,
-//                 ibc_controller: None,
-//                 generator_controller: None,
-//                 hub: None,
-//                 builder_unlock_addr: None,
-//                 proposal_voting_period: Some(PROPOSAL_VOTING_PERIOD + 1000),
-//                 proposal_effective_delay: None,
-//                 proposal_expiration_period: None,
-//                 proposal_required_deposit: None,
-//                 proposal_required_quorum: None,
-//                 proposal_required_threshold: None,
-//                 whitelist_add: Some(vec![
-//                     "https://some1.link/".to_string(),
-//                     "https://some2.link/".to_string(),
-//                 ]),
-//                 whitelist_remove: Some(vec!["https://some.link/".to_string()]),
-//                 guardian_addr: None,
-//             })))
-//             .unwrap(),
-//             funds: vec![],
-//         })]),
-//     );
+//     helper.create_proposal(&Addr::unchecked("user0"), vec![]);
 //
 //     let votes: Vec<(&str, ProposalVoteOption, u128)> = vec![
 //         ("user1", ProposalVoteOption::For, 180u128),
@@ -323,57 +419,33 @@ fn test_contract_instantiation() {
 //         ("user12", ProposalVoteOption::For, 10000_000000u128),
 //     ];
 //
-//     check_total_vp(&mut app, &assembly_addr, 1, 20000002450);
+//     let prop_vp = helper.proposal_total_vp(1).unwrap();
+//     assert_eq!(prop_vp, 20000002450u128.into());
 //
 //     for (addr, option, expected_vp) in votes {
 //         let sender = Addr::unchecked(addr);
 //
-//         check_user_vp(&mut app, &assembly_addr, &sender, 1, expected_vp);
+//         let vp = helper.user_vp(&sender, 1);
+//         assert_eq!(vp, expected_vp.into());
 //
-//         cast_vote(&mut app, assembly_addr.clone(), 1, sender, option).unwrap();
+//         helper.cast_vote(1, sender, option).unwrap();
 //     }
 //
-//     let proposal: Proposal = app
-//         .wrap()
-//         .query_wasm_smart(
-//             assembly_addr.clone(),
-//             &QueryMsg::Proposal { proposal_id: 1 },
-//         )
-//         .unwrap();
+//     let proposal = helper.proposal(1);
 //
-//     let proposal_votes: ProposalVotesResponse = app
-//         .wrap()
-//         .query_wasm_smart(
-//             assembly_addr.clone(),
-//             &QueryMsg::ProposalVotes { proposal_id: 1 },
-//         )
-//         .unwrap();
+//     let proposal_votes = helper.proposal_votes(1);
 //
-//     let proposal_for_voters: Vec<Addr> = app
-//         .wrap()
-//         .query_wasm_smart(
-//             assembly_addr.clone(),
-//             &QueryMsg::ProposalVoters {
-//                 proposal_id: 1,
-//                 vote_option: ProposalVoteOption::For,
-//                 start: None,
-//                 limit: None,
-//             },
-//         )
-//         .unwrap();
+//     let proposal_for_voters = helper
+//         .proposal_voters(1)
+//         .into_iter()
+//         .filter(|v| v.vote_option == ProposalVoteOption::For)
+//         .collect::<Vec<_>>();
 //
-//     let proposal_against_voters: Vec<Addr> = app
-//         .wrap()
-//         .query_wasm_smart(
-//             assembly_addr.clone(),
-//             &QueryMsg::ProposalVoters {
-//                 proposal_id: 1,
-//                 vote_option: ProposalVoteOption::Against,
-//                 start: None,
-//                 limit: None,
-//             },
-//         )
-//         .unwrap();
+//     let proposal_against_voters = helper
+//         .proposal_voters(1)
+//         .into_iter()
+//         .filter(|v| v.vote_option == ProposalVoteOption::Against)
+//         .collect::<Vec<_>>();
 //
 //     // Check proposal votes
 //     assert_eq!(proposal.for_power, Uint128::from(10000001600u128));
@@ -406,34 +478,36 @@ fn test_contract_instantiation() {
 //     );
 //
 //     // Skip voting period
-//     app.update_block(|bi| {
+//     helper.app.update_block(|bi| {
 //         bi.height += PROPOSAL_VOTING_PERIOD + 1;
 //         bi.time = bi.time.plus_seconds(5 * (PROPOSAL_VOTING_PERIOD + 1));
 //     });
 //
 //     // Try to vote after voting period
-//     let err = cast_vote(
-//         &mut app,
-//         assembly_addr.clone(),
-//         1,
-//         Addr::unchecked("user11"),
-//         ProposalVoteOption::Against,
-//     )
-//     .unwrap_err();
+//     let err = helper
+//         .cast_vote(1, Addr::unchecked("user11"), ProposalVoteOption::Against)
+//         .unwrap_err();
 //
-//     assert_eq!(err.root_cause().to_string(), "Voting period ended!");
+//     assert_eq!(
+//         err.downcast::<ContractError>().unwrap(),
+//         ContractError::VotingPeriodEnded {}
+//     );
 //
 //     // Try to execute the proposal before end_proposal
-//     let err = app
+//     let err = helper
+//         .app
 //         .execute_contract(
 //             Addr::unchecked("user0"),
-//             assembly_addr.clone(),
+//             helper.assembly.clone(),
 //             &ExecuteMsg::ExecuteProposal { proposal_id: 1 },
 //             &[],
 //         )
 //         .unwrap_err();
 //
-//     assert_eq!(err.root_cause().to_string(), "Proposal not passed!");
+//     assert_eq!(
+//         err.downcast::<ContractError>().unwrap(),
+//         ContractError::ProposalNotPassed {}
+//     );
 //
 //     // Check the successful completion of the proposal
 //     check_token_balance(&mut app, &xastro_addr, &Addr::unchecked("user0"), 0);
@@ -1739,38 +1813,6 @@ fn test_contract_instantiation() {
 //     app.execute_contract(recipient, xastro, &msg, &[]).unwrap();
 // }
 //
-// fn create_allocations(
-//     app: &mut App,
-//     token: Addr,
-//     builder_unlock_contract_addr: Addr,
-//     allocations: Vec<(String, AllocationParams)>,
-// ) {
-//     let amount = allocations
-//         .iter()
-//         .map(|params| params.1.amount.u128())
-//         .sum();
-//
-//     mint_tokens(
-//         app,
-//         &Addr::unchecked("owner"),
-//         &token,
-//         &Addr::unchecked("owner"),
-//         amount,
-//     );
-//
-//     app.execute_contract(
-//         Addr::unchecked("owner"),
-//         Addr::unchecked(token.to_string()),
-//         &Cw20ExecuteMsg::Send {
-//             contract: builder_unlock_contract_addr.to_string(),
-//             amount: Uint128::from(amount),
-//             msg: to_json_binary(&BuilderUnlockReceiveMsg::CreateAllocations { allocations })
-//                 .unwrap(),
-//         },
-//         &[],
-//     )
-//     .unwrap();
-// }
 //
 // fn create_proposal(
 //     app: &mut App,

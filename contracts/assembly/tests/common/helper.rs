@@ -4,8 +4,8 @@ use anyhow::Result as AnyResult;
 use astroport::staking;
 use cosmwasm_std::testing::MockApi;
 use cosmwasm_std::{
-    coins, Addr, Coin, Decimal, DepsMut, Empty, Env, GovMsg, IbcMsg, IbcQuery, MemoryStorage,
-    MessageInfo, Response, StdResult, Uint128,
+    coins, from_json, Addr, Coin, CosmosMsg, Decimal, DepsMut, Empty, Env, GovMsg, IbcMsg,
+    IbcQuery, MemoryStorage, MessageInfo, Response, StdResult, Uint128,
 };
 use cw_multi_test::{
     App, AppResponse, BankKeeper, BasicAppBuilder, Contract, ContractWrapper, DistributionKeeper,
@@ -13,10 +13,12 @@ use cw_multi_test::{
 };
 
 use astroport_governance::assembly::{
-    InstantiateMsg, DELAY_INTERVAL, DEPOSIT_INTERVAL, EXPIRATION_PERIOD_INTERVAL,
+    ExecuteMsg, InstantiateMsg, Proposal, ProposalVoteOption, ProposalVoterResponse,
+    ProposalVotesResponse, QueryMsg, DELAY_INTERVAL, DEPOSIT_INTERVAL, EXPIRATION_PERIOD_INTERVAL,
     MINIMUM_PROPOSAL_REQUIRED_QUORUM_PERCENTAGE, MINIMUM_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE,
     VOTING_PERIOD_INTERVAL,
 };
+use astroport_governance::builder_unlock::AllocationParams;
 
 use crate::common::stargate::StargateKeeper;
 
@@ -69,6 +71,9 @@ fn vxastro_contract() -> Box<dyn Contract<Empty>> {
 }
 
 pub const PROPOSAL_REQUIRED_DEPOSIT: Uint128 = Uint128::new(*DEPOSIT_INTERVAL.start());
+pub const PROPOSAL_VOTING_PERIOD: u64 = *VOTING_PERIOD_INTERVAL.start();
+pub const PROPOSAL_DELAY: u64 = *DELAY_INTERVAL.start();
+pub const PROPOSAL_EXPIRATION: u64 = *EXPIRATION_PERIOD_INTERVAL.start();
 
 pub fn default_init_msg(staking: &Addr, builder_unlock: &Addr) -> InstantiateMsg {
     InstantiateMsg {
@@ -79,9 +84,9 @@ pub fn default_init_msg(staking: &Addr, builder_unlock: &Addr) -> InstantiateMsg
         generator_controller_addr: None,
         hub_addr: None,
         builder_unlock_addr: builder_unlock.to_string(),
-        proposal_voting_period: *VOTING_PERIOD_INTERVAL.start(),
-        proposal_effective_delay: *DELAY_INTERVAL.start(),
-        proposal_expiration_period: *EXPIRATION_PERIOD_INTERVAL.start(),
+        proposal_voting_period: PROPOSAL_VOTING_PERIOD,
+        proposal_effective_delay: PROPOSAL_DELAY,
+        proposal_expiration_period: PROPOSAL_EXPIRATION,
         proposal_required_deposit: PROPOSAL_REQUIRED_DEPOSIT,
         proposal_required_quorum: MINIMUM_PROPOSAL_REQUIRED_QUORUM_PERCENTAGE.to_string(),
         proposal_required_threshold: Decimal::from_atomics(
@@ -252,21 +257,64 @@ impl Helper {
         )
     }
 
-    pub fn mint_tokens(&mut self, recipient: &Addr, amount: impl Into<u128> + Copy) {
+    pub fn get_xastro(&mut self, recipient: &Addr, amount: impl Into<u128> + Copy) -> AppResponse {
         self.give_astro(amount.into(), recipient);
-        self.stake(recipient, amount.into()).unwrap();
+        self.stake(recipient, amount.into()).unwrap()
     }
 
-    pub fn mint_vxastro(&mut self, recipient: &Addr, amount: impl Into<u128> + Copy) {
-        self.mint_tokens(recipient, amount);
-        // TODO: stake in voting escrow
-    }
+    pub fn get_vxastro(&mut self, recipient: &Addr, amount: impl Into<u128> + Copy) {
+        let resp = self.get_xastro(recipient, amount);
+        let xastro_amount = from_json::<staking::StakingResponse>(&resp.data.unwrap().0)
+            .unwrap()
+            .xastro_amount;
 
-    pub fn query_balance(&self, sender: &Addr, denom: &str) -> StdResult<Uint128> {
         self.app
-            .wrap()
-            .query_balance(sender, denom)
-            .map(|c| c.amount)
+            .execute_contract(
+                recipient.clone(),
+                self.vxastro.clone(),
+                &astroport_governance::voting_escrow_lite::ExecuteMsg::CreateLock {},
+                &coins(xastro_amount.u128(), &self.xastro_denom),
+            )
+            .unwrap();
+    }
+
+    pub fn submit_proposal(&mut self, submitter: &Addr, messages: Vec<CosmosMsg>) {
+        self.app
+            .execute_contract(
+                submitter.clone(),
+                self.assembly.clone(),
+                &ExecuteMsg::SubmitProposal {
+                    title: "Test title".to_string(),
+                    description: "Test description".to_string(),
+                    link: None,
+                    messages,
+                    ibc_channel: None,
+                },
+                &coins(PROPOSAL_REQUIRED_DEPOSIT.u128(), &self.xastro_denom),
+            )
+            .unwrap();
+    }
+
+    pub fn end_proposal(&mut self, proposal_id: u64) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked("permissionless"),
+            self.assembly.clone(),
+            &ExecuteMsg::EndProposal { proposal_id },
+            &[],
+        )
+    }
+
+    pub fn execute_proposal(&mut self, proposal_id: u64) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            Addr::unchecked("permissionless"),
+            self.assembly.clone(),
+            &ExecuteMsg::ExecuteProposal { proposal_id },
+            &[],
+        )
+    }
+
+    pub fn query_balance(&self, addr: impl Into<String>, denom: &str) -> StdResult<Uint128> {
+        self.app.wrap().query_balance(addr, denom).map(|c| c.amount)
     }
 
     pub fn staking_xastro_balance_at(
@@ -290,6 +338,77 @@ impl Helper {
         )
     }
 
+    pub fn query_xastro_bal_at(&self, user: &Addr, timestamp: Option<u64>) -> Uint128 {
+        self.app
+            .wrap()
+            .query_wasm_smart(
+                &self.staking,
+                &staking::QueryMsg::BalanceAt {
+                    address: user.to_string(),
+                    timestamp,
+                },
+            )
+            .unwrap()
+    }
+
+    pub fn user_vp(&self, address: &Addr, proposal_id: u64) -> Uint128 {
+        self.app
+            .wrap()
+            .query_wasm_smart(
+                &self.assembly,
+                &QueryMsg::UserVotingPower {
+                    user: address.to_string(),
+                    proposal_id,
+                },
+            )
+            .unwrap()
+    }
+
+    pub fn proposal(&self, proposal_id: u64) -> Proposal {
+        self.app
+            .wrap()
+            .query_wasm_smart(&self.assembly, &QueryMsg::Proposal { proposal_id })
+            .unwrap()
+    }
+
+    pub fn proposal_votes(&self, proposal_id: u64) -> ProposalVotesResponse {
+        self.app
+            .wrap()
+            .query_wasm_smart(&self.assembly, &QueryMsg::ProposalVotes { proposal_id })
+            .unwrap()
+    }
+
+    pub fn proposal_voters(&self, proposal_id: u64) -> Vec<ProposalVoterResponse> {
+        self.app
+            .wrap()
+            .query_wasm_smart(
+                &self.assembly,
+                &QueryMsg::ProposalVoters {
+                    proposal_id,
+                    start_after: None,
+                    limit: None,
+                },
+            )
+            .unwrap()
+    }
+
+    pub fn cast_vote(
+        &mut self,
+        proposal_id: u64,
+        sender: &Addr,
+        option: ProposalVoteOption,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            sender.clone(),
+            self.assembly.clone(),
+            &ExecuteMsg::CastVote {
+                proposal_id,
+                vote: option,
+            },
+            &[],
+        )
+    }
+
     pub fn mint_coin(&mut self, to: &Addr, coin: Coin) {
         // .init_balance() erases previous balance thus I use such hack and create intermediate "denom admin"
         let denom_admin = Addr::unchecked(format!("{}_admin", &coin.denom));
@@ -306,10 +425,41 @@ impl Helper {
             .unwrap();
     }
 
+    pub fn create_allocations(&mut self, allocations: Vec<(String, AllocationParams)>) {
+        let amount = allocations
+            .iter()
+            .map(|params| params.1.amount.u128())
+            .sum();
+
+        self.app
+            .execute_contract(
+                Addr::unchecked("owner"),
+                self.builder_unlock.clone(),
+                &astroport_governance::builder_unlock::msg::ExecuteMsg::CreateAllocations {
+                    allocations,
+                },
+                &coins(amount, ASTRO_DENOM),
+            )
+            .unwrap();
+    }
+
+    pub fn proposal_total_vp(&self, proposal_id: u64) -> StdResult<Uint128> {
+        self.app
+            .wrap()
+            .query_wasm_smart(&self.assembly, &QueryMsg::TotalVotingPower { proposal_id })
+    }
+
     pub fn next_block(&mut self, time: u64) {
         self.app.update_block(|block| {
             block.time = block.time.plus_seconds(time);
             block.height += 1
+        });
+    }
+
+    pub fn next_block_height(&mut self, height: u64) {
+        self.app.update_block(|block| {
+            block.time = block.time.plus_seconds(5 * height);
+            block.height += height
         });
     }
 }

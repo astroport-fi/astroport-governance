@@ -155,6 +155,7 @@ pub fn execute(
         ),
         ExecuteMsg::CheckMessages(messages) => check_messages(env, messages),
         ExecuteMsg::CheckMessagesPassed {} => Err(ContractError::MessagesCheckPassed {}),
+        // TODO: remove this redundant endpoint
         ExecuteMsg::RemoveCompletedProposal { proposal_id } => {
             remove_completed_proposal(deps, env, proposal_id)
         }
@@ -274,11 +275,6 @@ pub fn cast_vote(
         return Err(ContractError::ProposalNotActive {});
     }
 
-    // TODO: remove this restriction?
-    if proposal.submitter == info.sender {
-        return Err(ContractError::Unauthorized {});
-    }
-
     if env.block.height > proposal.end_block {
         return Err(ContractError::VotingPeriodEnded {});
     }
@@ -355,11 +351,6 @@ pub fn cast_outpost_vote(
 
     if proposal.status != ProposalStatus::Active {
         return Err(ContractError::ProposalNotActive {});
-    }
-
-    // TODO: Remove this restriction?
-    if proposal.submitter == voter {
-        return Err(ContractError::Unauthorized {});
     }
 
     if env.block.height > proposal.end_block {
@@ -490,8 +481,6 @@ pub fn execute_proposal(
         attr("proposal_id", proposal_id.to_string()),
     ]);
 
-    PROPOSALS.save(deps.storage, proposal_id, &proposal)?;
-
     if let Some(channel) = &proposal.ibc_channel {
         if !proposal.messages.is_empty() {
             let config = CONFIG.load(deps.storage)?;
@@ -504,7 +493,7 @@ pub fn execute_proposal(
                 &ControllerExecuteMsg::IbcExecuteProposal {
                     channel_id: channel.to_string(),
                     proposal_id,
-                    messages: proposal.messages,
+                    messages: proposal.messages.clone(),
                 },
                 vec![],
             )?))
@@ -515,8 +504,10 @@ pub fn execute_proposal(
         proposal.status = ProposalStatus::Executed;
         response
             .messages
-            .extend(proposal.messages.into_iter().map(SubMsg::new))
+            .extend(proposal.messages.iter().cloned().map(SubMsg::new))
     }
+
+    PROPOSALS.save(deps.storage, proposal_id, &proposal)?;
 
     Ok(response)
 }

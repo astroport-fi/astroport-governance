@@ -25,7 +25,8 @@ pub fn calc_voting_power(deps: Deps, sender: String, proposal: &Proposal) -> Std
         &config.xastro_denom_tracking,
         &tokenfactory_tracker::QueryMsg::BalanceAt {
             address: sender.clone(),
-            timestamp: Some(proposal.start_time),
+            // Get voting power at the block before the proposal starts
+            timestamp: Some(proposal.start_time - 1),
         },
     )?;
 
@@ -47,6 +48,7 @@ pub fn calc_voting_power(deps: Deps, sender: String, proposal: &Proposal) -> Std
                     voting_escrow_delegator_addr,
                     &AdjustedBalance {
                         account: sender.clone(),
+                        // TODO: why minus WEEK?
                         timestamp: Some(proposal.start_time - WEEK),
                     },
                 )?
@@ -57,7 +59,7 @@ pub fn calc_voting_power(deps: Deps, sender: String, proposal: &Proposal) -> Std
                     &vxastro_token_addr,
                     &VotingEscrowQueryMsg::UserVotingPowerAt {
                         user: sender.clone(),
-                        // TODO: remove - WEEK
+                        // TODO: why minus WEEK?
                         time: proposal.start_time - WEEK,
                     },
                 )?;
@@ -89,7 +91,8 @@ pub fn calc_total_voting_power_at(deps: Deps, proposal: &Proposal) -> StdResult<
     let mut total: Uint128 = deps.querier.query_wasm_smart(
         config.xastro_denom_tracking,
         &tokenfactory_tracker::QueryMsg::TotalSupplyAt {
-            timestamp: Some(proposal.start_time),
+            // Get voting power at the block before the proposal starts
+            timestamp: Some(proposal.start_time - 1),
         },
     )?;
 

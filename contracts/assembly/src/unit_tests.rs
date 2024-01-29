@@ -37,7 +37,7 @@ fn check_proposal_validation(
     link: Option<&str>,
     expected_error: Option<&str>,
 ) {
-    // Linter is not able to properly parse test_case macro; keep this line
+    // Linter is not able to properly parse test_case macro; keep these lines
     let _ = coins(0, "keep_it");
     let _ = coin(0, "keep_it");
 
