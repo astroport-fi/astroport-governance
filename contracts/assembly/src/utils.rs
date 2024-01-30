@@ -28,9 +28,7 @@ pub fn calc_voting_power(deps: Deps, sender: String, proposal: &Proposal) -> Std
 
     let locked_amount: AllocationResponse = deps.querier.query_wasm_smart(
         config.builder_unlock_addr,
-        &BuilderUnlockQueryMsg::Allocation {
-            account: sender.clone(),
-        },
+        &BuilderUnlockQueryMsg::Allocation { account: sender },
     )?;
 
     total += locked_amount.params.amount - locked_amount.status.astro_withdrawn;
