@@ -3,21 +3,25 @@ use std::str::FromStr;
 
 use astroport::tokenfactory_tracker;
 use cosmwasm_std::testing::{mock_env, mock_info, MockApi, MockQuerier, MockStorage};
-use cosmwasm_std::{coin, coins, to_json_binary, ContractResult, SystemResult, Uint128};
+use cosmwasm_std::{
+    coin, coins, to_json_binary, BankMsg, ContractResult, CosmosMsg, IbcChannel, IbcEndpoint,
+    IbcOrder, SystemResult, Uint128, WasmMsg,
+};
 use cosmwasm_std::{
     from_json, Addr, Coin, Decimal, Empty, OwnedDeps, QuerierResult, Uint64, WasmQuery,
 };
 use test_case::test_case;
 
 use astroport_governance::assembly::{
-    Config, Proposal, ProposalStatus, QueryMsg, DELAY_INTERVAL, DEPOSIT_INTERVAL,
+    Config, ExecuteMsg, Proposal, ProposalStatus, QueryMsg, DELAY_INTERVAL, DEPOSIT_INTERVAL,
     EXPIRATION_PERIOD_INTERVAL, MINIMUM_PROPOSAL_REQUIRED_QUORUM_PERCENTAGE,
     MINIMUM_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE, VOTING_PERIOD_INTERVAL,
 };
 
-use crate::contract::submit_proposal;
+use crate::contract::{execute, execute_proposal, submit_proposal};
+use crate::error::ContractError;
 use crate::queries::query;
-use crate::state::{CONFIG, PROPOSAL_COUNT};
+use crate::state::{CONFIG, PROPOSALS, PROPOSAL_COUNT};
 
 const PROPOSAL_REQUIRED_DEPOSIT: u128 = *DEPOSIT_INTERVAL.start();
 const XASTRO_DENOM: &str = "xastro";
@@ -52,9 +56,32 @@ fn custom_wasm_handler(request: &WasmQuery) -> QuerierResult {
         _ => unimplemented!(),
     }
 }
+
+const IBC_CONTROLLER: &str = "ibc_controller";
+
 fn mock_deps() -> OwnedDeps<MockStorage, MockApi, MockQuerier, Empty> {
     let mut querier = MockQuerier::new(&[]);
     querier.update_wasm(custom_wasm_handler);
+    // mock ibc querier state
+    let controller_port = format!("wasm.{IBC_CONTROLLER}");
+    querier.update_ibc(
+        &controller_port,
+        &[IbcChannel::new(
+            IbcEndpoint {
+                port_id: controller_port.clone(),
+                channel_id: "channel-1".to_string(),
+            },
+            // counterparty doesn't matter in our unit tests
+            IbcEndpoint {
+                port_id: "".to_string(),
+                channel_id: "".to_string(),
+            },
+            IbcOrder::Unordered,
+            // These also don't matter
+            "".to_string(),
+            "".to_string(),
+        )],
+    );
 
     OwnedDeps {
         storage: MockStorage::default(),
@@ -173,4 +200,303 @@ fn check_proposal_validation(
             }
         );
     }
+}
+
+#[test]
+fn check_submit_ibc_proposal() {
+    let mut deps = mock_deps();
+
+    // Mocked instantiation
+    PROPOSAL_COUNT
+        .save(deps.as_mut().storage, &Uint64::zero())
+        .unwrap();
+    let mut config = Config {
+        xastro_denom: XASTRO_DENOM.to_string(),
+        xastro_denom_tracking: "".to_string(),
+        vxastro_token_addr: None,
+        voting_escrow_delegator_addr: None,
+        ibc_controller: None,
+        generator_controller: None,
+        hub: None,
+        builder_unlock_addr: Addr::unchecked(""),
+        proposal_voting_period: *VOTING_PERIOD_INTERVAL.start(),
+        proposal_effective_delay: *DELAY_INTERVAL.start(),
+        proposal_expiration_period: *EXPIRATION_PERIOD_INTERVAL.start(),
+        proposal_required_deposit: PROPOSAL_REQUIRED_DEPOSIT.into(),
+        proposal_required_quorum: Decimal::from_str(MINIMUM_PROPOSAL_REQUIRED_QUORUM_PERCENTAGE)
+            .unwrap(),
+        proposal_required_threshold: Decimal::from_atomics(
+            MINIMUM_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE,
+            2,
+        )
+        .unwrap(),
+        whitelisted_links: vec!["https://some.link/".to_string()],
+        guardian_addr: None,
+    };
+    CONFIG.save(deps.as_mut().storage, &config).unwrap();
+
+    let err = submit_proposal(
+        deps.as_mut(),
+        mock_env(),
+        mock_info("creator", &coins(PROPOSAL_REQUIRED_DEPOSIT, XASTRO_DENOM)),
+        "title".to_string(),
+        "description".to_string(),
+        Some("https://some.link".to_string()),
+        vec![],
+        Some("channel-1".to_string()),
+    )
+    .unwrap_err();
+    assert_eq!(err, ContractError::MissingIBCController {});
+
+    // Set IBC conetroller
+    config.ibc_controller = Some(Addr::unchecked(IBC_CONTROLLER));
+    CONFIG.save(deps.as_mut().storage, &config).unwrap();
+
+    let err = submit_proposal(
+        deps.as_mut(),
+        mock_env(),
+        mock_info("creator", &coins(PROPOSAL_REQUIRED_DEPOSIT, XASTRO_DENOM)),
+        "title".to_string(),
+        "description".to_string(),
+        Some("https://some.link/".to_string()),
+        vec![],
+        Some("channel-10".to_string()),
+    )
+    .unwrap_err();
+    assert_eq!(
+        err.to_string(),
+        "Generic error: The contract does not have channel channel-10"
+    );
+
+    // channel-1 works
+    submit_proposal(
+        deps.as_mut(),
+        mock_env(),
+        mock_info("creator", &coins(PROPOSAL_REQUIRED_DEPOSIT, XASTRO_DENOM)),
+        "title".to_string(),
+        "description".to_string(),
+        Some("https://some.link/".to_string()),
+        vec![],
+        Some("channel-1".to_string()),
+    )
+    .unwrap();
+}
+
+#[test]
+fn check_execute_ibc_proposal() {
+    let mut deps = mock_deps();
+    let env = mock_env();
+
+    let mut config = Config {
+        xastro_denom: "".to_string(),
+        xastro_denom_tracking: "".to_string(),
+        vxastro_token_addr: None,
+        voting_escrow_delegator_addr: None,
+        ibc_controller: None,
+        generator_controller: None,
+        hub: None,
+        builder_unlock_addr: Addr::unchecked(""),
+        proposal_voting_period: *VOTING_PERIOD_INTERVAL.start(),
+        proposal_effective_delay: *DELAY_INTERVAL.start(),
+        proposal_expiration_period: *EXPIRATION_PERIOD_INTERVAL.start(),
+        proposal_required_deposit: PROPOSAL_REQUIRED_DEPOSIT.into(),
+        proposal_required_quorum: Decimal::from_str(MINIMUM_PROPOSAL_REQUIRED_QUORUM_PERCENTAGE)
+            .unwrap(),
+        proposal_required_threshold: Decimal::from_atomics(
+            MINIMUM_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE,
+            2,
+        )
+        .unwrap(),
+        whitelisted_links: vec!["https://some.link/".to_string()],
+        guardian_addr: None,
+    };
+    CONFIG.save(deps.as_mut().storage, &config).unwrap();
+
+    let proposal = Proposal {
+        proposal_id: 1u8.into(),
+        submitter: Addr::unchecked(""),
+        status: ProposalStatus::Passed,
+        for_power: Default::default(),
+        outpost_for_power: Default::default(),
+        against_power: Default::default(),
+        outpost_against_power: Default::default(),
+        start_block: 0,
+        start_time: 0,
+        end_block: 0,
+        delayed_end_block: 0,
+        expiration_block: u64::MAX,
+        title: "".to_string(),
+        description: "".to_string(),
+        link: None,
+        messages: vec![BankMsg::Send {
+            to_address: "".to_string(),
+            amount: coins(1, "some_coin"),
+        }
+        .into()],
+        deposit_amount: Default::default(),
+        ibc_channel: Some("channel-1".to_string()),
+        total_voting_power: Default::default(),
+    };
+
+    // Mocked proposal
+    PROPOSALS.save(deps.as_mut().storage, 1, &proposal).unwrap();
+
+    let err = execute_proposal(deps.as_mut(), env.clone(), 1).unwrap_err();
+    assert_eq!(err, ContractError::MissingIBCController {});
+
+    // Set IBC conetroller
+    config.ibc_controller = Some(Addr::unchecked(IBC_CONTROLLER));
+    CONFIG.save(deps.as_mut().storage, &config).unwrap();
+
+    let resp = execute_proposal(deps.as_mut(), env, 1).unwrap();
+    assert_eq!(resp.messages.len(), 1);
+    assert!(
+        matches!(
+            &resp.messages[0].msg,
+            CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr,
+                ..
+            }) if contract_addr == IBC_CONTROLLER
+        ),
+        "{:#?}",
+        resp.messages[0].msg
+    );
+}
+
+#[test]
+fn check_controller_callback() {
+    let mut deps = mock_deps();
+
+    let mut config = Config {
+        xastro_denom: "".to_string(),
+        xastro_denom_tracking: "".to_string(),
+        vxastro_token_addr: None,
+        voting_escrow_delegator_addr: None,
+        ibc_controller: None,
+        generator_controller: None,
+        hub: None,
+        builder_unlock_addr: Addr::unchecked(""),
+        proposal_voting_period: *VOTING_PERIOD_INTERVAL.start(),
+        proposal_effective_delay: *DELAY_INTERVAL.start(),
+        proposal_expiration_period: *EXPIRATION_PERIOD_INTERVAL.start(),
+        proposal_required_deposit: PROPOSAL_REQUIRED_DEPOSIT.into(),
+        proposal_required_quorum: Decimal::from_str(MINIMUM_PROPOSAL_REQUIRED_QUORUM_PERCENTAGE)
+            .unwrap(),
+        proposal_required_threshold: Decimal::from_atomics(
+            MINIMUM_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE,
+            2,
+        )
+        .unwrap(),
+        whitelisted_links: vec!["https://some.link/".to_string()],
+        guardian_addr: None,
+    };
+    CONFIG.save(deps.as_mut().storage, &config).unwrap();
+
+    // Mocked proposal
+    let mut proposal = Proposal {
+        proposal_id: 1u8.into(),
+        submitter: Addr::unchecked(""),
+        status: ProposalStatus::Active,
+        for_power: Default::default(),
+        outpost_for_power: Default::default(),
+        against_power: Default::default(),
+        outpost_against_power: Default::default(),
+        start_block: 0,
+        start_time: 0,
+        end_block: 0,
+        delayed_end_block: 0,
+        expiration_block: u64::MAX,
+        title: "".to_string(),
+        description: "".to_string(),
+        link: None,
+        messages: vec![BankMsg::Send {
+            to_address: "".to_string(),
+            amount: coins(1, "some_coin"),
+        }
+        .into()],
+        deposit_amount: Default::default(),
+        ibc_channel: Some("channel-1".to_string()),
+        total_voting_power: Default::default(),
+    };
+    PROPOSALS.save(deps.as_mut().storage, 1, &proposal).unwrap();
+
+    // No controller in config
+    let err = execute(
+        deps.as_mut(),
+        mock_env(),
+        mock_info(IBC_CONTROLLER, &[]),
+        ExecuteMsg::IBCProposalCompleted {
+            proposal_id: 1,
+            status: ProposalStatus::Executed,
+        },
+    )
+    .unwrap_err();
+    assert_eq!(err, ContractError::InvalidIBCController {});
+
+    // Set IBC conetroller
+    config.ibc_controller = Some(Addr::unchecked(IBC_CONTROLLER));
+    CONFIG.save(deps.as_mut().storage, &config).unwrap();
+
+    // Wrong sender
+    let err = execute(
+        deps.as_mut(),
+        mock_env(),
+        mock_info("random", &[]),
+        ExecuteMsg::IBCProposalCompleted {
+            proposal_id: 1,
+            status: ProposalStatus::Executed,
+        },
+    )
+    .unwrap_err();
+    assert_eq!(err, ContractError::InvalidIBCController {});
+
+    // Invalid current proposal status
+    let err = execute(
+        deps.as_mut(),
+        mock_env(),
+        mock_info(IBC_CONTROLLER, &[]),
+        ExecuteMsg::IBCProposalCompleted {
+            proposal_id: 1,
+            status: ProposalStatus::Executed,
+        },
+    )
+    .unwrap_err();
+    assert_eq!(
+        err,
+        ContractError::WrongIbcProposalStatus(proposal.status.to_string(),)
+    );
+
+    proposal.status = ProposalStatus::InProgress;
+    PROPOSALS.save(deps.as_mut().storage, 1, &proposal).unwrap();
+
+    // Try to set invalid status
+    execute(
+        deps.as_mut(),
+        mock_env(),
+        mock_info(IBC_CONTROLLER, &[]),
+        ExecuteMsg::IBCProposalCompleted {
+            proposal_id: 1,
+            status: ProposalStatus::Active,
+        },
+    )
+    .unwrap_err();
+    assert_eq!(
+        err,
+        ContractError::WrongIbcProposalStatus(ProposalStatus::Active.to_string())
+    );
+
+    // Valid callback
+    execute(
+        deps.as_mut(),
+        mock_env(),
+        mock_info(IBC_CONTROLLER, &[]),
+        ExecuteMsg::IBCProposalCompleted {
+            proposal_id: 1,
+            status: ProposalStatus::Executed,
+        },
+    )
+    .unwrap();
+
+    let proposal = PROPOSALS.load(deps.as_mut().storage, 1).unwrap();
+    assert_eq!(proposal.status, ProposalStatus::Executed);
 }
