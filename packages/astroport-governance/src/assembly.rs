@@ -82,16 +82,6 @@ pub enum ExecuteMsg {
         /// Vote option
         vote: ProposalVoteOption,
     },
-    CastOutpostVote {
-        /// Proposal identifier
-        proposal_id: u64,
-        /// The voter from an Outpost
-        voter: String,
-        /// The vote option
-        vote: ProposalVoteOption,
-        /// The voting power applied to this vote
-        voting_power: Uint128,
-    },
     /// Set the status of a proposal that expired
     EndProposal {
         /// Proposal identifier
@@ -106,16 +96,6 @@ pub enum ExecuteMsg {
         /// Proposal identifier
         proposal_id: u64,
     },
-    /// Load and execute a special emissions proposal. This proposal is passed
-    /// immediately and is not subject to voting as it is coming from the
-    /// generator controller based on emission votes.
-    ExecuteEmissionsProposal {
-        title: String,
-        description: String,
-        messages: Vec<CosmosMsg>,
-        /// If proposal should be executed on a remote chain this field should specify governance channel
-        ibc_channel: Option<String>,
-    },
     /// Update parameters in the Assembly contract
     /// ## Executor
     /// Only the Assembly contract is allowed to update its own parameters
@@ -126,14 +106,6 @@ pub enum ExecuteMsg {
     IBCProposalCompleted {
         proposal_id: u64,
         status: ProposalStatus,
-    },
-    /// Remove all votes cast from all Outposts in case of a vulnerability
-    /// in IBC or the contracts that allow manipulation of governance.
-    ///
-    /// This can only be called by the guardian.
-    RemoveOutpostVotes {
-        /// Proposal identifier
-        proposal_id: u64,
     },
 }
 
@@ -183,16 +155,8 @@ pub struct Config {
     pub xastro_denom: String,
     // xASTRO denom tracking contract
     pub xastro_denom_tracking: String,
-    /// vxASTRO token address
-    pub vxastro_token_addr: Option<Addr>,
-    /// Voting Escrow delegator address
-    pub voting_escrow_delegator_addr: Option<Addr>,
     /// Astroport IBC controller contract
     pub ibc_controller: Option<Addr>,
-    /// Generator controller contract capable of immediate proposals
-    pub generator_controller: Option<Addr>,
-    /// Hub contract that handles voting from Outposts
-    pub hub: Option<Addr>,
     /// Builder unlock contract address
     pub builder_unlock_addr: Addr,
     /// Proposal voting period
@@ -209,9 +173,6 @@ pub struct Config {
     pub proposal_required_threshold: Decimal,
     /// Whitelisted links
     pub whitelisted_links: Vec<String>,
-    /// Guardian address that may cancel Outpost votes in case of a vulnerability
-    /// in IBC or the contracts that allow manipulation of governance
-    pub guardian_addr: Option<Addr>,
 }
 
 impl Config {
@@ -269,12 +230,6 @@ impl Config {
             )));
         }
 
-        if self.voting_escrow_delegator_addr.is_some() && self.vxastro_token_addr.is_none() {
-            return Err(StdError::generic_err(
-                "The Voting Escrow contract should be specified to use the Voting Escrow Delegator contract."
-            ));
-        }
-
         Ok(())
     }
 }
@@ -284,16 +239,8 @@ impl Config {
 pub struct UpdateConfig {
     /// xASTRO token denom
     pub xastro_denom: Option<String>,
-    /// vxASTRO token address
-    pub vxastro_token_addr: Option<String>,
-    /// Voting Escrow delegator address
-    pub voting_escrow_delegator_addr: Option<String>,
     /// Astroport IBC controller contract
     pub ibc_controller: Option<String>,
-    /// Generator controller contract capable of immediate proposals
-    pub generator_controller: Option<String>,
-    /// Hub contract that handles voting from Outposts
-    pub hub: Option<String>,
     /// Builder unlock contract address
     pub builder_unlock_addr: Option<String>,
     /// Proposal voting period
@@ -312,8 +259,6 @@ pub struct UpdateConfig {
     pub whitelist_remove: Option<Vec<String>>,
     /// Links to add to whitelist
     pub whitelist_add: Option<Vec<String>>,
-    /// Guardian address that may cancel Outpost votes in case of a vulnerability
-    pub guardian_addr: Option<String>,
 }
 
 /// This structure stores data for a proposal.
@@ -333,10 +278,6 @@ pub struct Proposal {
     pub against_power: Uint128,
     /// `Against` power of proposal cast from all Outposts
     pub outpost_against_power: Uint128,
-    // /// `For` votes for the proposal
-    // pub for_voters: Vec<String>,
-    // /// `Against` votes for the proposal
-    // pub against_voters: Vec<String>,
     /// Start block of proposal
     pub start_block: u64,
     /// Start time of proposal

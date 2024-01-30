@@ -4,8 +4,8 @@ use anyhow::Result as AnyResult;
 use astroport::staking;
 use cosmwasm_std::testing::MockApi;
 use cosmwasm_std::{
-    coin, coins, from_json, Addr, BankMsg, Coin, CosmosMsg, Decimal, DepsMut, Empty, Env, GovMsg,
-    IbcMsg, IbcQuery, MemoryStorage, MessageInfo, Response, StdResult, Uint128,
+    coin, coins, Addr, BankMsg, Coin, CosmosMsg, Decimal, DepsMut, Empty, Env, GovMsg, IbcMsg,
+    IbcQuery, MemoryStorage, MessageInfo, Response, StdResult, Uint128,
 };
 use cw_multi_test::{
     App, AppResponse, BankKeeper, BasicAppBuilder, Contract, ContractWrapper, DistributionKeeper,
@@ -62,14 +62,6 @@ fn builder_contract() -> Box<dyn Contract<Empty>> {
     ))
 }
 
-fn vxastro_contract() -> Box<dyn Contract<Empty>> {
-    Box::new(ContractWrapper::new_with_empty(
-        voting_escrow_lite::execute::execute,
-        voting_escrow_lite::contract::instantiate,
-        voting_escrow_lite::query::query,
-    ))
-}
-
 pub const PROPOSAL_REQUIRED_DEPOSIT: Uint128 = Uint128::new(*DEPOSIT_INTERVAL.start());
 pub const PROPOSAL_VOTING_PERIOD: u64 = *VOTING_PERIOD_INTERVAL.start();
 pub const PROPOSAL_DELAY: u64 = *DELAY_INTERVAL.start();
@@ -118,7 +110,6 @@ pub struct Helper {
     pub staking: Addr,
     pub assembly: Addr,
     pub builder_unlock: Addr,
-    pub vxastro: Addr,
     pub xastro_denom: String,
     pub assembly_code_id: u64,
 }
@@ -180,37 +171,11 @@ impl Helper {
             )
             .unwrap();
 
-        let vxastro_code_id = app.store_code(vxastro_contract());
-
-        let msg = astroport_governance::voting_escrow_lite::InstantiateMsg {
-            owner: owner.to_string(),
-            guardian_addr: Some(owner.to_string()),
-            deposit_denom: xastro_denom.to_string(),
-            generator_controller_addr: None,
-            outpost_addr: None,
-            marketing: None,
-            logo_urls_whitelist: vec![],
-        };
-
-        let vxastro = app
-            .instantiate_contract(
-                vxastro_code_id,
-                owner.clone(),
-                &msg,
-                &[],
-                "vxASTRO".to_string(),
-                None,
-            )
-            .unwrap();
-
         let assembly = app
             .instantiate_contract(
                 assembly_code_id,
                 owner.clone(),
-                &InstantiateMsg {
-                    vxastro_token_addr: Some(vxastro.to_string()),
-                    ..default_init_msg(&staking, &builder_unlock)
-                },
+                &default_init_msg(&staking, &builder_unlock),
                 &[],
                 String::from("Astroport Assembly"),
                 None,
@@ -223,7 +188,6 @@ impl Helper {
             staking,
             assembly,
             builder_unlock,
-            vxastro,
             xastro_denom,
             assembly_code_id,
         })
@@ -281,22 +245,6 @@ impl Helper {
                     )],
                 },
                 &coins(amount.into(), ASTRO_DENOM),
-            )
-            .unwrap();
-    }
-
-    pub fn get_vxastro(&mut self, recipient: &Addr, amount: impl Into<u128> + Copy) {
-        let resp = self.get_xastro(recipient, amount);
-        let xastro_amount = from_json::<staking::StakingResponse>(&resp.data.unwrap().0)
-            .unwrap()
-            .xastro_amount;
-
-        self.app
-            .execute_contract(
-                recipient.clone(),
-                self.vxastro.clone(),
-                &astroport_governance::voting_escrow_lite::ExecuteMsg::CreateLock {},
-                &coins(xastro_amount.u128(), &self.xastro_denom),
             )
             .unwrap();
     }

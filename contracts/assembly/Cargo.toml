@@ -28,10 +28,6 @@ cw-utils = "1"
 [dev-dependencies]
 cw-multi-test = { git = "https://github.com/astroport-fi/cw-multi-test", branch = "feat/bank_with_send_hooks", features = ["cosmwasm_1_1"] }
 osmosis-std = "0.21"
-astroport-hub = { path = "../hub" }
-voting-escrow-lite = { package = "astroport-voting-escrow-lite", path = "../../contracts/voting_escrow_lite" }
-voting-escrow-delegation = { path = "../voting_escrow_delegation" }
-astroport-nft = { path = "../nft" }
 astroport-staking = { git = "https://github.com/astroport-fi/hidden_astroport_core", branch = "feat/neutron-migration" }
 astroport-tokenfactory-tracker = { git = "https://github.com/astroport-fi/hidden_astroport_core", branch = "feat/neutron-migration" }
 builder-unlock = { path = "../builder_unlock" }

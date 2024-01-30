@@ -1,15 +1,10 @@
 use astroport::tokenfactory_tracker;
-use astroport_governance::assembly::Config;
-use cosmwasm_std::{Deps, QuerierWrapper, StdResult, Uint128, Uint64};
+use cosmwasm_std::{Deps, QuerierWrapper, StdResult, Uint128};
 
+use astroport_governance::assembly::Config;
 use astroport_governance::assembly::Proposal;
 use astroport_governance::builder_unlock::msg::{
     AllocationResponse, QueryMsg as BuilderUnlockQueryMsg, StateResponse,
-};
-use astroport_governance::utils::WEEK;
-use astroport_governance::voting_escrow_delegation::QueryMsg::AdjustedBalance;
-use astroport_governance::voting_escrow_lite::{
-    QueryMsg as VotingEscrowQueryMsg, VotingPowerResponse,
 };
 
 use crate::state::CONFIG;
@@ -40,44 +35,6 @@ pub fn calc_voting_power(deps: Deps, sender: String, proposal: &Proposal) -> Std
 
     total += locked_amount.params.amount - locked_amount.status.astro_withdrawn;
 
-    if let Some(vxastro_token_addr) = config.vxastro_token_addr {
-        let vxastro_amount =
-            if let Some(voting_escrow_delegator_addr) = config.voting_escrow_delegator_addr {
-                deps.querier.query_wasm_smart(
-                    voting_escrow_delegator_addr,
-                    &AdjustedBalance {
-                        account: sender.clone(),
-                        // TODO: why minus WEEK?
-                        timestamp: Some(proposal.start_time - WEEK),
-                    },
-                )?
-            } else {
-                // TODO: why?
-                // For vxASTRO lite, this will always be 0
-                let res: VotingPowerResponse = deps.querier.query_wasm_smart(
-                    &vxastro_token_addr,
-                    &VotingEscrowQueryMsg::UserVotingPowerAt {
-                        user: sender.clone(),
-                        // TODO: why minus WEEK?
-                        time: proposal.start_time - WEEK,
-                    },
-                )?;
-                res.voting_power
-            };
-
-        total += vxastro_amount;
-
-        let locked_xastro: Uint128 = deps.querier.query_wasm_smart(
-            vxastro_token_addr,
-            &VotingEscrowQueryMsg::UserDepositAt {
-                user: sender,
-                timestamp: Uint64::from(proposal.start_time),
-            },
-        )?;
-
-        total += locked_xastro;
-    }
-
     Ok(total)
 }
 
@@ -85,7 +42,6 @@ pub fn calc_voting_power(deps: Deps, sender: String, proposal: &Proposal) -> Std
 /// Combined voting power includes:
 /// * xASTRO total supply
 /// * ASTRO tokens which still locked in the builder's unlock contract
-/// * vxASTRO total supply
 ///
 /// ## Parameters
 /// * **config** contract settings.
@@ -109,20 +65,6 @@ pub fn calc_total_voting_power_at(
     )?;
 
     total += builder_state.remaining_astro_tokens;
-
-    // TODO: remove it since it is always 0?
-    if let Some(vxastro_token_addr) = &config.vxastro_token_addr {
-        // Total vxASTRO voting power
-        // For vxASTRO lite, this will always be 0
-        let vxastro: VotingPowerResponse = querier.query_wasm_smart(
-            vxastro_token_addr,
-            &VotingEscrowQueryMsg::TotalVotingPowerAt {
-                time: timestamp - WEEK,
-            },
-        )?;
-
-        total += vxastro.voting_power;
-    }
 
     Ok(total)
 }

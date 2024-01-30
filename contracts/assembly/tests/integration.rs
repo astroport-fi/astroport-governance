@@ -531,11 +531,7 @@ fn test_update_config() {
             assembly.clone(),
             &ExecuteMsg::UpdateConfig(Box::new(UpdateConfig {
                 xastro_denom: None,
-                vxastro_token_addr: None,
-                voting_escrow_delegator_addr: None,
                 ibc_controller: None,
-                generator_controller: None,
-                hub: None,
                 builder_unlock_addr: None,
                 proposal_voting_period: None,
                 proposal_effective_delay: None,
@@ -545,7 +541,6 @@ fn test_update_config() {
                 proposal_required_threshold: None,
                 whitelist_remove: None,
                 whitelist_add: None,
-                guardian_addr: None,
             })),
             &[],
         )
@@ -557,11 +552,7 @@ fn test_update_config() {
 
     let updated_config = UpdateConfig {
         xastro_denom: Some("test".to_string()),
-        vxastro_token_addr: Some("vxastro_token".to_string()),
-        voting_escrow_delegator_addr: Some("voting_escrow_delegator".to_string()),
         ibc_controller: Some("ibc_controller".to_string()),
-        generator_controller: Some("generator_controller".to_string()),
-        hub: Some("hub".to_string()),
         builder_unlock_addr: Some("builder_unlock".to_string()),
         proposal_voting_period: Some(*VOTING_PERIOD_INTERVAL.end()),
         proposal_effective_delay: Some(*DELAY_INTERVAL.end()),
@@ -571,7 +562,6 @@ fn test_update_config() {
         proposal_required_threshold: Some("0.5".to_string()),
         whitelist_remove: Some(vec!["https://some.link/".to_string()]),
         whitelist_add: Some(vec!["https://another.link/".to_string()]),
-        guardian_addr: Some("guardian".to_string()),
     };
 
     helper
@@ -592,22 +582,9 @@ fn test_update_config() {
 
     assert_eq!(config.xastro_denom, "test");
     assert_eq!(
-        config.vxastro_token_addr,
-        Some(Addr::unchecked("vxastro_token"))
-    );
-    assert_eq!(
-        config.voting_escrow_delegator_addr,
-        Some(Addr::unchecked("voting_escrow_delegator"))
-    );
-    assert_eq!(
         config.ibc_controller,
         Some(Addr::unchecked("ibc_controller"))
     );
-    assert_eq!(
-        config.generator_controller,
-        Some(Addr::unchecked("generator_controller"))
-    );
-    assert_eq!(config.hub, Some(Addr::unchecked("hub")));
     assert_eq!(
         config.builder_unlock_addr,
         Addr::unchecked("builder_unlock")
@@ -634,7 +611,6 @@ fn test_update_config() {
         config.whitelisted_links,
         vec!["https://another.link/".to_string()]
     );
-    assert_eq!(config.guardian_addr, Some(Addr::unchecked("guardian")));
 }
 
 #[test]

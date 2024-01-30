@@ -4,7 +4,7 @@ use astroport::asset::addr_opt_validate;
 use astroport::staking;
 use cosmwasm_std::{
     attr, coins, entry_point, wasm_execute, BankMsg, CosmosMsg, Decimal, DepsMut, Env, MessageInfo,
-    Response, StdError, StdResult, SubMsg, Uint128, Uint64,
+    Response, StdError, SubMsg, Uint128, Uint64,
 };
 use cw2::set_contract_version;
 use cw_utils::must_pay;
@@ -14,9 +14,7 @@ use astroport_governance::assembly::{
     helpers::validate_links, Config, ExecuteMsg, InstantiateMsg, Proposal, ProposalStatus,
     ProposalVoteOption, UpdateConfig,
 };
-use astroport_governance::utils::{
-    check_contract_supports_channel, get_total_outpost_voting_power_at,
-};
+use astroport_governance::utils::check_contract_supports_channel;
 
 use crate::error::ContractError;
 use crate::state::{CONFIG, PROPOSALS, PROPOSAL_COUNT, PROPOSAL_VOTERS};
@@ -54,14 +52,7 @@ pub fn instantiate(
     let config = Config {
         xastro_denom: staking_config.xastro_denom,
         xastro_denom_tracking: tracker_config.tracker_addr,
-        vxastro_token_addr: addr_opt_validate(deps.api, &msg.vxastro_token_addr)?,
-        voting_escrow_delegator_addr: addr_opt_validate(
-            deps.api,
-            &msg.voting_escrow_delegator_addr,
-        )?,
         ibc_controller: addr_opt_validate(deps.api, &msg.ibc_controller)?,
-        generator_controller: addr_opt_validate(deps.api, &msg.generator_controller_addr)?,
-        hub: addr_opt_validate(deps.api, &msg.hub_addr)?,
         builder_unlock_addr: deps.api.addr_validate(&msg.builder_unlock_addr)?,
         proposal_voting_period: msg.proposal_voting_period,
         proposal_effective_delay: msg.proposal_effective_delay,
@@ -70,8 +61,6 @@ pub fn instantiate(
         proposal_required_quorum: Decimal::from_str(&msg.proposal_required_quorum)?,
         proposal_required_threshold: Decimal::from_str(&msg.proposal_required_threshold)?,
         whitelisted_links: msg.whitelisted_links,
-        // Guardian is set to None so that Assembly must explicitly allow it
-        guardian_addr: None,
     };
 
     #[cfg(not(feature = "testnet"))]
@@ -131,28 +120,8 @@ pub fn execute(
             ibc_channel,
         ),
         ExecuteMsg::CastVote { proposal_id, vote } => cast_vote(deps, env, info, proposal_id, vote),
-        ExecuteMsg::CastOutpostVote {
-            proposal_id,
-            voter,
-            vote,
-            voting_power,
-        } => cast_outpost_vote(deps, env, info, proposal_id, voter, vote, voting_power),
         ExecuteMsg::EndProposal { proposal_id } => end_proposal(deps, env, proposal_id),
         ExecuteMsg::ExecuteProposal { proposal_id } => execute_proposal(deps, env, proposal_id),
-        ExecuteMsg::ExecuteEmissionsProposal {
-            title,
-            description,
-            messages,
-            ibc_channel,
-        } => submit_execute_emissions_proposal(
-            deps,
-            env,
-            info,
-            title,
-            description,
-            messages,
-            ibc_channel,
-        ),
         ExecuteMsg::CheckMessages(messages) => check_messages(env, messages),
         ExecuteMsg::CheckMessagesPassed {} => Err(ContractError::MessagesCheckPassed {}),
         ExecuteMsg::UpdateConfig(config) => update_config(deps, env, info, config),
@@ -160,9 +129,6 @@ pub fn execute(
             proposal_id,
             status,
         } => update_ibc_proposal_status(deps, info, proposal_id, status),
-        ExecuteMsg::RemoveOutpostVotes { proposal_id } => {
-            remove_outpost_votes(deps, env, info, proposal_id)
-        }
     }
 }
 
@@ -317,97 +283,6 @@ pub fn cast_vote(
     ]))
 }
 
-/// Cast a vote on a proposal from an Outpost.
-/// This is a special case of `cast_vote` that allows Outposts to forward votes on
-/// behalf of their users. The Hub contract is the only one allowed to call this method.
-///
-/// * **proposal_id** is the identifier of the proposal.
-///
-/// * **voter** is the address of the voter on the Outpost.
-///
-/// * **vote_option** contains the vote option.
-///
-/// * **voting_power** contains the voting power applied to this vote.
-pub fn cast_outpost_vote(
-    deps: DepsMut,
-    env: Env,
-    info: MessageInfo,
-    proposal_id: u64,
-    voter: String,
-    vote_option: ProposalVoteOption,
-    voting_power: Uint128,
-) -> Result<Response, ContractError> {
-    let mut proposal = PROPOSALS.load(deps.storage, proposal_id)?;
-
-    let config = CONFIG.load(deps.storage)?;
-
-    // We only allow the Hub to submit votes on behalf of Outpost user
-    // The Hub is responsible for validating the Hub vote with the Outpost
-    let hub = match config.hub {
-        Some(hub) => hub,
-        None => return Err(ContractError::InvalidHub {}),
-    };
-
-    if info.sender != hub {
-        return Err(ContractError::Unauthorized {});
-    }
-
-    if proposal.status != ProposalStatus::Active {
-        return Err(ContractError::ProposalNotActive {});
-    }
-
-    if env.block.height > proposal.end_block {
-        return Err(ContractError::VotingPeriodEnded {});
-    }
-
-    if PROPOSAL_VOTERS.has(deps.storage, (proposal_id, voter.clone())) {
-        return Err(ContractError::UserAlreadyVoted {});
-    }
-
-    if voting_power.is_zero() {
-        return Err(ContractError::NoVotingPower {});
-    }
-
-    // Voting power provided is used as is from the Hub. Validation of the voting
-    // power is done by the Hub contract with the Outpost.
-    // We track voting power from Outposts separately as well so as to have a
-    // way to cancel votes should a vulnerability be found in IBC or the Hub/Outpost
-    // implementation
-    match vote_option {
-        ProposalVoteOption::For => {
-            proposal.for_power = proposal.for_power.checked_add(voting_power)?;
-            proposal.outpost_for_power = proposal.outpost_for_power.checked_add(voting_power)?;
-        }
-        ProposalVoteOption::Against => {
-            proposal.against_power = proposal.against_power.checked_add(voting_power)?;
-            proposal.outpost_against_power =
-                proposal.outpost_against_power.checked_add(voting_power)?;
-        }
-    };
-    PROPOSAL_VOTERS.save(deps.storage, (proposal_id, voter.clone()), &vote_option)?;
-
-    // Assert that the total amount of power from Outposts is not greater than the
-    // total amount of power that was available at the time of proposal creation
-    let current_outpost_power = proposal
-        .outpost_for_power
-        .checked_add(proposal.outpost_against_power)?;
-    let max_outpost_power =
-        get_total_outpost_voting_power_at(deps.querier, &hub, proposal.start_time)?;
-    if current_outpost_power > max_outpost_power {
-        return Err(ContractError::InvalidVotingPower {});
-    }
-
-    PROPOSALS.save(deps.storage, proposal_id, &proposal)?;
-
-    Ok(Response::new().add_attributes(vec![
-        attr("action", "cast_outpost_vote"),
-        attr("proposal_id", proposal_id.to_string()),
-        attr("voter", &voter),
-        attr("vote", vote_option.to_string()),
-        attr("voting_power", voting_power),
-    ]))
-}
-
 /// Ends proposal voting period, sets the proposal status by id and returns
 /// xASTRO submitted for the proposal.
 pub fn end_proposal(deps: DepsMut, env: Env, proposal_id: u64) -> Result<Response, ContractError> {
@@ -513,86 +388,6 @@ pub fn execute_proposal(
     Ok(response)
 }
 
-/// Load and execute a special emissions proposal. This proposal is passed
-/// immediately and is not subject to voting as it is coming from the
-/// generator controller based on emission votes.
-#[allow(clippy::too_many_arguments)]
-pub fn submit_execute_emissions_proposal(
-    deps: DepsMut,
-    env: Env,
-    info: MessageInfo,
-    title: String,
-    description: String,
-    messages: Vec<CosmosMsg>,
-    ibc_channel: Option<String>,
-) -> Result<Response, ContractError> {
-    let config = CONFIG.load(deps.storage)?;
-
-    // Verify that only the generator controller has been set
-    let generator_controller = match config.generator_controller {
-        Some(config_generator_controller) => config_generator_controller,
-        None => return Err(ContractError::InvalidGeneratorController {}),
-    };
-
-    // Only the generator controller may create these proposals. These proposals
-    // are typically for setting alloc points on Outposts
-    if info.sender != generator_controller {
-        return Err(ContractError::Unauthorized {});
-    }
-
-    // Ensure that we have messages to execute
-    if messages.is_empty() {
-        return Err(ContractError::InvalidProposalMessages {});
-    }
-
-    // Check that controller exists and it supports this channel
-    if let Some(ibc_channel) = &ibc_channel {
-        if let Some(ibc_controller) = &config.ibc_controller {
-            check_contract_supports_channel(deps.querier, ibc_controller, ibc_channel)?;
-        } else {
-            return Err(ContractError::MissingIBCController {});
-        }
-    }
-
-    // Update the proposal count
-    let count = PROPOSAL_COUNT.update(deps.storage, |c| -> StdResult<_> {
-        Ok(c.checked_add(Uint64::new(1))?)
-    })?;
-
-    let proposal = Proposal {
-        proposal_id: count,
-        submitter: info.sender,
-        status: ProposalStatus::Passed,
-        for_power: Uint128::zero(),
-        outpost_for_power: Uint128::zero(),
-        against_power: Uint128::zero(),
-        outpost_against_power: Uint128::zero(),
-        start_block: env.block.height,
-        start_time: env.block.time.seconds(),
-        end_block: env.block.height,
-        delayed_end_block: env.block.height,
-        expiration_block: env.block.height + config.proposal_expiration_period,
-        title,
-        description,
-        link: None,
-        messages,
-        deposit_amount: Uint128::zero(),
-        ibc_channel,
-        total_voting_power: Default::default(),
-    };
-    PROPOSAL_VOTERS.save(
-        deps.storage,
-        (proposal.proposal_id.u64(), generator_controller.to_string()),
-        &ProposalVoteOption::For,
-    )?;
-
-    proposal.validate(config.whitelisted_links)?;
-
-    PROPOSALS.save(deps.storage, count.u64(), &proposal)?;
-
-    execute_proposal(deps, env, proposal.proposal_id.u64())
-}
-
 /// Checks that proposal messages are correct.
 pub fn check_messages(env: Env, mut messages: Vec<CosmosMsg>) -> Result<Response, ContractError> {
     messages.push(
@@ -629,25 +424,8 @@ pub fn update_config(
         config.xastro_denom = xastro_denom;
     }
 
-    if let Some(vxastro_token_addr) = updated_config.vxastro_token_addr {
-        config.vxastro_token_addr = Some(deps.api.addr_validate(&vxastro_token_addr)?);
-    }
-
-    if let Some(voting_escrow_delegator_addr) = updated_config.voting_escrow_delegator_addr {
-        config.voting_escrow_delegator_addr =
-            Some(deps.api.addr_validate(&voting_escrow_delegator_addr)?)
-    }
-
     if let Some(ibc_controller) = updated_config.ibc_controller {
         config.ibc_controller = Some(deps.api.addr_validate(&ibc_controller)?)
-    }
-
-    if let Some(generator_controller) = updated_config.generator_controller {
-        config.generator_controller = Some(deps.api.addr_validate(&generator_controller)?)
-    }
-
-    if let Some(hub) = updated_config.hub {
-        config.hub = Some(deps.api.addr_validate(&hub)?)
     }
 
     if let Some(builder_unlock_addr) = updated_config.builder_unlock_addr {
@@ -699,10 +477,6 @@ pub fn update_config(
         }
     }
 
-    if let Some(guardian_addr) = updated_config.guardian_addr {
-        config.guardian_addr = Some(deps.api.addr_validate(&guardian_addr)?);
-    }
-
     #[cfg(not(feature = "testnet"))]
     config.validate()?;
 
@@ -746,81 +520,4 @@ fn update_ibc_proposal_status(
     } else {
         Err(ContractError::InvalidIBCController {})
     }
-}
-
-/// Remove all votes cast from all Outposts in case of a vulnerability
-/// in IBC or the contracts that allow manipulation of governance. This is the
-/// last line of defence against a malicious actor.
-///
-/// This can only be called by the guardian.
-fn remove_outpost_votes(
-    deps: DepsMut,
-    env: Env,
-    info: MessageInfo,
-    proposal_id: u64,
-) -> Result<Response, ContractError> {
-    let mut proposal = PROPOSALS.load(deps.storage, proposal_id)?;
-
-    let config = CONFIG.load(deps.storage)?;
-
-    // Only the guardian may execute this
-    if Some(info.sender) != config.guardian_addr {
-        return Err(ContractError::Unauthorized {});
-    }
-
-    // EndProposal must be called first to return xASTRO to the proposer
-    if proposal.status == ProposalStatus::Active {
-        return Err(ContractError::ProposalNotInDelayPeriod {});
-    }
-
-    // This may only be called during the "delay" period for a proposal. That is,
-    // the config.proposal_effective_delay blocks between when the voting period
-    // ends and the proposal can be executed. If we allow the removal of votes during
-    // the voting period, we can end up in a battle with the attacker where we
-    // remove the votes and they exploit and vote again.
-    if env.block.height <= proposal.end_block || env.block.height > proposal.delayed_end_block {
-        return Err(ContractError::ProposalNotInDelayPeriod {});
-    }
-
-    // Remove the voting power from Outposts
-    let new_for_power = proposal
-        .for_power
-        .saturating_sub(proposal.outpost_for_power);
-    let new_against_power = proposal
-        .against_power
-        .saturating_sub(proposal.outpost_against_power);
-
-    proposal.for_power = new_for_power;
-    proposal.against_power = new_against_power;
-
-    // Zero out the Outpost voting power after removal
-    proposal.outpost_for_power = Uint128::zero();
-    proposal.outpost_against_power = Uint128::zero();
-
-    let total_votes = proposal.for_power.saturating_add(proposal.against_power);
-
-    // Recalculate proposal state
-    let proposal_quorum =
-        Decimal::checked_from_ratio(total_votes, proposal.total_voting_power).unwrap_or_default();
-    let proposal_threshold =
-        Decimal::checked_from_ratio(proposal.for_power, total_votes).unwrap_or_default();
-
-    // Determine the proposal result
-    proposal.status = if proposal_quorum >= config.proposal_required_quorum
-        && proposal_threshold > config.proposal_required_threshold
-    {
-        ProposalStatus::Passed
-    } else {
-        ProposalStatus::Rejected
-    };
-
-    PROPOSALS.save(deps.storage, proposal_id, &proposal)?;
-
-    let response = Response::new().add_attributes([
-        attr("action", "remove_outpost_votes"),
-        attr("proposal_id", proposal_id.to_string()),
-        attr("proposal_result", proposal.status.to_string()),
-    ]);
-
-    Ok(response)
 }

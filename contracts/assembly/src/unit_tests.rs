@@ -124,11 +124,7 @@ fn check_proposal_validation(
     let config = Config {
         xastro_denom: XASTRO_DENOM.to_string(),
         xastro_denom_tracking: "".to_string(),
-        vxastro_token_addr: None,
-        voting_escrow_delegator_addr: None,
         ibc_controller: None,
-        generator_controller: None,
-        hub: None,
         builder_unlock_addr: Addr::unchecked(""),
         proposal_voting_period: *VOTING_PERIOD_INTERVAL.start(),
         proposal_effective_delay: *DELAY_INTERVAL.start(),
@@ -142,7 +138,6 @@ fn check_proposal_validation(
         )
         .unwrap(),
         whitelisted_links: vec!["https://some.link/".to_string()],
-        guardian_addr: None,
     };
     CONFIG.save(deps.as_mut().storage, &config).unwrap();
 
@@ -213,11 +208,7 @@ fn check_submit_ibc_proposal() {
     let mut config = Config {
         xastro_denom: XASTRO_DENOM.to_string(),
         xastro_denom_tracking: "".to_string(),
-        vxastro_token_addr: None,
-        voting_escrow_delegator_addr: None,
         ibc_controller: None,
-        generator_controller: None,
-        hub: None,
         builder_unlock_addr: Addr::unchecked(""),
         proposal_voting_period: *VOTING_PERIOD_INTERVAL.start(),
         proposal_effective_delay: *DELAY_INTERVAL.start(),
@@ -231,7 +222,6 @@ fn check_submit_ibc_proposal() {
         )
         .unwrap(),
         whitelisted_links: vec!["https://some.link/".to_string()],
-        guardian_addr: None,
     };
     CONFIG.save(deps.as_mut().storage, &config).unwrap();
 
@@ -290,11 +280,7 @@ fn check_execute_ibc_proposal() {
     let mut config = Config {
         xastro_denom: "".to_string(),
         xastro_denom_tracking: "".to_string(),
-        vxastro_token_addr: None,
-        voting_escrow_delegator_addr: None,
         ibc_controller: None,
-        generator_controller: None,
-        hub: None,
         builder_unlock_addr: Addr::unchecked(""),
         proposal_voting_period: *VOTING_PERIOD_INTERVAL.start(),
         proposal_effective_delay: *DELAY_INTERVAL.start(),
@@ -308,7 +294,6 @@ fn check_execute_ibc_proposal() {
         )
         .unwrap(),
         whitelisted_links: vec!["https://some.link/".to_string()],
-        guardian_addr: None,
     };
     CONFIG.save(deps.as_mut().storage, &config).unwrap();
 
@@ -370,11 +355,7 @@ fn check_controller_callback() {
     let mut config = Config {
         xastro_denom: "".to_string(),
         xastro_denom_tracking: "".to_string(),
-        vxastro_token_addr: None,
-        voting_escrow_delegator_addr: None,
         ibc_controller: None,
-        generator_controller: None,
-        hub: None,
         builder_unlock_addr: Addr::unchecked(""),
         proposal_voting_period: *VOTING_PERIOD_INTERVAL.start(),
         proposal_effective_delay: *DELAY_INTERVAL.start(),
@@ -388,7 +369,6 @@ fn check_controller_callback() {
         )
         .unwrap(),
         whitelisted_links: vec!["https://some.link/".to_string()],
-        guardian_addr: None,
     };
     CONFIG.save(deps.as_mut().storage, &config).unwrap();
 
