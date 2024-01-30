@@ -1,13 +1,17 @@
-use astroport_governance::assembly::ProposalStatus;
 use cosmwasm_std::{OverflowError, StdError};
 use cw_utils::PaymentError;
 use thiserror::Error;
+
+use astroport_governance::assembly::ProposalStatus;
 
 /// This enum describes Assembly contract errors
 #[derive(Error, Debug, PartialEq)]
 pub enum ContractError {
     #[error("{0}")]
     Std(#[from] StdError),
+
+    #[error("{0}")]
+    OverflowError(#[from] OverflowError),
 
     #[error("Unauthorized")]
     Unauthorized {},
@@ -86,10 +90,4 @@ pub enum ContractError {
 
     #[error("{0}")]
     PaymentError(#[from] PaymentError),
-}
-
-impl From<OverflowError> for ContractError {
-    fn from(o: OverflowError) -> Self {
-        StdError::from(o).into()
-    }
 }

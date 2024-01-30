@@ -1,11 +1,16 @@
 use astro_assembly::error::ContractError;
-use cosmwasm_std::{coin, coins, Addr, BankMsg, Uint128};
+use cosmwasm_std::{coin, coins, Addr, BankMsg, Decimal, Uint128};
 use cw_multi_test::Executor;
+use std::str::FromStr;
 
-use astroport_governance::assembly::{Config, InstantiateMsg, ProposalVoteOption, QueryMsg};
+use astroport_governance::assembly::{
+    Config, ExecuteMsg, InstantiateMsg, ProposalVoteOption, QueryMsg, UpdateConfig, DELAY_INTERVAL,
+    DEPOSIT_INTERVAL, EXPIRATION_PERIOD_INTERVAL, VOTING_PERIOD_INTERVAL,
+};
 
 use crate::common::helper::{
-    default_init_msg, Helper, PROPOSAL_DELAY, PROPOSAL_REQUIRED_DEPOSIT, PROPOSAL_VOTING_PERIOD,
+    default_init_msg, Helper, PROPOSAL_DELAY, PROPOSAL_EXPIRATION, PROPOSAL_REQUIRED_DEPOSIT,
+    PROPOSAL_VOTING_PERIOD,
 };
 
 mod common;
@@ -120,6 +125,26 @@ fn test_contract_instantiation() {
         "Generic error: The effective delay for a proposal cannot be lower than 6171 or higher than 14400"
     );
 
+    let err = helper
+        .app
+        .instantiate_contract(
+            assembly_code,
+            owner.clone(),
+            &InstantiateMsg {
+                whitelisted_links: vec![],
+                ..default_init_msg(&staking, &builder_unlock)
+            },
+            &[],
+            "Assembly".to_string(),
+            Some(owner.to_string()),
+        )
+        .unwrap_err();
+
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::WhitelistEmpty {}
+    );
+
     let assembly_instance = helper
         .app
         .instantiate_contract(
@@ -158,7 +183,7 @@ fn test_proposal_lifecycle() {
 
     helper.next_block(10);
 
-    // Proposal messages coins one simple transfer
+    // Proposal messages contain one simple transfer
     let assembly = helper.assembly.clone();
     helper.mint_coin(&assembly, coin(1, "some_coin"));
     helper.submit_proposal(
@@ -317,6 +342,306 @@ fn test_proposal_lifecycle() {
         helper.query_balance("receiver", "some_coin").unwrap(),
         Uint128::one()
     );
+}
+
+#[test]
+fn test_rejected_proposal() {
+    let owner = Addr::unchecked("owner");
+    let mut helper = Helper::new(&owner).unwrap();
+
+    let user = Addr::unchecked("user");
+    helper.get_xastro(&user, PROPOSAL_REQUIRED_DEPOSIT.u128() + 1000); // initial stake consumes 1000 xASTRO
+
+    helper.next_block(10);
+
+    // Proposal messages contain one simple transfer
+    let assembly = helper.assembly.clone();
+    helper.mint_coin(&assembly, coin(1, "some_coin"));
+    helper.submit_proposal(
+        &user,
+        vec![BankMsg::Send {
+            to_address: "receiver".to_string(),
+            amount: coins(1, "some_coin"),
+        }
+        .into()],
+    );
+
+    helper
+        .cast_vote(1, &user, ProposalVoteOption::Against)
+        .unwrap();
+
+    helper.next_block(10);
+
+    // Try to vote again
+    let err = helper
+        .cast_vote(1, &user, ProposalVoteOption::For)
+        .unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::UserAlreadyVoted {}
+    );
+
+    helper.next_block_height(PROPOSAL_VOTING_PERIOD);
+
+    helper.end_proposal(1).unwrap();
+
+    // Try to end proposal again
+    let err = helper.end_proposal(1).unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::ProposalNotActive {}
+    );
+
+    // Submitter received his deposit back
+    assert_eq!(
+        helper.query_balance(&user, &helper.xastro_denom).unwrap(),
+        PROPOSAL_REQUIRED_DEPOSIT
+    );
+
+    // Try to execute proposal. It should be rejected.
+    let err = helper.execute_proposal(1).unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::ProposalNotPassed {}
+    );
+
+    helper.next_block_height(PROPOSAL_DELAY);
+
+    // Try to execute proposal after delay (which doesn't make sense in reality)
+    let err = helper.execute_proposal(1).unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::ProposalNotPassed {}
+    );
+
+    // Try to end proposal
+    let err = helper.end_proposal(1).unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::ProposalNotActive {}
+    );
+
+    // Ensure proposal message was not executed
+    assert_eq!(
+        helper.query_balance("receiver", "some_coin").unwrap(),
+        Uint128::zero()
+    );
+}
+
+#[test]
+fn test_expired_proposal() {
+    let owner = Addr::unchecked("owner");
+    let mut helper = Helper::new(&owner).unwrap();
+
+    let user = Addr::unchecked("user");
+    helper.get_xastro(&user, PROPOSAL_REQUIRED_DEPOSIT.u128() + 1000); // initial stake consumes 1000 xASTRO
+
+    helper.next_block(10);
+
+    // Proposal messages coins one simple transfer
+    let assembly = helper.assembly.clone();
+    helper.mint_coin(&assembly, coin(1, "some_coin"));
+    helper.submit_proposal(
+        &user,
+        vec![BankMsg::Send {
+            to_address: "receiver".to_string(),
+            amount: coins(1, "some_coin"),
+        }
+        .into()],
+    );
+
+    helper.cast_vote(1, &user, ProposalVoteOption::For).unwrap();
+
+    helper.next_block_height(PROPOSAL_VOTING_PERIOD + PROPOSAL_DELAY + PROPOSAL_EXPIRATION + 1);
+
+    helper.end_proposal(1).unwrap();
+
+    // Submitter received his deposit back
+    assert_eq!(
+        helper.query_balance(&user, &helper.xastro_denom).unwrap(),
+        PROPOSAL_REQUIRED_DEPOSIT
+    );
+
+    // Try to execute proposal. It should be rejected.
+    let err = helper.execute_proposal(1).unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::ExecuteProposalExpired {}
+    );
+
+    // Ensure proposal message was not executed
+    assert_eq!(
+        helper.query_balance("receiver", "some_coin").unwrap(),
+        Uint128::zero()
+    );
+}
+
+#[test]
+fn test_check_messages() {
+    let owner = Addr::unchecked("owner");
+    let mut helper = Helper::new(&owner).unwrap();
+
+    // Prepare for check messages
+    let assembly = helper.assembly.clone();
+    helper.mint_coin(&assembly, coin(1, "some_coin"));
+
+    // Valid message
+    let err = helper
+        .app
+        .execute_contract(
+            Addr::unchecked("permissionless"),
+            assembly.clone(),
+            &ExecuteMsg::CheckMessages(vec![BankMsg::Send {
+                to_address: "receiver".to_string(),
+                amount: coins(1, "some_coin"),
+            }
+            .into()]),
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::MessagesCheckPassed {}
+    );
+
+    // Invalid message
+    let err = helper
+        .app
+        .execute_contract(
+            Addr::unchecked("permissionless"),
+            assembly.clone(),
+            &ExecuteMsg::CheckMessages(vec![BankMsg::Send {
+                to_address: "receiver".to_string(),
+                amount: coins(1000, "uusdc"),
+            }
+            .into()]),
+            &[],
+        )
+        .unwrap_err();
+    // The error must be different
+    assert_ne!(
+        err.root_cause().to_string(),
+        ContractError::MessagesCheckPassed {}.to_string()
+    );
+}
+
+#[test]
+fn test_update_config() {
+    let owner = Addr::unchecked("owner");
+    let mut helper = Helper::new(&owner).unwrap();
+    let assembly = helper.assembly.clone();
+
+    let err = helper
+        .app
+        .execute_contract(
+            owner.clone(),
+            assembly.clone(),
+            &ExecuteMsg::UpdateConfig(Box::new(UpdateConfig {
+                xastro_denom: None,
+                vxastro_token_addr: None,
+                voting_escrow_delegator_addr: None,
+                ibc_controller: None,
+                generator_controller: None,
+                hub: None,
+                builder_unlock_addr: None,
+                proposal_voting_period: None,
+                proposal_effective_delay: None,
+                proposal_expiration_period: None,
+                proposal_required_deposit: None,
+                proposal_required_quorum: None,
+                proposal_required_threshold: None,
+                whitelist_remove: None,
+                whitelist_add: None,
+                guardian_addr: None,
+            })),
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::Unauthorized {}
+    );
+
+    let updated_config = UpdateConfig {
+        xastro_denom: Some("test".to_string()),
+        vxastro_token_addr: Some("vxastro_token".to_string()),
+        voting_escrow_delegator_addr: Some("voting_escrow_delegator".to_string()),
+        ibc_controller: Some("ibc_controller".to_string()),
+        generator_controller: Some("generator_controller".to_string()),
+        hub: Some("hub".to_string()),
+        builder_unlock_addr: Some("builder_unlock".to_string()),
+        proposal_voting_period: Some(*VOTING_PERIOD_INTERVAL.end()),
+        proposal_effective_delay: Some(*DELAY_INTERVAL.end()),
+        proposal_expiration_period: Some(*EXPIRATION_PERIOD_INTERVAL.end()),
+        proposal_required_deposit: Some(*DEPOSIT_INTERVAL.end()),
+        proposal_required_quorum: Some("0.5".to_string()),
+        proposal_required_threshold: Some("0.5".to_string()),
+        whitelist_remove: Some(vec!["https://some.link/".to_string()]),
+        whitelist_add: Some(vec!["https://another.link/".to_string()]),
+        guardian_addr: Some("guardian".to_string()),
+    };
+
+    helper
+        .app
+        .execute_contract(
+            assembly.clone(), // only assembly itself can update config
+            assembly.clone(),
+            &ExecuteMsg::UpdateConfig(Box::new(updated_config)),
+            &[],
+        )
+        .unwrap();
+
+    let config: Config = helper
+        .app
+        .wrap()
+        .query_wasm_smart(assembly, &QueryMsg::Config {})
+        .unwrap();
+
+    assert_eq!(config.xastro_denom, "test");
+    assert_eq!(
+        config.vxastro_token_addr,
+        Some(Addr::unchecked("vxastro_token"))
+    );
+    assert_eq!(
+        config.voting_escrow_delegator_addr,
+        Some(Addr::unchecked("voting_escrow_delegator"))
+    );
+    assert_eq!(
+        config.ibc_controller,
+        Some(Addr::unchecked("ibc_controller"))
+    );
+    assert_eq!(
+        config.generator_controller,
+        Some(Addr::unchecked("generator_controller"))
+    );
+    assert_eq!(config.hub, Some(Addr::unchecked("hub")));
+    assert_eq!(
+        config.builder_unlock_addr,
+        Addr::unchecked("builder_unlock")
+    );
+    assert_eq!(config.proposal_voting_period, *VOTING_PERIOD_INTERVAL.end());
+    assert_eq!(config.proposal_effective_delay, *DELAY_INTERVAL.end());
+    assert_eq!(
+        config.proposal_expiration_period,
+        *EXPIRATION_PERIOD_INTERVAL.end()
+    );
+    assert_eq!(
+        config.proposal_required_deposit,
+        Uint128::new(*DEPOSIT_INTERVAL.end())
+    );
+    assert_eq!(
+        config.proposal_required_quorum,
+        Decimal::from_str("0.5").unwrap()
+    );
+    assert_eq!(
+        config.proposal_required_threshold,
+        Decimal::from_str("0.5").unwrap()
+    );
+    assert_eq!(
+        config.whitelisted_links,
+        vec!["https://another.link/".to_string()]
+    );
+    assert_eq!(config.guardian_addr, Some(Addr::unchecked("guardian")));
 }
 
 // #[test]
