@@ -24,8 +24,8 @@ name = "astro-assembly"
 version = "2.0.0"
 dependencies = [
  "anyhow",
- "astroport 3.8.0 (git+https://github.com/astroport-fi/hidden_astroport_core?branch=feat/neutron-migration)",
- "astroport-governance 1.4.0",
+ "astroport 3.8.0",
+ "astroport-governance 2.0.0",
  "astroport-staking",
  "astroport-tokenfactory-tracker",
  "builder-unlock",
@@ -74,12 +74,13 @@ dependencies = [
 
 [[package]]
 name = "astroport"
-version = "3.8.0"
-source = "git+https://github.com/astroport-fi/hidden_astroport_core#fc0c427d65690b56e9e9345f6156e48fb4e705db"
+version = "3.10.0"
+source = "git+https://github.com/astroport-fi/hidden_astroport_core#abc23e17bbde99b5d10f0fc0e80517b6e17a4f30"
 dependencies = [
  "astroport-circular-buffer 0.1.0 (git+https://github.com/astroport-fi/hidden_astroport_core)",
  "cosmwasm-schema",
  "cosmwasm-std",
+ "cw-asset",
  "cw-storage-plus 0.15.1",
  "cw-utils 1.0.3",
  "cw20 0.15.1",
@@ -102,7 +103,7 @@ dependencies = [
 [[package]]
 name = "astroport-circular-buffer"
 version = "0.1.0"
-source = "git+https://github.com/astroport-fi/hidden_astroport_core#fc0c427d65690b56e9e9345f6156e48fb4e705db"
+source = "git+https://github.com/astroport-fi/hidden_astroport_core#abc23e17bbde99b5d10f0fc0e80517b6e17a4f30"
 dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -125,12 +126,12 @@ dependencies = [
 
 [[package]]
 name = "astroport-governance"
-version = "1.4.0"
+version = "2.0.0"
 dependencies = [
- "astroport 3.8.0 (git+https://github.com/astroport-fi/hidden_astroport_core)",
+ "astroport 3.10.0",
  "cosmwasm-schema",
  "cosmwasm-std",
- "cw-storage-plus 0.15.1",
+ "cw-storage-plus 1.2.0",
  "cw20 1.1.2",
  "thiserror",
 ]
@@ -149,7 +150,7 @@ name = "astroport-staking"
 version = "2.0.0"
 source = "git+https://github.com/astroport-fi/hidden_astroport_core?branch=feat/neutron-migration#84fb6364a0581d2f22ce8538fd308b395494812e"
 dependencies = [
- "astroport 3.8.0 (git+https://github.com/astroport-fi/hidden_astroport_core?branch=feat/neutron-migration)",
+ "astroport 3.8.0",
  "cosmwasm-std",
  "cw-storage-plus 1.2.0",
  "cw-utils 1.0.3",
@@ -163,7 +164,7 @@ name = "astroport-tokenfactory-tracker"
 version = "1.0.0"
 source = "git+https://github.com/astroport-fi/hidden_astroport_core?branch=feat/neutron-migration#84fb6364a0581d2f22ce8538fd308b395494812e"
 dependencies = [
- "astroport 3.8.0 (git+https://github.com/astroport-fi/hidden_astroport_core?branch=feat/neutron-migration)",
+ "astroport 3.8.0",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 1.2.0",
@@ -229,8 +230,8 @@ checksum = "ab9008b6bb9fc80b5277f2fe481c09e828743d9151203e804583eb4c9e15b31d"
 name = "builder-unlock"
 version = "3.0.0"
 dependencies = [
- "astroport 3.8.0 (git+https://github.com/astroport-fi/hidden_astroport_core)",
- "astroport-governance 1.4.0",
+ "astroport 3.10.0",
+ "astroport-governance 2.0.0",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-multi-test 0.20.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -389,6 +390,29 @@ dependencies = [
  "rand_core 0.5.1",
  "subtle",
  "zeroize",
+]
+
+[[package]]
+name = "cw-address-like"
+version = "1.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "451a4691083a88a3c0630a8a88799e9d4cd6679b7ce8ff22b8da2873ff31d380"
+dependencies = [
+ "cosmwasm-std",
+]
+
+[[package]]
+name = "cw-asset"
+version = "3.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "431e57314dceabd29a682c78bb3ff7c641f8bdc8b915400bb9956cb911e8e571"
+dependencies = [
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-address-like",
+ "cw-storage-plus 1.2.0",
+ "cw20 1.1.2",
+ "thiserror",
 ]
 
 [[package]]

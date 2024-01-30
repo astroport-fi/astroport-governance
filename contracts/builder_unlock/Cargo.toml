@@ -19,7 +19,7 @@ cw2 = "1.1"
 cw-utils = "1"
 cosmwasm-std = "1.5"
 cw-storage-plus = "0.15"
-astroport-governance = { path = "../../packages/astroport-governance" }
+astroport-governance = { path = "../../packages/astroport-governance", version = "2" }
 astroport = { git = "https://github.com/astroport-fi/hidden_astroport_core" }
 cosmwasm-schema = "1.5"
 
