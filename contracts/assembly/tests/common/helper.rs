@@ -4,8 +4,8 @@ use anyhow::Result as AnyResult;
 use astroport::staking;
 use cosmwasm_std::testing::MockApi;
 use cosmwasm_std::{
-    coins, from_json, Addr, Coin, CosmosMsg, Decimal, DepsMut, Empty, Env, GovMsg, IbcMsg,
-    IbcQuery, MemoryStorage, MessageInfo, Response, StdResult, Uint128,
+    coin, coins, from_json, Addr, BankMsg, Coin, CosmosMsg, Decimal, DepsMut, Empty, Env, GovMsg,
+    IbcMsg, IbcQuery, MemoryStorage, MessageInfo, Response, StdResult, Uint128,
 };
 use cw_multi_test::{
     App, AppResponse, BankKeeper, BasicAppBuilder, Contract, ContractWrapper, DistributionKeeper,
@@ -18,7 +18,7 @@ use astroport_governance::assembly::{
     MINIMUM_PROPOSAL_REQUIRED_QUORUM_PERCENTAGE, MINIMUM_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE,
     VOTING_PERIOD_INTERVAL,
 };
-use astroport_governance::builder_unlock::AllocationParams;
+use astroport_governance::builder_unlock::{AllocationParams, Schedule};
 
 use crate::common::stargate::StargateKeeper;
 
@@ -262,6 +262,29 @@ impl Helper {
         self.stake(recipient, amount.into()).unwrap()
     }
 
+    pub fn create_builder_allocation(&mut self, recipient: &Addr, amount: u128) {
+        self.app
+            .execute_contract(
+                self.owner.clone(),
+                self.builder_unlock.clone(),
+                &astroport_governance::builder_unlock::msg::ExecuteMsg::CreateAllocations {
+                    allocations: vec![(
+                        recipient.to_string(),
+                        AllocationParams {
+                            amount: amount.into(),
+                            unlock_schedule: Schedule {
+                                duration: 10,
+                                ..Default::default()
+                            },
+                            proposed_receiver: None,
+                        },
+                    )],
+                },
+                &coins(amount.into(), ASTRO_DENOM),
+            )
+            .unwrap();
+    }
+
     pub fn get_vxastro(&mut self, recipient: &Addr, amount: impl Into<u128> + Copy) {
         let resp = self.get_xastro(recipient, amount);
         let xastro_amount = from_json::<staking::StakingResponse>(&resp.data.unwrap().0)
@@ -295,6 +318,19 @@ impl Helper {
             .unwrap();
     }
 
+    pub fn submit_sample_proposal(&mut self, submitter: &Addr) {
+        let assembly = self.assembly.clone();
+        self.mint_coin(&assembly, coin(1, "some_coin"));
+        self.submit_proposal(
+            &submitter,
+            vec![BankMsg::Send {
+                to_address: "receiver".to_string(),
+                amount: coins(1, "some_coin"),
+            }
+            .into()],
+        );
+    }
+
     pub fn end_proposal(&mut self, proposal_id: u64) -> AnyResult<AppResponse> {
         self.app.execute_contract(
             Addr::unchecked("permissionless"),
@@ -315,27 +351,6 @@ impl Helper {
 
     pub fn query_balance(&self, addr: impl Into<String>, denom: &str) -> StdResult<Uint128> {
         self.app.wrap().query_balance(addr, denom).map(|c| c.amount)
-    }
-
-    pub fn staking_xastro_balance_at(
-        &self,
-        sender: &Addr,
-        timestamp: Option<u64>,
-    ) -> StdResult<Uint128> {
-        self.app.wrap().query_wasm_smart(
-            &self.staking,
-            &staking::QueryMsg::BalanceAt {
-                address: sender.to_string(),
-                timestamp,
-            },
-        )
-    }
-
-    pub fn query_xastro_supply_at(&self, timestamp: Option<u64>) -> StdResult<Uint128> {
-        self.app.wrap().query_wasm_smart(
-            &self.staking,
-            &staking::QueryMsg::TotalSupplyAt { timestamp },
-        )
     }
 
     pub fn query_xastro_bal_at(&self, user: &Addr, timestamp: Option<u64>) -> Uint128 {

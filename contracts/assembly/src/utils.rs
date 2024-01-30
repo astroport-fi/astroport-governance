@@ -22,7 +22,7 @@ use crate::state::CONFIG;
 pub fn calc_voting_power(deps: Deps, sender: String, proposal: &Proposal) -> StdResult<Uint128> {
     let config = CONFIG.load(deps.storage)?;
 
-    let xastro_amount: Uint128 = deps.querier.query_wasm_smart(
+    let mut total: Uint128 = deps.querier.query_wasm_smart(
         &config.xastro_denom_tracking,
         &tokenfactory_tracker::QueryMsg::BalanceAt {
             address: sender.clone(),
@@ -30,8 +30,6 @@ pub fn calc_voting_power(deps: Deps, sender: String, proposal: &Proposal) -> Std
             timestamp: Some(proposal.start_time - 1),
         },
     )?;
-
-    let mut total = xastro_amount;
 
     let locked_amount: AllocationResponse = deps.querier.query_wasm_smart(
         config.builder_unlock_addr,
@@ -45,7 +43,7 @@ pub fn calc_voting_power(deps: Deps, sender: String, proposal: &Proposal) -> Std
     if let Some(vxastro_token_addr) = config.vxastro_token_addr {
         let vxastro_amount =
             if let Some(voting_escrow_delegator_addr) = config.voting_escrow_delegator_addr {
-                deps.querier.query_wasm_smart::<Uint128>(
+                deps.querier.query_wasm_smart(
                     voting_escrow_delegator_addr,
                     &AdjustedBalance {
                         account: sender.clone(),

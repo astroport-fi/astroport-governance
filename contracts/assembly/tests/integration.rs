@@ -1,11 +1,13 @@
-use astro_assembly::error::ContractError;
-use cosmwasm_std::{coin, coins, Addr, BankMsg, Decimal, Uint128};
-use cw_multi_test::Executor;
+use std::collections::HashMap;
 use std::str::FromStr;
 
+use cosmwasm_std::{coin, coins, Addr, BankMsg, Decimal, Uint128};
+use cw_multi_test::Executor;
+
+use astro_assembly::error::ContractError;
 use astroport_governance::assembly::{
-    Config, ExecuteMsg, InstantiateMsg, ProposalVoteOption, QueryMsg, UpdateConfig, DELAY_INTERVAL,
-    DEPOSIT_INTERVAL, EXPIRATION_PERIOD_INTERVAL, VOTING_PERIOD_INTERVAL,
+    Config, ExecuteMsg, InstantiateMsg, ProposalStatus, ProposalVoteOption, QueryMsg, UpdateConfig,
+    DELAY_INTERVAL, DEPOSIT_INTERVAL, EXPIRATION_PERIOD_INTERVAL, VOTING_PERIOD_INTERVAL,
 };
 
 use crate::common::helper::{
@@ -183,17 +185,7 @@ fn test_proposal_lifecycle() {
 
     helper.next_block(10);
 
-    // Proposal messages contain one simple transfer
-    let assembly = helper.assembly.clone();
-    helper.mint_coin(&assembly, coin(1, "some_coin"));
-    helper.submit_proposal(
-        &user,
-        vec![BankMsg::Send {
-            to_address: "receiver".to_string(),
-            amount: coins(1, "some_coin"),
-        }
-        .into()],
-    );
+    helper.submit_sample_proposal(&user);
 
     // Check voting power
     assert_eq!(
@@ -642,6 +634,107 @@ fn test_update_config() {
         vec!["https://another.link/".to_string()]
     );
     assert_eq!(config.guardian_addr, Some(Addr::unchecked("guardian")));
+}
+
+#[test]
+fn test_voting_power() {
+    let owner = Addr::unchecked("owner");
+    let mut helper = Helper::new(&owner).unwrap();
+
+    helper.get_xastro(&owner, 1001u64);
+
+    struct TestBalance {
+        xastro: u128,
+        builder_allocation: u128,
+    }
+
+    let mut total_xastro = 0u128;
+    let mut total_builder_allocation = 0u128;
+
+    let users_num = 100;
+    let balances: HashMap<Addr, TestBalance> = (1..=users_num)
+        .into_iter()
+        .map(|i| {
+            let user = Addr::unchecked(format!("user{i}"));
+            let balances = TestBalance {
+                xastro: i * 1_000000,
+                builder_allocation: if i % 2 == 0 { i * 1_000000 } else { 0 },
+            };
+            helper.get_xastro(&user, balances.xastro);
+            if balances.builder_allocation > 0 {
+                helper.create_builder_allocation(&user, balances.builder_allocation);
+            }
+
+            total_xastro += balances.xastro;
+            total_builder_allocation += balances.builder_allocation;
+
+            (user, balances)
+        })
+        .collect();
+
+    let submitter = balances.iter().last().unwrap().0;
+    helper.get_xastro(submitter, PROPOSAL_REQUIRED_DEPOSIT.u128());
+    total_xastro += PROPOSAL_REQUIRED_DEPOSIT.u128();
+
+    helper.next_block(10);
+
+    helper.submit_sample_proposal(submitter);
+
+    let proposal = helper.proposal(1);
+    assert_eq!(
+        proposal.total_voting_power.u128(),
+        total_xastro + total_builder_allocation + 1001
+    );
+
+    // First 40 users vote against the proposal
+    let mut against_power = 0u128;
+    balances.iter().take(40).for_each(|(addr, balances)| {
+        helper.next_block(100);
+        against_power += balances.xastro + balances.builder_allocation;
+        helper
+            .cast_vote(1, addr, ProposalVoteOption::Against)
+            .unwrap();
+    });
+
+    let proposal = helper.proposal(1);
+    assert_eq!(proposal.against_power.u128(), against_power);
+
+    // Next 40 vote for the proposal
+    let mut for_power = 0u128;
+    balances
+        .iter()
+        .skip(40)
+        .take(40)
+        .for_each(|(addr, balances)| {
+            helper.next_block(100);
+            for_power += balances.xastro + balances.builder_allocation;
+            helper.cast_vote(1, addr, ProposalVoteOption::For).unwrap();
+        });
+
+    let proposal = helper.proposal(1);
+    assert_eq!(proposal.for_power.u128(), for_power);
+
+    // Total voting power stays the same
+    let proposal = helper.proposal(1);
+    assert_eq!(
+        proposal.total_voting_power.u128(),
+        total_xastro + total_builder_allocation + 1001
+    );
+
+    helper.next_block_height(PROPOSAL_VOTING_PERIOD);
+
+    helper.end_proposal(1).unwrap();
+
+    let proposal = helper.proposal(1);
+
+    assert_eq!(
+        proposal.total_voting_power.u128(),
+        total_xastro + total_builder_allocation + 1001
+    );
+    assert_eq!(proposal.submitter, submitter.clone());
+    assert_eq!(proposal.status, ProposalStatus::Passed);
+    assert_eq!(proposal.for_power.u128(), for_power);
+    assert_eq!(proposal.against_power.u128(), against_power);
 }
 
 // #[test]
