@@ -166,7 +166,7 @@ pub fn execute(
     }
 }
 
-/// Submit a brand new proposal and locks some xASTRO as an anti-spam mechanism.
+/// Submit a brand new proposal and lock some xASTRO as an anti-spam mechanism.
 ///
 /// * **sender** proposal submitter.
 ///
@@ -236,6 +236,13 @@ pub fn submit_proposal(
         messages,
         deposit_amount,
         ibc_channel,
+        // Seal total voting power. Query the total voting power one second before the proposal starts because
+        // this is the last up to date finalized state of token factory tracker contract.
+        total_voting_power: calc_total_voting_power_at(
+            deps.querier,
+            &config,
+            env.block.time.seconds() - 1,
+        )?,
     };
 
     proposal.validate(config.whitelisted_links)?;
@@ -420,10 +427,8 @@ pub fn end_proposal(deps: DepsMut, env: Env, proposal_id: u64) -> Result<Respons
     let against_votes = proposal.against_power;
     let total_votes = for_votes + against_votes;
 
-    let total_voting_power = calc_total_voting_power_at(deps.as_ref(), &proposal)?;
-
     let proposal_quorum =
-        Decimal::checked_from_ratio(total_votes, total_voting_power).unwrap_or_default();
+        Decimal::checked_from_ratio(total_votes, proposal.total_voting_power).unwrap_or_default();
     let proposal_threshold =
         Decimal::checked_from_ratio(for_votes, total_votes).unwrap_or_default();
 
@@ -573,6 +578,7 @@ pub fn submit_execute_emissions_proposal(
         messages,
         deposit_amount: Uint128::zero(),
         ibc_channel,
+        total_voting_power: Default::default(),
     };
     PROPOSAL_VOTERS.save(
         deps.storage,
@@ -792,11 +798,10 @@ fn remove_outpost_votes(
     proposal.outpost_against_power = Uint128::zero();
 
     let total_votes = proposal.for_power.saturating_add(proposal.against_power);
-    let total_voting_power = calc_total_voting_power_at(deps.as_ref(), &proposal)?;
 
     // Recalculate proposal state
     let proposal_quorum =
-        Decimal::checked_from_ratio(total_votes, total_voting_power).unwrap_or_default();
+        Decimal::checked_from_ratio(total_votes, proposal.total_voting_power).unwrap_or_default();
     let proposal_threshold =
         Decimal::checked_from_ratio(proposal.for_power, total_votes).unwrap_or_default();
 

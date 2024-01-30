@@ -6,7 +6,7 @@ use astroport_governance::assembly::{
 };
 
 use crate::state::{CONFIG, PROPOSALS, PROPOSAL_COUNT, PROPOSAL_VOTERS};
-use crate::utils::{calc_total_voting_power_at, calc_voting_power};
+use crate::utils::calc_voting_power;
 
 // Default pagination constants
 const DEFAULT_LIMIT: u32 = 10;
@@ -57,7 +57,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         }
         QueryMsg::TotalVotingPower { proposal_id } => {
             let proposal = PROPOSALS.load(deps.storage, proposal_id)?;
-            to_json_binary(&calc_total_voting_power_at(deps, &proposal)?)
+            to_json_binary(&proposal.total_voting_power)
         }
         QueryMsg::ProposalVoters {
             proposal_id,

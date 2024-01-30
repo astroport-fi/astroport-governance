@@ -1,5 +1,6 @@
 use astroport::tokenfactory_tracker;
-use cosmwasm_std::{Deps, StdResult, Uint128, Uint64};
+use astroport_governance::assembly::Config;
+use cosmwasm_std::{Deps, QuerierWrapper, StdResult, Uint128, Uint64};
 
 use astroport_governance::assembly::Proposal;
 use astroport_governance::builder_unlock::msg::{
@@ -82,35 +83,43 @@ pub fn calc_voting_power(deps: Deps, sender: String, proposal: &Proposal) -> Std
     Ok(total)
 }
 
-/// Calculates the total voting power at a specified block (that is relevant for a specific proposal).
+/// Calculates the combined total voting power at a specified timestamp (that is relevant for a specific proposal).
+/// Combined voting power includes:
+/// * xASTRO total supply
+/// * ASTRO tokens which still locked in the builder's unlock contract
+/// * vxASTRO total supply
 ///
-/// * **proposal** proposal for which we calculate the total voting power.
-pub fn calc_total_voting_power_at(deps: Deps, proposal: &Proposal) -> StdResult<Uint128> {
-    let config = CONFIG.load(deps.storage)?;
-
-    let mut total: Uint128 = deps.querier.query_wasm_smart(
-        config.xastro_denom_tracking,
+/// ## Parameters
+/// * **config** contract settings.
+/// * **timestamp** timestamp for which we calculate the total voting power.
+pub fn calc_total_voting_power_at(
+    querier: QuerierWrapper,
+    config: &Config,
+    timestamp: u64,
+) -> StdResult<Uint128> {
+    let mut total: Uint128 = querier.query_wasm_smart(
+        &config.xastro_denom_tracking,
         &tokenfactory_tracker::QueryMsg::TotalSupplyAt {
-            // Get voting power at the block before the proposal starts
-            timestamp: Some(proposal.start_time - 1),
+            timestamp: Some(timestamp),
         },
     )?;
 
     // Total amount of ASTRO locked in the initial builder's unlock schedule
-    let builder_state: StateResponse = deps
-        .querier
-        .query_wasm_smart(config.builder_unlock_addr, &BuilderUnlockQueryMsg::State {})?;
+    let builder_state: StateResponse = querier.query_wasm_smart(
+        &config.builder_unlock_addr,
+        &BuilderUnlockQueryMsg::State {},
+    )?;
 
     total += builder_state.remaining_astro_tokens;
 
     // TODO: remove it since it is always 0?
-    if let Some(vxastro_token_addr) = config.vxastro_token_addr {
+    if let Some(vxastro_token_addr) = &config.vxastro_token_addr {
         // Total vxASTRO voting power
         // For vxASTRO lite, this will always be 0
-        let vxastro: VotingPowerResponse = deps.querier.query_wasm_smart(
+        let vxastro: VotingPowerResponse = querier.query_wasm_smart(
             vxastro_token_addr,
             &VotingEscrowQueryMsg::TotalVotingPowerAt {
-                time: proposal.start_time - WEEK,
+                time: timestamp - WEEK,
             },
         )?;
 

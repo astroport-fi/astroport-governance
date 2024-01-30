@@ -359,6 +359,8 @@ pub struct Proposal {
     pub deposit_amount: Uint128,
     /// IBC channel
     pub ibc_channel: Option<String>,
+    /// Total voting power 1 second before the proposal was created
+    pub total_voting_power: Uint128,
 }
 
 impl Proposal {

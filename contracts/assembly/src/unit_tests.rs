@@ -1,7 +1,12 @@
+use std::marker::PhantomData;
 use std::str::FromStr;
 
-use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-use cosmwasm_std::{from_json, Addr, Coin, Decimal, Uint64};
+use astroport::tokenfactory_tracker;
+use cosmwasm_std::testing::{mock_env, mock_info, MockApi, MockQuerier, MockStorage};
+use cosmwasm_std::{coin, coins, to_json_binary, ContractResult, SystemResult, Uint128};
+use cosmwasm_std::{
+    from_json, Addr, Coin, Decimal, Empty, OwnedDeps, QuerierResult, Uint64, WasmQuery,
+};
 use test_case::test_case;
 
 use astroport_governance::assembly::{
@@ -13,10 +18,51 @@ use astroport_governance::assembly::{
 use crate::contract::submit_proposal;
 use crate::queries::query;
 use crate::state::{CONFIG, PROPOSAL_COUNT};
-use cosmwasm_std::{coin, coins};
 
 const PROPOSAL_REQUIRED_DEPOSIT: u128 = *DEPOSIT_INTERVAL.start();
 const XASTRO_DENOM: &str = "xastro";
+
+// Mocked wasm queries handler
+fn custom_wasm_handler(request: &WasmQuery) -> QuerierResult {
+    match request {
+        WasmQuery::Smart { msg, .. } => {
+            if matches!(
+                from_json(msg),
+                Ok(tokenfactory_tracker::QueryMsg::TotalSupplyAt { .. })
+            ) {
+                SystemResult::Ok(ContractResult::Ok(
+                    to_json_binary(&Uint128::zero()).unwrap(),
+                ))
+            } else if matches!(
+                from_json(msg),
+                Ok(astroport_governance::builder_unlock::msg::QueryMsg::State {})
+            ) {
+                SystemResult::Ok(ContractResult::Ok(
+                    to_json_binary(&astroport_governance::builder_unlock::msg::StateResponse {
+                        total_astro_deposited: Default::default(),
+                        remaining_astro_tokens: Default::default(),
+                        unallocated_astro_tokens: Default::default(),
+                    })
+                    .unwrap(),
+                ))
+            } else {
+                unimplemented!()
+            }
+        }
+        _ => unimplemented!(),
+    }
+}
+fn mock_deps() -> OwnedDeps<MockStorage, MockApi, MockQuerier, Empty> {
+    let mut querier = MockQuerier::new(&[]);
+    querier.update_wasm(custom_wasm_handler);
+
+    OwnedDeps {
+        storage: MockStorage::default(),
+        api: MockApi::default(),
+        querier,
+        custom_query_type: PhantomData,
+    }
+}
 
 #[test_case(coins(PROPOSAL_REQUIRED_DEPOSIT, XASTRO_DENOM), "title", "description", None, None ; "valid proposal")]
 #[test_case(coins(PROPOSAL_REQUIRED_DEPOSIT, XASTRO_DENOM), "X", "description", None, Some("Generic error: Title too short!") ; "short title")]
@@ -41,7 +87,7 @@ fn check_proposal_validation(
     let _ = coins(0, "keep_it");
     let _ = coin(0, "keep_it");
 
-    let mut deps = mock_dependencies();
+    let mut deps = mock_deps();
     let env = mock_env();
 
     // Mocked instantiation
@@ -123,6 +169,7 @@ fn check_proposal_validation(
                 messages: vec![],
                 deposit_amount: funds[0].amount,
                 ibc_channel: None,
+                total_voting_power: Default::default(),
             }
         );
     }
