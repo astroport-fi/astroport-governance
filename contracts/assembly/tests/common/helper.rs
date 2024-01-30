@@ -244,7 +244,7 @@ impl Helper {
                         },
                     )],
                 },
-                &coins(amount.into(), ASTRO_DENOM),
+                &coins(amount, ASTRO_DENOM),
             )
             .unwrap();
     }
@@ -270,7 +270,7 @@ impl Helper {
         let assembly = self.assembly.clone();
         self.mint_coin(&assembly, coin(1, "some_coin"));
         self.submit_proposal(
-            &submitter,
+            submitter,
             vec![BankMsg::Send {
                 to_address: "receiver".to_string(),
                 amount: coins(1, "some_coin"),

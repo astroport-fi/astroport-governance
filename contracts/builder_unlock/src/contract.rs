@@ -98,8 +98,7 @@ pub fn execute(deps: DepsMut, env: Env, info: MessageInfo, msg: ExecuteMsg) -> S
             if info.sender != config.owner {
                 return Err(StdError::generic_err(
                     "Only the contract owner can increase allocations",
-                )
-                .into());
+                ));
             }
             let deposit_amount = may_pay(&info, &config.astro_denom)
                 .map_err(|err| StdError::generic_err(err.to_string()))?;

@@ -392,7 +392,7 @@ pub fn execute_proposal(
 pub fn check_messages(env: Env, mut messages: Vec<CosmosMsg>) -> Result<Response, ContractError> {
     messages.push(
         wasm_execute(
-            &env.contract.address,
+            env.contract.address,
             &ExecuteMsg::CheckMessagesPassed {},
             vec![],
         )?

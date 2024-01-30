@@ -163,7 +163,7 @@ fn check_proposal_validation(
             QueryMsg::Proposal { proposal_id: 1 },
         )
         .unwrap();
-        let proposal: Proposal = from_json(&bin_resp).unwrap();
+        let proposal: Proposal = from_json(bin_resp).unwrap();
 
         assert_eq!(
             proposal,

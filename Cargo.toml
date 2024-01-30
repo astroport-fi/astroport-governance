@@ -1,13 +1,15 @@
 [workspace]
 resolver = "2"
 members = [
-    "packages/*",
+    "packages/astroport-governance",
+#    "packages/astroport-tests",
+#    "packages/astroport-tests-lite",
     "contracts/assembly",
     "contracts/builder_unlock",
-    "contracts/generator_controller_lite",
-    "contracts/hub",
-    "contracts/outpost",
-    "contracts/voting_escrow_lite",
+#    "contracts/generator_controller_lite",
+#    "contracts/hub",
+#    "contracts/outpost",
+#    "contracts/voting_escrow_lite",
 ]
 
 [profile.release]

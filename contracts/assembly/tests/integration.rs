@@ -630,7 +630,6 @@ fn test_voting_power() {
 
     let users_num = 100;
     let balances: HashMap<Addr, TestBalance> = (1..=users_num)
-        .into_iter()
         .map(|i| {
             let user = Addr::unchecked(format!("user{i}"));
             let balances = TestBalance {
