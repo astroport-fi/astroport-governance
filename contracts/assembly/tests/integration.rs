@@ -105,7 +105,7 @@ fn test_contract_instantiation() {
 
     assert_eq!(
         err.root_cause().to_string(),
-        "Generic error: The expiration period for a proposal cannot be lower than 12342 or higher than 100800"
+        format!("Generic error: The expiration period for a proposal cannot be lower than {} or higher than {}", EXPIRATION_PERIOD_INTERVAL.start(), EXPIRATION_PERIOD_INTERVAL.end())
     );
 
     let err = helper
@@ -125,7 +125,7 @@ fn test_contract_instantiation() {
 
     assert_eq!(
         err.root_cause().to_string(),
-        "Generic error: The effective delay for a proposal cannot be lower than 6171 or higher than 14400"
+        format!("Generic error: The effective delay for a proposal cannot be lower than {} or higher than {}", DELAY_INTERVAL.start(), DELAY_INTERVAL.end())
     );
 
     let err = helper

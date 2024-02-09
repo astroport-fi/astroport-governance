@@ -79,22 +79,23 @@ pub fn instantiate(
 /// * **ExecuteMsg::Receive(cw20_msg)** Receives a message of type [`Cw20ReceiveMsg`] and processes
 /// it depending on the received template.
 ///
-/// * **ExecuteMsg::CastVote { proposal_id, vote }** Cast a vote on a specific proposal.
+/// * **ExecuteMsg::SubmitProposal { title, description, link, messages, ibc_channel }** Submits a new proposal.
 ///
-/// * **ExecuteMsg::CastOutpostVote { proposal_id, voter, vote, voting_power }** Cast a vote on a specific proposal from an Outpost.
+/// * **ExecuteMsg::CheckMessages { messages }** Checks if the messages are correct.
+/// Executes arbitrary messages on behalf of the Assembly contract. Always appends failing message to the end of the list.
+///
+/// * **ExecuteMsg::CheckMessagesPassed {}** Closing message for the `CheckMessages` endpoint.
+///
+/// * **ExecuteMsg::CastVote { proposal_id, vote }** Cast a vote on a specific proposal.
 ///
 /// * **ExecuteMsg::EndProposal { proposal_id }** Sets the status of an expired/finalized proposal.
 ///
 /// * **ExecuteMsg::ExecuteProposal { proposal_id }** Executes a successful proposal.
 ///
-/// * **ExecuteMsg::ExecuteEmissionsProposal { title, description, link, messages, ibc_channel }** Loads and executes an
-/// emissions proposal from the generator controller
-///
-/// * **ExecuteMsg::RemoveCompletedProposal { proposal_id }** Removes a finalized proposal from the proposal list.
-///
 /// * **ExecuteMsg::UpdateConfig(config)** Updates the contract configuration.
 ///
-/// * **ExecuteMsg::CancelOutpostVotes(proposal_id)** Removes all votes cast from all Outposts on a specific proposal
+/// * **ExecuteMsg::IBCProposalCompleted { proposal_id, status }** Updates proposal status InProgress -> Executed or Failed.
+/// This endpoint processes callbacks from the ibc controller.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
