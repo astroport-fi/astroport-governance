@@ -3,8 +3,8 @@ use std::str::FromStr;
 use astroport::asset::addr_opt_validate;
 use astroport::staking;
 use cosmwasm_std::{
-    attr, coins, entry_point, wasm_execute, BankMsg, CosmosMsg, Decimal, DepsMut, Env, MessageInfo,
-    Response, StdError, SubMsg, Uint128, Uint64,
+    attr, coins, wasm_execute, BankMsg, CosmosMsg, Decimal, DepsMut, Env, MessageInfo, Response,
+    StdError, SubMsg, Uint128, Uint64,
 };
 use cw2::set_contract_version;
 use cw_utils::must_pay;
@@ -19,6 +19,8 @@ use astroport_governance::utils::check_contract_supports_channel;
 use crate::error::ContractError;
 use crate::state::{CONFIG, PROPOSALS, PROPOSAL_COUNT, PROPOSAL_VOTERS};
 use crate::utils::{calc_total_voting_power_at, calc_voting_power};
+#[cfg(not(feature = "library"))]
+use cosmwasm_std::entry_point;
 
 // Contract name and version used for migration.
 const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");

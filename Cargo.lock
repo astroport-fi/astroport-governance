@@ -24,6 +24,7 @@ name = "astro-assembly"
 version = "2.0.0"
 dependencies = [
  "anyhow",
+ "astro-satellite",
  "astroport 3.8.0",
  "astroport-governance 2.0.0",
  "astroport-staking",
@@ -35,10 +36,38 @@ dependencies = [
  "cw-storage-plus 1.2.0",
  "cw-utils 1.0.3",
  "cw2 1.1.2",
- "ibc-controller-package",
+ "ibc-controller-package 1.0.0",
  "osmosis-std",
  "test-case",
  "thiserror",
+]
+
+[[package]]
+name = "astro-satellite"
+version = "1.1.0"
+source = "git+https://github.com/astroport-fi/astroport_ibc?tag=v1.2.1#61f3cf90ac7e48de93224e906171ebe206d7f860"
+dependencies = [
+ "astro-satellite-package",
+ "astroport-ibc 1.2.1 (git+https://github.com/astroport-fi/astroport_ibc?tag=v1.2.1)",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cosmwasm-storage",
+ "cw-storage-plus 0.15.1",
+ "cw-utils 0.15.1",
+ "cw2 0.15.1",
+ "ibc-controller-package 0.1.0",
+ "itertools 0.10.5",
+ "thiserror",
+]
+
+[[package]]
+name = "astro-satellite-package"
+version = "0.1.0"
+source = "git+https://github.com/astroport-fi/astroport_ibc?tag=v1.2.1#61f3cf90ac7e48de93224e906171ebe206d7f860"
+dependencies = [
+ "astroport-governance 1.2.0 (git+https://github.com/astroport-fi/astroport-governance)",
+ "cosmwasm-schema",
+ "cosmwasm-std",
 ]
 
 [[package]]
@@ -52,6 +81,21 @@ dependencies = [
  "cw-storage-plus 0.15.1",
  "cw-utils 0.15.1",
  "cw20 0.15.1",
+ "itertools 0.10.5",
+ "uint",
+]
+
+[[package]]
+name = "astroport"
+version = "2.10.0"
+source = "git+https://github.com/astroport-fi/astroport-core?branch=feat/merge_hidden_2023_05_22#11e7a81d4b18a40bed916177061a549633e02b1b"
+dependencies = [
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-storage-plus 0.15.1",
+ "cw-utils 1.0.3",
+ "cw20 0.15.1",
+ "cw3",
  "itertools 0.10.5",
  "uint",
 ]
@@ -126,6 +170,18 @@ dependencies = [
 
 [[package]]
 name = "astroport-governance"
+version = "1.2.0"
+source = "git+https://github.com/astroport-fi/astroport-governance#f0ef7c6dde76fc77ce360262923366a5cde3c3f8"
+dependencies = [
+ "astroport 2.10.0",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-storage-plus 0.15.1",
+ "cw20 0.15.1",
+]
+
+[[package]]
+name = "astroport-governance"
 version = "2.0.0"
 dependencies = [
  "astroport 3.10.0",
@@ -141,6 +197,14 @@ name = "astroport-ibc"
 version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "93c0ce66970f190873b30f862b0cd39fb0d8499678a1860446aa60d9618671f4"
+dependencies = [
+ "cosmwasm-schema",
+]
+
+[[package]]
+name = "astroport-ibc"
+version = "1.2.1"
+source = "git+https://github.com/astroport-fi/astroport_ibc?tag=v1.2.1#61f3cf90ac7e48de93224e906171ebe206d7f860"
 dependencies = [
  "cosmwasm-schema",
 ]
@@ -340,6 +404,16 @@ dependencies = [
  "sha2 0.10.8",
  "static_assertions",
  "thiserror",
+]
+
+[[package]]
+name = "cosmwasm-storage"
+version = "1.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "66de2ab9db04757bcedef2b5984fbe536903ada4a8a9766717a4a71197ef34f6"
+dependencies = [
+ "cosmwasm-std",
+ "serde",
 ]
 
 [[package]]
@@ -752,12 +826,23 @@ dependencies = [
 
 [[package]]
 name = "ibc-controller-package"
+version = "0.1.0"
+source = "git+https://github.com/astroport-fi/astroport_ibc?tag=v1.2.1#61f3cf90ac7e48de93224e906171ebe206d7f860"
+dependencies = [
+ "astroport-governance 1.2.0 (git+https://github.com/astroport-fi/astroport-governance)",
+ "astroport-ibc 1.2.1 (git+https://github.com/astroport-fi/astroport_ibc?tag=v1.2.1)",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+]
+
+[[package]]
+name = "ibc-controller-package"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dfcf94f5691716bfecb45e6bb6a82a5c11a392d501c2a695589c5087671f7c33"
 dependencies = [
- "astroport-governance 1.2.0",
- "astroport-ibc",
+ "astroport-governance 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "astroport-ibc 1.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "cosmwasm-schema",
  "cosmwasm-std",
 ]

@@ -1,4 +1,5 @@
 use cosmwasm_std::{OverflowError, StdError};
+use cw2::VersionError;
 use cw_utils::PaymentError;
 use thiserror::Error;
 
@@ -12,6 +13,9 @@ pub enum ContractError {
 
     #[error("{0}")]
     OverflowError(#[from] OverflowError),
+
+    #[error("{0}")]
+    VersionError(#[from] VersionError),
 
     #[error("Unauthorized")]
     Unauthorized {},
