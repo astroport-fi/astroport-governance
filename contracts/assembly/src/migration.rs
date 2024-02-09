@@ -46,7 +46,5 @@ pub fn migrate(deps: DepsMut, env: Env, msg: InstantiateMsg) -> Result<Response,
     };
     // Instantiate Assembly state.
     // Config and cw2 info will be overwritten.
-    let response = instantiate(deps, env, info, msg)?.add_message(close_msg);
-
-    Ok(response)
+    instantiate(deps, env, info, msg).map(|resp| resp.add_message(close_msg))
 }
