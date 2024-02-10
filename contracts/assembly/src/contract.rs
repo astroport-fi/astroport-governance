@@ -23,8 +23,8 @@ use crate::utils::{calc_total_voting_power_at, calc_voting_power};
 use cosmwasm_std::entry_point;
 
 // Contract name and version used for migration.
-const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
-const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
+pub const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
+pub const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Creates a new contract with the specified parameters in the `msg` variable.
 #[cfg_attr(not(feature = "library"), entry_point)]

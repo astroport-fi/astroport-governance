@@ -1,4 +1,4 @@
-use crate::contract::instantiate;
+use crate::contract::{instantiate, CONTRACT_NAME, CONTRACT_VERSION};
 use crate::error::ContractError;
 use astroport_governance::assembly::InstantiateMsg;
 #[cfg(not(feature = "library"))]
@@ -46,5 +46,17 @@ pub fn migrate(deps: DepsMut, env: Env, msg: InstantiateMsg) -> Result<Response,
     };
     // Instantiate Assembly state.
     // Config and cw2 info will be overwritten.
-    instantiate(deps, env, info, msg).map(|resp| resp.add_message(close_msg))
+    let contract_version = cw2::get_contract_version(deps.storage)?;
+
+    instantiate(deps, env, info, msg).map(|resp| {
+        resp.add_message(close_msg).add_attributes([
+            ("previous_contract_name", contract_version.contract.as_str()),
+            (
+                "previous_contract_version",
+                contract_version.version.as_str(),
+            ),
+            ("new_contract_name", CONTRACT_NAME),
+            ("new_contract_version", CONTRACT_VERSION),
+        ])
+    })
 }
