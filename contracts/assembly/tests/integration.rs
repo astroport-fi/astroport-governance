@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::str::FromStr;
 
-use cosmwasm_std::{coin, coins, Addr, BankMsg, Decimal, Uint128};
+use cosmwasm_std::{coin, coins, Addr, BankMsg, Decimal, Uint128, WasmMsg};
 use cw_multi_test::Executor;
 
 use astro_assembly::error::ContractError;
@@ -515,6 +515,63 @@ fn test_check_messages() {
     assert_ne!(
         err.root_cause().to_string(),
         ContractError::MessagesCheckPassed {}.to_string()
+    );
+
+    // Try to update contract admin
+    let err = helper
+        .app
+        .execute_contract(
+            Addr::unchecked("permissionless"),
+            assembly.clone(),
+            &ExecuteMsg::CheckMessages(vec![WasmMsg::UpdateAdmin {
+                contract_addr: assembly.to_string(),
+                admin: "hacker".to_string(),
+            }
+            .into()]),
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::MessagesCheckPassed {}
+    );
+
+    // Try to clear contract admin
+    let err = helper
+        .app
+        .execute_contract(
+            Addr::unchecked("permissionless"),
+            assembly.clone(),
+            &ExecuteMsg::CheckMessages(vec![WasmMsg::ClearAdmin {
+                contract_addr: assembly.to_string(),
+            }
+            .into()]),
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::MessagesCheckPassed {}
+    );
+
+    // Can't check assembly migration message
+    let err = helper
+        .app
+        .execute_contract(
+            Addr::unchecked("permissionless"),
+            assembly.clone(),
+            &ExecuteMsg::CheckMessages(vec![WasmMsg::Migrate {
+                contract_addr: assembly.to_string(),
+                new_code_id: 100,
+                msg: Default::default(),
+            }
+            .into()]),
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Generic error: Can't check messages with a migration message of the contract itself"
     );
 }
 

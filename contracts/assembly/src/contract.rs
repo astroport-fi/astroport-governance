@@ -4,7 +4,7 @@ use astroport::asset::addr_opt_validate;
 use astroport::staking;
 use cosmwasm_std::{
     attr, coins, wasm_execute, BankMsg, CosmosMsg, Decimal, DepsMut, Env, MessageInfo, Response,
-    StdError, SubMsg, Uint128, Uint64,
+    StdError, SubMsg, Uint128, Uint64, WasmMsg,
 };
 use cw2::set_contract_version;
 use cw_utils::must_pay;
@@ -393,6 +393,17 @@ pub fn execute_proposal(
 
 /// Checks that proposal messages are correct.
 pub fn check_messages(env: Env, mut messages: Vec<CosmosMsg>) -> Result<Response, ContractError> {
+    messages.iter().try_for_each(|msg| match msg {
+        CosmosMsg::Wasm(WasmMsg::Migrate { contract_addr, .. })
+            if contract_addr == env.contract.address.as_str() =>
+        {
+            Err(StdError::generic_err(
+                "Can't check messages with a migration message of the contract itself",
+            ))
+        }
+        _ => Ok(()),
+    })?;
+
     messages.push(
         wasm_execute(
             env.contract.address,

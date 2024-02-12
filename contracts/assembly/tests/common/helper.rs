@@ -5,7 +5,7 @@ use astroport::staking;
 use cosmwasm_std::testing::MockApi;
 use cosmwasm_std::{
     coin, coins, Addr, BankMsg, Coin, CosmosMsg, Decimal, DepsMut, Empty, Env, GovMsg, IbcMsg,
-    IbcQuery, MemoryStorage, MessageInfo, Response, StdResult, Uint128,
+    IbcQuery, MemoryStorage, MessageInfo, Response, StdResult, Uint128, WasmMsg,
 };
 use cw_multi_test::{
     App, AppResponse, BankKeeper, BasicAppBuilder, Contract, ContractWrapper, DistributionKeeper,
@@ -178,9 +178,19 @@ impl Helper {
                 &default_init_msg(&staking, &builder_unlock),
                 &[],
                 String::from("Astroport Assembly"),
-                None,
+                Some(owner.to_string()),
             )
             .unwrap();
+
+        app.execute(
+            owner.clone(),
+            WasmMsg::UpdateAdmin {
+                contract_addr: assembly.to_string(),
+                admin: assembly.to_string(),
+            }
+            .into(),
+        )
+        .unwrap();
 
         Ok(Self {
             app,
