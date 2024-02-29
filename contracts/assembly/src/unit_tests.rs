@@ -39,10 +39,10 @@ fn custom_wasm_handler(request: &WasmQuery) -> QuerierResult {
                 ))
             } else if matches!(
                 from_json(msg),
-                Ok(astroport_governance::builder_unlock::msg::QueryMsg::State {})
+                Ok(astroport_governance::builder_unlock::QueryMsg::State { .. })
             ) {
                 SystemResult::Ok(ContractResult::Ok(
-                    to_json_binary(&astroport_governance::builder_unlock::msg::StateResponse {
+                    to_json_binary(&astroport_governance::builder_unlock::State {
                         total_astro_deposited: Default::default(),
                         remaining_astro_tokens: Default::default(),
                         unallocated_astro_tokens: Default::default(),

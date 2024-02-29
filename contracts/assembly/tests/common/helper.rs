@@ -18,7 +18,7 @@ use astroport_governance::assembly::{
     MINIMUM_PROPOSAL_REQUIRED_QUORUM_PERCENTAGE, MINIMUM_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE,
     VOTING_PERIOD_INTERVAL,
 };
-use astroport_governance::builder_unlock::{AllocationParams, Schedule};
+use astroport_governance::builder_unlock::{CreateAllocationParams, Schedule};
 
 use crate::common::stargate::StargateKeeper;
 
@@ -58,7 +58,7 @@ fn builder_contract() -> Box<dyn Contract<Empty>> {
     Box::new(ContractWrapper::new_with_empty(
         builder_unlock::contract::execute,
         builder_unlock::contract::instantiate,
-        builder_unlock::contract::query,
+        builder_unlock::query::query,
     ))
 }
 
@@ -154,7 +154,7 @@ impl Helper {
 
         let builder_unlock_code_id = app.store_code(builder_contract());
 
-        let msg = astroport_governance::builder_unlock::msg::InstantiateMsg {
+        let msg = astroport_governance::builder_unlock::InstantiateMsg {
             owner: owner.to_string(),
             astro_denom: ASTRO_DENOM.to_string(),
             max_allocations_amount: Uint128::new(300_000_000_000000),
@@ -241,16 +241,15 @@ impl Helper {
             .execute_contract(
                 self.owner.clone(),
                 self.builder_unlock.clone(),
-                &astroport_governance::builder_unlock::msg::ExecuteMsg::CreateAllocations {
+                &astroport_governance::builder_unlock::ExecuteMsg::CreateAllocations {
                     allocations: vec![(
                         recipient.to_string(),
-                        AllocationParams {
+                        CreateAllocationParams {
                             amount: amount.into(),
                             unlock_schedule: Schedule {
                                 duration: 10,
                                 ..Default::default()
                             },
-                            proposed_receiver: None,
                         },
                     )],
                 },
@@ -398,7 +397,7 @@ impl Helper {
             .unwrap();
     }
 
-    pub fn create_allocations(&mut self, allocations: Vec<(String, AllocationParams)>) {
+    pub fn create_allocations(&mut self, allocations: Vec<(String, CreateAllocationParams)>) {
         let amount = allocations
             .iter()
             .map(|params| params.1.amount.u128())
@@ -408,7 +407,7 @@ impl Helper {
             .execute_contract(
                 Addr::unchecked("owner"),
                 self.builder_unlock.clone(),
-                &astroport_governance::builder_unlock::msg::ExecuteMsg::CreateAllocations {
+                &astroport_governance::builder_unlock::ExecuteMsg::CreateAllocations {
                     allocations,
                 },
                 &coins(amount, ASTRO_DENOM),
