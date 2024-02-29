@@ -3,8 +3,8 @@ use cosmwasm_std::{Deps, QuerierWrapper, StdResult, Uint128};
 
 use astroport_governance::assembly::Config;
 use astroport_governance::assembly::Proposal;
-use astroport_governance::builder_unlock::msg::{
-    AllocationResponse, QueryMsg as BuilderUnlockQueryMsg, StateResponse,
+use astroport_governance::builder_unlock::{
+    AllocationResponse, QueryMsg as BuilderUnlockQueryMsg, State,
 };
 
 use crate::state::CONFIG;
@@ -28,10 +28,13 @@ pub fn calc_voting_power(deps: Deps, sender: String, proposal: &Proposal) -> Std
 
     let locked_amount: AllocationResponse = deps.querier.query_wasm_smart(
         config.builder_unlock_addr,
-        &BuilderUnlockQueryMsg::Allocation { account: sender },
+        &BuilderUnlockQueryMsg::Allocation {
+            account: sender,
+            timestamp: Some(proposal.start_time - 1),
+        },
     )?;
 
-    total += locked_amount.params.amount - locked_amount.status.astro_withdrawn;
+    total += locked_amount.status.amount - locked_amount.status.astro_withdrawn;
 
     Ok(total)
 }
@@ -57,9 +60,11 @@ pub fn calc_total_voting_power_at(
     )?;
 
     // Total amount of ASTRO locked in the initial builder's unlock schedule
-    let builder_state: StateResponse = querier.query_wasm_smart(
+    let builder_state: State = querier.query_wasm_smart(
         &config.builder_unlock_addr,
-        &BuilderUnlockQueryMsg::State {},
+        &BuilderUnlockQueryMsg::State {
+            timestamp: Some(timestamp),
+        },
     )?;
 
     total += builder_state.remaining_astro_tokens;

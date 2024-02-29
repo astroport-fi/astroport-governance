@@ -2,12 +2,14 @@ use std::time::SystemTime;
 
 use cosmwasm_std::{coin, coins, Addr, Decimal, StdResult, Timestamp, Uint128};
 use cw_multi_test::{App, BasicApp, ContractWrapper, Executor};
+use cw_utils::PaymentError;
 
-use astroport_governance::builder_unlock::msg::{
-    AllocationResponse, ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg,
-    SimulateWithdrawResponse, StateResponse,
+use astroport_governance::builder_unlock::{
+    AllocationParams, AllocationResponse, Config, ExecuteMsg, InstantiateMsg, QueryMsg,
+    SimulateWithdrawResponse,
 };
-use astroport_governance::builder_unlock::{AllocationParams, Schedule};
+use astroport_governance::builder_unlock::{CreateAllocationParams, Schedule, State};
+use builder_unlock::error::ContractError;
 
 pub const ASTRO_DENOM: &str = "factory/assembly/ASTRO";
 
@@ -34,7 +36,7 @@ fn init_contracts(app: &mut App) -> (Addr, InstantiateMsg) {
     let unlock_contract = Box::new(ContractWrapper::new(
         builder_unlock::contract::execute,
         builder_unlock::contract::instantiate,
-        builder_unlock::contract::query,
+        builder_unlock::query::query,
     ));
 
     let unlock_code_id = app.store_code(unlock_contract);
@@ -76,10 +78,11 @@ fn check_alloc_amount(app: &mut App, contract_addr: &Addr, account: &Addr, amoun
             contract_addr,
             &QueryMsg::Allocation {
                 account: account.to_string(),
+                timestamp: None,
             },
         )
         .unwrap();
-    assert_eq!(res.params.amount, amount);
+    assert_eq!(res.status.amount, amount);
 }
 
 fn check_unlock_amount(app: &mut App, contract_addr: &Addr, account: &Addr, amount: Uint128) {
@@ -100,7 +103,7 @@ fn proper_initialization() {
     let mut app = mock_app();
     let (unlock_instance, init_msg) = init_contracts(&mut app);
 
-    let resp: ConfigResponse = app
+    let resp: Config = app
         .wrap()
         .query_wasm_smart(&unlock_instance, &QueryMsg::Config {})
         .unwrap();
@@ -110,9 +113,9 @@ fn proper_initialization() {
     assert_eq!(init_msg.astro_denom, resp.astro_denom);
 
     // Check state
-    let resp: StateResponse = app
+    let resp: State = app
         .wrap()
-        .query_wasm_smart(&unlock_instance, &QueryMsg::State {})
+        .query_wasm_smart(&unlock_instance, &QueryMsg::State { timestamp: None })
         .unwrap();
 
     assert_eq!(Uint128::zero(), resp.total_astro_deposited);
@@ -157,7 +160,7 @@ fn test_transfer_ownership() {
     )
     .unwrap();
 
-    let resp: ConfigResponse = app
+    let resp: Config = app
         .wrap()
         .query_wasm_smart(&unlock_instance, &QueryMsg::Config {})
         .unwrap();
@@ -172,10 +175,10 @@ fn test_create_allocations() {
     let mut app = mock_app();
     let (unlock_instance, _) = init_contracts(&mut app);
 
-    let mut allocations: Vec<(String, AllocationParams)> = vec![];
+    let mut allocations: Vec<(String, CreateAllocationParams)> = vec![];
     allocations.push((
         "investor_1".to_string(),
-        AllocationParams {
+        CreateAllocationParams {
             amount: Uint128::from(5_000_000_000000u64),
             unlock_schedule: Schedule {
                 start_time: 1642402274u64,
@@ -183,12 +186,11 @@ fn test_create_allocations() {
                 duration: 31536000u64,
                 percent_at_cliff: None,
             },
-            proposed_receiver: None,
         },
     ));
     allocations.push((
         "advisor_1".to_string(),
-        AllocationParams {
+        CreateAllocationParams {
             amount: Uint128::from(5_000_000_000000u64),
             unlock_schedule: Schedule {
                 start_time: 1642402274u64,
@@ -196,12 +198,11 @@ fn test_create_allocations() {
                 duration: 31536000u64,
                 percent_at_cliff: None,
             },
-            proposed_receiver: None,
         },
     ));
     allocations.push((
         "team_1".to_string(),
-        AllocationParams {
+        CreateAllocationParams {
             amount: Uint128::from(5_000_000_000000u64),
             unlock_schedule: Schedule {
                 start_time: 1642402274u64,
@@ -209,7 +210,6 @@ fn test_create_allocations() {
                 duration: 31536000u64,
                 percent_at_cliff: None,
             },
-            proposed_receiver: None,
         },
     ));
 
@@ -245,8 +245,8 @@ fn test_create_allocations() {
         .unwrap_err();
 
     assert_eq!(
-        err.root_cause().to_string(),
-        format!("Generic error: Must send reserve token '{ASTRO_DENOM}'")
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::PaymentError(PaymentError::MissingDenom(ASTRO_DENOM.to_string()))
     );
 
     // ######    ERROR :: ASTRO deposit amount mismatch     ######
@@ -261,8 +261,11 @@ fn test_create_allocations() {
         )
         .unwrap_err();
     assert_eq!(
-        err.root_cause().to_string(),
-        "Generic error: ASTRO deposit amount mismatch"
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::DepositAmountMismatch {
+            expected: 15000000000000u128.into(),
+            got: 15000000000001u128.into()
+        }
     );
 
     // ######    SUCCESSFULLY CREATES ALLOCATIONS    ######
@@ -277,9 +280,9 @@ fn test_create_allocations() {
     .unwrap();
 
     // Check state
-    let resp: StateResponse = app
+    let resp: State = app
         .wrap()
-        .query_wasm_smart(&unlock_instance, &QueryMsg::State {})
+        .query_wasm_smart(&unlock_instance, &QueryMsg::State { timestamp: None })
         .unwrap();
     assert_eq!(
         resp.total_astro_deposited,
@@ -297,10 +300,11 @@ fn test_create_allocations() {
             &unlock_instance,
             &QueryMsg::Allocation {
                 account: "investor_1".to_string(),
+                timestamp: None,
             },
         )
         .unwrap();
-    assert_eq!(resp.params.amount, Uint128::from(5_000_000_000000u64));
+    assert_eq!(resp.status.amount, Uint128::from(5_000_000_000000u64));
     assert_eq!(resp.status.astro_withdrawn, Uint128::from(0u64));
     assert_eq!(
         resp.params.unlock_schedule,
@@ -319,10 +323,11 @@ fn test_create_allocations() {
             &unlock_instance,
             &QueryMsg::Allocation {
                 account: "advisor_1".to_string(),
+                timestamp: None,
             },
         )
         .unwrap();
-    assert_eq!(resp.params.amount, Uint128::from(5_000_000_000000u64));
+    assert_eq!(resp.status.amount, Uint128::from(5_000_000_000000u64));
     assert_eq!(resp.status.astro_withdrawn, Uint128::from(0u64));
     assert_eq!(
         resp.params.unlock_schedule,
@@ -341,10 +346,11 @@ fn test_create_allocations() {
             &unlock_instance,
             &QueryMsg::Allocation {
                 account: "team_1".to_string(),
+                timestamp: None,
             },
         )
         .unwrap();
-    assert_eq!(resp.params.amount, Uint128::from(5_000_000_000000u64));
+    assert_eq!(resp.status.amount, Uint128::from(5_000_000_000000u64));
     assert_eq!(resp.status.astro_withdrawn, Uint128::from(0u64));
     assert_eq!(
         resp.params.unlock_schedule,
@@ -368,8 +374,10 @@ fn test_create_allocations() {
         )
         .unwrap_err();
     assert_eq!(
-        err.root_cause().to_string(),
-        "Generic error: Allocation (params) already exists for investor_1"
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::AllocationExists {
+            user: "investor_1".to_string()
+        }
     );
 }
 
@@ -378,10 +386,10 @@ fn test_withdraw() {
     let mut app = mock_app();
     let (unlock_instance, _) = init_contracts(&mut app);
 
-    let mut allocations: Vec<(String, AllocationParams)> = vec![];
+    let mut allocations: Vec<(String, CreateAllocationParams)> = vec![];
     allocations.push((
         "investor_1".to_string(),
-        AllocationParams {
+        CreateAllocationParams {
             amount: Uint128::from(5_000_000_000000u64),
             unlock_schedule: Schedule {
                 start_time: 1642402274u64,
@@ -389,12 +397,11 @@ fn test_withdraw() {
                 duration: 31536000u64,
                 percent_at_cliff: None,
             },
-            proposed_receiver: None,
         },
     ));
     allocations.push((
         "advisor_1".to_string(),
-        AllocationParams {
+        CreateAllocationParams {
             amount: Uint128::from(5_000_000_000000u64),
             unlock_schedule: Schedule {
                 start_time: 1642402274u64,
@@ -402,12 +409,11 @@ fn test_withdraw() {
                 duration: 31536000u64,
                 percent_at_cliff: None,
             },
-            proposed_receiver: None,
         },
     ));
     allocations.push((
         "team_1".to_string(),
-        AllocationParams {
+        CreateAllocationParams {
             amount: Uint128::from(5_000_000_000000u64),
             unlock_schedule: Schedule {
                 start_time: 1642402274u64,
@@ -415,9 +421,13 @@ fn test_withdraw() {
                 duration: 31536000u64,
                 percent_at_cliff: None,
             },
-            proposed_receiver: None,
         },
     ));
+
+    app.update_block(|b| {
+        b.height += 17280;
+        b.time = Timestamp::from_seconds(1642402274)
+    });
 
     // SUCCESSFULLY CREATES ALLOCATIONS
     app.execute_contract(
@@ -440,16 +450,15 @@ fn test_withdraw() {
         )
         .unwrap_err();
     assert_eq!(
-        err.root_cause().to_string(),
-        "astroport_governance::builder_unlock::AllocationParams not found"
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::NoAllocation {
+            address: OWNER.to_string()
+        }
     );
 
-    // ######   SUCCESSFULLY WITHDRAWS ASTRO #1   ######
-    app.update_block(|b| {
-        b.height += 17280;
-        b.time = Timestamp::from_seconds(1642402275)
-    });
+    app.next_block(1);
 
+    // ######   SUCCESSFULLY WITHDRAWS ASTRO #1   ######
     let astro_bal_before = app.wrap().query_balance("investor_1", ASTRO_DENOM).unwrap();
 
     app.execute_contract(
@@ -459,53 +468,6 @@ fn test_withdraw() {
         &[],
     )
     .unwrap();
-
-    // Check state
-    let state_resp: StateResponse = app
-        .wrap()
-        .query_wasm_smart(&unlock_instance, &QueryMsg::State {})
-        .unwrap();
-    assert_eq!(
-        state_resp.total_astro_deposited,
-        Uint128::from(15_000_000_000000u64)
-    );
-    assert_eq!(
-        state_resp.remaining_astro_tokens,
-        Uint128::from(14_999_999_841452u64)
-    );
-
-    // Check allocation #1
-    let alloc_resp: AllocationResponse = app
-        .wrap()
-        .query_wasm_smart(
-            &unlock_instance,
-            &QueryMsg::Allocation {
-                account: "investor_1".to_string(),
-            },
-        )
-        .unwrap();
-    assert_eq!(alloc_resp.params.amount, Uint128::from(5_000_000_000000u64));
-    assert_eq!(alloc_resp.status.astro_withdrawn, Uint128::from(158548u64));
-
-    let astro_bal_after = app.wrap().query_balance("investor_1", ASTRO_DENOM).unwrap();
-
-    assert_eq!(
-        astro_bal_after.amount - astro_bal_before.amount,
-        alloc_resp.status.astro_withdrawn
-    );
-
-    // Check the number of unlocked tokens
-    let mut unlock_resp: Uint128 = app
-        .wrap()
-        .query_wasm_smart(
-            &unlock_instance,
-            &QueryMsg::UnlockedTokens {
-                account: "investor_1".to_string(),
-            },
-        )
-        .unwrap();
-    assert_eq!(unlock_resp, Uint128::from(158548u64));
-
     // ######    ERROR :: No unlocked ASTRO to be withdrawn   ######
     let err = app
         .execute_contract(
@@ -516,9 +478,58 @@ fn test_withdraw() {
         )
         .unwrap_err();
     assert_eq!(
-        err.root_cause().to_string(),
-        "Generic error: No unlocked ASTRO to be withdrawn"
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::NoUnlockedAstro {}
     );
+
+    // Check state
+    let state_resp: State = app
+        .wrap()
+        .query_wasm_smart(&unlock_instance, &QueryMsg::State { timestamp: None })
+        .unwrap();
+    assert_eq!(
+        state_resp.total_astro_deposited,
+        Uint128::from(15_000_000_000000u64)
+    );
+    assert_eq!(
+        state_resp.remaining_astro_tokens,
+        Uint128::from(14_999_999_841452u64)
+    );
+
+    app.next_block(1);
+
+    // Check allocation #1
+    let alloc_resp: AllocationResponse = app
+        .wrap()
+        .query_wasm_smart(
+            &unlock_instance,
+            &QueryMsg::Allocation {
+                account: "investor_1".to_string(),
+                timestamp: None,
+            },
+        )
+        .unwrap();
+    assert_eq!(alloc_resp.status.amount, Uint128::from(5_000_000_000000u64));
+    assert_eq!(alloc_resp.status.astro_withdrawn, Uint128::from(158548u64));
+
+    let astro_bal_after = app.wrap().query_balance("investor_1", ASTRO_DENOM).unwrap();
+
+    assert_eq!(
+        astro_bal_after.amount - astro_bal_before.amount,
+        alloc_resp.status.astro_withdrawn
+    );
+
+    // Check the number of unlocked tokens
+    let unlock_resp: Uint128 = app
+        .wrap()
+        .query_wasm_smart(
+            &unlock_instance,
+            &QueryMsg::UnlockedTokens {
+                account: "investor_1".to_string(),
+            },
+        )
+        .unwrap();
+    assert_eq!(unlock_resp.u128(), 317097);
 
     // ######   SUCCESSFULLY WITHDRAWS ASTRO #2   ######
     app.update_block(|b| {
@@ -527,7 +538,7 @@ fn test_withdraw() {
     });
 
     // Check the number of unlocked tokens
-    unlock_resp = app
+    let unlock_resp: Uint128 = app
         .wrap()
         .query_wasm_smart(
             &unlock_instance,
@@ -563,16 +574,27 @@ fn test_withdraw() {
     )
     .unwrap();
 
+    let unlock_resp: Uint128 = app
+        .wrap()
+        .query_wasm_smart(
+            &unlock_instance,
+            &QueryMsg::UnlockedTokens {
+                account: "investor_1".to_string(),
+            },
+        )
+        .unwrap();
+
     let resp: AllocationResponse = app
         .wrap()
         .query_wasm_smart(
             &unlock_instance,
             &QueryMsg::Allocation {
                 account: "investor_1".to_string(),
+                timestamp: None,
             },
         )
         .unwrap();
-    assert_eq!(resp.params.amount, Uint128::from(5_000_000_000000u64));
+    assert_eq!(resp.status.amount, Uint128::from(5_000_000_000000u64));
     assert_eq!(resp.status.astro_withdrawn, unlock_resp);
 
     // ######    ERROR :: No unlocked ASTRO to be withdrawn   ######
@@ -585,8 +607,8 @@ fn test_withdraw() {
         )
         .unwrap_err();
     assert_eq!(
-        err.root_cause().to_string(),
-        "Generic error: No unlocked ASTRO to be withdrawn"
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::NoUnlockedAstro {}
     );
 
     // ######   SUCCESSFULLY WITHDRAWS ASTRO #3   ######
@@ -597,7 +619,7 @@ fn test_withdraw() {
     });
 
     // Check the number of unlocked tokens
-    unlock_resp = app
+    let unlock_resp: Uint128 = app
         .wrap()
         .query_wasm_smart(
             &unlock_instance,
@@ -631,7 +653,7 @@ fn test_withdraw() {
     });
 
     // Check the number of unlocked tokens
-    unlock_resp = app
+    let unlock_resp: Uint128 = app
         .wrap()
         .query_wasm_smart(
             &unlock_instance,
@@ -673,6 +695,7 @@ fn test_withdraw() {
             &unlock_instance,
             &QueryMsg::Allocation {
                 account: "team_1".to_string(),
+                timestamp: None,
             },
         )
         .unwrap();
@@ -701,10 +724,10 @@ fn test_propose_new_receiver() {
     let mut app = mock_app();
     let (unlock_instance, _) = init_contracts(&mut app);
 
-    let mut allocations: Vec<(String, AllocationParams)> = vec![];
+    let mut allocations: Vec<(String, CreateAllocationParams)> = vec![];
     allocations.push((
         "investor_1".to_string(),
-        AllocationParams {
+        CreateAllocationParams {
             amount: Uint128::from(5_000_000_000000u64),
             unlock_schedule: Schedule {
                 start_time: 1642402274u64,
@@ -712,12 +735,11 @@ fn test_propose_new_receiver() {
                 duration: 31536000u64,
                 percent_at_cliff: None,
             },
-            proposed_receiver: None,
         },
     ));
     allocations.push((
         "advisor_1".to_string(),
-        AllocationParams {
+        CreateAllocationParams {
             amount: Uint128::from(5_000_000_000000u64),
             unlock_schedule: Schedule {
                 start_time: 1642402274u64,
@@ -725,12 +747,11 @@ fn test_propose_new_receiver() {
                 duration: 31536000u64,
                 percent_at_cliff: None,
             },
-            proposed_receiver: None,
         },
     ));
     allocations.push((
         "team_1".to_string(),
-        AllocationParams {
+        CreateAllocationParams {
             amount: Uint128::from(5_000_000_000000u64),
             unlock_schedule: Schedule {
                 start_time: 1642402274u64,
@@ -738,7 +759,6 @@ fn test_propose_new_receiver() {
                 duration: 31536000u64,
                 percent_at_cliff: None,
             },
-            proposed_receiver: None,
         },
     ));
 
@@ -765,8 +785,10 @@ fn test_propose_new_receiver() {
         )
         .unwrap_err();
     assert_eq!(
-        err.root_cause().to_string(),
-        "astroport_governance::builder_unlock::AllocationParams not found"
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::NoAllocation {
+            address: OWNER.to_string()
+        }
     );
 
     // ######    ERROR :: Invalid new_receiver    ######
@@ -781,8 +803,8 @@ fn test_propose_new_receiver() {
         )
         .unwrap_err();
     assert_eq!(
-        err.root_cause().to_string(),
-        "Generic error: Invalid new_receiver. Proposed receiver already has an ASTRO allocation"
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::ProposedReceiverAlreadyHasAllocation {}
     );
 
     // ######   SUCCESSFULLY PROPOSES NEW RECEIVER   ######
@@ -802,6 +824,7 @@ fn test_propose_new_receiver() {
             &unlock_instance,
             &QueryMsg::Allocation {
                 account: "investor_1".to_string(),
+                timestamp: None,
             },
         )
         .unwrap();
@@ -822,8 +845,10 @@ fn test_propose_new_receiver() {
         )
         .unwrap_err();
     assert_eq!(
-        err.root_cause().to_string(),
-        "Generic error: Proposed receiver already set to investor_1_new"
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::ProposedReceiverAlreadySet {
+            proposed_receiver: Addr::unchecked("investor_1_new")
+        }
     );
 }
 
@@ -832,10 +857,10 @@ fn test_drop_new_receiver() {
     let mut app = mock_app();
     let (unlock_instance, _) = init_contracts(&mut app);
 
-    let mut allocations: Vec<(String, AllocationParams)> = vec![];
+    let mut allocations: Vec<(String, CreateAllocationParams)> = vec![];
     allocations.push((
         "investor_1".to_string(),
-        AllocationParams {
+        CreateAllocationParams {
             amount: Uint128::from(5_000_000_000000u64),
             unlock_schedule: Schedule {
                 start_time: 1642402274u64,
@@ -843,12 +868,11 @@ fn test_drop_new_receiver() {
                 duration: 31536000u64,
                 percent_at_cliff: None,
             },
-            proposed_receiver: None,
         },
     ));
     allocations.push((
         "advisor_1".to_string(),
-        AllocationParams {
+        CreateAllocationParams {
             amount: Uint128::from(5_000_000_000000u64),
             unlock_schedule: Schedule {
                 start_time: 1642402274u64,
@@ -856,12 +880,11 @@ fn test_drop_new_receiver() {
                 duration: 31536000u64,
                 percent_at_cliff: None,
             },
-            proposed_receiver: None,
         },
     ));
     allocations.push((
         "team_1".to_string(),
-        AllocationParams {
+        CreateAllocationParams {
             amount: Uint128::from(5_000_000_000000u64),
             unlock_schedule: Schedule {
                 start_time: 1642402274u64,
@@ -869,7 +892,6 @@ fn test_drop_new_receiver() {
                 duration: 31536000u64,
                 percent_at_cliff: None,
             },
-            proposed_receiver: None,
         },
     ));
 
@@ -894,8 +916,10 @@ fn test_drop_new_receiver() {
         )
         .unwrap_err();
     assert_eq!(
-        err.root_cause().to_string(),
-        "astroport_governance::builder_unlock::AllocationParams not found"
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::NoAllocation {
+            address: OWNER.to_string()
+        }
     );
 
     // ######    ERROR ::"Proposed receiver not set"   ######
@@ -908,8 +932,8 @@ fn test_drop_new_receiver() {
         )
         .unwrap_err();
     assert_eq!(
-        err.root_cause().to_string(),
-        "Generic error: Proposed receiver not set"
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::ProposedReceiverNotSet {}
     );
 
     // ######   SUCCESSFULLY DROP NEW RECEIVER   ######
@@ -930,6 +954,7 @@ fn test_drop_new_receiver() {
             &unlock_instance,
             &QueryMsg::Allocation {
                 account: "investor_1".to_string(),
+                timestamp: None,
             },
         )
         .unwrap();
@@ -952,6 +977,7 @@ fn test_drop_new_receiver() {
             &unlock_instance,
             &QueryMsg::Allocation {
                 account: "investor_1".to_string(),
+                timestamp: None,
             },
         )
         .unwrap();
@@ -963,10 +989,10 @@ fn test_claim_receiver() {
     let mut app = mock_app();
     let (unlock_instance, _) = init_contracts(&mut app);
 
-    let mut allocations: Vec<(String, AllocationParams)> = vec![];
+    let mut allocations: Vec<(String, CreateAllocationParams)> = vec![];
     allocations.push((
         "investor_1".to_string(),
-        AllocationParams {
+        CreateAllocationParams {
             amount: Uint128::from(5_000_000_000000u64),
             unlock_schedule: Schedule {
                 start_time: 1642402274u64,
@@ -974,12 +1000,11 @@ fn test_claim_receiver() {
                 duration: 31536000u64,
                 percent_at_cliff: None,
             },
-            proposed_receiver: None,
         },
     ));
     allocations.push((
         "advisor_1".to_string(),
-        AllocationParams {
+        CreateAllocationParams {
             amount: Uint128::from(5_000_000_000000u64),
             unlock_schedule: Schedule {
                 start_time: 1642402274u64,
@@ -987,12 +1012,11 @@ fn test_claim_receiver() {
                 duration: 31536000u64,
                 percent_at_cliff: None,
             },
-            proposed_receiver: None,
         },
     ));
     allocations.push((
         "team_1".to_string(),
-        AllocationParams {
+        CreateAllocationParams {
             amount: Uint128::from(5_000_000_000000u64),
             unlock_schedule: Schedule {
                 start_time: 1642402274u64,
@@ -1000,7 +1024,6 @@ fn test_claim_receiver() {
                 duration: 31536000u64,
                 percent_at_cliff: None,
             },
-            proposed_receiver: None,
         },
     ));
 
@@ -1025,8 +1048,10 @@ fn test_claim_receiver() {
         )
         .unwrap_err();
     assert_eq!(
-        err.root_cause().to_string(),
-        "astroport_governance::builder_unlock::AllocationParams not found"
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::NoAllocation {
+            address: OWNER.to_string()
+        }
     );
 
     // ######    ERROR ::"Proposed receiver not set"   ######
@@ -1041,8 +1066,8 @@ fn test_claim_receiver() {
         )
         .unwrap_err();
     assert_eq!(
-        err.root_cause().to_string(),
-        "Generic error: Proposed receiver not set"
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::ProposedReceiverMismatch {}
     );
 
     // ######   SUCCESSFULLY CLAIMED BY NEW RECEIVER   ######
@@ -1063,6 +1088,7 @@ fn test_claim_receiver() {
             &unlock_instance,
             &QueryMsg::Allocation {
                 account: "investor_1".to_string(),
+                timestamp: None,
             },
         )
         .unwrap();
@@ -1097,12 +1123,12 @@ fn test_claim_receiver() {
             &unlock_instance,
             &QueryMsg::Allocation {
                 account: "investor_1".to_string(),
+                timestamp: None,
             },
         )
         .unwrap();
     assert_eq!(
         AllocationParams {
-            amount: Uint128::zero(),
             unlock_schedule: Schedule {
                 start_time: 0u64,
                 cliff: 0u64,
@@ -1113,7 +1139,6 @@ fn test_claim_receiver() {
         },
         alloc_resp_after.params
     );
-    assert_eq!(alloc_resp_before.status, alloc_resp_after.status);
 
     // Check allocation state of new beneficiary
     let alloc_resp_after: AllocationResponse = app
@@ -1122,12 +1147,12 @@ fn test_claim_receiver() {
             &unlock_instance,
             &QueryMsg::Allocation {
                 account: "investor_1_new".to_string(),
+                timestamp: None,
             },
         )
         .unwrap();
     assert_eq!(
         AllocationParams {
-            amount: alloc_resp_before.params.amount,
             unlock_schedule: Schedule {
                 start_time: alloc_resp_before.params.unlock_schedule.start_time,
                 cliff: alloc_resp_before.params.unlock_schedule.cliff,
@@ -1179,9 +1204,9 @@ fn test_increase_and_decrease_allocation() {
     let (unlock_instance, _) = init_contracts(&mut app);
 
     // Create allocations
-    let allocations: Vec<(String, AllocationParams)> = vec![(
+    let allocations: Vec<(String, CreateAllocationParams)> = vec![(
         "investor".to_string(),
-        AllocationParams {
+        CreateAllocationParams {
             amount: Uint128::from(5_000_000_000000u64),
             unlock_schedule: Schedule {
                 start_time: 1_571_797_419u64,
@@ -1189,7 +1214,6 @@ fn test_increase_and_decrease_allocation() {
                 duration: 1_534_700u64,
                 percent_at_cliff: None,
             },
-            proposed_receiver: None,
         },
     )];
 
@@ -1252,8 +1276,10 @@ fn test_increase_and_decrease_allocation() {
         )
         .unwrap_err();
     assert_eq!(
-        err.root_cause().to_string(),
-        "Generic error: Insufficient amount of lock to decrease allocation, user has locked 4918550856845 ASTRO."
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::InsufficientLockedAmount {
+            locked_amount: 4918550856845u128.into()
+        }
     );
 
     app.execute_contract(
@@ -1274,17 +1300,20 @@ fn test_increase_and_decrease_allocation() {
         &Addr::unchecked("investor"),
         Uint128::new(81_449_143_155u128),
     );
-    let res: StateResponse = app
+    let res: State = app
         .wrap()
-        .query_wasm_smart(unlock_instance.clone(), &QueryMsg::State {})
+        .query_wasm_smart(
+            unlock_instance.clone(),
+            &QueryMsg::State { timestamp: None },
+        )
         .unwrap();
 
     assert_eq!(
         res,
-        StateResponse {
+        State {
             total_astro_deposited: Uint128::new(5_000_000_000_000u128),
             remaining_astro_tokens: Uint128::new(3_983_710_171_369u128),
-            unallocated_astro_tokens: Uint128::new(1_000_000_000_000u128)
+            unallocated_astro_tokens: Uint128::new(1_000_000_000_000u128),
         }
     );
 
@@ -1301,8 +1330,8 @@ fn test_increase_and_decrease_allocation() {
         )
         .unwrap_err();
     assert_eq!(
-        err.root_cause().to_string(),
-        "Generic error: Insufficient unallocated ASTRO to increase allocation. Contract has: 1000000000000 unallocated ASTRO."
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::UnallocatedTokensExceedsTotalDeposited(1_000_000_000_000u128.into())
     );
 
     let balance_before = app.wrap().query_balance(OWNER, ASTRO_DENOM).unwrap().amount;
@@ -1366,16 +1395,19 @@ fn test_increase_and_decrease_allocation() {
         .unwrap();
     assert_eq!(res.astro_to_withdraw, Uint128::zero());
     // Check state
-    let res: StateResponse = app
+    let res: State = app
         .wrap()
-        .query_wasm_smart(unlock_instance.clone(), &QueryMsg::State {})
+        .query_wasm_smart(
+            unlock_instance.clone(),
+            &QueryMsg::State { timestamp: None },
+        )
         .unwrap();
     assert_eq!(
         res,
-        StateResponse {
+        State {
             total_astro_deposited: Uint128::new(4_500_000_001_000u128),
             remaining_astro_tokens: Uint128::new(4_418_550_857_845u128),
-            unallocated_astro_tokens: Uint128::zero()
+            unallocated_astro_tokens: Uint128::zero(),
         }
     );
 }
@@ -1385,10 +1417,10 @@ fn test_updates_schedules() {
     let mut app = mock_app();
     let (unlock_instance, _) = init_contracts(&mut app);
 
-    let mut allocations: Vec<(String, AllocationParams)> = vec![];
+    let mut allocations: Vec<(String, CreateAllocationParams)> = vec![];
     allocations.push((
         "investor_1".to_string(),
-        AllocationParams {
+        CreateAllocationParams {
             amount: Uint128::from(5_000_000_000000u64),
             unlock_schedule: Schedule {
                 start_time: 1642402274u64,
@@ -1396,12 +1428,11 @@ fn test_updates_schedules() {
                 duration: 31536000u64,
                 percent_at_cliff: None,
             },
-            proposed_receiver: None,
         },
     ));
     allocations.push((
         "advisor_1".to_string(),
-        AllocationParams {
+        CreateAllocationParams {
             amount: Uint128::from(5_000_000_000000u64),
             unlock_schedule: Schedule {
                 start_time: 1642402274u64,
@@ -1409,12 +1440,11 @@ fn test_updates_schedules() {
                 duration: 31536000u64,
                 percent_at_cliff: None,
             },
-            proposed_receiver: None,
         },
     ));
     allocations.push((
         "team_1".to_string(),
-        AllocationParams {
+        CreateAllocationParams {
             amount: Uint128::from(5_000_000_000000u64),
             unlock_schedule: Schedule {
                 start_time: 1642402274u64,
@@ -1422,7 +1452,6 @@ fn test_updates_schedules() {
                 duration: 31536000u64,
                 percent_at_cliff: None,
             },
-            proposed_receiver: None,
         },
     ));
 
@@ -1438,9 +1467,9 @@ fn test_updates_schedules() {
     .unwrap();
 
     // Check state before update parameters
-    let resp: StateResponse = app
+    let resp: State = app
         .wrap()
-        .query_wasm_smart(&unlock_instance, &QueryMsg::State {})
+        .query_wasm_smart(&unlock_instance, &QueryMsg::State { timestamp: None })
         .unwrap();
     assert_eq!(
         resp.total_astro_deposited,
@@ -1519,8 +1548,8 @@ fn test_updates_schedules() {
         )
         .unwrap_err();
     assert_eq!(
-        "Generic error: Only the contract owner can change config",
-        err.root_cause().to_string()
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::Unauthorized {}
     );
 
     let err = app
@@ -1634,7 +1663,6 @@ fn test_updates_schedules() {
         (
             Addr::unchecked("advisor_1"),
             AllocationParams {
-                amount: Uint128::new(5000000000000),
                 unlock_schedule: Schedule {
                     start_time: 1642402284u64,
                     cliff: 8776000u64,
@@ -1647,7 +1675,6 @@ fn test_updates_schedules() {
         (
             Addr::unchecked("investor_1"),
             AllocationParams {
-                amount: Uint128::new(5000000000000),
                 unlock_schedule: Schedule {
                     start_time: 1642402274,
                     cliff: 0,
@@ -1660,7 +1687,6 @@ fn test_updates_schedules() {
         (
             Addr::unchecked("team_1"),
             AllocationParams {
-                amount: Uint128::new(5000000000000),
                 unlock_schedule: Schedule {
                     start_time: 1642402284u64,
                     cliff: 8776000u64,
@@ -1687,7 +1713,6 @@ fn test_updates_schedules() {
     let comparing_values: Vec<(Addr, AllocationParams)> = vec![(
         Addr::unchecked("team_1"),
         AllocationParams {
-            amount: Uint128::new(5000000000000),
             unlock_schedule: Schedule {
                 start_time: 1642402284u64,
                 cliff: 8776000u64,
@@ -1710,9 +1735,15 @@ fn check_allocation(
 ) -> StdResult<()> {
     let resp: AllocationResponse = app
         .wrap()
-        .query_wasm_smart(unlock_instance, &QueryMsg::Allocation { account })
+        .query_wasm_smart(
+            unlock_instance,
+            &QueryMsg::Allocation {
+                account,
+                timestamp: None,
+            },
+        )
         .unwrap();
-    assert_eq!(resp.params.amount, total_amount);
+    assert_eq!(resp.status.amount, total_amount);
     assert_eq!(resp.status.astro_withdrawn, astro_withdrawn);
     assert_eq!(resp.params.unlock_schedule, unlock_schedule);
 
@@ -1746,7 +1777,7 @@ fn test_create_allocations_with_custom_cliff() {
     let mut allocations = vec![];
     allocations.push((
         investor1.to_string(),
-        AllocationParams {
+        CreateAllocationParams {
             amount: Uint128::from(500_000_000000u64),
             unlock_schedule: Schedule {
                 start_time: now_ts,
@@ -1754,12 +1785,11 @@ fn test_create_allocations_with_custom_cliff() {
                 duration: 3 * day * 365, // 3 years
                 percent_at_cliff: None,
             },
-            proposed_receiver: None,
         },
     ));
     allocations.push((
         investor2.to_string(),
-        AllocationParams {
+        CreateAllocationParams {
             amount: Uint128::from(100_000_000000u64),
             unlock_schedule: Schedule {
                 start_time: now_ts - day * 30,                         // 1 month ago
@@ -1767,12 +1797,11 @@ fn test_create_allocations_with_custom_cliff() {
                 duration: 3 * day * 365,                               // 3 years
                 percent_at_cliff: Some(Decimal::from_ratio(1u8, 6u8)), // one sixth
             },
-            proposed_receiver: None,
         },
     ));
     allocations.push((
         investor3.to_string(),
-        AllocationParams {
+        CreateAllocationParams {
             amount: Uint128::from(400_000_000000u64),
             unlock_schedule: Schedule {
                 start_time: now_ts - day * 365,               // 1 year ago
@@ -1780,7 +1809,6 @@ fn test_create_allocations_with_custom_cliff() {
                 duration: 3 * day * 365,                      // 3 years
                 percent_at_cliff: Some(Decimal::percent(20)), // 20% at cliff
             },
-            proposed_receiver: None,
         },
     ));
 
@@ -1805,8 +1833,8 @@ fn test_create_allocations_with_custom_cliff() {
         )
         .unwrap_err();
     assert_eq!(
-        err.root_cause().to_string(),
-        "Generic error: No unlocked ASTRO to be withdrawn"
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::NoUnlockedAstro {}
     );
 
     // Investor2 needs to wait 5 months more
@@ -1819,8 +1847,8 @@ fn test_create_allocations_with_custom_cliff() {
         )
         .unwrap_err();
     assert_eq!(
-        err.root_cause().to_string(),
-        "Generic error: No unlocked ASTRO to be withdrawn"
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::NoUnlockedAstro {}
     );
 
     // Investor3 has 20% of his allocation unlocked + linearly unlocked astro for the last 6 months
@@ -1849,8 +1877,8 @@ fn test_create_allocations_with_custom_cliff() {
         )
         .unwrap_err();
     assert_eq!(
-        err.root_cause().to_string(),
-        "Generic error: No unlocked ASTRO to be withdrawn"
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::NoUnlockedAstro {}
     );
 
     // Investor2 receives his one sixth of the allocation
@@ -1960,8 +1988,21 @@ fn test_create_allocations_with_custom_cliff() {
             )
             .unwrap_err();
         assert_eq!(
-            err.root_cause().to_string(),
-            "Generic error: No unlocked ASTRO to be withdrawn"
+            err.downcast::<ContractError>().unwrap(),
+            ContractError::NoUnlockedAstro {}
         );
+    }
+}
+
+pub trait AppExtension {
+    fn next_block(&mut self, time: u64);
+}
+
+impl AppExtension for App {
+    fn next_block(&mut self, time: u64) {
+        self.update_block(|block| {
+            block.time = block.time.plus_seconds(time);
+            block.height += 1
+        });
     }
 }

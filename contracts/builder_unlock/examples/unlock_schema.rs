@@ -1,4 +1,4 @@
-use astroport_governance::builder_unlock::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
+use astroport_governance::builder_unlock::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use cosmwasm_schema::write_api;
 
 fn main() {

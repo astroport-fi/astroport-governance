@@ -814,3 +814,62 @@ fn test_queries() {
 
     assert_eq!(proposals.len(), 10);
 }
+
+#[test]
+fn test_manipulate_governance_proposal() {
+    use astroport_governance::builder_unlock::ExecuteMsg as BuilderUnlockExecuteMsg;
+    let owner = Addr::unchecked("owner");
+    let mut helper = Helper::new(&owner).unwrap();
+    let builder_unlock = helper.builder_unlock.clone();
+    let user1 = Addr::unchecked("user1");
+    let user2 = Addr::unchecked("user2");
+    let user3 = Addr::unchecked("user3");
+    // create allocations for user1 and user2
+    helper.create_builder_allocation(&user1, 10_000);
+    helper.create_builder_allocation(&user2, 10_000);
+    // advance block
+    helper.next_block(10);
+    // create proposal
+    helper.get_xastro(&user1, PROPOSAL_REQUIRED_DEPOSIT.u128() + 1000_u128);
+    helper.submit_sample_proposal(&user1);
+    // user1 votes `yes`
+    helper
+        .cast_vote(1, &user1, ProposalVoteOption::For)
+        .unwrap(); // user2 votes `no`
+    helper
+        .cast_vote(1, &user2, ProposalVoteOption::Against)
+        .unwrap();
+    // user1 propose new receiver to user3
+    helper
+        .app
+        .execute_contract(
+            user1.clone(),
+            builder_unlock.clone(),
+            &BuilderUnlockExecuteMsg::ProposeNewReceiver {
+                new_receiver: user3.to_string(),
+            },
+            &[],
+        )
+        .unwrap();
+    // user3 claim allocation
+    helper
+        .app
+        .execute_contract(
+            user3.clone(),
+            builder_unlock.clone(),
+            &BuilderUnlockExecuteMsg::ClaimReceiver {
+                prev_receiver: user1.to_string(),
+            },
+            &[],
+        )
+        .unwrap();
+
+    // user3 tries to vote `yes` but they didn't have any allocation before proposal start
+    let err = helper
+        .cast_vote(1, &user3, ProposalVoteOption::For)
+        .unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::NoVotingPower {}
+    );
+}

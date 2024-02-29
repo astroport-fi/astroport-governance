@@ -10,7 +10,6 @@ homepage = "https://astroport.fi"
 crate-type = ["cdylib", "rlib"]
 
 [features]
-backtraces = ["cosmwasm-std/backtraces"]
 # use library feature to disable all init/handle/query exports
 library = []
 
@@ -20,8 +19,9 @@ cw-utils = "1"
 cosmwasm-std = "1.5"
 cw-storage-plus = "0.15"
 astroport-governance = { path = "../../packages/astroport-governance", version = "2" }
-astroport = { git = "https://github.com/astroport-fi/hidden_astroport_core" }
+astroport = { git = "https://github.com/astroport-fi/hidden_astroport_core", version = "3" }
 cosmwasm-schema = "1.5"
+thiserror = "1"
 
 [dev-dependencies]
 cw-multi-test = "0.20"
