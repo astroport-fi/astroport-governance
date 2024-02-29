@@ -92,8 +92,9 @@ impl Stargate for StargateKeeper {
 
                 router.sudo(api, storage, block, bank_sudo.into())
             }
+            "/cosmos.authz.v1beta1.MsgGrant" => Ok(AppResponse::default()),
             _ => Err(anyhow::anyhow!(
-                "Unexpected exec msg {type_url} from {sender:?}",
+                "Unexpected exec msg {type_url} from {sender}",
             )),
         }
     }

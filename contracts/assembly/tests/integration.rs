@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::str::FromStr;
 
-use cosmwasm_std::{coin, coins, Addr, BankMsg, Decimal, Uint128, WasmMsg};
+use cosmwasm_std::{coin, coins, Addr, BankMsg, CosmosMsg, Decimal, Uint128, WasmMsg};
 use cw_multi_test::Executor;
 
 use astro_assembly::error::ContractError;
@@ -532,8 +532,8 @@ fn test_check_messages() {
         )
         .unwrap_err();
     assert_eq!(
-        err.downcast::<ContractError>().unwrap(),
-        ContractError::MessagesCheckPassed {}
+        err.root_cause().to_string(),
+        "Generic error: Can't check messages with a migration or update admin message of the contract itself"
     );
 
     // Try to clear contract admin
@@ -571,7 +571,25 @@ fn test_check_messages() {
         .unwrap_err();
     assert_eq!(
         err.root_cause().to_string(),
-        "Generic error: Can't check messages with a migration message of the contract itself"
+        "Generic error: Can't check messages with a migration or update admin message of the contract itself"
+    );
+
+    // Check authz MsgGrant message
+    let err = helper
+        .app
+        .execute_contract(
+            Addr::unchecked("permissionless"),
+            assembly.clone(),
+            &ExecuteMsg::CheckMessages(vec![CosmosMsg::Stargate {
+                type_url: "/cosmos.authz.v1beta1.MsgGrant".to_string(),
+                value: Default::default(),
+            }]),
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Generic error: Can't check messages with a MsgGrant message"
     );
 }
 

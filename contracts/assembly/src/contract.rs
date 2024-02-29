@@ -3,8 +3,8 @@ use std::str::FromStr;
 use astroport::asset::addr_opt_validate;
 use astroport::staking;
 use cosmwasm_std::{
-    attr, coins, wasm_execute, BankMsg, CosmosMsg, Decimal, DepsMut, Env, MessageInfo, Response,
-    StdError, SubMsg, Uint128, Uint64, WasmMsg,
+    attr, coins, wasm_execute, Api, BankMsg, CosmosMsg, Decimal, DepsMut, Env, MessageInfo,
+    Response, StdError, SubMsg, Uint128, Uint64, WasmMsg,
 };
 use cw2::set_contract_version;
 use cw_utils::must_pay;
@@ -125,7 +125,7 @@ pub fn execute(
         ExecuteMsg::CastVote { proposal_id, vote } => cast_vote(deps, env, info, proposal_id, vote),
         ExecuteMsg::EndProposal { proposal_id } => end_proposal(deps, env, proposal_id),
         ExecuteMsg::ExecuteProposal { proposal_id } => execute_proposal(deps, env, proposal_id),
-        ExecuteMsg::CheckMessages(messages) => check_messages(env, messages),
+        ExecuteMsg::CheckMessages(messages) => check_messages(deps.api, env, messages),
         ExecuteMsg::CheckMessagesPassed {} => Err(ContractError::MessagesCheckPassed {}),
         ExecuteMsg::UpdateConfig(config) => update_config(deps, env, info, config),
         ExecuteMsg::IBCProposalCompleted {
@@ -392,15 +392,22 @@ pub fn execute_proposal(
 }
 
 /// Checks that proposal messages are correct.
-pub fn check_messages(env: Env, mut messages: Vec<CosmosMsg>) -> Result<Response, ContractError> {
+pub fn check_messages(
+    api: &dyn Api,
+    env: Env,
+    mut messages: Vec<CosmosMsg>,
+) -> Result<Response, ContractError> {
     messages.iter().try_for_each(|msg| match msg {
-        CosmosMsg::Wasm(WasmMsg::Migrate { contract_addr, .. })
-            if contract_addr == env.contract.address.as_str() =>
-        {
+        CosmosMsg::Wasm(
+            WasmMsg::Migrate { contract_addr, .. } | WasmMsg::UpdateAdmin { contract_addr, .. },
+        ) if api.addr_validate(contract_addr)? == env.contract.address => {
             Err(StdError::generic_err(
-                "Can't check messages with a migration message of the contract itself",
+                "Can't check messages with a migration or update admin message of the contract itself",
             ))
         }
+        CosmosMsg::Stargate { type_url, .. } if type_url.contains("MsgGrant") => Err(
+            StdError::generic_err("Can't check messages with a MsgGrant message"),
+        ),
         _ => Ok(()),
     })?;
 
