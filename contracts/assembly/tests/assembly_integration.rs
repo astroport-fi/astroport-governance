@@ -605,7 +605,6 @@ fn test_update_config() {
             owner.clone(),
             assembly.clone(),
             &ExecuteMsg::UpdateConfig(Box::new(UpdateConfig {
-                xastro_denom: None,
                 ibc_controller: None,
                 builder_unlock_addr: None,
                 proposal_voting_period: None,
@@ -626,7 +625,6 @@ fn test_update_config() {
     );
 
     let updated_config = UpdateConfig {
-        xastro_denom: Some("test".to_string()),
         ibc_controller: Some("ibc_controller".to_string()),
         builder_unlock_addr: Some("builder_unlock".to_string()),
         proposal_voting_period: Some(*VOTING_PERIOD_INTERVAL.end()),
@@ -655,7 +653,6 @@ fn test_update_config() {
         .query_wasm_smart(assembly, &QueryMsg::Config {})
         .unwrap();
 
-    assert_eq!(config.xastro_denom, "test");
     assert_eq!(
         config.ibc_controller,
         Some(Addr::unchecked("ibc_controller"))

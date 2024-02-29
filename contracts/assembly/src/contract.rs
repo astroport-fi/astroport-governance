@@ -441,10 +441,6 @@ pub fn update_config(
         return Err(ContractError::Unauthorized {});
     }
 
-    if let Some(xastro_denom) = updated_config.xastro_denom {
-        config.xastro_denom = xastro_denom;
-    }
-
     if let Some(ibc_controller) = updated_config.ibc_controller {
         config.ibc_controller = Some(deps.api.addr_validate(&ibc_controller)?)
     }
