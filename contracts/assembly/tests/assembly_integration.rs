@@ -455,12 +455,10 @@ fn test_expired_proposal() {
         PROPOSAL_REQUIRED_DEPOSIT
     );
 
-    // Try to execute proposal. It should be rejected.
-    let err = helper.execute_proposal(1).unwrap_err();
-    assert_eq!(
-        err.downcast::<ContractError>().unwrap(),
-        ContractError::ExecuteProposalExpired {}
-    );
+    // Check expired proposal
+    helper.execute_proposal(1).unwrap();
+    let proposal = helper.proposal(1);
+    assert_eq!(proposal.status, ProposalStatus::Expired);
 
     // Ensure proposal message was not executed
     assert_eq!(

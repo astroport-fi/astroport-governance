@@ -2,6 +2,8 @@ use std::str::FromStr;
 
 use astroport::asset::addr_opt_validate;
 use astroport::staking;
+#[cfg(not(feature = "library"))]
+use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     attr, coins, wasm_execute, Api, BankMsg, CosmosMsg, Decimal, DepsMut, Env, MessageInfo,
     Response, StdError, SubMsg, Uint128, Uint64, WasmMsg,
@@ -19,8 +21,6 @@ use astroport_governance::utils::check_contract_supports_channel;
 use crate::error::ContractError;
 use crate::state::{CONFIG, PROPOSALS, PROPOSAL_COUNT, PROPOSAL_VOTERS};
 use crate::utils::{calc_total_voting_power_at, calc_voting_power};
-#[cfg(not(feature = "library"))]
-use cosmwasm_std::entry_point;
 
 // Contract name and version used for migration.
 pub const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
@@ -351,39 +351,39 @@ pub fn execute_proposal(
         return Err(ContractError::ProposalDelayNotEnded {});
     }
 
-    if env.block.height > proposal.expiration_block {
-        return Err(ContractError::ExecuteProposalExpired {});
-    }
-
     let mut response = Response::new().add_attributes([
         attr("action", "execute_proposal"),
         attr("proposal_id", proposal_id.to_string()),
     ]);
 
-    if let Some(channel) = &proposal.ibc_channel {
-        if !proposal.messages.is_empty() {
-            let config = CONFIG.load(deps.storage)?;
+    if env.block.height > proposal.expiration_block {
+        proposal.status = ProposalStatus::Expired;
+    } else {
+        if let Some(channel) = &proposal.ibc_channel {
+            if !proposal.messages.is_empty() {
+                let config = CONFIG.load(deps.storage)?;
 
-            proposal.status = ProposalStatus::InProgress;
-            response.messages.push(SubMsg::new(wasm_execute(
-                config
-                    .ibc_controller
-                    .ok_or(ContractError::MissingIBCController {})?,
-                &ControllerExecuteMsg::IbcExecuteProposal {
-                    channel_id: channel.to_string(),
-                    proposal_id,
-                    messages: proposal.messages.clone(),
-                },
-                vec![],
-            )?))
+                proposal.status = ProposalStatus::InProgress;
+                response.messages.push(SubMsg::new(wasm_execute(
+                    config
+                        .ibc_controller
+                        .ok_or(ContractError::MissingIBCController {})?,
+                    &ControllerExecuteMsg::IbcExecuteProposal {
+                        channel_id: channel.to_string(),
+                        proposal_id,
+                        messages: proposal.messages.clone(),
+                    },
+                    vec![],
+                )?))
+            } else {
+                proposal.status = ProposalStatus::Executed;
+            }
         } else {
             proposal.status = ProposalStatus::Executed;
+            response
+                .messages
+                .extend(proposal.messages.iter().cloned().map(SubMsg::new))
         }
-    } else {
-        proposal.status = ProposalStatus::Executed;
-        response
-            .messages
-            .extend(proposal.messages.iter().cloned().map(SubMsg::new))
     }
 
     PROPOSALS.save(deps.storage, proposal_id, &proposal)?;

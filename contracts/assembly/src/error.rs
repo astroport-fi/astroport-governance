@@ -35,9 +35,6 @@ pub enum ContractError {
     #[error("Voting period not ended yet!")]
     VotingPeriodNotEnded {},
 
-    #[error("Proposal expired!")]
-    ExecuteProposalExpired {},
-
     #[error("Insufficient token deposit!")]
     InsufficientDeposit {},
 
