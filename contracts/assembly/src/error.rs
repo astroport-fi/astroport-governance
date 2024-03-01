@@ -44,26 +44,14 @@ pub enum ContractError {
     #[error("Proposal not passed!")]
     ProposalNotPassed {},
 
-    #[error("Proposal not completed!")]
-    ProposalNotCompleted {},
-
     #[error("Proposal delay not ended!")]
     ProposalDelayNotEnded {},
-
-    #[error("Proposal not in delay period!")]
-    ProposalNotInDelayPeriod {},
-
-    #[error("Contract can't be migrated!")]
-    MigrationError {},
 
     #[error("Whitelist cannot be empty!")]
     WhitelistEmpty {},
 
     #[error("Messages check passed. Nothing was committed to the blockchain")]
     MessagesCheckPassed {},
-
-    #[error("IBC controller does not have channel {0}")]
-    InvalidChannel(String),
 
     #[error("IBC controller is not set")]
     MissingIBCController {},
@@ -79,18 +67,6 @@ pub enum ContractError {
 
     #[error("Sender is not an IBC controller installed in the assembly")]
     InvalidIBCController {},
-
-    #[error("Sender is not the Generator controller installed in the assembly")]
-    InvalidGeneratorController {},
-
-    #[error("Sender is not the Hub installed in the assembly")]
-    InvalidHub {},
-
-    #[error("The proposal has no messages to execute")]
-    InvalidProposalMessages {},
-
-    #[error("Voting power exceeds maximum Outpost power")]
-    InvalidVotingPower {},
 
     #[error("{0}")]
     PaymentError(#[from] PaymentError),
