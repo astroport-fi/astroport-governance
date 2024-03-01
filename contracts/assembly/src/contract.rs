@@ -358,32 +358,30 @@ pub fn execute_proposal(
 
     if env.block.height > proposal.expiration_block {
         proposal.status = ProposalStatus::Expired;
-    } else {
-        if let Some(channel) = &proposal.ibc_channel {
-            if !proposal.messages.is_empty() {
-                let config = CONFIG.load(deps.storage)?;
+    } else if let Some(channel) = &proposal.ibc_channel {
+        if !proposal.messages.is_empty() {
+            let config = CONFIG.load(deps.storage)?;
 
-                proposal.status = ProposalStatus::InProgress;
-                response.messages.push(SubMsg::new(wasm_execute(
-                    config
-                        .ibc_controller
-                        .ok_or(ContractError::MissingIBCController {})?,
-                    &ControllerExecuteMsg::IbcExecuteProposal {
-                        channel_id: channel.to_string(),
-                        proposal_id,
-                        messages: proposal.messages.clone(),
-                    },
-                    vec![],
-                )?))
-            } else {
-                proposal.status = ProposalStatus::Executed;
-            }
+            proposal.status = ProposalStatus::InProgress;
+            response.messages.push(SubMsg::new(wasm_execute(
+                config
+                    .ibc_controller
+                    .ok_or(ContractError::MissingIBCController {})?,
+                &ControllerExecuteMsg::IbcExecuteProposal {
+                    channel_id: channel.to_string(),
+                    proposal_id,
+                    messages: proposal.messages.clone(),
+                },
+                vec![],
+            )?))
         } else {
             proposal.status = ProposalStatus::Executed;
-            response
-                .messages
-                .extend(proposal.messages.iter().cloned().map(SubMsg::new))
         }
+    } else {
+        proposal.status = ProposalStatus::Executed;
+        response
+            .messages
+            .extend(proposal.messages.iter().cloned().map(SubMsg::new))
     }
 
     PROPOSALS.save(deps.storage, proposal_id, &proposal)?;
