@@ -441,53 +441,88 @@ pub fn update_config(
         return Err(ContractError::Unauthorized {});
     }
 
+    let mut attrs = vec![attr("action", "update_config")];
+
     if let Some(ibc_controller) = updated_config.ibc_controller {
-        config.ibc_controller = Some(deps.api.addr_validate(&ibc_controller)?)
+        config.ibc_controller = Some(deps.api.addr_validate(&ibc_controller)?);
+        attrs.push(attr("new_ibc_controller", ibc_controller));
     }
 
     if let Some(builder_unlock_addr) = updated_config.builder_unlock_addr {
         config.builder_unlock_addr = deps.api.addr_validate(&builder_unlock_addr)?;
+        attrs.push(attr("new_builder_unlock_addr", builder_unlock_addr));
     }
 
     if let Some(proposal_voting_period) = updated_config.proposal_voting_period {
         config.proposal_voting_period = proposal_voting_period;
+        attrs.push(attr(
+            "new_proposal_voting_period",
+            proposal_voting_period.to_string(),
+        ));
     }
 
     if let Some(proposal_effective_delay) = updated_config.proposal_effective_delay {
         config.proposal_effective_delay = proposal_effective_delay;
+        attrs.push(attr(
+            "new_proposal_effective_delay",
+            proposal_effective_delay.to_string(),
+        ));
     }
 
     if let Some(proposal_expiration_period) = updated_config.proposal_expiration_period {
         config.proposal_expiration_period = proposal_expiration_period;
+        attrs.push(attr(
+            "new_proposal_expiration_period",
+            proposal_expiration_period.to_string(),
+        ));
     }
 
     if let Some(proposal_required_deposit) = updated_config.proposal_required_deposit {
         config.proposal_required_deposit = Uint128::from(proposal_required_deposit);
+        attrs.push(attr(
+            "new_proposal_required_deposit",
+            proposal_required_deposit.to_string(),
+        ));
     }
 
     if let Some(proposal_required_quorum) = updated_config.proposal_required_quorum {
         config.proposal_required_quorum = Decimal::from_str(&proposal_required_quorum)?;
+        attrs.push(attr(
+            "new_proposal_required_quorum",
+            proposal_required_quorum,
+        ));
     }
 
     if let Some(proposal_required_threshold) = updated_config.proposal_required_threshold {
         config.proposal_required_threshold = Decimal::from_str(&proposal_required_threshold)?;
+        attrs.push(attr(
+            "new_proposal_required_threshold",
+            proposal_required_threshold,
+        ));
     }
 
     if let Some(whitelist_add) = updated_config.whitelist_add {
         validate_links(&whitelist_add)?;
 
-        config.whitelisted_links.append(
-            &mut whitelist_add
-                .into_iter()
-                .filter(|link| !config.whitelisted_links.contains(link))
-                .collect(),
-        );
+        let mut new_links = whitelist_add
+            .into_iter()
+            .filter(|link| !config.whitelisted_links.contains(link))
+            .collect::<Vec<_>>();
+
+        attrs.push(attr("new_whitelisted_links", new_links.join(", ")));
+
+        config.whitelisted_links.append(&mut new_links);
     }
 
     if let Some(whitelist_remove) = updated_config.whitelist_remove {
         config
             .whitelisted_links
             .retain(|link| !whitelist_remove.contains(link));
+
+        attrs.push(attr(
+            "removed_whitelisted_links",
+            whitelist_remove.join(", "),
+        ));
 
         if config.whitelisted_links.is_empty() {
             return Err(ContractError::WhitelistEmpty {});
@@ -499,7 +534,7 @@ pub fn update_config(
 
     CONFIG.save(deps.storage, &config)?;
 
-    Ok(Response::new().add_attribute("action", "update_config"))
+    Ok(Response::new().add_attributes(attrs))
 }
 
 /// Updates proposal status InProgress -> Executed or Failed. Intended to be called in the end of
