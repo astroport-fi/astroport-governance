@@ -14,7 +14,7 @@ pub const MINIMUM_PROPOSAL_REQUIRED_QUORUM_PERCENTAGE: &str = "0.01";
 /// Voting period must be between 1 and 7 days (Neutron: 2.6s per block)
 pub const VOTING_PERIOD_INTERVAL: RangeInclusive<u64> = 33230..=7 * 33230;
 /// From 0.5 to 2 days in blocks
-pub const DELAY_INTERVAL: RangeInclusive<u64> = 16615..=33230;
+pub const DELAY_INTERVAL: RangeInclusive<u64> = 16615..=66460;
 /// From 1 to 14 days in blocks
 pub const EXPIRATION_PERIOD_INTERVAL: RangeInclusive<u64> = 33230..=14 * 33230;
 // from 10k to 60k $xASTRO
