@@ -386,7 +386,7 @@ pub fn execute_proposal(
 
     PROPOSALS.save(deps.storage, proposal_id, &proposal)?;
 
-    Ok(response)
+    Ok(response.add_attribute("proposal_status", proposal.status.to_string()))
 }
 
 /// Checks that proposal messages are correct.
