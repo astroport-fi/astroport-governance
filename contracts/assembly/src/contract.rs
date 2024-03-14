@@ -6,7 +6,7 @@ use astroport::staking;
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     attr, coins, wasm_execute, Api, BankMsg, CosmosMsg, Decimal, DepsMut, Env, MessageInfo,
-    Response, StdError, SubMsg, Uint128, Uint64, WasmMsg,
+    QuerierWrapper, Response, StdError, SubMsg, Uint128, Uint64, WasmMsg,
 };
 use cw2::set_contract_version;
 use cw_utils::must_pay;
@@ -132,6 +132,9 @@ pub fn execute(
             proposal_id,
             status,
         } => update_ibc_proposal_status(deps, info, proposal_id, status),
+        ExecuteMsg::ExecuteFromMultisig(proposal_messages) => {
+            exec_from_multisig(deps.querier, info, env, proposal_messages)
+        }
     }
 }
 
@@ -570,4 +573,22 @@ fn update_ibc_proposal_status(
     } else {
         Err(ContractError::InvalidIBCController {})
     }
+}
+
+pub fn exec_from_multisig(
+    querier: QuerierWrapper,
+    info: MessageInfo,
+    env: Env,
+    messages: Vec<CosmosMsg>,
+) -> Result<Response, ContractError> {
+    match querier
+        .query_wasm_contract_info(env.contract.address)?
+        .admin
+    {
+        None => Err(ContractError::Unauthorized {}),
+        Some(admin) if admin != info.sender => Err(ContractError::Unauthorized {}),
+        _ => Ok(()),
+    }?;
+
+    Ok(Response::new().add_messages(messages))
 }

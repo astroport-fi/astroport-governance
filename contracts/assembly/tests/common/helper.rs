@@ -4,8 +4,8 @@ use anyhow::Result as AnyResult;
 use astroport::staking;
 use cosmwasm_std::testing::MockApi;
 use cosmwasm_std::{
-    coin, coins, Addr, BankMsg, Coin, CosmosMsg, Decimal, DepsMut, Empty, Env, GovMsg, IbcMsg,
-    IbcQuery, MemoryStorage, MessageInfo, Response, StdResult, Uint128, WasmMsg,
+    coin, coins, Addr, BankMsg, Binary, Coin, CosmosMsg, Decimal, Deps, DepsMut, Empty, Env,
+    GovMsg, IbcMsg, IbcQuery, MemoryStorage, MessageInfo, Response, StdResult, Uint128, WasmMsg,
 };
 use cw_multi_test::{
     App, AppResponse, BankKeeper, BasicAppBuilder, Contract, ContractWrapper, DistributionKeeper,
@@ -59,6 +59,27 @@ fn builder_contract() -> Box<dyn Contract<Empty>> {
         builder_unlock::contract::execute,
         builder_unlock::contract::instantiate,
         builder_unlock::query::query,
+    ))
+}
+
+pub fn noop_contract() -> Box<dyn Contract<Empty>> {
+    fn noop_execute(
+        _deps: DepsMut,
+        _env: Env,
+        _info: MessageInfo,
+        _msg: Empty,
+    ) -> StdResult<Response> {
+        Ok(Response::new())
+    }
+
+    fn noop_query(_deps: Deps, _env: Env, _msg: Empty) -> StdResult<Binary> {
+        Ok(Default::default())
+    }
+
+    Box::new(ContractWrapper::new_with_empty(
+        noop_execute,
+        noop_execute,
+        noop_query,
     ))
 }
 

@@ -109,6 +109,7 @@ pub enum ExecuteMsg {
         proposal_id: u64,
         status: ProposalStatus,
     },
+    ExecuteFromMultisig(Vec<CosmosMsg>),
 }
 
 /// Thie enum describes all the queries available in the contract.

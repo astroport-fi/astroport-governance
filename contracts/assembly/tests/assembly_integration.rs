@@ -1,7 +1,9 @@
 use std::collections::HashMap;
 use std::str::FromStr;
 
-use cosmwasm_std::{coin, coins, Addr, BankMsg, CosmosMsg, Decimal, Uint128, WasmMsg};
+use cosmwasm_std::{
+    coin, coins, wasm_execute, Addr, BankMsg, CosmosMsg, Decimal, Empty, Uint128, WasmMsg,
+};
 use cw_multi_test::Executor;
 
 use astro_assembly::error::ContractError;
@@ -12,8 +14,8 @@ use astroport_governance::assembly::{
 };
 
 use crate::common::helper::{
-    default_init_msg, Helper, PROPOSAL_DELAY, PROPOSAL_EXPIRATION, PROPOSAL_REQUIRED_DEPOSIT,
-    PROPOSAL_VOTING_PERIOD,
+    default_init_msg, noop_contract, Helper, PROPOSAL_DELAY, PROPOSAL_EXPIRATION,
+    PROPOSAL_REQUIRED_DEPOSIT, PROPOSAL_VOTING_PERIOD,
 };
 
 mod common;
@@ -885,4 +887,56 @@ fn test_manipulate_governance_proposal() {
         err.downcast::<ContractError>().unwrap(),
         ContractError::NoVotingPower {}
     );
+}
+
+#[test]
+fn test_execute_multisig() {
+    let owner = Addr::unchecked("owner");
+    let mut helper = Helper::new(&owner).unwrap();
+    let assembly = helper.assembly.clone();
+
+    helper
+        .app
+        .execute(
+            assembly.clone(),
+            WasmMsg::UpdateAdmin {
+                contract_addr: assembly.to_string(),
+                admin: owner.to_string(),
+            }
+            .into(),
+        )
+        .unwrap();
+
+    let noop_code = helper.app.store_code(noop_contract());
+    let noop_addr = helper
+        .app
+        .instantiate_contract(noop_code, owner.clone(), &Empty {}, &[], "none", None)
+        .unwrap();
+
+    let messages: Vec<_> = (0..5)
+        .into_iter()
+        .map(|_| wasm_execute(&noop_addr, &Empty {}, vec![]).unwrap().into())
+        .collect();
+
+    let random = Addr::unchecked("random");
+    let err = helper
+        .app
+        .execute_contract(
+            random.clone(),
+            assembly.clone(),
+            &ExecuteMsg::ExecuteFromMultisig(messages.clone()),
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(ContractError::Unauthorized {}, err.downcast().unwrap());
+
+    helper
+        .app
+        .execute_contract(
+            owner.clone(),
+            assembly.clone(),
+            &ExecuteMsg::ExecuteFromMultisig(messages),
+            &[],
+        )
+        .unwrap();
 }
