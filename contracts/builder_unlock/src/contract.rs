@@ -1,27 +1,25 @@
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-
 use cosmwasm_std::{
-    from_binary, to_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Order, Response,
-    StdError, StdResult, Uint128, WasmMsg,
+    attr, ensure, from_binary, to_binary, wasm_execute, Addr, Binary, Deps, DepsMut, Env,
+    MessageInfo, Order, Response, StdError, StdResult, SubMsg, Uint128, WasmMsg,
 };
 use cw2::{get_contract_version, set_contract_version};
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 use cw_storage_plus::Bound;
 
-use crate::contract::helpers::compute_unlocked_amount;
-use crate::migration::{MigrateMsg, CONFIGV100, STATEV100, STATUSV100};
 use astroport_governance::builder_unlock::msg::{
     AllocationResponse, ExecuteMsg, InstantiateMsg, QueryMsg, ReceiveMsg, SimulateWithdrawResponse,
     StateResponse,
 };
 use astroport_governance::builder_unlock::{
-    AllocationParams, AllocationStatus, Config, Schedule, State,
+    AllocationParams, AllocationStatus, Config, MigrateMsg, Schedule,
 };
 use astroport_governance::{DEFAULT_LIMIT, MAX_LIMIT};
 
-use crate::state::{CONFIG, OWNERSHIP_PROPOSAL, PARAMS, STATE, STATUS};
+use crate::contract::helpers::compute_unlocked_amount;
+use crate::state::{CONFIG, OWNERSHIP_PROPOSAL, PARAMS, STATE, STATUS, UNVESTED};
 
 // Version and name used for contract migration.
 const CONTRACT_NAME: &str = "builder-unlock";
@@ -230,6 +228,12 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         }
         QueryMsg::Allocations { start_after, limit } => {
             to_binary(&query_allocations(deps, start_after, limit)?)
+        }
+        QueryMsg::UnvestedTokens {} => {
+            let data = UNVESTED
+                .range(deps.storage, None, None, Order::Ascending)
+                .collect::<StdResult<Vec<_>>>()?;
+            to_binary(&data)
         }
     }
 }
@@ -856,49 +860,73 @@ fn query_simulate_withdraw(
 ///
 /// * **msg** is an object of type [`Empty`].
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> StdResult<Response> {
+pub fn migrate(deps: DepsMut, env: Env, msg: MigrateMsg) -> StdResult<Response> {
     let contract_version = get_contract_version(deps.storage)?;
+
+    let mut resp = Response::default();
 
     match contract_version.contract.as_ref() {
         "builder-unlock" => match contract_version.version.as_ref() {
-            "1.0.0" => {
-                let state_v100 = STATEV100.load(deps.storage)?;
-                STATE.save(
-                    deps.storage,
-                    &State {
-                        total_astro_deposited: state_v100.total_astro_deposited,
-                        remaining_astro_tokens: state_v100.remaining_astro_tokens,
-                        unallocated_tokens: Uint128::zero(),
-                    },
-                )?;
+            // This migration sunsets this contract on Terra.
+            // No further maintenance or migrations will be performed.
+            // All builders will still be able to withdraw unlocked tokens by `msg.lock_from_ts`.
+            // Remaining tokens will be burned.
+            "1.2.2" => {
+                ensure!(
+                    msg.lock_from_ts > env.block.time.seconds(),
+                    StdError::generic_err("msg.lock_from_ts must be in the future")
+                );
 
-                let keys = STATUSV100
-                    .keys(deps.storage, None, None, cosmwasm_std::Order::Ascending {})
-                    .map(|v| Ok(v?.to_string()))
-                    .collect::<Result<Vec<String>, StdError>>()?;
+                let mut total_unvested_astro = Uint128::zero();
 
-                for key in keys {
-                    let status_v100 = STATUSV100.load(deps.storage, &Addr::unchecked(&key))?;
-                    let status = AllocationStatus {
-                        astro_withdrawn: status_v100.astro_withdrawn,
-                        unlocked_amount_checkpoint: Uint128::zero(),
-                    };
-                    STATUS.save(deps.storage, &Addr::unchecked(key), &status)?;
+                let allocations = PARAMS
+                    .range(deps.storage, None, None, Order::Ascending)
+                    .collect::<StdResult<Vec<_>>>()?;
+
+                for (builder, mut params) in allocations {
+                    let status = STATUS.load(deps.storage, &builder)?;
+
+                    let astro_unlocked = compute_unlocked_amount(
+                        msg.lock_from_ts,
+                        params.amount,
+                        &params.unlock_schedule,
+                        status.unlocked_amount_checkpoint,
+                    );
+
+                    let unvested_astro = params.amount - astro_unlocked;
+                    if !unvested_astro.is_zero() {
+                        UNVESTED.save(deps.storage, &builder, &unvested_astro)?;
+                    }
+
+                    total_unvested_astro += unvested_astro;
+
+                    params.amount = astro_unlocked;
+                    params.unlock_schedule.duration =
+                        msg.lock_from_ts - params.unlock_schedule.start_time;
+
+                    STATUS.save(deps.storage, &builder, &status)?;
+                    PARAMS.save(deps.storage, &builder, &params)?;
                 }
 
-                let config_v100 = CONFIGV100.load(deps.storage)?;
+                STATE.update::<_, StdError>(deps.storage, |mut state| {
+                    state.remaining_astro_tokens -= total_unvested_astro;
+                    state.total_astro_deposited -= total_unvested_astro;
+                    Ok(state)
+                })?;
 
-                CONFIG.save(
-                    deps.storage,
-                    &Config {
-                        owner: config_v100.owner,
-                        astro_token: config_v100.astro_token,
-                        max_allocations_amount: msg.max_allocations_amount,
+                let config = CONFIG.load(deps.storage)?;
+                let burn_msg = wasm_execute(
+                    &config.astro_token,
+                    &Cw20ExecuteMsg::Burn {
+                        amount: total_unvested_astro,
                     },
+                    vec![],
                 )?;
+
+                resp.messages.push(SubMsg::new(burn_msg));
+                resp.attributes
+                    .push(attr("unvested_astro", total_unvested_astro))
             }
-            "1.1.0" => {}
-            "1.2.0" => {}
             _ => return Err(StdError::generic_err("Contract can't be migrated!")),
         },
         _ => return Err(StdError::generic_err("Contract can't be migrated!")),
@@ -906,11 +934,12 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> StdResult<Response>
 
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    Ok(Response::new()
-        .add_attribute("previous_contract_name", &contract_version.contract)
-        .add_attribute("previous_contract_version", &contract_version.version)
-        .add_attribute("new_contract_name", CONTRACT_NAME)
-        .add_attribute("new_contract_version", CONTRACT_VERSION))
+    Ok(resp.add_attributes([
+        attr("previous_contract_name", contract_version.contract),
+        attr("previous_contract_version", contract_version.version),
+        attr("new_contract_name", CONTRACT_NAME),
+        attr("new_contract_version", CONTRACT_VERSION),
+    ]))
 }
 
 //----------------------------------------------------------------------------------------

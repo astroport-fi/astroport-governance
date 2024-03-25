@@ -1,5 +1,5 @@
 use astroport::common::OwnershipProposal;
-use cosmwasm_std::Addr;
+use cosmwasm_std::{Addr, Uint128};
 use cw_storage_plus::{Item, Map};
 
 use astroport_governance::builder_unlock::{AllocationParams, AllocationStatus, Config, State};
@@ -12,5 +12,6 @@ pub const STATE: Item<State> = Item::new("state");
 pub const PARAMS: Map<&Addr, AllocationParams> = Map::new("params");
 /// The status of each unlock schedule
 pub const STATUS: Map<&Addr, AllocationStatus> = Map::new("status");
+pub const UNVESTED: Map<&Addr, Uint128> = Map::new("unvested");
 /// Contains a proposal to change contract ownership
 pub const OWNERSHIP_PROPOSAL: Item<OwnershipProposal> = Item::new("ownership_proposal");

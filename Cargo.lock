@@ -300,7 +300,7 @@ dependencies = [
 
 [[package]]
 name = "builder-unlock"
-version = "1.2.2"
+version = "1.2.2-moved-to-neutron"
 dependencies = [
  "astroport",
  "astroport-governance 1.2.1",

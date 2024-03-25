@@ -122,6 +122,11 @@ impl AllocationStatus {
     }
 }
 
+#[cw_serde]
+pub struct MigrateMsg {
+    pub lock_from_ts: u64,
+}
+
 pub mod msg {
     use crate::builder_unlock::Schedule;
     use cosmwasm_schema::{cw_serde, QueryResponses};
@@ -225,6 +230,9 @@ pub mod msg {
             start_after: Option<String>,
             limit: Option<u32>,
         },
+        /// Returns unvested tokens. (builder addr, amount)
+        #[returns(Vec<(String, Uint128)>)]
+        UnvestedTokens {},
     }
 
     pub type ConfigResponse = Config;
