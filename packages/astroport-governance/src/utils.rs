@@ -1,6 +1,6 @@
 use cosmwasm_std::{
-    to_binary, Addr, ChannelResponse, Decimal, Fraction, IbcQuery, OverflowError, QuerierWrapper,
-    QueryRequest, StdError, StdResult, Uint128, Uint256, Uint64, WasmQuery,
+    Addr, ChannelResponse, Decimal, Fraction, IbcQuery, OverflowError, QuerierWrapper, StdError,
+    StdResult, Uint128, Uint256, Uint64,
 };
 
 use crate::hub::HubBalance;
@@ -139,7 +139,7 @@ pub fn check_contract_supports_channel(
     querier: QuerierWrapper,
     contract: &Addr,
     given_channel: &String,
-) -> Result<(), StdError> {
+) -> StdResult<()> {
     let port_id = Some(format!("wasm.{contract}"));
     let ChannelResponse { channel } = querier.query(
         &IbcQuery::Channel {
@@ -167,11 +167,11 @@ pub fn get_total_outpost_voting_power_at(
     contract: &Addr,
     timestamp: u64,
 ) -> Result<Uint128, StdError> {
-    let response: HubBalance = querier.query(&QueryRequest::Wasm(WasmQuery::Smart {
-        contract_addr: contract.to_string(),
-        msg: to_binary(&crate::hub::QueryMsg::TotalChannelBalancesAt {
+    let response: HubBalance = querier.query_wasm_smart(
+        contract,
+        &crate::hub::QueryMsg::TotalChannelBalancesAt {
             timestamp: Uint64::from(timestamp),
-        })?,
-    }))?;
+        },
+    )?;
     Ok(response.balance)
 }

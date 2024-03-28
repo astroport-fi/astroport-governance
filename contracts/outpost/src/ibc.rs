@@ -1,5 +1,5 @@
 use cosmwasm_std::{
-    ensure, entry_point, from_binary, to_binary, CosmosMsg, Deps, DepsMut, Env,
+    ensure, entry_point, from_json, to_json_binary, CosmosMsg, Deps, DepsMut, Env,
     Ibc3ChannelOpenResponse, IbcBasicResponse, IbcChannelCloseMsg, IbcChannelConnectMsg,
     IbcChannelOpenMsg, IbcChannelOpenResponse, IbcMsg, IbcOrder, IbcPacketAckMsg,
     IbcPacketReceiveMsg, IbcPacketTimeoutMsg, IbcReceiveResponse, Never, StdError, StdResult,
@@ -109,7 +109,7 @@ pub fn ibc_packet_receive(
 ) -> Result<IbcReceiveResponse, Never> {
     do_packet_receive(deps, env, msg).or_else(|err| {
         // Construct an error acknowledgement that can be handled on the Hub
-        let ack_data = to_binary(&Response::new_error(err.to_string())).unwrap();
+        let ack_data = to_json_binary(&Response::new_error(err.to_string())).unwrap();
 
         Ok(IbcReceiveResponse::new()
             .add_attribute("action", "ibc_packet_receive")
@@ -137,7 +137,7 @@ fn do_packet_receive(
     )?;
 
     // Parse the packet data into a Hub message
-    let hub_msg: Outpost = from_binary(&msg.packet.data)?;
+    let hub_msg: Outpost = from_json(&msg.packet.data)?;
     match hub_msg {
         Outpost::MintXAstro { receiver, amount } => handle_ibc_xastro_mint(deps, receiver, amount),
     }
@@ -155,7 +155,7 @@ pub fn ibc_packet_timeout(
     // to failed messages.
     // We look at the original packet to determine what failed and take
     // the appropriate action
-    let failed_msg: Hub = from_binary(&msg.packet.data)?;
+    let failed_msg: Hub = from_json(&msg.packet.data)?;
     response = handle_failed_messages(deps, failed_msg, response)?;
 
     Ok(response)
@@ -169,7 +169,7 @@ pub fn ibc_packet_ack(
 ) -> Result<IbcBasicResponse, ContractError> {
     let mut response = IbcBasicResponse::new().add_attribute("action", "ibc_packet_ack");
 
-    let ack: Result<Response, StdError> = from_binary(&msg.acknowledgement.data);
+    let ack: Result<Response, StdError> = from_json(&msg.acknowledgement.data);
     match ack {
         Ok(hub_response) => {
             match hub_response {
@@ -210,7 +210,7 @@ pub fn ibc_packet_ack(
                         };
                         let hub_msg = CosmosMsg::Ibc(IbcMsg::SendPacket {
                             channel_id: hub_channel,
-                            data: to_binary(&cast_vote)?,
+                            data: to_json_binary(&cast_vote)?,
                             timeout: env
                                 .block
                                 .time
@@ -262,7 +262,7 @@ pub fn ibc_packet_ack(
                 .add_attribute("ack_error", err.to_string());
 
             // Handle the possible failures
-            let original: Hub = from_binary(&msg.original_packet.data)?;
+            let original: Hub = from_json(&msg.original_packet.data)?;
             response = handle_failed_messages(deps, original, response)?;
         }
     }
@@ -564,8 +564,8 @@ mod tests {
             start_time: 1689942949u64,
         });
 
-        let ack = IbcAcknowledgement::new(to_binary(&proposal_response).unwrap());
-        let mint_msg = to_binary(&Outpost::MintXAstro {
+        let ack = IbcAcknowledgement::new(to_json_binary(&proposal_response).unwrap());
+        let mint_msg = to_json_binary(&Outpost::MintXAstro {
             receiver: "user".to_owned(),
             amount: Uint128::one(),
         })
@@ -591,7 +591,7 @@ mod tests {
         assert_eq!(res.messages.len(), 1);
 
         // Build the expected message
-        let ibc_message = to_binary(&Hub::CastAssemblyVote {
+        let ibc_message = to_json_binary(&Hub::CastAssemblyVote {
             proposal_id,
             voter: Addr::unchecked(user),
             vote_option: astroport_governance::assembly::ProposalVoteOption::For,

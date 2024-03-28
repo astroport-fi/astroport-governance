@@ -1,6 +1,7 @@
 use astroport::querier::query_token_balance;
 use cosmwasm_std::{
-    to_binary, DepsMut, Env, IbcReceiveResponse, QuerierWrapper, Storage, SubMsg, Uint128, WasmMsg,
+    to_json_binary, DepsMut, Env, IbcReceiveResponse, QuerierWrapper, Storage, SubMsg, Uint128,
+    WasmMsg,
 };
 use cw20::Cw20ExecuteMsg;
 
@@ -36,7 +37,7 @@ pub fn handle_ibc_unstake(
 
     // Set the acknowledgement. This is only to indicate that the unstake
     // was processed without error, not that the funds were successfully
-    let ack_data = to_binary(&Response::new_success("unstake".to_owned(), receiver))?;
+    let ack_data = to_json_binary(&Response::new_success("unstake".to_owned(), receiver))?;
 
     Ok(IbcReceiveResponse::new()
         .set_ack(ack_data)
@@ -61,13 +62,13 @@ pub fn construct_unstake_msg(
     let send_msg = Cw20ExecuteMsg::Send {
         contract: config.staking_addr.to_string(),
         amount,
-        msg: to_binary(&leave_msg)?,
+        msg: to_json_binary(&leave_msg)?,
     };
 
     // Send the xASTRO held in the contract to the Staking contract
     let msg = WasmMsg::Execute {
         contract_addr: config.xtoken_addr.to_string(),
-        msg: to_binary(&send_msg)?,
+        msg: to_json_binary(&send_msg)?,
         funds: vec![],
     };
 
@@ -96,7 +97,7 @@ mod tests {
     use astroport::cw20_ics20::TransferMsg;
     use astroport_governance::{hub::HubBalance, interchain::Hub};
     use cosmwasm_std::{
-        from_binary,
+        from_json,
         testing::{mock_info, MOCK_CONTRACT_ADDR},
         Addr, IbcPacketReceiveMsg, Reply, ReplyOn, SubMsgResponse, SubMsgResult, Uint64,
     };
@@ -165,7 +166,7 @@ mod tests {
             astroport_governance::hub::ExecuteMsg::Receive(Cw20ReceiveMsg {
                 sender: CW20ICS20.to_string(),
                 amount: unstake_amount,
-                msg: to_binary(&astroport_governance::hub::Cw20HookMsg::OutpostMemo {
+                msg: to_json_binary(&astroport_governance::hub::Cw20HookMsg::OutpostMemo {
                     channel: "channel-1".to_string(),
                     sender: unstaker.to_string(),
                     receiver: MOCK_CONTRACT_ADDR.to_owned(),
@@ -177,8 +178,8 @@ mod tests {
         .unwrap();
 
         // Verify that the stake message matches the expected message
-        let stake_msg = to_binary(&astroport::staking::Cw20HookMsg::Enter {}).unwrap();
-        let send_msg = to_binary(&Cw20ExecuteMsg::Send {
+        let stake_msg = to_json_binary(&astroport::staking::Cw20HookMsg::Enter {}).unwrap();
+        let send_msg = to_json_binary(&Cw20ExecuteMsg::Send {
             contract: STAKING.to_string(),
             amount: unstake_amount,
             msg: stake_msg,
@@ -216,7 +217,7 @@ mod tests {
         // We must have one IBC message
         assert_eq!(res.messages.len(), 1);
 
-        let ibc_unstake = to_binary(&Hub::Unstake {
+        let ibc_unstake = to_json_binary(&Hub::Unstake {
             receiver: unstaker.to_owned(),
             amount: unstake_amount,
         })
@@ -226,7 +227,7 @@ mod tests {
         let msg = IbcPacketReceiveMsg::new(recv_packet, Addr::unchecked("relayer"));
         let res = ibc_packet_receive(deps.as_mut(), env.clone(), msg).unwrap();
 
-        let ack: Response = from_binary(&res.acknowledgement).unwrap();
+        let ack: Response = from_json(&res.acknowledgement).unwrap();
         match ack {
             Response::Result { error, .. } => {
                 assert!(error.is_none());
@@ -238,8 +239,8 @@ mod tests {
         assert_eq!(res.messages.len(), 1);
 
         // Verify that the unstake message matches the expected message
-        let unstake_msg = to_binary(&astroport::staking::Cw20HookMsg::Leave {}).unwrap();
-        let send_msg = to_binary(&Cw20ExecuteMsg::Send {
+        let unstake_msg = to_json_binary(&astroport::staking::Cw20HookMsg::Leave {}).unwrap();
+        let send_msg = to_json_binary(&Cw20ExecuteMsg::Send {
             contract: STAKING.to_string(),
             amount: unstake_amount,
             msg: unstake_msg,
@@ -278,14 +279,14 @@ mod tests {
         assert_eq!(res.messages.len(), 1);
 
         // Contruct the CW20-ICS20 ASTRO token transfer we expect to see
-        let transfer_msg = to_binary(&TransferMsg {
+        let transfer_msg = to_json_binary(&TransferMsg {
             channel: "channel-1".to_string(),
             remote_address: unstaker.to_string(),
             timeout: Some(10),
             memo: None,
         })
         .unwrap();
-        let send_msg = to_binary(&Cw20ExecuteMsg::Send {
+        let send_msg = to_json_binary(&Cw20ExecuteMsg::Send {
             contract: CW20ICS20.to_string(),
             amount: unstake_amount,
             msg: transfer_msg,
@@ -324,6 +325,6 @@ mod tests {
             balance: Uint128::zero(),
         };
 
-        assert_eq!(balances, to_binary(&expected).unwrap());
+        assert_eq!(balances, to_json_binary(&expected).unwrap());
     }
 }

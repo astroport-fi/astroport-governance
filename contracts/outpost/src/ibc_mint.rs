@@ -1,5 +1,5 @@
 use astroport_governance::interchain::Response;
-use cosmwasm_std::{to_binary, Deps, DepsMut, IbcReceiveResponse, Uint128, WasmMsg};
+use cosmwasm_std::{to_json_binary, Deps, DepsMut, IbcReceiveResponse, Uint128, WasmMsg};
 use cw20::Cw20ExecuteMsg;
 
 use crate::{error::ContractError, state::CONFIG};
@@ -18,7 +18,7 @@ pub fn handle_ibc_xastro_mint(
     let msg = mint_xastro_msg(deps.as_ref(), recipient.clone(), amount)?;
 
     // If the minting succeeds, the ack will be sent back to the Hub
-    let ack_data = to_binary(&Response::new_success(
+    let ack_data = to_json_binary(&Response::new_success(
         "mint_xastro".to_owned(),
         recipient.to_string(),
     ))?;
@@ -44,7 +44,7 @@ pub fn mint_xastro_msg(
     let mint_msg = Cw20ExecuteMsg::Mint { recipient, amount };
     Ok(WasmMsg::Execute {
         contract_addr: config.xastro_token_addr.to_string(),
-        msg: to_binary(&mint_msg)?,
+        msg: to_json_binary(&mint_msg)?,
         funds: vec![],
     })
 }
@@ -53,7 +53,7 @@ pub fn mint_xastro_msg(
 mod tests {
     use astroport_governance::interchain::Outpost;
     use cosmwasm_std::{
-        from_binary, testing::mock_info, Addr, IbcPacketReceiveMsg, ReplyOn, SubMsg, Uint128,
+        from_json, testing::mock_info, Addr, IbcPacketReceiveMsg, ReplyOn, SubMsg, Uint128,
     };
 
     use super::*;
@@ -107,7 +107,7 @@ mod tests {
         )
         .unwrap();
 
-        let ibc_mint = to_binary(&Outpost::MintXAstro {
+        let ibc_mint = to_json_binary(&Outpost::MintXAstro {
             receiver: receiver.to_string(),
             amount,
         })
@@ -118,7 +118,7 @@ mod tests {
 
         let msg = IbcPacketReceiveMsg::new(recv_packet, Addr::unchecked("relayer"));
         let res = ibc_packet_receive(deps.as_mut(), env.clone(), msg).unwrap();
-        let ack: Response = from_binary(&res.acknowledgement).unwrap();
+        let ack: Response = from_json(&res.acknowledgement).unwrap();
         match ack {
             Response::Result { error, .. } => {
                 assert!(error == Some("Unauthorized".to_string()));
@@ -130,7 +130,7 @@ mod tests {
         let recv_packet = mock_ibc_packet(&format!("wasm.{}", HUB), "channel-7", ibc_mint.clone());
         let msg = IbcPacketReceiveMsg::new(recv_packet, Addr::unchecked("relayer"));
         let res = ibc_packet_receive(deps.as_mut(), env.clone(), msg).unwrap();
-        let ack: Response = from_binary(&res.acknowledgement).unwrap();
+        let ack: Response = from_json(&res.acknowledgement).unwrap();
         match ack {
             Response::Result { error, .. } => {
                 assert!(error == Some("Unauthorized".to_string()));
@@ -143,7 +143,7 @@ mod tests {
         let msg = IbcPacketReceiveMsg::new(recv_packet, Addr::unchecked("relayer"));
         let res = ibc_packet_receive(deps.as_mut(), env, msg).unwrap();
 
-        let ack: Response = from_binary(&res.acknowledgement).unwrap();
+        let ack: Response = from_json(&res.acknowledgement).unwrap();
         match ack {
             Response::Result { error, .. } => {
                 assert!(error.is_none());
@@ -155,7 +155,7 @@ mod tests {
         assert_eq!(res.messages.len(), 1);
 
         // Verify that the mint message matches the expected message
-        let xastro_mint_msg = to_binary(&cw20::Cw20ExecuteMsg::Mint {
+        let xastro_mint_msg = to_json_binary(&cw20::Cw20ExecuteMsg::Mint {
             recipient: receiver.to_string(),
             amount,
         })

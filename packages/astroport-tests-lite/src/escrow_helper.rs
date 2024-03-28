@@ -3,7 +3,7 @@ use astroport::{staking as xastro, token as astro};
 use astroport_governance::voting_escrow_lite::{
     Cw20HookMsg, ExecuteMsg, InstantiateMsg, LockInfoResponse, QueryMsg, VotingPowerResponse,
 };
-use cosmwasm_std::{attr, to_binary, Addr, QueryRequest, StdResult, Uint128, WasmQuery};
+use cosmwasm_std::{attr, to_json_binary, Addr, QueryRequest, StdResult, Uint128, WasmQuery};
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
 use cw_multi_test::{App, AppResponse, ContractWrapper, Executor};
 
@@ -83,7 +83,7 @@ impl EscrowHelper {
             .wrap()
             .query::<xastro::ConfigResponse>(&QueryRequest::Wasm(WasmQuery::Smart {
                 contract_addr: staking_instance.to_string(),
-                msg: to_binary(&xastro::QueryMsg::Config {}).unwrap(),
+                msg: to_json_binary(&xastro::QueryMsg::Config {}).unwrap(),
             }))
             .unwrap();
 
@@ -98,7 +98,7 @@ impl EscrowHelper {
         let msg = InstantiateMsg {
             owner: owner.to_string(),
             guardian_addr: Some("guardian".to_string()),
-            deposit_token_addr: res.share_token_addr.to_string(),
+            deposit_denom: res.share_token_addr.to_string(),
             marketing: None,
             logo_urls_whitelist: vec![],
             generator_controller_addr: None,
@@ -144,7 +144,7 @@ impl EscrowHelper {
         let to_addr = Addr::unchecked(to);
         let msg = Cw20ExecuteMsg::Send {
             contract: self.staking_instance.to_string(),
-            msg: to_binary(&xastro::Cw20HookMsg::Enter {}).unwrap(),
+            msg: to_json_binary(&xastro::Cw20HookMsg::Enter {}).unwrap(),
             amount: Uint128::from(amount),
         };
         router
@@ -177,7 +177,7 @@ impl EscrowHelper {
         let cw20msg = Cw20ExecuteMsg::Send {
             contract: self.escrow_instance.to_string(),
             amount: Uint128::from(amount),
-            msg: to_binary(&Cw20HookMsg::CreateLock { time }).unwrap(),
+            msg: to_json_binary(&Cw20HookMsg::CreateLock { time }).unwrap(),
         };
         router.execute_contract(
             Addr::unchecked(user),
@@ -197,7 +197,7 @@ impl EscrowHelper {
         let cw20msg = Cw20ExecuteMsg::Send {
             contract: self.escrow_instance.to_string(),
             amount: Uint128::from(amount),
-            msg: to_binary(&Cw20HookMsg::ExtendLockAmount {}).unwrap(),
+            msg: to_json_binary(&Cw20HookMsg::ExtendLockAmount {}).unwrap(),
         };
         router.execute_contract(
             Addr::unchecked(user),
@@ -227,7 +227,7 @@ impl EscrowHelper {
         let cw20msg = Cw20ExecuteMsg::Send {
             contract: self.escrow_instance.to_string(),
             amount: Uint128::from(amount),
-            msg: to_binary(&Cw20HookMsg::DepositFor {
+            msg: to_json_binary(&Cw20HookMsg::DepositFor {
                 user: to.to_string(),
             })
             .unwrap(),

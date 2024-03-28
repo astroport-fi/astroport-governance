@@ -5,16 +5,16 @@ use cw2::set_contract_version;
 use cw20::{Logo, LogoInfo, MarketingInfoResponse};
 use cw20_base::state::{TokenInfo, LOGO, MARKETING_INFO, TOKEN_INFO};
 
-use crate::astroport::asset::addr_opt_validate;
 use astroport_governance::utils::DEFAULT_UNLOCK_PERIOD;
-use astroport_governance::voting_escrow_lite::{Config, InstantiateMsg, MigrateMsg};
+use astroport_governance::voting_escrow_lite::{Config, InstantiateMsg};
 
+use crate::astroport::asset::{addr_opt_validate, validate_native_denom};
 use crate::error::ContractError;
 use crate::marketing_validation::{validate_marketing_info, validate_whitelist_links};
 use crate::state::{BLACKLIST, CONFIG, VOTING_POWER_HISTORY};
 
 /// Contract name that is used for migration.
-const CONTRACT_NAME: &str = "astro-voting-escrow-lite";
+const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 /// Contract version that is used for migration.
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -27,7 +27,7 @@ pub fn instantiate(
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-    let deposit_token_addr = deps.api.addr_validate(&msg.deposit_token_addr)?;
+    validate_native_denom(&msg.deposit_denom)?;
 
     validate_whitelist_links(&msg.logo_urls_whitelist)?;
     let guardian_addr = addr_opt_validate(deps.api, &msg.guardian_addr)?;
@@ -45,7 +45,7 @@ pub fn instantiate(
     let config = Config {
         owner: deps.api.addr_validate(&msg.owner)?,
         guardian_addr,
-        deposit_token_addr,
+        deposit_denom: msg.deposit_denom,
         logo_urls_whitelist: msg.logo_urls_whitelist.clone(),
         unlock_period: DEFAULT_UNLOCK_PERIOD,
         generator_controller_addr: addr_opt_validate(deps.api, &msg.generator_controller_addr)?,
@@ -104,10 +104,4 @@ pub fn instantiate(
     TOKEN_INFO.save(deps.storage, &data)?;
 
     Ok(Response::default())
-}
-
-/// Manages contract migration.
-#[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
-    Err(ContractError::MigrationError {})
 }

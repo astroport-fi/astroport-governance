@@ -1,133 +1,53 @@
+#![allow(dead_code)]
+
 use anyhow::Result;
-use astroport::{staking as xastro, token as astro};
+use cosmwasm_std::{coins, Addr, BlockInfo, StdResult, Timestamp, Uint128, Uint64};
+use cw20::Logo;
+use cw_multi_test::{App, AppBuilder, AppResponse, ContractWrapper, Executor};
+
 use astroport_governance::utils::EPOCH_START;
 use astroport_governance::voting_escrow_lite::{
-    BlacklistedVotersResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, QueryMsg,
-    UpdateMarketingInfo, VotingPowerResponse,
+    BlacklistedVotersResponse, ExecuteMsg, InstantiateMsg, QueryMsg, UpdateMarketingInfo,
+    VotingPowerResponse,
 };
-use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
-use cosmwasm_std::{
-    attr, to_binary, Addr, QueryRequest, StdResult, Timestamp, Uint128, Uint64, WasmQuery,
-};
-use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, Logo, MinterResponse};
-use cw_multi_test::{App, AppBuilder, AppResponse, BankKeeper, ContractWrapper, Executor};
-use voting_escrow_lite::astroport;
 
-pub const MULTIPLIER: u64 = 1000000;
+pub const MULTIPLIER: u128 = 1_000000;
+
+pub const XASTRO_DENOM: &str = "factory/assembly/xASTRO";
+
+pub const OWNER: &str = "owner";
 
 pub struct Helper {
+    pub app: App,
     pub owner: Addr,
-    pub astro_token: Addr,
-    pub staking_instance: Addr,
-    pub xastro_token: Addr,
-    pub voting_instance: Addr,
+    pub vxastro: Addr,
+    pub generator_controller: Addr,
 }
 
 impl Helper {
-    pub fn init(router: &mut App, owner: Addr) -> Self {
-        let astro_token_contract = Box::new(ContractWrapper::new_with_empty(
-            astroport_token::contract::execute,
-            astroport_token::contract::instantiate,
-            astroport_token::contract::query,
-        ));
+    pub fn init() -> Self {
+        let owner = Addr::unchecked(OWNER);
 
-        let astro_token_code_id = router.store_code(astro_token_contract);
-
-        let msg = astro::InstantiateMsg {
-            name: String::from("Astro token"),
-            symbol: String::from("ASTRO"),
-            decimals: 6,
-            initial_balances: vec![],
-            mint: Some(MinterResponse {
-                minter: owner.to_string(),
-                cap: None,
-            }),
-            marketing: None,
-        };
-
-        let astro_token = router
-            .instantiate_contract(
-                astro_token_code_id,
-                owner.clone(),
-                &msg,
-                &[],
-                String::from("ASTRO"),
-                None,
-            )
-            .unwrap();
-
-        let staking_contract = Box::new(
-            ContractWrapper::new_with_empty(
-                astroport_staking::contract::execute,
-                astroport_staking::contract::instantiate,
-                astroport_staking::contract::query,
-            )
-            .with_reply_empty(astroport_staking::contract::reply),
-        );
-
-        let staking_code_id = router.store_code(staking_contract);
-
-        let msg = xastro::InstantiateMsg {
-            owner: owner.to_string(),
-            token_code_id: astro_token_code_id,
-            deposit_token_addr: astro_token.to_string(),
-            marketing: None,
-        };
-        let staking_instance = router
-            .instantiate_contract(
-                staking_code_id,
-                owner.clone(),
-                &msg,
-                &[],
-                String::from("xASTRO"),
-                None,
-            )
-            .unwrap();
-
-        let res = router
-            .wrap()
-            .query::<xastro::ConfigResponse>(&QueryRequest::Wasm(WasmQuery::Smart {
-                contract_addr: staking_instance.to_string(),
-                msg: to_binary(&xastro::QueryMsg::Config {}).unwrap(),
-            }))
-            .unwrap();
-
-        let generator_controller = Box::new(ContractWrapper::new_with_empty(
-            astroport_generator_controller::contract::execute,
-            astroport_generator_controller::contract::instantiate,
-            astroport_generator_controller::contract::query,
-        ));
-
-        let generator_controller_id = router.store_code(generator_controller);
-
-        let msg = astroport_governance::generator_controller_lite::InstantiateMsg {
-            owner: owner.to_string(),
-            assembly_addr: "assembly".to_string(),
-            escrow_addr: "contract4".to_string(),
-            factory_addr: "factory".to_string(),
-            generator_addr: "generator".to_string(),
-            hub_addr: None,
-            pools_limit: 10,
-            whitelisted_pools: vec![],
-        };
-        let generator_controller_instance = router
-            .instantiate_contract(
-                generator_controller_id,
-                owner.clone(),
-                &msg,
-                &[],
-                String::from("Generator Controller Lite"),
-                None,
-            )
-            .unwrap();
+        let mut app = AppBuilder::new()
+            .with_block(BlockInfo {
+                height: 1000,
+                time: Timestamp::from_seconds(EPOCH_START),
+                chain_id: "cw-multitest-1".to_string(),
+            })
+            .build(|router, _, storage| {
+                router
+                    .bank
+                    .init_balance(storage, &owner, coins(u128::MAX, XASTRO_DENOM))
+                    .unwrap()
+            });
 
         let voting_contract = Box::new(ContractWrapper::new_with_empty(
-            voting_escrow_lite::execute::execute,
-            voting_escrow_lite::contract::instantiate,
-            voting_escrow_lite::query::query,
+            astroport_voting_escrow_lite::execute::execute,
+            astroport_voting_escrow_lite::contract::instantiate,
+            astroport_voting_escrow_lite::query::query,
         ));
 
-        let voting_code_id = router.store_code(voting_contract);
+        let voting_code_id = app.store_code(voting_contract);
 
         let marketing_info = UpdateMarketingInfo {
             project: Some("Astroport".to_string()),
@@ -139,13 +59,13 @@ impl Helper {
         let msg = InstantiateMsg {
             owner: owner.to_string(),
             guardian_addr: Some("guardian".to_string()),
-            deposit_token_addr: res.share_token_addr.to_string(),
+            deposit_denom: XASTRO_DENOM.to_string(),
             marketing: Some(marketing_info),
             logo_urls_whitelist: vec!["https://astroport.com/".to_string()],
-            generator_controller_addr: Some(generator_controller_instance.to_string()),
+            generator_controller_addr: None,
             outpost_addr: None,
         };
-        let voting_instance = router
+        let vxastro = app
             .instantiate_contract(
                 voting_code_id,
                 owner.clone(),
@@ -156,139 +76,110 @@ impl Helper {
             )
             .unwrap();
 
+        let generator_controller = Box::new(ContractWrapper::new_with_empty(
+            astroport_generator_controller::contract::execute,
+            astroport_generator_controller::contract::instantiate,
+            astroport_generator_controller::contract::query,
+        ));
+
+        let generator_controller_id = app.store_code(generator_controller);
+
+        let msg = astroport_governance::generator_controller_lite::InstantiateMsg {
+            owner: owner.to_string(),
+            assembly_addr: "assembly".to_string(),
+            escrow_addr: vxastro.to_string(),
+            factory_addr: "factory".to_string(),
+            generator_addr: "generator".to_string(),
+            hub_addr: None,
+            pools_limit: 10,
+            whitelisted_pools: vec![],
+        };
+        let generator_controller = app
+            .instantiate_contract(
+                generator_controller_id,
+                owner.clone(),
+                &msg,
+                &[],
+                String::from("Generator Controller Lite"),
+                None,
+            )
+            .unwrap();
+
+        app.execute_contract(
+            owner.clone(),
+            vxastro.clone(),
+            &ExecuteMsg::UpdateConfig {
+                new_guardian: None,
+                generator_controller: Some(generator_controller.to_string()),
+                outpost: None,
+            },
+            &[],
+        )
+        .unwrap();
+
         Self {
+            app,
             owner,
-            xastro_token: res.share_token_addr,
-            astro_token,
-            staking_instance,
-            voting_instance,
+            vxastro,
+            generator_controller,
         }
     }
 
-    pub fn mint_xastro(&self, router: &mut App, to: &str, amount: u64) {
+    pub fn mint_xastro(&mut self, to: &str, amount: u128) {
         let amount = amount * MULTIPLIER;
-        let msg = cw20::Cw20ExecuteMsg::Mint {
-            recipient: String::from(to),
-            amount: Uint128::from(amount),
-        };
-        let res = router
-            .execute_contract(self.owner.clone(), self.astro_token.clone(), &msg, &[])
-            .unwrap();
-        assert_eq!(res.events[1].attributes[1], attr("action", "mint"));
-        assert_eq!(res.events[1].attributes[2], attr("to", String::from(to)));
-        assert_eq!(
-            res.events[1].attributes[3],
-            attr("amount", Uint128::from(amount))
-        );
-
-        let to_addr = Addr::unchecked(to);
-        let msg = Cw20ExecuteMsg::Send {
-            contract: self.staking_instance.to_string(),
-            msg: to_binary(&xastro::Cw20HookMsg::Enter {}).unwrap(),
-            amount: Uint128::from(amount),
-        };
-        router
-            .execute_contract(to_addr, self.astro_token.clone(), &msg, &[])
-            .unwrap();
-    }
-
-    #[allow(dead_code)]
-    pub fn check_xastro_balance(&self, router: &mut App, user: &str, amount: u64) {
-        let amount = amount * MULTIPLIER;
-        let res: BalanceResponse = router
-            .wrap()
-            .query_wasm_smart(
-                self.xastro_token.clone(),
-                &Cw20QueryMsg::Balance {
-                    address: user.to_string(),
-                },
+        self.app
+            .send_tokens(
+                self.owner.clone(),
+                Addr::unchecked(to),
+                &coins(amount, XASTRO_DENOM),
             )
             .unwrap();
-        assert_eq!(res.balance.u128(), amount as u128);
     }
 
-    #[allow(dead_code)]
-    pub fn check_astro_balance(&self, router: &mut App, user: &str, amount: u64) {
+    pub fn check_xastro_balance(&self, user: &str, amount: u128) {
         let amount = amount * MULTIPLIER;
-        let res: BalanceResponse = router
+        let balance = self
+            .app
             .wrap()
-            .query_wasm_smart(
-                self.astro_token.clone(),
-                &Cw20QueryMsg::Balance {
-                    address: user.to_string(),
-                },
-            )
-            .unwrap();
-        assert_eq!(res.balance.u128(), amount as u128);
+            .query_balance(user, XASTRO_DENOM)
+            .unwrap()
+            .amount;
+        assert_eq!(balance.u128(), amount);
     }
 
-    pub fn create_lock(
-        &self,
-        router: &mut App,
-        user: &str,
-        time: u64,
-        amount: f32,
-    ) -> Result<AppResponse> {
-        let amount = (amount * MULTIPLIER as f32) as u64;
-        let cw20msg = Cw20ExecuteMsg::Send {
-            contract: self.voting_instance.to_string(),
-            amount: Uint128::from(amount),
-            msg: to_binary(&Cw20HookMsg::CreateLock { time }).unwrap(),
-        };
-        router.execute_contract(
+    pub fn create_lock(&mut self, user: &str, amount: f32) -> Result<AppResponse> {
+        let amount = (amount * MULTIPLIER as f32) as u128;
+        self.app.execute_contract(
             Addr::unchecked(user),
-            self.xastro_token.clone(),
-            &cw20msg,
-            &[],
+            self.vxastro.clone(),
+            &ExecuteMsg::CreateLock {},
+            &coins(amount, XASTRO_DENOM),
         )
     }
 
-    #[allow(dead_code)]
-    pub fn create_lock_u128(
-        &self,
-        router: &mut App,
-        user: &str,
-        time: u64,
-        amount: u128,
-    ) -> Result<AppResponse> {
-        let cw20msg = Cw20ExecuteMsg::Send {
-            contract: self.voting_instance.to_string(),
-            amount: Uint128::from(amount),
-            msg: to_binary(&Cw20HookMsg::CreateLock { time }).unwrap(),
-        };
-        router.execute_contract(
+    pub fn create_lock_u128(&mut self, user: &str, amount: u128) -> Result<AppResponse> {
+        self.app.execute_contract(
             Addr::unchecked(user),
-            self.xastro_token.clone(),
-            &cw20msg,
-            &[],
+            self.vxastro.clone(),
+            &ExecuteMsg::CreateLock {},
+            &coins(amount, XASTRO_DENOM),
         )
     }
 
-    pub fn extend_lock_amount(
-        &self,
-        router: &mut App,
-        user: &str,
-        amount: f32,
-    ) -> Result<AppResponse> {
-        let amount = (amount * MULTIPLIER as f32) as u64;
-        let cw20msg = Cw20ExecuteMsg::Send {
-            contract: self.voting_instance.to_string(),
-            amount: Uint128::from(amount),
-            msg: to_binary(&Cw20HookMsg::ExtendLockAmount {}).unwrap(),
-        };
-        router.execute_contract(
+    pub fn extend_lock_amount(&mut self, user: &str, amount: f32) -> Result<AppResponse> {
+        let amount = (amount * MULTIPLIER as f32) as u128;
+        self.app.execute_contract(
             Addr::unchecked(user),
-            self.xastro_token.clone(),
-            &cw20msg,
-            &[],
+            self.vxastro.clone(),
+            &ExecuteMsg::ExtendLockAmount {},
+            &coins(amount, XASTRO_DENOM),
         )
     }
 
-    #[allow(dead_code)]
-    pub fn relock(&self, router: &mut App, user: &str) -> Result<AppResponse> {
-        router.execute_contract(
+    pub fn relock(&mut self, user: &str) -> Result<AppResponse> {
+        self.app.execute_contract(
             Addr::unchecked("outpost"),
-            self.voting_instance.clone(),
+            self.vxastro.clone(),
             &ExecuteMsg::Relock {
                 user: user.to_string(),
             },
@@ -296,59 +187,44 @@ impl Helper {
         )
     }
 
-    #[allow(dead_code)]
-    pub fn deposit_for(
-        &self,
-        router: &mut App,
-        from: &str,
-        to: &str,
-        amount: f32,
-    ) -> Result<AppResponse> {
-        let amount = (amount * MULTIPLIER as f32) as u64;
-        let cw20msg = Cw20ExecuteMsg::Send {
-            contract: self.voting_instance.to_string(),
-            amount: Uint128::from(amount),
-            msg: to_binary(&Cw20HookMsg::DepositFor {
-                user: to.to_string(),
-            })
-            .unwrap(),
-        };
-        router.execute_contract(
+    pub fn deposit_for(&mut self, from: &str, to: &str, amount: f32) -> Result<AppResponse> {
+        let amount = (amount * MULTIPLIER as f32) as u128;
+        self.app.execute_contract(
             Addr::unchecked(from),
-            self.xastro_token.clone(),
-            &cw20msg,
-            &[],
+            self.vxastro.clone(),
+            &ExecuteMsg::DepositFor {
+                user: to.to_string(),
+            },
+            &coins(amount, XASTRO_DENOM),
         )
     }
 
-    #[allow(dead_code)]
-    pub fn unlock(&self, router: &mut App, user: &str) -> Result<AppResponse> {
-        router.execute_contract(
+    pub fn unlock(&mut self, user: &str) -> Result<AppResponse> {
+        self.app.execute_contract(
             Addr::unchecked(user),
-            self.voting_instance.clone(),
+            self.vxastro.clone(),
             &ExecuteMsg::Unlock {},
             &[],
         )
     }
 
-    pub fn withdraw(&self, router: &mut App, user: &str) -> Result<AppResponse> {
-        router.execute_contract(
+    pub fn withdraw(&mut self, user: &str) -> Result<AppResponse> {
+        self.app.execute_contract(
             Addr::unchecked(user),
-            self.voting_instance.clone(),
+            self.vxastro.clone(),
             &ExecuteMsg::Withdraw {},
             &[],
         )
     }
 
     pub fn update_blacklist(
-        &self,
-        router: &mut App,
-        append_addrs: Option<Vec<String>>,
-        remove_addrs: Option<Vec<String>>,
+        &mut self,
+        append_addrs: Vec<String>,
+        remove_addrs: Vec<String>,
     ) -> Result<AppResponse> {
-        router.execute_contract(
+        self.app.execute_contract(
             Addr::unchecked("owner"),
-            self.voting_instance.clone(),
+            self.vxastro.clone(),
             &ExecuteMsg::UpdateBlacklist {
                 append_addrs,
                 remove_addrs,
@@ -357,15 +233,10 @@ impl Helper {
         )
     }
 
-    #[allow(dead_code)]
-    pub fn update_outpost_address(
-        &self,
-        router: &mut App,
-        new_address: String,
-    ) -> Result<AppResponse> {
-        router.execute_contract(
+    pub fn update_outpost_address(&mut self, new_address: String) -> Result<AppResponse> {
+        self.app.execute_contract(
             Addr::unchecked("owner"),
-            self.voting_instance.clone(),
+            self.vxastro.clone(),
             &ExecuteMsg::UpdateConfig {
                 new_guardian: None,
                 generator_controller: None,
@@ -375,12 +246,11 @@ impl Helper {
         )
     }
 
-    #[allow(dead_code)]
-    pub fn query_user_vp(&self, router: &mut App, user: &str) -> StdResult<f32> {
-        router
+    pub fn query_user_vp(&self, user: &str) -> StdResult<f32> {
+        self.app
             .wrap()
             .query_wasm_smart(
-                self.voting_instance.clone(),
+                self.vxastro.clone(),
                 &QueryMsg::UserVotingPower {
                     user: user.to_string(),
                 },
@@ -388,12 +258,11 @@ impl Helper {
             .map(|vp: VotingPowerResponse| vp.voting_power.u128() as f32 / MULTIPLIER as f32)
     }
 
-    #[allow(dead_code)]
-    pub fn query_user_emissions_vp(&self, router: &mut App, user: &str) -> StdResult<f32> {
-        router
+    pub fn query_user_emissions_vp(&self, user: &str) -> StdResult<f32> {
+        self.app
             .wrap()
             .query_wasm_smart(
-                self.voting_instance.clone(),
+                self.vxastro.clone(),
                 &QueryMsg::UserEmissionsVotingPower {
                     user: user.to_string(),
                 },
@@ -401,12 +270,11 @@ impl Helper {
             .map(|vp: VotingPowerResponse| vp.voting_power.u128() as f32 / MULTIPLIER as f32)
     }
 
-    #[allow(dead_code)]
-    pub fn query_exact_user_vp(&self, router: &mut App, user: &str) -> StdResult<u128> {
-        router
+    pub fn query_exact_user_vp(&self, user: &str) -> StdResult<u128> {
+        self.app
             .wrap()
             .query_wasm_smart(
-                self.voting_instance.clone(),
+                self.vxastro.clone(),
                 &QueryMsg::UserVotingPower {
                     user: user.to_string(),
                 },
@@ -414,12 +282,11 @@ impl Helper {
             .map(|vp: VotingPowerResponse| vp.voting_power.u128())
     }
 
-    #[allow(dead_code)]
-    pub fn query_exact_user_emissions_vp(&self, router: &mut App, user: &str) -> StdResult<u128> {
-        router
+    pub fn query_exact_user_emissions_vp(&self, user: &str) -> StdResult<u128> {
+        self.app
             .wrap()
             .query_wasm_smart(
-                self.voting_instance.clone(),
+                self.vxastro.clone(),
                 &QueryMsg::UserEmissionsVotingPower {
                     user: user.to_string(),
                 },
@@ -427,12 +294,11 @@ impl Helper {
             .map(|vp: VotingPowerResponse| vp.voting_power.u128())
     }
 
-    #[allow(dead_code)]
-    pub fn query_user_vp_at(&self, router: &mut App, user: &str, time: u64) -> StdResult<f32> {
-        router
+    pub fn query_user_vp_at(&self, user: &str, time: u64) -> StdResult<f32> {
+        self.app
             .wrap()
             .query_wasm_smart(
-                self.voting_instance.clone(),
+                self.vxastro.clone(),
                 &QueryMsg::UserVotingPowerAt {
                     user: user.to_string(),
                     time,
@@ -441,17 +307,11 @@ impl Helper {
             .map(|vp: VotingPowerResponse| vp.voting_power.u128() as f32 / MULTIPLIER as f32)
     }
 
-    #[allow(dead_code)]
-    pub fn query_user_emissions_vp_at(
-        &self,
-        router: &mut App,
-        user: &str,
-        time: u64,
-    ) -> StdResult<f32> {
-        router
+    pub fn query_user_emissions_vp_at(&self, user: &str, time: u64) -> StdResult<f32> {
+        self.app
             .wrap()
             .query_wasm_smart(
-                self.voting_instance.clone(),
+                self.vxastro.clone(),
                 &QueryMsg::UserEmissionsVotingPowerAt {
                     user: user.to_string(),
                     time,
@@ -460,17 +320,11 @@ impl Helper {
             .map(|vp: VotingPowerResponse| vp.voting_power.u128() as f32 / MULTIPLIER as f32)
     }
 
-    #[allow(dead_code)]
-    pub fn query_user_vp_at_period(
-        &self,
-        router: &mut App,
-        user: &str,
-        period: u64,
-    ) -> StdResult<f32> {
-        router
+    pub fn query_user_vp_at_period(&self, user: &str, period: u64) -> StdResult<f32> {
+        self.app
             .wrap()
             .query_wasm_smart(
-                self.voting_instance.clone(),
+                self.vxastro.clone(),
                 &QueryMsg::UserVotingPowerAtPeriod {
                     user: user.to_string(),
                     period,
@@ -479,102 +333,82 @@ impl Helper {
             .map(|vp: VotingPowerResponse| vp.voting_power.u128() as f32 / MULTIPLIER as f32)
     }
 
-    #[allow(dead_code)]
-    pub fn query_total_vp(&self, router: &mut App) -> StdResult<f32> {
-        router
+    pub fn query_total_vp(&self) -> StdResult<f32> {
+        self.app
             .wrap()
-            .query_wasm_smart(self.voting_instance.clone(), &QueryMsg::TotalVotingPower {})
+            .query_wasm_smart(self.vxastro.clone(), &QueryMsg::TotalVotingPower {})
             .map(|vp: VotingPowerResponse| vp.voting_power.u128() as f32 / MULTIPLIER as f32)
     }
 
-    #[allow(dead_code)]
-    pub fn query_total_emissions_vp(&self, router: &mut App) -> StdResult<f32> {
-        router
+    pub fn query_total_emissions_vp(&self) -> StdResult<f32> {
+        self.app
             .wrap()
             .query_wasm_smart(
-                self.voting_instance.clone(),
+                self.vxastro.clone(),
                 &QueryMsg::TotalEmissionsVotingPower {},
             )
             .map(|vp: VotingPowerResponse| vp.voting_power.u128() as f32 / MULTIPLIER as f32)
     }
 
-    #[allow(dead_code)]
-    pub fn query_exact_total_vp(&self, router: &mut App) -> StdResult<u128> {
-        router
+    pub fn query_exact_total_vp(&self) -> StdResult<u128> {
+        self.app
             .wrap()
-            .query_wasm_smart(self.voting_instance.clone(), &QueryMsg::TotalVotingPower {})
+            .query_wasm_smart(self.vxastro.clone(), &QueryMsg::TotalVotingPower {})
             .map(|vp: VotingPowerResponse| vp.voting_power.u128())
     }
 
-    #[allow(dead_code)]
-    pub fn query_exact_total_emissions_vp(&self, router: &mut App) -> StdResult<u128> {
-        router
+    pub fn query_exact_total_emissions_vp(&self) -> StdResult<u128> {
+        self.app
             .wrap()
             .query_wasm_smart(
-                self.voting_instance.clone(),
+                self.vxastro.clone(),
                 &QueryMsg::TotalEmissionsVotingPower {},
             )
             .map(|vp: VotingPowerResponse| vp.voting_power.u128())
     }
 
-    #[allow(dead_code)]
-    pub fn query_total_vp_at(&self, router: &mut App, time: u64) -> StdResult<f32> {
-        router
+    pub fn query_total_vp_at(&self, time: u64) -> StdResult<f32> {
+        self.app
             .wrap()
-            .query_wasm_smart(
-                self.voting_instance.clone(),
-                &QueryMsg::TotalVotingPowerAt { time },
-            )
+            .query_wasm_smart(self.vxastro.clone(), &QueryMsg::TotalVotingPowerAt { time })
             .map(|vp: VotingPowerResponse| vp.voting_power.u128() as f32 / MULTIPLIER as f32)
     }
 
-    pub fn query_total_emissions_vp_at(&self, router: &mut App, time: u64) -> StdResult<f32> {
-        router
+    pub fn query_total_emissions_vp_at(&self, time: u64) -> StdResult<f32> {
+        self.app
             .wrap()
             .query_wasm_smart(
-                self.voting_instance.clone(),
+                self.vxastro.clone(),
                 &QueryMsg::TotalEmissionsVotingPowerAt { time },
             )
             .map(|vp: VotingPowerResponse| vp.voting_power.u128() as f32 / MULTIPLIER as f32)
     }
 
-    #[allow(dead_code)]
-    pub fn query_total_vp_at_period(&self, router: &mut App, period: u64) -> StdResult<f32> {
-        router
+    pub fn query_total_vp_at_period(&self, period: u64) -> StdResult<f32> {
+        self.app
             .wrap()
             .query_wasm_smart(
-                self.voting_instance.clone(),
+                self.vxastro.clone(),
                 &QueryMsg::TotalVotingPowerAtPeriod { period },
             )
             .map(|vp: VotingPowerResponse| vp.voting_power.u128() as f32 / MULTIPLIER as f32)
     }
 
-    #[allow(dead_code)]
-    pub fn query_total_emissions_vp_at_period(
-        &self,
-        router: &mut App,
-        timestamp: u64,
-    ) -> StdResult<f32> {
-        router
+    pub fn query_total_emissions_vp_at_period(&self, timestamp: u64) -> StdResult<f32> {
+        self.app
             .wrap()
             .query_wasm_smart(
-                self.voting_instance.clone(),
+                self.vxastro.clone(),
                 &QueryMsg::TotalEmissionsVotingPowerAt { time: timestamp },
             )
             .map(|vp: VotingPowerResponse| vp.voting_power.u128() as f32 / MULTIPLIER as f32)
     }
 
-    #[allow(dead_code)]
-    pub fn query_locked_balance_at(
-        &self,
-        router: &mut App,
-        user: &str,
-        timestamp: Uint64,
-    ) -> StdResult<f32> {
-        router
+    pub fn query_locked_balance_at(&self, user: &str, timestamp: Uint64) -> StdResult<f32> {
+        self.app
             .wrap()
             .query_wasm_smart(
-                self.voting_instance.clone(),
+                self.vxastro.clone(),
                 &QueryMsg::UserDepositAt {
                     user: user.to_string(),
                     timestamp,
@@ -583,43 +417,24 @@ impl Helper {
             .map(|vp: Uint128| vp.u128() as f32 / MULTIPLIER as f32)
     }
 
-    #[allow(dead_code)]
     pub fn query_blacklisted_voters(
         &self,
-        router: &mut App,
         start_after: Option<String>,
         limit: Option<u32>,
     ) -> StdResult<Vec<Addr>> {
-        router.wrap().query_wasm_smart(
-            self.voting_instance.clone(),
+        self.app.wrap().query_wasm_smart(
+            self.vxastro.clone(),
             &QueryMsg::BlacklistedVoters { start_after, limit },
         )
     }
 
-    #[allow(dead_code)]
     pub fn check_voters_are_blacklisted(
         &self,
-        router: &mut App,
         voters: Vec<String>,
     ) -> StdResult<BlacklistedVotersResponse> {
-        router.wrap().query_wasm_smart(
-            self.voting_instance.clone(),
+        self.app.wrap().query_wasm_smart(
+            self.vxastro.clone(),
             &QueryMsg::CheckVotersAreBlacklisted { voters },
         )
     }
-}
-
-pub fn mock_app() -> App {
-    let mut env = mock_env();
-    env.block.time = Timestamp::from_seconds(EPOCH_START);
-    let api = MockApi::default();
-    let bank = BankKeeper::new();
-    let storage = MockStorage::new();
-
-    AppBuilder::new()
-        .with_api(api)
-        .with_block(env.block)
-        .with_bank(bank)
-        .with_storage(storage)
-        .build(|_, _, _| {})
 }

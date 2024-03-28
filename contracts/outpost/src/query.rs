@@ -1,4 +1,4 @@
-use cosmwasm_std::{entry_point, to_binary, Addr, Binary, Deps, Env, StdResult, Uint128};
+use cosmwasm_std::{entry_point, to_json_binary, Addr, Binary, Deps, Env, StdResult, Uint128};
 
 use astroport::xastro_outpost_token::get_voting_power_at_time;
 use astroport_governance::outpost::QueryMsg;
@@ -14,10 +14,10 @@ use crate::state::{CONFIG, VOTES};
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::Config {} => to_binary(&CONFIG.load(deps.storage)?),
+        QueryMsg::Config {} => to_json_binary(&CONFIG.load(deps.storage)?),
         QueryMsg::ProposalVoted { proposal_id, user } => {
             let user_address = deps.api.addr_validate(&user)?;
-            to_binary(&VOTES.load(deps.storage, (&user_address, proposal_id))?)
+            to_json_binary(&VOTES.load(deps.storage, (&user_address, proposal_id))?)
         }
     }
 }
@@ -151,7 +151,7 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(vote_data, to_binary(&ProposalVoteOption::For).unwrap());
+        assert_eq!(vote_data, to_json_binary(&ProposalVoteOption::For).unwrap());
 
         // Check that we receive an error when querying a vote that doesn't exist
         let err = query(

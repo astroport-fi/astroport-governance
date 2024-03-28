@@ -10,7 +10,7 @@ use astroport_governance::astroport::asset::addr_opt_validate;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_binary, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env, Fraction, MessageInfo, Order,
+    to_json_binary, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env, Fraction, MessageInfo, Order,
     Response, StdError, StdResult, Uint128, WasmMsg,
 };
 use cw2::set_contract_version;
@@ -750,7 +750,7 @@ fn tune_pools(deps: DepsMut, env: Env) -> ExecuteResult {
         // directly or via a governance proposal for Outposts
         let setup_pools_msg = CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: network_info.generator_address.to_string(),
-            msg: to_binary(&astroport::generator::ExecuteMsg::SetupPools {
+            msg: to_json_binary(&astroport::generator::ExecuteMsg::SetupPools {
                 pools: pool_alloc_points.to_vec(),
             })?,
             funds: vec![],
@@ -770,7 +770,7 @@ fn tune_pools(deps: DepsMut, env: Env) -> ExecuteResult {
             Some(ibc_channel) => {
                 // We need to submit the setup pools message to the
                 // Assembly as a proposal to execute on the remote chain
-                let proposal_msg = to_binary(&ExecuteEmissionsProposal {
+                let proposal_msg = to_json_binary(&ExecuteEmissionsProposal {
                     title: format!(
                         // Sample title: "Update emissions on the inj outpost", "Update emissions on the neutron outpost"
                         "Update emissions on the {} outpost",
@@ -900,12 +900,12 @@ fn change_pools_limit(deps: DepsMut, info: MessageInfo, limit: u64) -> ExecuteRe
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::UserInfo { user } => to_binary(&user_info(deps, user)?),
-        QueryMsg::TuneInfo {} => to_binary(&TUNE_INFO.load(deps.storage)?),
-        QueryMsg::Config {} => to_binary(&CONFIG.load(deps.storage)?),
-        QueryMsg::PoolInfo { pool_addr } => to_binary(&pool_info(deps, env, pool_addr, None)?),
+        QueryMsg::UserInfo { user } => to_json_binary(&user_info(deps, user)?),
+        QueryMsg::TuneInfo {} => to_json_binary(&TUNE_INFO.load(deps.storage)?),
+        QueryMsg::Config {} => to_json_binary(&CONFIG.load(deps.storage)?),
+        QueryMsg::PoolInfo { pool_addr } => to_json_binary(&pool_info(deps, env, pool_addr, None)?),
         QueryMsg::PoolInfoAtPeriod { pool_addr, period } => {
-            to_binary(&pool_info(deps, env, pool_addr, Some(period))?)
+            to_json_binary(&pool_info(deps, env, pool_addr, Some(period))?)
         }
     }
 }

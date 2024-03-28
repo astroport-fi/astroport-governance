@@ -1,6 +1,6 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{to_binary, Addr, Binary, Deps, Env, Order, StdResult, Uint128};
+use cosmwasm_std::{to_json_binary, Addr, Binary, Deps, Env, Order, StdResult, Uint128};
 use cw_storage_plus::Bound;
 
 use crate::state::{channel_balance_at, total_balance_at, CONFIG, OUTPOSTS, USER_FUNDS};
@@ -24,13 +24,13 @@ use astroport_governance::{
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::Config {} => to_binary(&CONFIG.load(deps.storage)?),
+        QueryMsg::Config {} => to_json_binary(&CONFIG.load(deps.storage)?),
         QueryMsg::UserFunds { user } => query_user_funds(deps, user),
         QueryMsg::Outposts { start_after, limit } => query_outposts(deps, start_after, limit),
-        QueryMsg::ChannelBalanceAt { channel, timestamp } => to_binary(&HubBalance {
+        QueryMsg::ChannelBalanceAt { channel, timestamp } => to_json_binary(&HubBalance {
             balance: channel_balance_at(deps.storage, &channel, timestamp.u64())?,
         }),
-        QueryMsg::TotalChannelBalancesAt { timestamp } => to_binary(&HubBalance {
+        QueryMsg::TotalChannelBalancesAt { timestamp } => to_json_binary(&HubBalance {
             balance: total_balance_at(deps.storage, timestamp.u64())?,
         }),
     }
@@ -58,7 +58,7 @@ fn query_outposts(
             }
         })
         .collect();
-    to_binary(&outposts)
+    to_json_binary(&outposts)
 }
 
 /// Return the amount of ASTRO this address has held on the Hub due to IBC
@@ -68,5 +68,5 @@ fn query_user_funds(deps: Deps, user: Addr) -> StdResult<Binary> {
         .load(deps.storage, &user)
         .unwrap_or(Uint128::zero());
 
-    to_binary(&HubBalance { balance: funds })
+    to_json_binary(&HubBalance { balance: funds })
 }

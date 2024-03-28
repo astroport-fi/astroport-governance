@@ -1,6 +1,6 @@
 [package]
 name = "astroport-governance"
-version = "1.4.1"
+version = "2.0.0"
 authors = ["Astroport"]
 edition = "2021"
 repository = "https://github.com/astroport-fi/astroport-governance"
@@ -9,15 +9,14 @@ homepage = "https://astroport.fi"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-testnet = []
 # for quicker tests, cargo test --lib
 # for more explicit tests, cargo test --features=backtraces
 backtraces = ["cosmwasm-std/backtraces"]
 
 [dependencies]
-cw20 = "0.15"
-cosmwasm-std = { version = "1.1", features = ["ibc3"] }
-cw-storage-plus = "0.15"
-cosmwasm-schema = "1.1"
+cw20 = "1.1"
+cosmwasm-std = { version = "1.5", features = ["ibc3"] }
+cw-storage-plus = "1.2.0"
+cosmwasm-schema = "1.5"
 astroport = { git = "https://github.com/astroport-fi/hidden_astroport_core", version = "3" }
-thiserror = { version = "1.0" }
+thiserror = "1"

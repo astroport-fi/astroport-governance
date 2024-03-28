@@ -37,7 +37,7 @@ thiserror = "1.0.40"
 astroport = { git = "https://github.com/astroport-fi/hidden_astroport_core" }
 astroport-governance = { path = "../../packages/astroport-governance" }
 serde-json-wasm = "0.5.1"
-base64 = { version = "0.13.0", default-features = false }
+base64 = { version = "0.13.0" }
 
 [dev-dependencies]
 cw-multi-test = "0.16.5"
