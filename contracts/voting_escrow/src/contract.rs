@@ -5,7 +5,7 @@ use astroport_governance::astroport::DecimalCheckedOps;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, from_binary, to_binary, Addr, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo,
+    attr, from_json, to_json_binary, Addr, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo,
     Response, StdError, StdResult, Storage, Uint128, WasmMsg,
 };
 use cw2::set_contract_version;
@@ -405,7 +405,7 @@ fn receive_cw20(
     let sender = Addr::unchecked(cw20_msg.sender);
     blacklist_check(deps.storage, &sender)?;
 
-    match from_binary(&cw20_msg.msg)? {
+    match from_json(&cw20_msg.msg)? {
         Cw20HookMsg::CreateLock { time } => create_lock(deps, env, sender, cw20_msg.amount, time),
         Cw20HookMsg::ExtendLockAmount {} => deposit_for(deps, env, cw20_msg.amount, sender),
         Cw20HookMsg::DepositFor { user } => {
@@ -508,7 +508,7 @@ fn withdraw(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, Cont
         let config = CONFIG.load(deps.storage)?;
         let transfer_msg = CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: config.deposit_token_addr.to_string(),
-            msg: to_binary(&Cw20ExecuteMsg::Transfer {
+            msg: to_json_binary(&Cw20ExecuteMsg::Transfer {
                 recipient: sender.to_string(),
                 amount: lock.amount,
             })?,
@@ -726,34 +726,34 @@ fn execute_update_config(
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::CheckVotersAreBlacklisted { voters } => {
-            to_binary(&check_voters_are_blacklisted(deps, voters)?)
+            to_json_binary(&check_voters_are_blacklisted(deps, voters)?)
         }
         QueryMsg::BlacklistedVoters { start_after, limit } => {
-            to_binary(&get_blacklisted_voters(deps, start_after, limit)?)
+            to_json_binary(&get_blacklisted_voters(deps, start_after, limit)?)
         }
-        QueryMsg::TotalVotingPower {} => to_binary(&get_total_voting_power(deps, env, None)?),
+        QueryMsg::TotalVotingPower {} => to_json_binary(&get_total_voting_power(deps, env, None)?),
         QueryMsg::UserVotingPower { user } => {
-            to_binary(&get_user_voting_power(deps, env, user, None)?)
+            to_json_binary(&get_user_voting_power(deps, env, user, None)?)
         }
         QueryMsg::TotalVotingPowerAt { time } => {
-            to_binary(&get_total_voting_power(deps, env, Some(time))?)
+            to_json_binary(&get_total_voting_power(deps, env, Some(time))?)
         }
         QueryMsg::TotalVotingPowerAtPeriod { period } => {
-            to_binary(&get_total_voting_power_at_period(deps, env, period)?)
+            to_json_binary(&get_total_voting_power_at_period(deps, env, period)?)
         }
         QueryMsg::UserVotingPowerAt { user, time } => {
-            to_binary(&get_user_voting_power(deps, env, user, Some(time))?)
+            to_json_binary(&get_user_voting_power(deps, env, user, Some(time))?)
         }
         QueryMsg::UserVotingPowerAtPeriod { user, period } => {
-            to_binary(&get_user_voting_power_at_period(deps, user, period)?)
+            to_json_binary(&get_user_voting_power_at_period(deps, user, period)?)
         }
-        QueryMsg::LockInfo { user } => to_binary(&get_user_lock_info(deps, env, user)?),
+        QueryMsg::LockInfo { user } => to_json_binary(&get_user_lock_info(deps, env, user)?),
         QueryMsg::UserDepositAtHeight { user, height } => {
-            to_binary(&get_user_deposit_at_height(deps, user, height)?)
+            to_json_binary(&get_user_deposit_at_height(deps, user, height)?)
         }
         QueryMsg::Config {} => {
             let config = CONFIG.load(deps.storage)?;
-            to_binary(&ConfigResponse {
+            to_json_binary(&ConfigResponse {
                 owner: config.owner.to_string(),
                 guardian_addr: config.guardian_addr,
                 deposit_token_addr: config.deposit_token_addr.to_string(),
@@ -762,10 +762,10 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
                 logo_urls_whitelist: config.logo_urls_whitelist,
             })
         }
-        QueryMsg::Balance { address } => to_binary(&get_user_balance(deps, env, address)?),
-        QueryMsg::TokenInfo {} => to_binary(&query_token_info(deps, env)?),
-        QueryMsg::MarketingInfo {} => to_binary(&query_marketing_info(deps)?),
-        QueryMsg::DownloadLogo {} => to_binary(&query_download_logo(deps)?),
+        QueryMsg::Balance { address } => to_json_binary(&get_user_balance(deps, env, address)?),
+        QueryMsg::TokenInfo {} => to_json_binary(&query_token_info(deps, env)?),
+        QueryMsg::MarketingInfo {} => to_json_binary(&query_marketing_info(deps)?),
+        QueryMsg::DownloadLogo {} => to_json_binary(&query_download_logo(deps)?),
     }
 }
 

@@ -1,8 +1,10 @@
 [package]
 name = "builder-unlock"
-version = "1.2.3"
+version = "3.0.0"
 authors = ["Astroport"]
 edition = "2021"
+description = "Astroport Builders Unlock Contract"
+license = "GPL-3.0-only"
 repository = "https://github.com/astroport-fi/astroport-governance"
 homepage = "https://astroport.fi"
 
@@ -10,20 +12,18 @@ homepage = "https://astroport.fi"
 crate-type = ["cdylib", "rlib"]
 
 [features]
-backtraces = ["cosmwasm-std/backtraces"]
 # use library feature to disable all init/handle/query exports
 library = []
 
 [dependencies]
-cw2 = "0.15"
-cw20 = "0.15"
-cosmwasm-std = "1.1"
-cw-storage-plus = "0.15"
-astroport-governance = { path = "../../packages/astroport-governance" }
-astroport = { git = "https://github.com/astroport-fi/astroport-core", branch = "feat/merge_hidden_2023_05_22" }
-thiserror = { version = "1.0" }
-cosmwasm-schema = "1.1"
+cw2.workspace = true
+cw-utils.workspace = true
+cosmwasm-std.workspace = true
+cw-storage-plus.workspace = true
+cosmwasm-schema.workspace = true
+thiserror.workspace = true
+astroport-governance = { path = "../../packages/astroport-governance", version = "3" }
+astroport = { git = "https://github.com/astroport-fi/astroport-core", version = "4" }
 
 [dev-dependencies]
-cw-multi-test = "0.15"
-astroport-token = { git = "https://github.com/astroport-fi/astroport-core", branch = "feat/merge_hidden_2023_05_22" }
+cw-multi-test = "0.20"

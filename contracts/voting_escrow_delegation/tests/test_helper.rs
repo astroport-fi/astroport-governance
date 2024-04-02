@@ -3,7 +3,7 @@ use astroport_governance::utils::EPOCH_START;
 use astroport_governance::voting_escrow_delegation::Config;
 use astroport_governance::voting_escrow_delegation::{InstantiateMsg, QueryMsg};
 use astroport_tests::escrow_helper::EscrowHelper;
-use cosmwasm_std::{to_binary, Addr, Empty, QueryRequest, StdResult, Uint128, WasmQuery};
+use cosmwasm_std::{to_json_binary, Addr, Empty, QueryRequest, StdResult, Uint128, WasmQuery};
 use cw_multi_test::{App, AppResponse, Contract, ContractWrapper, Executor};
 
 use astroport_governance::voting_escrow_delegation::ExecuteMsg;
@@ -62,7 +62,7 @@ impl Helper {
             .wrap()
             .query::<Config>(&QueryRequest::Wasm(WasmQuery::Smart {
                 contract_addr: delegation_addr.to_string(),
-                msg: to_binary(&QueryMsg::Config {}).unwrap(),
+                msg: to_json_binary(&QueryMsg::Config {}).unwrap(),
             }))
             .unwrap();
 
@@ -151,7 +151,7 @@ impl Helper {
             .wrap()
             .query::<Uint128>(&QueryRequest::Wasm(WasmQuery::Smart {
                 contract_addr: self.delegation_instance.to_string(),
-                msg: to_binary(&QueryMsg::AdjustedBalance {
+                msg: to_json_binary(&QueryMsg::AdjustedBalance {
                     account: user.to_string(),
                     timestamp,
                 })
@@ -169,7 +169,7 @@ impl Helper {
             .wrap()
             .query::<Uint128>(&QueryRequest::Wasm(WasmQuery::Smart {
                 contract_addr: self.delegation_instance.to_string(),
-                msg: to_binary(&QueryMsg::DelegatedVotingPower {
+                msg: to_json_binary(&QueryMsg::DelegatedVotingPower {
                     account: user.to_string(),
                     timestamp,
                 })

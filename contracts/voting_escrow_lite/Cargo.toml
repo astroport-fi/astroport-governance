@@ -1,0 +1,42 @@
+[package]
+name = "astroport-voting-escrow-lite"
+version = "1.0.0"
+authors = ["Astroport"]
+edition = "2021"
+repository = "https://github.com/astroport-fi/astroport-governance"
+homepage = "https://astroport.fi"
+
+exclude = [
+    # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
+    "contract.wasm",
+    "hash.txt",
+]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+# for quicker tests, cargo test --lib
+# for more explicit tests, cargo test --features=backtraces
+backtraces = ["cosmwasm-std/backtraces"]
+library = []
+
+[dependencies]
+cw2 = "1.1"
+cw20 = "1.1"
+cw20-base = { version = "1.1", features = ["library"] }
+cw-utils = "1"
+cosmwasm-std = "1.5"
+cw-storage-plus = "0.15"
+thiserror = "1"
+astroport-governance = { path = "../../packages/astroport-governance" }
+cosmwasm-schema = "1.5"
+
+[dev-dependencies]
+cw-multi-test = "0.20"
+astroport-generator-controller = { path = "../../contracts/generator_controller_lite", package = "generator-controller-lite" }
+astroport = { git = "https://github.com/astroport-fi/hidden_astroport_core", branch = "feat/neutron-migration" }
+anyhow = "1"
+proptest = "1.0"

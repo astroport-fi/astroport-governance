@@ -6,8 +6,8 @@ use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_ow
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_binary, Addr, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env, Fraction, MessageInfo, Order,
-    Response, StdError, StdResult, Uint128, WasmMsg,
+    to_json_binary, Addr, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env, Fraction, MessageInfo,
+    Order, Response, StdError, StdResult, Uint128, WasmMsg,
 };
 use cw2::set_contract_version;
 use itertools::Itertools;
@@ -505,7 +505,7 @@ fn tune_pools(deps: DepsMut, env: Env) -> ExecuteResult {
     // Set new alloc points
     let setup_pools_msg = CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: config.generator_addr.to_string(),
-        msg: to_binary(&astroport::generator::ExecuteMsg::SetupPools {
+        msg: to_json_binary(&astroport::generator::ExecuteMsg::SetupPools {
             pools: tune_info.pool_alloc_points,
         })?,
         funds: vec![],
@@ -601,12 +601,12 @@ fn change_pools_limit(deps: DepsMut, info: MessageInfo, limit: u64) -> ExecuteRe
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::UserInfo { user } => to_binary(&user_info(deps, user)?),
-        QueryMsg::TuneInfo {} => to_binary(&TUNE_INFO.load(deps.storage)?),
-        QueryMsg::Config {} => to_binary(&CONFIG.load(deps.storage)?),
-        QueryMsg::PoolInfo { pool_addr } => to_binary(&pool_info(deps, env, pool_addr, None)?),
+        QueryMsg::UserInfo { user } => to_json_binary(&user_info(deps, user)?),
+        QueryMsg::TuneInfo {} => to_json_binary(&TUNE_INFO.load(deps.storage)?),
+        QueryMsg::Config {} => to_json_binary(&CONFIG.load(deps.storage)?),
+        QueryMsg::PoolInfo { pool_addr } => to_json_binary(&pool_info(deps, env, pool_addr, None)?),
         QueryMsg::PoolInfoAtPeriod { pool_addr, period } => {
-            to_binary(&pool_info(deps, env, pool_addr, Some(period))?)
+            to_json_binary(&pool_info(deps, env, pool_addr, Some(period))?)
         }
     }
 }
