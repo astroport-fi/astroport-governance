@@ -3,6 +3,8 @@ name = "astro-assembly"
 version = "2.0.0"
 authors = ["Astroport"]
 edition = "2021"
+description = "Astroport DAO Contract"
+license = "GPL-3.0-only"
 repository = "https://github.com/astroport-fi/astroport-governance"
 homepage = "https://astroport.fi"
 
@@ -15,22 +17,22 @@ testnet = []
 library = []
 
 [dependencies]
-cw2 = "1"
-cosmwasm-std = { version = "1.5", features = ["ibc3", "cosmwasm_1_1"] }
-cw-storage-plus = "1.2.0"
-astroport-governance = { path = "../../packages/astroport-governance", version = "2" }
-astroport = { git = "https://github.com/astroport-fi/hidden_astroport_core", branch = "feat/neutron-migration" }
+cw2.workspace = true
+cosmwasm-std = { workspace = true, features = ["ibc3", "cosmwasm_1_1"] }
+cw-storage-plus.workspace = true
+thiserror.workspace = true
+cosmwasm-schema.workspace = true
+cw-utils.workspace = true
+astroport-governance = { path = "../../packages/astroport-governance", version = "3" }
+astroport = { git = "https://github.com/astroport-fi/hidden_astroport_core", version = "4" }
 astro-satellite = { git = "https://github.com/astroport-fi/astroport_ibc", tag = "v1.2.1", features = ["library"] }
 ibc-controller-package = "1.0.0"
-thiserror = "1"
-cosmwasm-schema = "1.5"
-cw-utils = "1"
 
 [dev-dependencies]
 cw-multi-test = { git = "https://github.com/astroport-fi/cw-multi-test", branch = "feat/bank_with_send_hooks", features = ["cosmwasm_1_1"] }
 osmosis-std = "0.21"
-astroport-staking = { git = "https://github.com/astroport-fi/hidden_astroport_core", branch = "feat/neutron-migration" }
-astroport-tokenfactory-tracker = { git = "https://github.com/astroport-fi/hidden_astroport_core", branch = "feat/neutron-migration" }
-builder-unlock = { path = "../builder_unlock" }
+astroport-staking = { git = "https://github.com/astroport-fi/hidden_astroport_core", version = "2" }
+astroport-tokenfactory-tracker = { git = "https://github.com/astroport-fi/hidden_astroport_core", version = "1" }
+builder-unlock = { path = "../builder_unlock", version = "3" }
 anyhow = "1"
 test-case = "3.3.1"

@@ -3,6 +3,8 @@ name = "builder-unlock"
 version = "3.0.0"
 authors = ["Astroport"]
 edition = "2021"
+description = "Astroport Builders Unlock Contract"
+license = "GPL-3.0-only"
 repository = "https://github.com/astroport-fi/astroport-governance"
 homepage = "https://astroport.fi"
 
@@ -14,14 +16,14 @@ crate-type = ["cdylib", "rlib"]
 library = []
 
 [dependencies]
-cw2 = "1.1"
-cw-utils = "1"
-cosmwasm-std = "1.5"
-cw-storage-plus = "0.15"
-astroport-governance = { path = "../../packages/astroport-governance", version = "2" }
-astroport = { git = "https://github.com/astroport-fi/hidden_astroport_core", version = "3" }
-cosmwasm-schema = "1.5"
-thiserror = "1"
+cw2.workspace = true
+cw-utils.workspace = true
+cosmwasm-std.workspace = true
+cw-storage-plus.workspace = true
+cosmwasm-schema.workspace = true
+thiserror.workspace = true
+astroport-governance = { path = "../../packages/astroport-governance", version = "3" }
+astroport = { git = "https://github.com/astroport-fi/hidden_astroport_core", version = "4" }
 
 [dev-dependencies]
 cw-multi-test = "0.20"

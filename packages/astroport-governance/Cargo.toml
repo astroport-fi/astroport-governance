@@ -1,6 +1,6 @@
 [package]
 name = "astroport-governance"
-version = "2.0.0"
+version = "3.0.0"
 authors = ["Astroport"]
 edition = "2021"
 repository = "https://github.com/astroport-fi/astroport-governance"
@@ -15,8 +15,8 @@ backtraces = ["cosmwasm-std/backtraces"]
 
 [dependencies]
 cw20 = "1.1"
-cosmwasm-std = { version = "1.5", features = ["ibc3"] }
-cw-storage-plus = "1.2.0"
-cosmwasm-schema = "1.5"
-astroport = { git = "https://github.com/astroport-fi/hidden_astroport_core", version = "3" }
-thiserror = "1"
+cosmwasm-std = { workspace = true, features = ["ibc3"] }
+cw-storage-plus.workspace = true
+cosmwasm-schema.workspace = true
+thiserror.workspace = true
+astroport = { git = "https://github.com/astroport-fi/hidden_astroport_core", version = "4" }
