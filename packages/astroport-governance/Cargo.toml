@@ -5,6 +5,8 @@ authors = ["Astroport"]
 edition = "2021"
 repository = "https://github.com/astroport-fi/astroport-governance"
 homepage = "https://astroport.fi"
+description = "Astroport Governance common types, queriers and other utils"
+license = "Apache-2.0"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -19,4 +21,3 @@ cosmwasm-std = { workspace = true, features = ["ibc3"] }
 cw-storage-plus.workspace = true
 cosmwasm-schema.workspace = true
 thiserror.workspace = true
-astroport = { git = "https://github.com/astroport-fi/astroport-core", version = "4" }

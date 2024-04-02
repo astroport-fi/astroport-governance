@@ -34,7 +34,7 @@ schemars = "0.8.12"
 semver = "1.0.17"
 serde = { version = "1.0.164", default-features = false, features = ["derive"] }
 thiserror = "1.0.40"
-astroport = { git = "https://github.com/astroport-fi/hidden_astroport_core" }
+astroport = { git = "https://github.com/astroport-fi/astroport-core" }
 astroport-governance = { path = "../../packages/astroport-governance" }
 serde-json-wasm = "0.5.1"
 base64 = { version = "0.13.0" }

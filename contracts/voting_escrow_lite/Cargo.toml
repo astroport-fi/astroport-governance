@@ -37,6 +37,6 @@ cosmwasm-schema = "1.5"
 [dev-dependencies]
 cw-multi-test = "0.20"
 astroport-generator-controller = { path = "../../contracts/generator_controller_lite", package = "generator-controller-lite" }
-astroport = { git = "https://github.com/astroport-fi/hidden_astroport_core", branch = "feat/neutron-migration" }
+astroport = { git = "https://github.com/astroport-fi/astroport-core", branch = "feat/neutron-migration" }
 anyhow = "1"
 proptest = "1.0"
