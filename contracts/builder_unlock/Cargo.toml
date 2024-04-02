@@ -23,7 +23,7 @@ cw-storage-plus.workspace = true
 cosmwasm-schema.workspace = true
 thiserror.workspace = true
 astroport-governance = { path = "../../packages/astroport-governance", version = "3" }
-astroport = { git = "https://github.com/astroport-fi/astroport-core", version = "4" }
+astroport = { git = "https://github.com/astroport-fi/astroport-core", version = "4", branch = "feat/astroport_v4" }
 
 [dev-dependencies]
 cw-multi-test = "0.20"
