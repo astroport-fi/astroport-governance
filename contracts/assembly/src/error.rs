@@ -1,12 +1,21 @@
-use astroport_governance::assembly::ProposalStatus;
 use cosmwasm_std::{OverflowError, StdError};
+use cw2::VersionError;
+use cw_utils::PaymentError;
 use thiserror::Error;
 
+use astroport_governance::assembly::ProposalStatus;
+
 /// This enum describes Assembly contract errors
-#[derive(Error, Debug)]
+#[derive(Error, Debug, PartialEq)]
 pub enum ContractError {
     #[error("{0}")]
     Std(#[from] StdError),
+
+    #[error("{0}")]
+    OverflowError(#[from] OverflowError),
+
+    #[error("{0}")]
+    VersionError(#[from] VersionError),
 
     #[error("Unauthorized")]
     Unauthorized {},
@@ -26,32 +35,20 @@ pub enum ContractError {
     #[error("Voting period not ended yet!")]
     VotingPeriodNotEnded {},
 
-    #[error("Proposal expired!")]
-    ExecuteProposalExpired {},
-
     #[error("Insufficient token deposit!")]
     InsufficientDeposit {},
 
     #[error("Proposal not passed!")]
     ProposalNotPassed {},
 
-    #[error("Proposal not completed!")]
-    ProposalNotCompleted {},
-
     #[error("Proposal delay not ended!")]
     ProposalDelayNotEnded {},
-
-    #[error("Contract can't be migrated!")]
-    MigrationError {},
 
     #[error("Whitelist cannot be empty!")]
     WhitelistEmpty {},
 
     #[error("Messages check passed. Nothing was committed to the blockchain")]
     MessagesCheckPassed {},
-
-    #[error("IBC controller does not have channel {0}")]
-    InvalidChannel(String),
 
     #[error("IBC controller is not set")]
     MissingIBCController {},
@@ -67,10 +64,7 @@ pub enum ContractError {
 
     #[error("Sender is not an IBC controller installed in the assembly")]
     InvalidIBCController {},
-}
 
-impl From<OverflowError> for ContractError {
-    fn from(o: OverflowError) -> Self {
-        StdError::from(o).into()
-    }
+    #[error("{0}")]
+    PaymentError(#[from] PaymentError),
 }

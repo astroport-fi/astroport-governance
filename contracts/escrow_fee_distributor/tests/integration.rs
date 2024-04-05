@@ -1,5 +1,5 @@
 use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
-use cosmwasm_std::{attr, to_binary, Addr, StdResult, Timestamp, Uint128};
+use cosmwasm_std::{attr, to_json_binary, Addr, StdResult, Timestamp, Uint128};
 
 use astroport_governance::utils::{get_period, EPOCH_START, WEEK};
 
@@ -115,7 +115,7 @@ fn test_receive_tokens() {
             .unwrap()
             .address
             .to_string(),
-        msg: to_binary(&Cw20HookMsg::ReceiveTokens {}).unwrap(),
+        msg: to_json_binary(&Cw20HookMsg::ReceiveTokens {}).unwrap(),
         amount: Uint128::from(100 * MULTIPLIER as u128),
     };
 
@@ -463,7 +463,7 @@ fn claim_max_period() {
             .unwrap()
             .address
             .to_string(),
-        msg: to_binary(&Cw20HookMsg::ReceiveTokens {}).unwrap(),
+        msg: to_json_binary(&Cw20HookMsg::ReceiveTokens {}).unwrap(),
         amount: Uint128::from(100 * MULTIPLIER as u128),
     };
 
@@ -497,7 +497,7 @@ fn claim_max_period() {
             .unwrap()
             .address
             .to_string(),
-        msg: to_binary(&Cw20HookMsg::ReceiveTokens {}).unwrap(),
+        msg: to_json_binary(&Cw20HookMsg::ReceiveTokens {}).unwrap(),
         amount: Uint128::from(100 * MULTIPLIER as u128),
     };
 
@@ -656,7 +656,7 @@ fn claim_multiple_users() {
             .unwrap()
             .address
             .to_string(),
-        msg: to_binary(&Cw20HookMsg::ReceiveTokens {}).unwrap(),
+        msg: to_json_binary(&Cw20HookMsg::ReceiveTokens {}).unwrap(),
         amount: Uint128::from(100 * MULTIPLIER as u128),
     };
 
@@ -812,7 +812,7 @@ fn claim_multiple_users() {
             .unwrap()
             .address
             .to_string(),
-        msg: to_binary(&Cw20HookMsg::ReceiveTokens {}).unwrap(),
+        msg: to_json_binary(&Cw20HookMsg::ReceiveTokens {}).unwrap(),
         amount: Uint128::from(900 * MULTIPLIER as u128),
     };
 
@@ -988,7 +988,7 @@ fn is_claim_enabled() {
             .unwrap()
             .address
             .to_string(),
-        msg: to_binary(&Cw20HookMsg::ReceiveTokens {}).unwrap(),
+        msg: to_json_binary(&Cw20HookMsg::ReceiveTokens {}).unwrap(),
         amount: Uint128::from(100 * MULTIPLIER as u128),
     };
 
@@ -1061,7 +1061,7 @@ fn is_claim_enabled() {
             .unwrap()
             .address
             .to_string(),
-        msg: to_binary(&Cw20HookMsg::ReceiveTokens {}).unwrap(),
+        msg: to_json_binary(&Cw20HookMsg::ReceiveTokens {}).unwrap(),
         amount: Uint128::from(100 * MULTIPLIER as u128),
     };
 

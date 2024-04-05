@@ -1,5 +1,25 @@
 [workspace]
-members = ["packages/*", "contracts/*"]
+resolver = "2"
+members = [
+    "packages/astroport-governance",
+#    "packages/astroport-tests",
+#    "packages/astroport-tests-lite",
+    "contracts/assembly",
+    "contracts/builder_unlock",
+#    "contracts/generator_controller_lite",
+#    "contracts/hub",
+#    "contracts/outpost",
+#    "contracts/voting_escrow_lite",
+]
+
+[workspace.dependencies]
+cosmwasm-std = "1.5"
+cw-storage-plus = "1.2"
+cw2 = "1"
+thiserror = "1.0"
+itertools = "0.12"
+cosmwasm-schema = "1.5"
+cw-utils = "1"
 
 [profile.release]
 opt-level = "z"

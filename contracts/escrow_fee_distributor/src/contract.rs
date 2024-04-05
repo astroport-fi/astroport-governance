@@ -1,6 +1,6 @@
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use cosmwasm_std::{
-    attr, entry_point, to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Order, Response,
+    attr, entry_point, to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Order, Response,
     StdError, StdResult, Uint128,
 };
 use cw2::set_contract_version;
@@ -299,11 +299,11 @@ fn update_config(
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::UserReward { user, timestamp } => {
-            to_binary(&query_user_reward(deps, user, timestamp)?)
+            to_json_binary(&query_user_reward(deps, user, timestamp)?)
         }
-        QueryMsg::Config {} => to_binary(&query_config(deps)?),
+        QueryMsg::Config {} => to_json_binary(&query_config(deps)?),
         QueryMsg::AvailableRewardPerWeek { start_after, limit } => {
-            to_binary(&query_available_reward_per_week(deps, start_after, limit)?)
+            to_json_binary(&query_available_reward_per_week(deps, start_after, limit)?)
         }
     }
 }

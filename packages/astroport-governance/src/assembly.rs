@@ -1,43 +1,24 @@
-use crate::assembly::helpers::is_safe_link;
-use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::{Addr, CosmosMsg, Decimal, StdError, StdResult, Uint128, Uint64};
-use cw20::Cw20ReceiveMsg;
 use std::fmt::{Display, Formatter, Result};
+use std::ops::RangeInclusive;
 use std::str::FromStr;
 
-#[cfg(not(feature = "testnet"))]
-mod proposal_constants {
-    use std::ops::RangeInclusive;
+use cosmwasm_schema::{cw_serde, QueryResponses};
+use cosmwasm_std::{Addr, CosmosMsg, Decimal, StdError, StdResult, Uint128, Uint64};
 
-    pub const MINIMUM_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE: u64 = 33;
-    pub const MAX_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE: u64 = 100;
-    pub const MAX_PROPOSAL_REQUIRED_QUORUM_PERCENTAGE: &str = "1";
-    pub const MINIMUM_PROPOSAL_REQUIRED_QUORUM_PERCENTAGE: &str = "0.01";
-    pub const VOTING_PERIOD_INTERVAL: RangeInclusive<u64> = 12342..=7 * 12342;
-    // from 0.5 to 1 day in blocks (7 seconds per block)
-    pub const DELAY_INTERVAL: RangeInclusive<u64> = 6171..=14400;
-    pub const EXPIRATION_PERIOD_INTERVAL: RangeInclusive<u64> = 12342..=100_800;
-    // from 10k to 60k $xASTRO
-    pub const DEPOSIT_INTERVAL: RangeInclusive<u128> = 10000000000..=60000000000;
-}
+use crate::assembly::helpers::is_safe_link;
 
-#[cfg(feature = "testnet")]
-mod proposal_constants {
-    use std::ops::RangeInclusive;
-
-    pub const MINIMUM_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE: u64 = 33;
-    pub const MAX_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE: u64 = 100;
-    pub const MAX_PROPOSAL_REQUIRED_QUORUM_PERCENTAGE: &str = "1";
-    pub const MINIMUM_PROPOSAL_REQUIRED_QUORUM_PERCENTAGE: &str = "0.001";
-    pub const VOTING_PERIOD_INTERVAL: RangeInclusive<u64> = 200..=7 * 12342;
-    // from ~350 sec to 1 day in blocks (7 seconds per block)
-    pub const DELAY_INTERVAL: RangeInclusive<u64> = 50..=14400;
-    pub const EXPIRATION_PERIOD_INTERVAL: RangeInclusive<u64> = 400..=100_800;
-    // from 0.001 to 60k $xASTRO
-    pub const DEPOSIT_INTERVAL: RangeInclusive<u128> = 1000..=60000000000;
-}
-
-pub use proposal_constants::*;
+pub const MINIMUM_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE: u64 = 33;
+pub const MAX_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE: u64 = 100;
+pub const MAX_PROPOSAL_REQUIRED_QUORUM_PERCENTAGE: &str = "1";
+pub const MINIMUM_PROPOSAL_REQUIRED_QUORUM_PERCENTAGE: &str = "0.01";
+/// Voting period must be between 1 and 7 days (Neutron: 2.6s per block)
+pub const VOTING_PERIOD_INTERVAL: RangeInclusive<u64> = 33230..=7 * 33230;
+/// From 0.5 to 2 days in blocks
+pub const DELAY_INTERVAL: RangeInclusive<u64> = 16615..=66460;
+/// From 1 to 14 days in blocks
+pub const EXPIRATION_PERIOD_INTERVAL: RangeInclusive<u64> = 33230..=14 * 33230;
+// from 10k to 60k $xASTRO
+pub const DEPOSIT_INTERVAL: RangeInclusive<u128> = 10000000000..=60000000000;
 
 /// Proposal validation attributes
 const MIN_TITLE_LENGTH: usize = 4;
@@ -53,14 +34,18 @@ const SAFE_TEXT_CHARS: &str = "!&?#()*+'-./\"";
 /// This structure holds the parameters used for creating an Assembly contract.
 #[cw_serde]
 pub struct InstantiateMsg {
-    /// Address of xASTRO token
-    pub xastro_token_addr: String,
+    /// Astroport xASTRO staking address. xASTRO denom and tracker contract address are queried on assembly instantiation.
+    pub staking_addr: String,
     /// Address of vxASTRO token
     pub vxastro_token_addr: Option<String>,
     /// Voting Escrow delegator address
     pub voting_escrow_delegator_addr: Option<String>,
     /// Astroport IBC controller contract
     pub ibc_controller: Option<String>,
+    /// Generator controller contract capable of immediate proposals
+    pub generator_controller_addr: Option<String>,
+    /// Hub contract that handles voting from Outposts
+    pub hub_addr: Option<String>,
     /// Address of the builder unlock contract
     pub builder_unlock_addr: String,
     /// Proposal voting period
@@ -82,8 +67,16 @@ pub struct InstantiateMsg {
 /// This enum describes all execute functions available in the contract.
 #[cw_serde]
 pub enum ExecuteMsg {
-    /// Receive a message of type [`Cw20ReceiveMsg`]
-    Receive(Cw20ReceiveMsg),
+    /// Submit a new governance proposal
+    SubmitProposal {
+        title: String,
+        description: String,
+        link: Option<String>,
+        #[serde(default)]
+        messages: Vec<CosmosMsg>,
+        /// If proposal should be executed on a remote chain this field should specify governance channel
+        ibc_channel: Option<String>,
+    },
     /// Cast a vote for an active proposal
     CastVote {
         /// Proposal identifier
@@ -97,19 +90,11 @@ pub enum ExecuteMsg {
         proposal_id: u64,
     },
     /// Checks that proposal messages are correct.
-    CheckMessages {
-        /// messages
-        messages: Vec<CosmosMsg>,
-    },
+    CheckMessages(Vec<CosmosMsg>),
     /// The last endpoint which is executed only if all proposal messages have been passed
     CheckMessagesPassed {},
     /// Execute a successful proposal
     ExecuteProposal {
-        /// Proposal identifier
-        proposal_id: u64,
-    },
-    /// Remove a proposal that was already executed (or failed/expired)
-    RemoveCompletedProposal {
         /// Proposal identifier
         proposal_id: u64,
     },
@@ -124,6 +109,7 @@ pub enum ExecuteMsg {
         proposal_id: u64,
         status: ProposalStatus,
     },
+    ExecuteFromMultisig(Vec<CosmosMsg>),
 }
 
 /// Thie enum describes all the queries available in the contract.
@@ -142,14 +128,12 @@ pub enum QueryMsg {
         limit: Option<u32>,
     },
     /// Return proposal voters of specified proposal
-    #[returns(Vec<Addr>)]
+    #[returns(Vec<ProposalVoterResponse>)]
     ProposalVoters {
         /// Proposal unique id
         proposal_id: u64,
-        /// Proposal vote option
-        vote_option: ProposalVoteOption,
-        /// Id from which to start querying
-        start: Option<u64>,
+        /// Address after which to query
+        start_after: Option<String>,
         /// The amount of proposals to return
         limit: Option<u32>,
     },
@@ -167,29 +151,13 @@ pub enum QueryMsg {
     TotalVotingPower { proposal_id: u64 },
 }
 
-/// This structure stores data for a CW20 hook message.
-#[cw_serde]
-pub enum Cw20HookMsg {
-    /// Submit a new proposal in the Assembly
-    SubmitProposal {
-        title: String,
-        description: String,
-        link: Option<String>,
-        messages: Option<Vec<CosmosMsg>>,
-        /// If proposal should be executed on a remote chain this field should specify governance channel
-        ibc_channel: Option<String>,
-    },
-}
-
 /// This structure stores general parameters for the Assembly contract.
 #[cw_serde]
 pub struct Config {
-    /// xASTRO token address
-    pub xastro_token_addr: Addr,
-    /// vxASTRO token address
-    pub vxastro_token_addr: Option<Addr>,
-    /// Voting Escrow delegator address
-    pub voting_escrow_delegator_addr: Option<Addr>,
+    /// xASTRO token denom
+    pub xastro_denom: String,
+    // xASTRO denom tracking contract
+    pub xastro_denom_tracking: String,
     /// Astroport IBC controller contract
     pub ibc_controller: Option<Addr>,
     /// Builder unlock contract address
@@ -265,12 +233,6 @@ impl Config {
             )));
         }
 
-        if self.voting_escrow_delegator_addr.is_some() && self.vxastro_token_addr.is_none() {
-            return Err(StdError::generic_err(
-                "The Voting Escrow contract should be specified to use the Voting Escrow Delegator contract."
-            ));
-        }
-
         Ok(())
     }
 }
@@ -278,12 +240,6 @@ impl Config {
 /// This structure stores the params used when updating the main Assembly contract params.
 #[cw_serde]
 pub struct UpdateConfig {
-    /// xASTRO token address
-    pub xastro_token_addr: Option<String>,
-    /// vxASTRO token address
-    pub vxastro_token_addr: Option<String>,
-    /// Voting Escrow delegator address
-    pub voting_escrow_delegator_addr: Option<String>,
     /// Astroport IBC controller contract
     pub ibc_controller: Option<String>,
     /// Builder unlock contract address
@@ -317,12 +273,12 @@ pub struct Proposal {
     pub status: ProposalStatus,
     /// `For` power of proposal
     pub for_power: Uint128,
+    /// `For` power of proposal cast from all Outposts
+    pub outpost_for_power: Uint128,
     /// `Against` power of proposal
     pub against_power: Uint128,
-    /// `For` votes for the proposal
-    pub for_voters: Vec<Addr>,
-    /// `Against` votes for the proposal
-    pub against_voters: Vec<Addr>,
+    /// `Against` power of proposal cast from all Outposts
+    pub outpost_against_power: Uint128,
     /// Start block of proposal
     pub start_block: u64,
     /// Start time of proposal
@@ -340,11 +296,13 @@ pub struct Proposal {
     /// Proposal link
     pub link: Option<String>,
     /// Proposal messages
-    pub messages: Option<Vec<CosmosMsg>>,
+    pub messages: Vec<CosmosMsg>,
     /// Amount of xASTRO deposited in order to post the proposal
     pub deposit_amount: Uint128,
     /// IBC channel
     pub ibc_channel: Option<String>,
+    /// Total voting power 1 second before the proposal was created
+    pub total_voting_power: Uint128,
 }
 
 impl Proposal {
@@ -470,6 +428,14 @@ pub struct ProposalListResponse {
     pub proposal_count: Uint64,
     /// The list of proposals that are returned
     pub proposal_list: Vec<Proposal>,
+}
+
+#[cw_serde]
+pub struct ProposalVoterResponse {
+    /// The address of the voter
+    pub address: String,
+    /// The option address voted with
+    pub vote_option: ProposalVoteOption,
 }
 
 pub mod helpers {
