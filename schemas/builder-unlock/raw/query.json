@@ -1,0 +1,161 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "QueryMsg",
+  "description": "This enum describes all the queries available in the contract.",
+  "oneOf": [
+    {
+      "description": "Config returns the configuration for this contract",
+      "type": "object",
+      "required": [
+        "config"
+      ],
+      "properties": {
+        "config": {
+          "type": "object",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "State returns the state of this contract",
+      "type": "object",
+      "required": [
+        "state"
+      ],
+      "properties": {
+        "state": {
+          "type": "object",
+          "properties": {
+            "timestamp": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint64",
+              "minimum": 0.0
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Allocation returns the parameters and current status of an allocation",
+      "type": "object",
+      "required": [
+        "allocation"
+      ],
+      "properties": {
+        "allocation": {
+          "type": "object",
+          "required": [
+            "account"
+          ],
+          "properties": {
+            "account": {
+              "description": "Account whose allocation status we query",
+              "type": "string"
+            },
+            "timestamp": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint64",
+              "minimum": 0.0
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Allocations returns a vector that contains builder unlock allocations by specified parameters",
+      "type": "object",
+      "required": [
+        "allocations"
+      ],
+      "properties": {
+        "allocations": {
+          "type": "object",
+          "properties": {
+            "limit": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint32",
+              "minimum": 0.0
+            },
+            "start_after": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "UnlockedTokens returns the unlocked tokens from an allocation",
+      "type": "object",
+      "required": [
+        "unlocked_tokens"
+      ],
+      "properties": {
+        "unlocked_tokens": {
+          "type": "object",
+          "required": [
+            "account"
+          ],
+          "properties": {
+            "account": {
+              "description": "Account whose amount of unlocked ASTRO we query for",
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "SimulateWithdraw simulates how many ASTRO will be released if a withdrawal is attempted",
+      "type": "object",
+      "required": [
+        "simulate_withdraw"
+      ],
+      "properties": {
+        "simulate_withdraw": {
+          "type": "object",
+          "required": [
+            "account"
+          ],
+          "properties": {
+            "account": {
+              "description": "Account for which we simulate a withdrawal",
+              "type": "string"
+            },
+            "timestamp": {
+              "description": "Timestamp used to simulate how much ASTRO the account can withdraw",
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint64",
+              "minimum": 0.0
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  ]
+}
