@@ -25,7 +25,7 @@ cosmwasm-schema.workspace = true
 cw-utils.workspace = true
 astroport-governance = { path = "../../packages/astroport-governance", version = "3" }
 astroport = { git = "https://github.com/astroport-fi/hidden_astroport_core", version = "4" }
-astro-satellite = { git = "https://github.com/astroport-fi/astroport_ibc", tag = "v1.2.1", features = ["library"] }
+astro-satellite = "1.1.0"
 ibc-controller-package = "1.0.0"
 
 [dev-dependencies]

@@ -1,17 +1,16 @@
-use crate::error::ContractError;
-use crate::error::ContractError::MarketingInfoValidationError;
-
 use cosmwasm_std::StdError;
 use cw20::Logo;
+
+use crate::error::ContractError;
 
 const SAFE_TEXT_CHARS: &str = "!&?#()*+'-.,/\"";
 const SAFE_LINK_CHARS: &str = "-_:/?#@!$&()*+,;=.~[]'%";
 
-fn validate_text(text: &str, name: &str) -> Result<(), ContractError> {
+pub fn validate_text(text: &str, name: &str) -> Result<(), ContractError> {
     if text.chars().any(|c| {
         !c.is_ascii_alphanumeric() && !c.is_ascii_whitespace() && !SAFE_TEXT_CHARS.contains(c)
     }) {
-        Err(MarketingInfoValidationError(format!(
+        Err(ContractError::MarketingInfoValidationError(format!(
             "{name} contains invalid characters: {text}"
         )))
     } else {
@@ -22,7 +21,7 @@ fn validate_text(text: &str, name: &str) -> Result<(), ContractError> {
 pub fn validate_whitelist_links(links: &[String]) -> Result<(), ContractError> {
     links.iter().try_for_each(|link| {
         if !link.ends_with('/') {
-            return Err(MarketingInfoValidationError(format!(
+            return Err(ContractError::MarketingInfoValidationError(format!(
                 "Whitelist link should end with '/': {link}"
             )));
         }
@@ -41,13 +40,13 @@ pub fn validate_link(link: &String) -> Result<(), ContractError> {
     }
 }
 
-fn check_link(link: &String, whitelisted_links: &[String]) -> Result<(), ContractError> {
+pub fn check_link(link: &String, whitelisted_links: &[String]) -> Result<(), ContractError> {
     if validate_link(link).is_err() {
-        Err(MarketingInfoValidationError(format!(
+        Err(ContractError::MarketingInfoValidationError(format!(
             "Logo link is invalid: {link}"
         )))
     } else if !whitelisted_links.iter().any(|wl| link.starts_with(wl)) {
-        Err(MarketingInfoValidationError(format!(
+        Err(ContractError::MarketingInfoValidationError(format!(
             "Logo link is not whitelisted: {link}"
         )))
     } else {
@@ -55,7 +54,7 @@ fn check_link(link: &String, whitelisted_links: &[String]) -> Result<(), Contrac
     }
 }
 
-pub(crate) fn validate_marketing_info(
+pub fn validate_marketing_info(
     project: Option<&String>,
     description: Option<&String>,
     logo: Option<&Logo>,

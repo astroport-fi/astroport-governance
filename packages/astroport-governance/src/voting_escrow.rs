@@ -1,22 +1,6 @@
-use crate::voting_escrow::QueryMsg::{
-    LockInfo, TotalVotingPower, TotalVotingPowerAt, UserVotingPower, UserVotingPowerAt,
-};
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::{Addr, Binary, Decimal, QuerierWrapper, StdResult, Uint128};
-use cw20::{
-    BalanceResponse, Cw20ReceiveMsg, DownloadLogoResponse, Logo, MarketingInfoResponse,
-    TokenInfoResponse,
-};
-use std::fmt;
-
-/// ## Pagination settings
-/// The maximum amount of items that can be read at once from
-pub const MAX_LIMIT: u32 = 30;
-
-/// The default amount of items to read from
-pub const DEFAULT_LIMIT: u32 = 10;
-
-pub const DEFAULT_PERIODS_LIMIT: u64 = 20;
+use cosmwasm_std::Uint128;
+use cw20::{BalanceResponse, DownloadLogoResponse, Logo, MarketingInfoResponse, TokenInfoResponse};
 
 /// This structure stores marketing information for vxASTRO.
 #[cw_serde]
@@ -34,12 +18,8 @@ pub struct UpdateMarketingInfo {
 /// This structure stores general parameters for the vxASTRO contract.
 #[cw_serde]
 pub struct InstantiateMsg {
-    /// The vxASTRO contract owner
-    pub owner: String,
-    /// Address that's allowed to black or whitelist contracts
-    pub guardian_addr: Option<String>,
-    /// xASTRO token address
-    pub deposit_token_addr: String,
+    /// xASTRO denom
+    pub deposit_denom: String,
     /// Marketing info for vxASTRO
     pub marketing: Option<UpdateMarketingInfo>,
     /// The list of whitelisted logo urls prefixes
@@ -49,24 +29,14 @@ pub struct InstantiateMsg {
 /// This structure describes the execute functions in the contract.
 #[cw_serde]
 pub enum ExecuteMsg {
-    /// Extend the lockup time for your staked xASTRO
-    ExtendLockTime { time: u64 },
-    /// Receives a message of type [`Cw20ReceiveMsg`] and processes it depending on the received
-    /// template.
-    Receive(Cw20ReceiveMsg),
+    /// Create a vxASTRO position and lock xASTRO
+    Lock { receiver: Option<String> },
+    /// Unlock xASTRO from the vxASTRO contract
+    Unlock {},
+    /// Cancel unlocking
+    Relock {},
     /// Withdraw xASTRO from the vxASTRO contract
     Withdraw {},
-    /// Propose a new owner for the contract
-    ProposeNewOwner { new_owner: String, expires_in: u64 },
-    /// Remove the ownership transfer proposal
-    DropOwnershipProposal {},
-    /// Claim contract ownership
-    ClaimOwnership {},
-    /// Add or remove accounts from the blacklist
-    UpdateBlacklist {
-        append_addrs: Option<Vec<String>>,
-        remove_addrs: Option<Vec<String>>,
-    },
     /// Update the marketing info for the vxASTRO contract
     UpdateMarketing {
         /// A URL pointing to the project behind this token
@@ -78,56 +48,14 @@ pub enum ExecuteMsg {
     },
     /// Upload a logo for vxASTRO
     UploadLogo(Logo),
-    /// Update config
-    UpdateConfig { new_guardian: Option<String> },
     /// Set whitelisted logo urls
     SetLogoUrlsWhitelist { whitelist: Vec<String> },
-}
-
-/// This structure describes a CW20 hook message.
-#[cw_serde]
-pub enum Cw20HookMsg {
-    /// Create a vxASTRO position and lock xASTRO for `time` amount of time
-    CreateLock { time: u64 },
-    /// Deposit xASTRO in another user's vxASTRO position
-    DepositFor { user: String },
-    /// Add more xASTRO to your vxASTRO position
-    ExtendLockAmount {},
-}
-
-/// This enum describes voters status.
-#[cw_serde]
-pub enum BlacklistedVotersResponse {
-    /// Voters are blacklisted
-    VotersBlacklisted {},
-    /// Returns a voter that is not blacklisted.
-    VotersNotBlacklisted { voter: String },
-}
-
-impl fmt::Display for BlacklistedVotersResponse {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            BlacklistedVotersResponse::VotersBlacklisted {} => write!(f, "Voters are blacklisted!"),
-            BlacklistedVotersResponse::VotersNotBlacklisted { voter } => {
-                write!(f, "Voter is not blacklisted: {voter}")
-            }
-        }
-    }
 }
 
 /// This structure describes the query messages available in the contract.
 #[cw_serde]
 #[derive(QueryResponses)]
 pub enum QueryMsg {
-    /// Checks if specified addresses are blacklisted
-    #[returns(BlacklistedVotersResponse)]
-    CheckVotersAreBlacklisted { voters: Vec<String> },
-    /// Return the blacklisted voters
-    #[returns(Vec<Addr>)]
-    BlacklistedVoters {
-        start_after: Option<String>,
-        limit: Option<u32>,
-    },
     /// Return the user's vxASTRO balance
     #[returns(BalanceResponse)]
     Balance { address: String },
@@ -141,147 +69,32 @@ pub enum QueryMsg {
     #[returns(DownloadLogoResponse)]
     DownloadLogo {},
     /// Return the current total amount of vxASTRO
-    #[returns(VotingPowerResponse)]
-    TotalVotingPower {},
-    /// Return the total amount of vxASTRO at some point in the past
-    #[returns(VotingPowerResponse)]
-    TotalVotingPowerAt { time: u64 },
-    /// Return the total voting power at a specific period
-    #[returns(VotingPowerResponse)]
-    TotalVotingPowerAtPeriod { period: u64 },
+    #[returns(Uint128)]
+    TotalVotingPower { time: Option<u64> },
     /// Return the user's current voting power (vxASTRO balance)
-    #[returns(VotingPowerResponse)]
-    UserVotingPower { user: String },
-    /// Return the user's vxASTRO balance at some point in the past
-    #[returns(VotingPowerResponse)]
-    UserVotingPowerAt { user: String, time: u64 },
-    /// Return the user's voting power at a specific period
-    #[returns(VotingPowerResponse)]
-    UserVotingPowerAtPeriod { user: String, period: u64 },
-    /// Return information about a user's lock position
+    #[returns(Uint128)]
+    UserVotingPower { user: String, time: Option<u64> },
+    /// Fetch a user's lock information
     #[returns(LockInfoResponse)]
     LockInfo { user: String },
-    /// Return user's locked xASTRO balance at the given block height
-    #[returns(Uint128)]
-    UserDepositAtHeight { user: String, height: u64 },
     /// Return the  vxASTRO contract configuration
-    #[returns(ConfigResponse)]
+    #[returns(Config)]
     Config {},
 }
 
-/// This structure is used to return a user's amount of vxASTRO.
+/// This structure stores the main parameters for the voting escrow contract.
 #[cw_serde]
-pub struct VotingPowerResponse {
-    /// The vxASTRO balance
-    pub voting_power: Uint128,
-}
-
-/// This structure is used to return the lock information for a vxASTRO position.
-#[cw_serde]
-pub struct LockInfoResponse {
-    /// The amount of xASTRO locked in the position
-    pub amount: Uint128,
-    /// This is the initial boost for the lock position
-    pub coefficient: Decimal,
-    /// Start time for the vxASTRO position decay
-    pub start: u64,
-    /// End time for the vxASTRO position decay
-    pub end: u64,
-    /// Slope at which a staker's vxASTRO balance decreases over time
-    pub slope: Uint128,
-}
-
-/// This structure stores the parameters returned when querying for a contract's configuration.
-#[cw_serde]
-pub struct ConfigResponse {
-    /// Address that's allowed to change contract parameters
-    pub owner: String,
-    /// Address that can only blacklist vxASTRO stakers and remove their governance power
-    pub guardian_addr: Option<Addr>,
-    /// The xASTRO token contract address
-    pub deposit_token_addr: String,
-    /// The address of $ASTRO
-    pub astro_addr: String,
-    /// The address of $xASTRO staking contract
-    pub xastro_staking_addr: String,
+pub struct Config {
+    /// The xASTRO denom
+    pub deposit_denom: String,
     /// The list of whitelisted logo urls prefixes
     pub logo_urls_whitelist: Vec<String>,
 }
 
-/// This structure describes a Migration message.
 #[cw_serde]
-pub struct MigrateMsg {
-    pub params: Binary,
-}
-
-/// Queries current user's voting power from the voting escrow contract.
-///
-/// * **user** staker for which we calculate the latest vxASTRO voting power.
-pub fn get_voting_power(
-    querier: &QuerierWrapper,
-    escrow_addr: impl Into<String>,
-    user: impl Into<String>,
-) -> StdResult<Uint128> {
-    let vp: VotingPowerResponse =
-        querier.query_wasm_smart(escrow_addr, &UserVotingPower { user: user.into() })?;
-    Ok(vp.voting_power)
-}
-
-/// Queries current user's voting power from the voting escrow contract by timestamp.
-///
-/// * **user** staker for which we calculate the voting power at a specific time.
-///
-/// * **timestamp** timestamp at which we calculate the staker's voting power.
-pub fn get_voting_power_at(
-    querier: &QuerierWrapper,
-    escrow_addr: impl Into<String>,
-    user: impl Into<String>,
-    timestamp: u64,
-) -> StdResult<Uint128> {
-    let vp: VotingPowerResponse = querier.query_wasm_smart(
-        escrow_addr,
-        &UserVotingPowerAt {
-            user: user.into(),
-            time: timestamp,
-        },
-    )?;
-
-    Ok(vp.voting_power)
-}
-
-/// Queries current total voting power from the voting escrow contract.
-pub fn get_total_voting_power(
-    querier: &QuerierWrapper,
-    escrow_addr: impl Into<String>,
-) -> StdResult<Uint128> {
-    let vp: VotingPowerResponse = querier.query_wasm_smart(escrow_addr, &TotalVotingPower {})?;
-
-    Ok(vp.voting_power)
-}
-
-/// Queries total voting power from the voting escrow contract by timestamp.
-///
-/// * **timestamp** time at which we fetch the total voting power.
-pub fn get_total_voting_power_at(
-    querier: &QuerierWrapper,
-    escrow_addr: impl Into<String>,
-    timestamp: u64,
-) -> StdResult<Uint128> {
-    let vp: VotingPowerResponse =
-        querier.query_wasm_smart(escrow_addr, &TotalVotingPowerAt { time: timestamp })?;
-
-    Ok(vp.voting_power)
-}
-
-/// Queries user's lockup information from the voting escrow contract.
-///
-/// * **user** staker for which we return lock position information.
-pub fn get_lock_info(
-    querier: &QuerierWrapper,
-    escrow_addr: impl Into<String>,
-    user: impl Into<String>,
-) -> StdResult<LockInfoResponse> {
-    let lock_info: LockInfoResponse =
-        querier.query_wasm_smart(escrow_addr, &LockInfo { user: user.into() })?;
-    Ok(lock_info)
+pub struct LockInfoResponse {
+    /// The total amount of xASTRO tokens that were deposited in the vxASTRO position
+    pub amount: Uint128,
+    /// The timestamp when a lock will be unlocked. None for positions in Locked state
+    pub end: Option<u64>,
 }
