@@ -1,0 +1,16 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Config",
+  "description": "This structure stores the main parameters for the voting escrow contract.",
+  "type": "object",
+  "required": [
+    "deposit_denom"
+  ],
+  "properties": {
+    "deposit_denom": {
+      "description": "The xASTRO denom",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,108 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ExecuteMsg",
+  "description": "This structure describes the execute functions in the contract.",
+  "oneOf": [
+    {
+      "description": "Create a vxASTRO position and lock xASTRO",
+      "type": "object",
+      "required": [
+        "lock"
+      ],
+      "properties": {
+        "lock": {
+          "type": "object",
+          "properties": {
+            "receiver": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Unlock xASTRO from the vxASTRO contract",
+      "type": "object",
+      "required": [
+        "unlock"
+      ],
+      "properties": {
+        "unlock": {
+          "type": "object",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Cancel unlocking",
+      "type": "object",
+      "required": [
+        "relock"
+      ],
+      "properties": {
+        "relock": {
+          "type": "object",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Withdraw xASTRO from the vxASTRO contract",
+      "type": "object",
+      "required": [
+        "withdraw"
+      ],
+      "properties": {
+        "withdraw": {
+          "type": "object",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Update the marketing info for the vxASTRO contract",
+      "type": "object",
+      "required": [
+        "update_marketing"
+      ],
+      "properties": {
+        "update_marketing": {
+          "type": "object",
+          "properties": {
+            "description": {
+              "description": "A longer description of the token and its utility. Designed for tooltips or such",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "marketing": {
+              "description": "The address (if any) that can update this data structure",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "project": {
+              "description": "A URL pointing to the project behind this token",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  ]
+}
