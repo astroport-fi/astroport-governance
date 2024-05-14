@@ -9,7 +9,6 @@ pub mod interchain;
 pub mod outpost;
 pub mod utils;
 pub mod voting_escrow;
-pub mod voting_escrow_lite;
 
 // Default pagination constants
 pub const DEFAULT_LIMIT: u32 = 30;

@@ -935,7 +935,6 @@ fn test_execute_multisig() {
         .unwrap();
 
     let messages: Vec<_> = (0..5)
-        .into_iter()
         .map(|_| wasm_execute(&noop_addr, &Empty {}, vec![]).unwrap().into())
         .collect();
 
