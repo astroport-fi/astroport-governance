@@ -2,7 +2,6 @@ pub use astroport;
 
 pub mod assembly;
 pub mod builder_unlock;
-pub mod escrow_fee_distributor;
 pub mod generator_controller;
 pub mod generator_controller_lite;
 pub mod hub;

@@ -28,7 +28,4 @@ astroport-governance = { path = "../../packages/astroport-governance", version =
 astroport = { git = "https://github.com/astroport-fi/hidden_astroport_core", version = "4" }
 
 [dev-dependencies]
-cw-multi-test = { git = "https://github.com/astroport-fi/cw-multi-test", branch = "feat/bank_with_send_hooks", features = ["cosmwasm_1_1"] }
-astroport-staking = { git = "https://github.com/astroport-fi/hidden_astroport_core", version = "2" }
-anyhow = "1"
-proptest = "1.0"
+cw-multi-test = "1"

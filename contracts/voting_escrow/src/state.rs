@@ -30,6 +30,17 @@ pub struct Lock {
     pub block_time: u64,
 }
 
+impl Default for Lock {
+    fn default() -> Self {
+        Lock {
+            amount: Uint128::zero(),
+            end: None,
+            user: default_addr(),
+            block_time: 0,
+        }
+    }
+}
+
 impl Lock {
     pub fn load_at_ts(
         storage: &dyn Storage,
@@ -37,17 +48,16 @@ impl Lock {
         user: &Addr,
         timestamp: Option<u64>,
     ) -> StdResult<Self> {
-        match timestamp.unwrap_or(block_time) {
+        let lock = match timestamp.unwrap_or(block_time) {
             timestamp if timestamp == block_time => LOCKED.may_load(storage, &user),
             timestamp => LOCKED.may_load_at_height(storage, &user, timestamp),
-        }
-        .map(|lock| {
-            lock.unwrap_or_else(|| Lock {
-                amount: Uint128::zero(),
-                end: None,
-                user: user.clone(),
-                block_time,
-            })
+        }?
+        .unwrap_or_default();
+
+        Ok(Lock {
+            user: user.clone(),
+            block_time,
+            ..lock
         })
     }
 
@@ -113,6 +123,14 @@ impl Lock {
             Ok(self.amount)
         } else {
             Err(ContractError::NotInUnlockingState {})
+        }
+    }
+
+    pub fn get_voting_power(&self) -> Uint128 {
+        if self.end.is_some() {
+            Uint128::zero()
+        } else {
+            self.amount
         }
     }
 }

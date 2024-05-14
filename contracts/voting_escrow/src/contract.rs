@@ -6,7 +6,7 @@ use cosmwasm_std::{
     Response, StdError, StdResult, Uint128,
 };
 use cw2::set_contract_version;
-use cw20::{Logo, LogoInfo, MarketingInfoResponse, TokenInfoResponse};
+use cw20::{BalanceResponse, Logo, LogoInfo, MarketingInfoResponse, TokenInfoResponse};
 use cw20_base::contract::{
     execute_update_marketing, execute_upload_logo, query_download_logo, query_marketing_info,
 };
@@ -230,7 +230,8 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         }
         QueryMsg::Config {} => to_json_binary(&CONFIG.load(deps.storage)?),
         QueryMsg::Balance { address } => {
-            to_json_binary(&query_user_voting_power(deps, env, address, None)?)
+            let user_vp = query_user_voting_power(deps, env, address, None)?;
+            to_json_binary(&BalanceResponse { balance: user_vp })
         }
         QueryMsg::TokenInfo {} => to_json_binary(&query_token_info(deps, env)?),
         QueryMsg::MarketingInfo {} => to_json_binary(&query_marketing_info(deps)?),
@@ -257,6 +258,8 @@ pub fn query_user_voting_power(
     timestamp: Option<u64>,
 ) -> StdResult<Uint128> {
     let address = deps.api.addr_validate(&address)?;
-    let position = Lock::load_at_ts(deps.storage, env.block.time.seconds(), &address, timestamp)?;
-    Ok(position.amount)
+    let voting_power =
+        Lock::load_at_ts(deps.storage, env.block.time.seconds(), &address, timestamp)?
+            .get_voting_power();
+    Ok(voting_power)
 }

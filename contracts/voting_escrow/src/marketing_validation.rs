@@ -1,4 +1,4 @@
-use cosmwasm_std::StdError;
+use cosmwasm_std::ensure;
 use cw20::Logo;
 
 use crate::error::ContractError;
@@ -19,33 +19,32 @@ pub fn validate_text(text: &str, name: &str) -> Result<(), ContractError> {
 }
 
 pub fn validate_whitelist_links(links: &[String]) -> Result<(), ContractError> {
-    links.iter().try_for_each(|link| {
-        if !link.ends_with('/') {
-            return Err(ContractError::MarketingInfoValidationError(format!(
-                "Whitelist link should end with '/': {link}"
-            )));
-        }
-        validate_link(link)
-    })
+    links.iter().try_for_each(validate_link)
 }
 
 pub fn validate_link(link: &String) -> Result<(), ContractError> {
-    if link
-        .chars()
-        .any(|c| !c.is_ascii_alphanumeric() && !SAFE_LINK_CHARS.contains(c))
-    {
-        Err(StdError::generic_err(format!("Link contains invalid characters: {link}")).into())
-    } else {
-        Ok(())
-    }
+    ensure!(
+        link.ends_with('/'),
+        ContractError::MarketingInfoValidationError(format!(
+            "Whitelist link should end with '/': {link}"
+        ))
+    );
+
+    ensure!(
+        link.chars()
+            .all(|c| c.is_ascii_alphanumeric() || SAFE_LINK_CHARS.contains(c)),
+        ContractError::MarketingInfoValidationError(format!(
+            "Link contains invalid characters: {link}"
+        ))
+    );
+
+    Ok(())
 }
 
 pub fn check_link(link: &String, whitelisted_links: &[String]) -> Result<(), ContractError> {
-    if validate_link(link).is_err() {
-        Err(ContractError::MarketingInfoValidationError(format!(
-            "Logo link is invalid: {link}"
-        )))
-    } else if !whitelisted_links.iter().any(|wl| link.starts_with(wl)) {
+    validate_link(link)?;
+
+    if !whitelisted_links.iter().any(|wl| link.starts_with(wl)) {
         Err(ContractError::MarketingInfoValidationError(format!(
             "Logo link is not whitelisted: {link}"
         )))
