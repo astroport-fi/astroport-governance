@@ -1,4 +1,5 @@
 use cosmwasm_std::{Addr, Coin, Empty, StdResult, Uint128};
+use cw20::Logo;
 use cw_multi_test::error::AnyResult;
 use cw_multi_test::{AppResponse, BankSudo, BasicApp, Contract, ContractWrapper, Executor};
 
@@ -37,9 +38,8 @@ impl EscrowHelper {
                         project: None,
                         description: None,
                         marketing: Some(owner.to_string()),
-                        logo: None,
+                        logo: Some(Logo::Url("https://example.com".to_string())),
                     }),
-                    logo_urls_whitelist: vec!["https://astroport.fi/".to_string()],
                 },
                 &[],
                 "label",

@@ -1,6 +1,6 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::Uint128;
-use cw20::{BalanceResponse, DownloadLogoResponse, Logo, MarketingInfoResponse, TokenInfoResponse};
+use cw20::{BalanceResponse, Logo, MarketingInfoResponse, TokenInfoResponse};
 
 /// This structure stores marketing information for vxASTRO.
 #[cw_serde]
@@ -22,8 +22,6 @@ pub struct InstantiateMsg {
     pub deposit_denom: String,
     /// Marketing info for vxASTRO
     pub marketing: Option<UpdateMarketingInfo>,
-    /// The list of whitelisted logo urls prefixes
-    pub logo_urls_whitelist: Vec<String>,
 }
 
 /// This structure describes the execute functions in the contract.
@@ -46,10 +44,6 @@ pub enum ExecuteMsg {
         /// The address (if any) that can update this data structure
         marketing: Option<String>,
     },
-    /// Upload a logo for vxASTRO
-    UploadLogo(Logo),
-    /// Set whitelisted logo urls
-    SetLogoUrlsWhitelist { whitelist: Vec<String> },
 }
 
 /// This structure describes the query messages available in the contract.
@@ -65,9 +59,6 @@ pub enum QueryMsg {
     /// Fetch vxASTRO's marketing information
     #[returns(MarketingInfoResponse)]
     MarketingInfo {},
-    /// Download the vxASTRO logo
-    #[returns(DownloadLogoResponse)]
-    DownloadLogo {},
     /// Return the current total amount of vxASTRO
     #[returns(Uint128)]
     TotalVotingPower { time: Option<u64> },
@@ -87,8 +78,6 @@ pub enum QueryMsg {
 pub struct Config {
     /// The xASTRO denom
     pub deposit_denom: String,
-    /// The list of whitelisted logo urls prefixes
-    pub logo_urls_whitelist: Vec<String>,
 }
 
 #[cw_serde]

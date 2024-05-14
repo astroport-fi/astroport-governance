@@ -21,9 +21,6 @@ pub enum ContractError {
     #[error("Unauthorized")]
     Unauthorized {},
 
-    #[error("Marketing info validation error: {0}")]
-    MarketingInfoValidationError(String),
-
     #[error("No withdrawal balance available")]
     ZeroBalance {},
 

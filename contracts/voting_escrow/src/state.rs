@@ -49,8 +49,8 @@ impl Lock {
         timestamp: Option<u64>,
     ) -> StdResult<Self> {
         let lock = match timestamp.unwrap_or(block_time) {
-            timestamp if timestamp == block_time => LOCKED.may_load(storage, &user),
-            timestamp => LOCKED.may_load_at_height(storage, &user, timestamp),
+            timestamp if timestamp == block_time => LOCKED.may_load(storage, user),
+            timestamp => LOCKED.may_load_at_height(storage, user, timestamp),
         }?
         .unwrap_or_default();
 
@@ -73,7 +73,7 @@ impl Lock {
         ensure!(self.end.is_none(), ContractError::PositionUnlocking {});
 
         self.amount += amount;
-        LOCKED.save(storage, &self.user, &self, self.block_time)?;
+        LOCKED.save(storage, &self.user, self, self.block_time)?;
         TOTAL_POWER
             .update(storage, self.block_time, |total| {
                 Ok(total.unwrap_or_default() + amount)
@@ -87,7 +87,7 @@ impl Lock {
 
         let end = self.block_time + UNLOCK_PERIOD;
         self.end = Some(end);
-        LOCKED.save(storage, &self.user, &self, self.block_time)?;
+        LOCKED.save(storage, &self.user, self, self.block_time)?;
 
         // Remove user's voting power from the total
         TOTAL_POWER.update(storage, self.block_time, |total| -> StdResult<_> {
@@ -101,7 +101,7 @@ impl Lock {
         ensure!(self.end.is_some(), ContractError::NotInUnlockingState {});
 
         self.end = None;
-        LOCKED.save(storage, &self.user, &self, self.block_time)?;
+        LOCKED.save(storage, &self.user, self, self.block_time)?;
 
         // Add user's voting power back to the total
         TOTAL_POWER

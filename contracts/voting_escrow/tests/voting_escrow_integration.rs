@@ -1,5 +1,6 @@
 use cosmwasm_std::{coin, Addr};
-use cw20::{BalanceResponse, MarketingInfoResponse, TokenInfoResponse};
+use cw20::{BalanceResponse, LogoInfo, MarketingInfoResponse, TokenInfoResponse};
+use cw_multi_test::Executor;
 use cw_utils::PaymentError;
 
 use astroport_governance::voting_escrow::{Config, LockInfoResponse, QueryMsg};
@@ -59,6 +60,10 @@ fn test_lock() {
         .user_vp(&user1, Some(helper.app.block_info().time.seconds() - 1))
         .unwrap();
     assert_eq!(0, user_vp.u128());
+    let total_vp = helper
+        .total_vp(Some(helper.app.block_info().time.seconds() - 1))
+        .unwrap();
+    assert_eq!(0, total_vp.u128());
 
     helper.timetravel(10000);
 
@@ -204,7 +209,6 @@ fn test_general_queries() {
         config,
         Config {
             deposit_denom: xastro_denom.to_string(),
-            logo_urls_whitelist: vec!["https://astroport.fi/".to_string()]
         }
     );
 
@@ -244,4 +248,46 @@ fn test_general_queries() {
         .query_wasm_smart(&helper.vxastro_contract, &QueryMsg::MarketingInfo {})
         .unwrap();
     assert_eq!(marketing_info.marketing, Some(helper.owner.clone()));
+
+    // Update marketing
+    let new_marketing = Addr::unchecked("new_marketing");
+    let update_msg = astroport_governance::voting_escrow::ExecuteMsg::UpdateMarketing {
+        project: Some("new_project".to_string()),
+        description: Some("new_description".to_string()),
+        marketing: Some(new_marketing.to_string()),
+    };
+    let err = helper
+        .app
+        .execute_contract(
+            Addr::unchecked("random"),
+            helper.vxastro_contract.clone(),
+            &update_msg,
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(
+        ContractError::Cw20Base(cw20_base::ContractError::Unauthorized {}),
+        err.downcast().unwrap(),
+    );
+
+    let owner = helper.owner.clone();
+    helper
+        .app
+        .execute_contract(owner, helper.vxastro_contract.clone(), &update_msg, &[])
+        .unwrap();
+
+    let marketing_info: MarketingInfoResponse = helper
+        .app
+        .wrap()
+        .query_wasm_smart(&helper.vxastro_contract, &QueryMsg::MarketingInfo {})
+        .unwrap();
+    assert_eq!(
+        marketing_info,
+        MarketingInfoResponse {
+            project: Some("new_project".to_string()),
+            description: Some("new_description".to_string()),
+            logo: Some(LogoInfo::Url("https://example.com".to_string())),
+            marketing: Some(new_marketing),
+        }
+    );
 }

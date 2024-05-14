@@ -2,14 +2,12 @@ use astroport::asset::{addr_opt_validate, validate_native_denom};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, coins, ensure, to_json_binary, BankMsg, Binary, Deps, DepsMut, Env, MessageInfo,
-    Response, StdError, StdResult, Uint128,
+    attr, coins, to_json_binary, BankMsg, Binary, Deps, DepsMut, Env, MessageInfo, Response,
+    StdError, StdResult, Uint128,
 };
 use cw2::set_contract_version;
 use cw20::{BalanceResponse, Logo, LogoInfo, MarketingInfoResponse, TokenInfoResponse};
-use cw20_base::contract::{
-    execute_update_marketing, execute_upload_logo, query_download_logo, query_marketing_info,
-};
+use cw20_base::contract::{execute_update_marketing, query_marketing_info};
 use cw20_base::state::{MinterData, TokenInfo, LOGO, MARKETING_INFO, TOKEN_INFO};
 use cw_utils::must_pay;
 
@@ -18,7 +16,6 @@ use astroport_governance::voting_escrow::{
 };
 
 use crate::error::ContractError;
-use crate::marketing_validation::{validate_marketing_info, validate_whitelist_links};
 use crate::state::{get_total_vp, Lock, CONFIG};
 
 /// Contract name that is used for migration.
@@ -37,35 +34,21 @@ pub fn instantiate(
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     validate_native_denom(&msg.deposit_denom)?;
-    validate_whitelist_links(&msg.logo_urls_whitelist)?;
 
     let config = Config {
         deposit_denom: msg.deposit_denom.clone(),
-        logo_urls_whitelist: msg.logo_urls_whitelist.clone(),
     };
     CONFIG.save(deps.storage, &config)?;
 
     if let Some(marketing) = msg.marketing {
-        if msg.logo_urls_whitelist.is_empty() {
-            return Err(StdError::generic_err("Logo URLs whitelist can not be empty").into());
-        }
-
-        validate_marketing_info(
-            marketing.project.as_ref(),
-            marketing.description.as_ref(),
-            marketing.logo.as_ref(),
-            &config.logo_urls_whitelist,
-        )?;
-
-        let logo = if let Some(logo) = marketing.logo {
-            LOGO.save(deps.storage, &logo)?;
-
-            match logo {
-                Logo::Url(url) => Some(LogoInfo::Url(url)),
-                Logo::Embedded(_) => Some(LogoInfo::Embedded),
+        let logo = match &marketing.logo {
+            Some(Logo::Url(url)) => {
+                LOGO.save(deps.storage, &marketing.logo.clone().unwrap())?;
+                Some(LogoInfo::Url(url.clone()))
             }
-        } else {
-            None
+            _ => {
+                return Err(StdError::generic_err("Logo url must be set").into());
+            }
         };
 
         let data = MarketingInfoResponse {
@@ -75,6 +58,8 @@ pub fn instantiate(
             logo,
         };
         MARKETING_INFO.save(deps.storage, &data)?;
+    } else {
+        return Err(StdError::generic_err("Marketing info is required").into());
     }
 
     // Store token info
@@ -159,7 +144,7 @@ pub fn execute(
 
             let send_msg = BankMsg::Send {
                 to_address: info.sender.to_string(),
-                amount: coins(amount.u128(), &config.deposit_denom),
+                amount: coins(amount.u128(), config.deposit_denom),
             };
 
             Ok(Response::new().add_message(send_msg).add_attributes([
@@ -172,32 +157,8 @@ pub fn execute(
             project,
             description,
             marketing,
-        } => {
-            validate_marketing_info(project.as_ref(), description.as_ref(), None, &[])?;
-            execute_update_marketing(deps, env, info, project, description, marketing)
-                .map_err(Into::into)
-        }
-        ExecuteMsg::UploadLogo(logo) => {
-            let config = CONFIG.load(deps.storage)?;
-            validate_marketing_info(None, None, Some(&logo), &config.logo_urls_whitelist)?;
-            execute_upload_logo(deps, env, info, logo).map_err(Into::into)
-        }
-        ExecuteMsg::SetLogoUrlsWhitelist { whitelist } => {
-            let marketing_info = MARKETING_INFO.load(deps.storage)?;
-
-            ensure!(
-                Some(info.sender) == marketing_info.marketing,
-                ContractError::Unauthorized {}
-            );
-
-            CONFIG.update::<_, ContractError>(deps.storage, |mut config| {
-                validate_whitelist_links(&whitelist)?;
-                config.logo_urls_whitelist = whitelist;
-                Ok(config)
-            })?;
-
-            Ok(Response::default().add_attribute("action", "set_logo_urls_whitelist"))
-        }
+        } => execute_update_marketing(deps, env, info, project, description, marketing)
+            .map_err(Into::into),
     }
 }
 
@@ -235,7 +196,6 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         }
         QueryMsg::TokenInfo {} => to_json_binary(&query_token_info(deps, env)?),
         QueryMsg::MarketingInfo {} => to_json_binary(&query_marketing_info(deps)?),
-        QueryMsg::DownloadLogo {} => to_json_binary(&query_download_logo(deps)?),
     }
 }
 
