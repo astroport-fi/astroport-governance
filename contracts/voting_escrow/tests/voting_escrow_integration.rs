@@ -3,7 +3,7 @@ use cw20::{BalanceResponse, LogoInfo, MarketingInfoResponse, TokenInfoResponse};
 use cw_multi_test::Executor;
 use cw_utils::PaymentError;
 
-use astroport_governance::voting_escrow::{Config, LockInfoResponse, QueryMsg};
+use astroport_governance::voting_escrow::{Config, LockInfoResponse, QueryMsg, UnlockStatus};
 use astroport_voting_escrow::error::ContractError;
 use astroport_voting_escrow::state::UNLOCK_PERIOD;
 
@@ -75,7 +75,7 @@ fn test_lock() {
 }
 
 #[test]
-fn test_unlok() {
+fn test_unlock() {
     let xastro_denom = "xastro";
     let mut helper = EscrowHelper::new(xastro_denom);
 
@@ -138,7 +138,10 @@ fn test_unlok() {
         lock,
         LockInfoResponse {
             amount: xastro_coin.amount,
-            end: Some(start_ts + UNLOCK_PERIOD)
+            unlock_status: Some(UnlockStatus {
+                end: start_ts + UNLOCK_PERIOD,
+                hub_confirmed: false
+            }),
         }
     );
 
@@ -165,11 +168,10 @@ fn test_unlok() {
         lock,
         LockInfoResponse {
             amount: xastro_coin.amount,
-            end: None,
+            unlock_status: None,
         }
     );
 
-    // Normal unlocking flow
     let bal_before = helper
         .app
         .wrap()
@@ -178,6 +180,14 @@ fn test_unlok() {
         .amount;
     helper.unlock(&user1).unwrap();
     helper.timetravel(UNLOCK_PERIOD);
+
+    let err = helper.withdraw(&user1).unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::HubNotConfirmed {}
+    );
+
+    helper.confirm_unlock(&user1).unwrap();
     helper.withdraw(&user1).unwrap();
 
     assert_eq!(0, helper.user_vp(&user1, None).unwrap().u128());
@@ -188,6 +198,22 @@ fn test_unlok() {
         .unwrap()
         .amount;
     assert_eq!(xastro_coin.amount, bal_after - bal_before);
+
+    helper.timetravel(10000);
+
+    // Relocks before hub confirmation doesn't harm
+    helper.lock(&user1, &[xastro_coin]).unwrap();
+    helper.unlock(&user1).unwrap();
+    helper.timetravel(UNLOCK_PERIOD);
+    // Confirm cant withdraw
+    let err = helper.withdraw(&user1).unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::HubNotConfirmed {}
+    );
+    helper.relock(&user1).unwrap();
+    // No error
+    helper.confirm_unlock(&user1).unwrap();
 }
 
 #[test]
@@ -205,12 +231,7 @@ fn test_general_queries() {
         .wrap()
         .query_wasm_smart(&helper.vxastro_contract, &QueryMsg::Config {})
         .unwrap();
-    assert_eq!(
-        config,
-        Config {
-            deposit_denom: xastro_denom.to_string(),
-        }
-    );
+    assert_eq!(config.deposit_denom, xastro_denom);
 
     let token_info: TokenInfoResponse = helper
         .app

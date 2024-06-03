@@ -54,6 +54,50 @@
       "additionalProperties": false
     },
     {
+      "description": "Permissioned to the Emissions Controller contract. Confirms unlocking for a specific user. Unconfirmed unlocks can't be withdrawn.",
+      "type": "object",
+      "required": [
+        "confirm_unlock"
+      ],
+      "properties": {
+        "confirm_unlock": {
+          "type": "object",
+          "required": [
+            "user"
+          ],
+          "properties": {
+            "user": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Permissioned to the Emissions Controller contract. Cancel unlocking for a specific user. This is used on IBC failures/timeouts. Allows users to retry unlocking.",
+      "type": "object",
+      "required": [
+        "force_relock"
+      ],
+      "properties": {
+        "force_relock": {
+          "type": "object",
+          "required": [
+            "user"
+          ],
+          "properties": {
+            "user": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    {
       "description": "Withdraw xASTRO from the vxASTRO contract",
       "type": "object",
       "required": [

@@ -10,21 +10,22 @@ This repo contains Astroport Governance related contracts.
 
 ## Contracts
 
-| Name                           | Description                      |
-| ------------------------------ | -------------------------------- |
-| [`assembly`](contracts/assembly) | The Astral Assembly governance contract |
-| [`builder_unlock`](contracts/builder_unlock) | ASTRO unlock/vesting contract for Initial Builders |
-| [`escrow_fee_distributor`](contracts/escrow_fee_distributor) | vxASTRO fee distributor |
-| [`generator_controller`](contracts/generator_controller) | Generator Controller used to vote on directing ASTRO emissions |
-| [`voting_escrow`](contracts/voting_escrow) | vxASTRO contract |
+| Name                                                         | Description                                                    |
+|--------------------------------------------------------------|----------------------------------------------------------------|
+| [`assembly`](contracts/assembly)                             | The Astral Assembly governance contract                        |
+| [`builder_unlock`](contracts/builder_unlock)                 | ASTRO unlock/vesting contract for Initial Builders             |
+| [`escrow_fee_distributor`](contracts/escrow_fee_distributor) | vxASTRO fee distributor                                        |
+| [`generator_controller`](contracts/emissions_controller)     | Generator Controller used to vote on directing ASTRO emissions |
+| [`voting_escrow`](contracts/voting_escrow)                   | vxASTRO contract                                               |
 
 ## Building Contracts
 
 You will need Rust 1.64.0+ with wasm32-unknown-unknown target installed.
 
 ### You can compile each contract:
-Go to contract directory and run 
-    
+
+Go to contract directory and run
+
 ```
 cargo wasm
 cp ../../target/wasm32-unknown-unknown/release/astroport_token.wasm .
@@ -33,6 +34,7 @@ sha256sum astroport_token.wasm
 ```
 
 ### You can run tests for all contracts
+
 Run the following from the repository root
 
 ```
@@ -40,6 +42,7 @@ cargo test
 ```
 
 ### For a production-ready (compressed) build:
+
 Run the following from the repository root
 
 ```
@@ -50,8 +53,8 @@ The optimized contracts are generated in the artifacts/ directory.
 
 ## Deployment
 
-You can find versions and commits for actually deployed contracts [here](https://github.com/astroport-fi/astroport-changelog).
-
+You can find versions and commits for actually deployed
+contracts [here](https://github.com/astroport-fi/astroport-changelog).
 
 ## Docs
 

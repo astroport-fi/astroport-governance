@@ -4,11 +4,16 @@
   "description": "This structure stores general parameters for the vxASTRO contract.",
   "type": "object",
   "required": [
-    "deposit_denom"
+    "deposit_denom",
+    "emissions_controller"
   ],
   "properties": {
     "deposit_denom": {
       "description": "xASTRO denom",
+      "type": "string"
+    },
+    "emissions_controller": {
+      "description": "Astroport Emissions Controller contract",
       "type": "string"
     },
     "marketing": {

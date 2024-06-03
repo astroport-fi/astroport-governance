@@ -1,0 +1,424 @@
+use astroport::asset::{AssetInfo, PairInfo};
+use astroport::factory::{PairConfig, PairType};
+use astroport::incentives::RewardInfo;
+use astroport::token::Logo;
+use astroport::{factory, incentives};
+use cosmwasm_std::{
+    coin, coins, Addr, BlockInfo, Coin, Decimal, Empty, MemoryStorage, StdResult, Timestamp,
+    Uint128,
+};
+use cw_multi_test::error::AnyResult;
+use cw_multi_test::{
+    no_init, App, AppBuilder, AppResponse, BankKeeper, BankSudo, DistributionKeeper, Executor,
+    MockAddressGenerator, MockApiBech32, StakeKeeper, WasmKeeper,
+};
+use derivative::Derivative;
+use itertools::Itertools;
+use neutron_sdk::bindings::msg::NeutronMsg;
+use neutron_sdk::bindings::query::NeutronQuery;
+
+use astroport_governance::emissions_controller::consts::EPOCHS_START;
+use astroport_governance::emissions_controller::hub::{
+    HubInstantiateMsg, HubMsg, OutpostInfo, UserInfoResponse, VotedPoolInfo,
+};
+use astroport_governance::voting_escrow::UpdateMarketingInfo;
+use astroport_governance::{emissions_controller, voting_escrow};
+
+use crate::common::contracts::*;
+use crate::common::ibc_module::IbcMockModule;
+use crate::common::neutron_module::MockNeutronModule;
+
+pub type NeutronApp = App<
+    BankKeeper,
+    MockApiBech32,
+    MemoryStorage,
+    MockNeutronModule,
+    WasmKeeper<NeutronMsg, NeutronQuery>,
+    StakeKeeper,
+    DistributionKeeper,
+    IbcMockModule,
+>;
+
+fn mock_ntrn_app() -> NeutronApp {
+    let api = MockApiBech32::new("neutron");
+    AppBuilder::new_custom()
+        .with_custom(MockNeutronModule::new(&api))
+        .with_api(api)
+        .with_wasm(WasmKeeper::new().with_address_generator(MockAddressGenerator))
+        .with_ibc(IbcMockModule)
+        .with_block(BlockInfo {
+            height: 1,
+            time: Timestamp::from_seconds(EPOCHS_START),
+            chain_id: "cw-multitest-1".to_string(),
+        })
+        .build(no_init)
+}
+
+#[derive(Derivative)]
+#[derivative(Debug)]
+pub struct ControllerHelper {
+    #[derivative(Debug = "ignore")]
+    pub app: NeutronApp,
+    pub owner: Addr,
+    pub astro: String,
+    pub xastro: String,
+    pub factory: Addr,
+    pub vxastro: Addr,
+    pub whitelisting_fee: Coin,
+    pub emission_controller: Addr,
+    pub incentives: Addr,
+}
+
+impl ControllerHelper {
+    pub fn new() -> Self {
+        let mut app = mock_ntrn_app();
+        let owner = app.api().addr_make("owner");
+        let astro_denom = "astro";
+        let xastro_denom = "xastro";
+
+        let vxastro_code_id = app.store_code(vxastro_contract());
+        let emissions_controller_code_id = app.store_code(emissions_controller());
+        let token_code_id = app.store_code(token_contract());
+        let xyk_code_id = app.store_code(pair_contract());
+        let factory_code_id = app.store_code(factory_contract());
+        let incentives_code_id = app.store_code(incentives_contract());
+
+        let factory = app
+            .instantiate_contract(
+                factory_code_id,
+                owner.clone(),
+                &factory::InstantiateMsg {
+                    pair_configs: vec![PairConfig {
+                        code_id: xyk_code_id,
+                        pair_type: PairType::Xyk {},
+                        total_fee_bps: 0,
+                        maker_fee_bps: 0,
+                        is_disabled: false,
+                        is_generator_disabled: false,
+                        permissioned: false,
+                    }],
+                    token_code_id,
+                    fee_address: None,
+                    generator_address: None,
+                    owner: owner.to_string(),
+                    whitelist_code_id: 0,
+                    coin_registry_address: app.api().addr_make("coin_registry").to_string(),
+                },
+                &[],
+                "label",
+                None,
+            )
+            .unwrap();
+
+        let incentives = app
+            .instantiate_contract(
+                incentives_code_id,
+                owner.clone(),
+                &incentives::InstantiateMsg {
+                    owner: owner.to_string(),
+                    factory: factory.to_string(),
+                    astro_token: AssetInfo::native(astro_denom),
+                    vesting_contract: app.api().addr_make("vesting").to_string(),
+                    incentivization_fee_info: None,
+                    guardian: None,
+                },
+                &[],
+                "label",
+                None,
+            )
+            .unwrap();
+
+        app.execute_contract(
+            owner.clone(),
+            factory.clone(),
+            &factory::ExecuteMsg::UpdateConfig {
+                token_code_id: None,
+                fee_address: None,
+                generator_address: Some(incentives.to_string()),
+                whitelist_code_id: None,
+                coin_registry_address: None,
+            },
+            &[],
+        )
+        .unwrap();
+
+        let whitelisting_fee = coin(1_000_000, astro_denom);
+        let emission_controller = app
+            .instantiate_contract(
+                emissions_controller_code_id,
+                owner.clone(),
+                &HubInstantiateMsg {
+                    owner: owner.to_string(),
+                    vxastro_code_id,
+                    vxastro_marketing_info: Some(UpdateMarketingInfo {
+                        project: None,
+                        description: None,
+                        marketing: None,
+                        logo: Some(Logo::Url("".to_string())),
+                    }),
+                    vxastro_deposit_denom: xastro_denom.to_string(),
+                    factory: factory.to_string(),
+                    astro_denom: astro_denom.to_string(),
+                    pools_per_outpost: 5,
+                    whitelisting_fee: whitelisting_fee.clone(),
+                    fee_receiver: app.api().addr_make("fee_receiver").to_string(),
+                    whitelist_threshold: Decimal::percent(1),
+                },
+                &[],
+                "label",
+                None,
+            )
+            .unwrap();
+
+        let vxastro = app
+            .wrap()
+            .query_wasm_smart::<emissions_controller::hub::Config>(
+                &emission_controller,
+                &emissions_controller::hub::QueryMsg::Config {},
+            )
+            .unwrap()
+            .vxastro;
+
+        let helper = Self {
+            app,
+            owner,
+            xastro: xastro_denom.to_string(),
+            astro: astro_denom.to_string(),
+            factory,
+            vxastro,
+            whitelisting_fee,
+            emission_controller,
+            incentives,
+        };
+        dbg!(&helper);
+
+        helper
+    }
+
+    pub fn mint_tokens(&mut self, user: &Addr, coins: &[Coin]) -> AnyResult<AppResponse> {
+        self.app.sudo(
+            BankSudo::Mint {
+                to_address: user.to_string(),
+                amount: coins.to_vec(),
+            }
+            .into(),
+        )
+    }
+
+    pub fn lock(&mut self, user: &Addr, amount: u128) -> AnyResult<AppResponse> {
+        let funds = coins(amount, &self.xastro);
+        self.mint_tokens(user, &funds).unwrap();
+        self.app.execute_contract(
+            user.clone(),
+            self.vxastro.clone(),
+            &voting_escrow::ExecuteMsg::Lock { receiver: None },
+            &funds,
+        )
+    }
+
+    pub fn withdraw(&mut self, user: &Addr) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            user.clone(),
+            self.vxastro.clone(),
+            &voting_escrow::ExecuteMsg::Withdraw {},
+            &[],
+        )
+    }
+
+    pub fn unlock(&mut self, user: &Addr) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            user.clone(),
+            self.vxastro.clone(),
+            &voting_escrow::ExecuteMsg::Unlock {},
+            &[],
+        )
+    }
+
+    pub fn relock(&mut self, user: &Addr) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            user.clone(),
+            self.vxastro.clone(),
+            &voting_escrow::ExecuteMsg::Relock {},
+            &[],
+        )
+    }
+
+    pub fn timetravel(&mut self, time: u64) {
+        self.app.update_block(|block| {
+            block.time = block.time.plus_seconds(time);
+        })
+    }
+
+    pub fn user_vp(&self, user: &Addr, time: Option<u64>) -> StdResult<Uint128> {
+        self.app.wrap().query_wasm_smart(
+            &self.vxastro,
+            &voting_escrow::QueryMsg::UserVotingPower {
+                user: user.to_string(),
+                time,
+            },
+        )
+    }
+
+    pub fn user_info(&self, user: &Addr, timestamp: Option<u64>) -> StdResult<UserInfoResponse> {
+        self.app.wrap().query_wasm_smart(
+            &self.emission_controller,
+            &emissions_controller::hub::QueryMsg::UserInfo {
+                user: user.to_string(),
+                timestamp,
+            },
+        )
+    }
+
+    pub fn create_pair(&mut self, denom1: &str, denom2: &str) -> Addr {
+        let asset_infos = vec![AssetInfo::native(denom1), AssetInfo::native(denom2)];
+        self.app
+            .execute_contract(
+                self.owner.clone(),
+                self.factory.clone(),
+                &factory::ExecuteMsg::CreatePair {
+                    pair_type: PairType::Xyk {},
+                    asset_infos: asset_infos.clone(),
+                    init_params: None,
+                },
+                &[],
+            )
+            .unwrap();
+
+        self.app
+            .wrap()
+            .query_wasm_smart::<PairInfo>(&self.factory, &factory::QueryMsg::Pair { asset_infos })
+            .unwrap()
+            .liquidity_token
+    }
+
+    pub fn vote(&mut self, user: &Addr, votes: &[(String, Decimal)]) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            user.clone(),
+            self.emission_controller.clone(),
+            &emissions_controller::msg::ExecuteMsg::<Empty>::Vote {
+                votes: votes.to_vec(),
+            },
+            &[],
+        )
+    }
+
+    pub fn whitelist(
+        &mut self,
+        user: &Addr,
+        pool: impl Into<String>,
+        fees: &[Coin],
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            user.clone(),
+            self.emission_controller.clone(),
+            &emissions_controller::msg::ExecuteMsg::Custom(HubMsg::WhitelistPool {
+                pool: pool.into(),
+            }),
+            fees,
+        )
+    }
+
+    pub fn add_outpost(&mut self, prefix: &str, outpost: OutpostInfo) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            self.owner.clone(),
+            self.emission_controller.clone(),
+            &emissions_controller::msg::ExecuteMsg::Custom(HubMsg::UpdateOutpost {
+                prefix: prefix.to_string(),
+                astro_denom: outpost.astro_denom,
+                outpost_params: outpost.params,
+                astro_pool_config: outpost.astro_pool_config,
+            }),
+            &[],
+        )
+    }
+
+    pub fn query_voted_pool(&self, pool: &str, timestamp: Option<u64>) -> StdResult<VotedPoolInfo> {
+        self.app.wrap().query_wasm_smart(
+            &self.emission_controller,
+            &emissions_controller::hub::QueryMsg::VotedPool {
+                pool: pool.to_string(),
+                timestamp,
+            },
+        )
+    }
+
+    pub fn query_pool_vp(&self, pool: &str, timestamp: Option<u64>) -> StdResult<Uint128> {
+        self.query_voted_pool(pool, timestamp)
+            .map(|x| x.voting_power)
+    }
+
+    pub fn query_voted_pools(&self, limit: Option<u8>) -> StdResult<Vec<(String, VotedPoolInfo)>> {
+        self.app.wrap().query_wasm_smart(
+            &self.emission_controller,
+            &emissions_controller::hub::QueryMsg::VotedPoolsList {
+                limit,
+                start_after: None,
+            },
+        )
+    }
+
+    pub fn query_pools_vp(&self, limit: Option<u8>) -> StdResult<Vec<(String, Uint128)>> {
+        self.query_voted_pools(limit).map(|res| {
+            res.into_iter()
+                .sorted_by(|a, b| a.0.cmp(&b.0))
+                .map(|(pool, info)| (pool, info.voting_power))
+                .collect_vec()
+        })
+    }
+
+    pub fn query_config(&self) -> StdResult<emissions_controller::hub::Config> {
+        self.app.wrap().query_wasm_smart(
+            &self.emission_controller,
+            &emissions_controller::hub::QueryMsg::Config {},
+        )
+    }
+
+    pub fn tune(&mut self, sender: &Addr) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            sender.clone(),
+            self.emission_controller.clone(),
+            &emissions_controller::msg::ExecuteMsg::Custom(HubMsg::TunePools {}),
+            &[],
+        )
+    }
+
+    pub fn refresh_user_votes(&mut self, sender: &Addr) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            sender.clone(),
+            self.emission_controller.clone(),
+            &emissions_controller::msg::ExecuteMsg::<Empty>::RefreshUserVotes {},
+            &[],
+        )
+    }
+
+    pub fn retry_failed_outposts(&mut self, sender: &Addr) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            sender.clone(),
+            self.emission_controller.clone(),
+            &emissions_controller::msg::ExecuteMsg::Custom(HubMsg::RetryFailedOutposts {}),
+            &[],
+        )
+    }
+
+    pub fn query_tune_info(
+        &self,
+        timestamp: Option<u64>,
+    ) -> StdResult<emissions_controller::hub::TuneInfo> {
+        self.app.wrap().query_wasm_smart(
+            &self.emission_controller,
+            &emissions_controller::hub::QueryMsg::TuneInfo { timestamp },
+        )
+    }
+
+    pub fn query_rewards(&self, pool: impl Into<String>) -> StdResult<Vec<RewardInfo>> {
+        self.app
+            .wrap()
+            .query_wasm_smart::<incentives::PoolInfoResponse>(
+                &self.incentives,
+                &incentives::QueryMsg::PoolInfo {
+                    lp_token: pool.into(),
+                },
+            )
+            .map(|x| x.rewards)
+    }
+}

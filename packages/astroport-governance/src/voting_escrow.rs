@@ -1,5 +1,5 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::Uint128;
+use cosmwasm_std::{Addr, Uint128};
 use cw20::{BalanceResponse, Logo, MarketingInfoResponse, TokenInfoResponse};
 
 /// This structure stores marketing information for vxASTRO.
@@ -20,6 +20,8 @@ pub struct UpdateMarketingInfo {
 pub struct InstantiateMsg {
     /// xASTRO denom
     pub deposit_denom: String,
+    /// Astroport Emissions Controller contract
+    pub emissions_controller: String,
     /// Marketing info for vxASTRO
     pub marketing: Option<UpdateMarketingInfo>,
 }
@@ -33,6 +35,15 @@ pub enum ExecuteMsg {
     Unlock {},
     /// Cancel unlocking
     Relock {},
+    /// Permissioned to the Emissions Controller contract.
+    /// Confirms unlocking for a specific user.
+    /// Unconfirmed unlocks can't be withdrawn.
+    ConfirmUnlock { user: String },
+    /// Permissioned to the Emissions Controller contract.
+    /// Cancel unlocking for a specific user.
+    /// This is used on IBC failures/timeouts.
+    /// Allows users to retry unlocking.
+    ForceRelock { user: String },
     /// Withdraw xASTRO from the vxASTRO contract
     Withdraw {},
     /// Update the marketing info for the vxASTRO contract
@@ -78,12 +89,23 @@ pub enum QueryMsg {
 pub struct Config {
     /// The xASTRO denom
     pub deposit_denom: String,
+    /// Astroport Emissions Controller contract
+    pub emissions_controller: Addr,
+}
+
+#[derive(Copy)]
+#[cw_serde]
+pub struct UnlockStatus {
+    /// The timestamp when a lock will be unlocked.
+    pub end: u64,
+    /// Whether The Hub confirmed unlocking
+    pub hub_confirmed: bool,
 }
 
 #[cw_serde]
 pub struct LockInfoResponse {
-    /// The total amount of xASTRO tokens that were deposited in the vxASTRO position
+    /// The total number of xASTRO tokens that were deposited in the vxASTRO position
     pub amount: Uint128,
-    /// The timestamp when a lock will be unlocked. None for positions in Locked state
-    pub end: Option<u64>,
+    /// Unlocking status. None for positions in Locked state
+    pub unlock_status: Option<UnlockStatus>,
 }

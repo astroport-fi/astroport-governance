@@ -24,8 +24,8 @@ thiserror.workspace = true
 cosmwasm-schema.workspace = true
 cw-utils.workspace = true
 astroport-governance = { path = "../../packages/astroport-governance", version = "3" }
-astroport = { git = "https://github.com/astroport-fi/hidden_astroport_core", version = "4" }
-astro-satellite = "1.1.0"
+astroport.workspace = true
+astro-satellite = { version = "1.1.0", features = ["library"] }
 ibc-controller-package = "1.0.0"
 
 [dev-dependencies]

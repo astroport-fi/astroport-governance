@@ -2,8 +2,8 @@ use astroport::asset::{addr_opt_validate, validate_native_denom};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, coins, to_json_binary, BankMsg, Binary, Deps, DepsMut, Env, MessageInfo, Response,
-    StdError, StdResult, Uint128,
+    attr, coins, ensure, to_json_binary, wasm_execute, BankMsg, Binary, Deps, DepsMut, Empty, Env,
+    MessageInfo, Response, StdError, StdResult, Uint128,
 };
 use cw2::set_contract_version;
 use cw20::{BalanceResponse, Logo, LogoInfo, MarketingInfoResponse, TokenInfoResponse};
@@ -11,6 +11,7 @@ use cw20_base::contract::{execute_update_marketing, query_marketing_info};
 use cw20_base::state::{MinterData, TokenInfo, LOGO, MARKETING_INFO, TOKEN_INFO};
 use cw_utils::must_pay;
 
+use astroport_governance::emissions_controller;
 use astroport_governance::voting_escrow::{
     Config, ExecuteMsg, InstantiateMsg, LockInfoResponse, QueryMsg,
 };
@@ -37,6 +38,7 @@ pub fn instantiate(
 
     let config = Config {
         deposit_denom: msg.deposit_denom.clone(),
+        emissions_controller: deps.api.addr_validate(&msg.emissions_controller)?,
     };
     CONFIG.save(deps.storage, &config)?;
 
@@ -80,19 +82,6 @@ pub fn instantiate(
 }
 
 /// Exposes all the execute functions available in the contract.
-///
-/// ## Execute messages
-/// * **ExecuteMsg::ExtendLockTime { time }** Increase a staker's lock time.
-///
-/// * **ExecuteMsg::Receive(msg)** Parse incoming messages coming from the xASTRO token contract.
-///
-/// * **ExecuteMsg::Withdraw {}** Withdraw all xASTRO from a lock position if the lock has expired.
-///
-/// * **ExecuteMsg::ProposeNewOwner { owner, expires_in }** Creates a new request to change contract ownership.
-///
-/// * **ExecuteMsg::DropOwnershipProposal {}** Removes a request to change contract ownership.
-///
-/// * **ExecuteMsg::ClaimOwnership {}** Claims contract ownership.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
@@ -110,32 +99,95 @@ pub fn execute(
             let mut position = Lock::load(deps.storage, block_ts, &receiver)?;
             position.lock(deps.storage, deposit)?;
 
-            Ok(Response::default().add_attributes([
-                attr("action", "lock"),
-                attr("receiver", receiver),
-                attr("deposit_amount", deposit),
-                attr("new_lock_amount", position.amount),
-            ]))
+            // Update user votes in emissions controller
+            let update_votes_msg = wasm_execute(
+                &config.emissions_controller,
+                &emissions_controller::msg::ExecuteMsg::<Empty>::UpdateUserVotes {
+                    user: receiver.to_string(),
+                    is_unlock: false,
+                },
+                vec![],
+            )?;
+
+            Ok(Response::default()
+                .add_message(update_votes_msg)
+                .add_attributes([
+                    attr("action", "lock"),
+                    attr("receiver", receiver),
+                    attr("deposit_amount", deposit),
+                    attr("new_lock_amount", position.amount),
+                ]))
         }
         ExecuteMsg::Unlock {} => {
             let mut position = Lock::load(deps.storage, env.block.time.seconds(), &info.sender)?;
             let unlock_time = position.unlock(deps.storage)?;
 
-            // TODO: kick user from generator controller votes
+            // Update user votes in emissions controller
+            let config = CONFIG.load(deps.storage)?;
+            let update_votes_msg = wasm_execute(
+                config.emissions_controller,
+                &emissions_controller::msg::ExecuteMsg::<Empty>::UpdateUserVotes {
+                    user: info.sender.to_string(),
+                    is_unlock: true,
+                },
+                vec![],
+            )?;
 
-            Ok(Response::default().add_attributes([
-                attr("action", "unlock"),
-                attr("receiver", info.sender),
-                attr("unlocked_amount", position.amount),
-                attr("unlock_time", unlock_time.to_string()),
-            ]))
+            Ok(Response::default()
+                .add_message(update_votes_msg)
+                .add_attributes([
+                    attr("action", "unlock"),
+                    attr("receiver", info.sender),
+                    attr("unlocked_amount", position.amount),
+                    attr("unlock_time", unlock_time.to_string()),
+                ]))
         }
         ExecuteMsg::Relock {} => {
             let mut position = Lock::load(deps.storage, env.block.time.seconds(), &info.sender)?;
             position.relock(deps.storage)?;
 
+            // Update user votes in emissions controller
+            let config = CONFIG.load(deps.storage)?;
+            let update_votes_msg = wasm_execute(
+                config.emissions_controller,
+                &emissions_controller::msg::ExecuteMsg::<Empty>::UpdateUserVotes {
+                    user: info.sender.to_string(),
+                    is_unlock: false,
+                },
+                vec![],
+            )?;
+
             Ok(Response::default()
+                .add_message(update_votes_msg)
                 .add_attributes([attr("action", "relock"), attr("receiver", info.sender)]))
+        }
+        ExecuteMsg::ForceRelock { user } => {
+            let config = CONFIG.load(deps.storage)?;
+            ensure!(
+                info.sender == config.emissions_controller,
+                ContractError::Unauthorized {}
+            );
+
+            let user = deps.api.addr_validate(&user)?;
+            let mut position = Lock::load(deps.storage, env.block.time.seconds(), &user)?;
+            position.relock(deps.storage)?;
+
+            Ok(Response::default()
+                .add_attributes([attr("action", "force_relock"), attr("receiver", user)]))
+        }
+        ExecuteMsg::ConfirmUnlock { user } => {
+            let config = CONFIG.load(deps.storage)?;
+            ensure!(
+                info.sender == config.emissions_controller,
+                ContractError::Unauthorized {}
+            );
+
+            let user = deps.api.addr_validate(&user)?;
+            let mut position = Lock::load(deps.storage, env.block.time.seconds(), &user)?;
+            position.confirm_unlock(deps.storage)?;
+
+            Ok(Response::default()
+                .add_attributes([attr("action", "confirm_unlock"), attr("receiver", user)]))
         }
         ExecuteMsg::Withdraw {} => {
             let mut position = Lock::load(deps.storage, env.block.time.seconds(), &info.sender)?;
@@ -163,17 +215,6 @@ pub fn execute(
 }
 
 /// Expose available contract queries.
-///
-/// ## Queries
-/// * **QueryMsg::TotalVotingPower {}** Fetch the total voting power (vxASTRO supply) at the current block.
-///
-/// * **QueryMsg::UserVotingPower { user }** Fetch the user's voting power (vxASTRO balance) at the current block.
-///
-/// * **QueryMsg::TotalVotingPowerAt { time }** Fetch the total voting power (vxASTRO supply) at a specified timestamp.
-///
-/// * **QueryMsg::UserVotingPowerAt { time }** Fetch the user's voting power (vxASTRO balance) at a specified timestamp.
-///
-/// * **QueryMsg::LockInfo { user }** Fetch a user's lock information.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {

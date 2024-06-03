@@ -19,4 +19,5 @@ cosmwasm-std = { workspace = true, features = ["ibc3"] }
 cw-storage-plus.workspace = true
 cosmwasm-schema.workspace = true
 thiserror.workspace = true
-astroport = { git = "https://github.com/astroport-fi/hidden_astroport_core", version = "4" }
+astroport.workspace = true
+itertools.workspace = true

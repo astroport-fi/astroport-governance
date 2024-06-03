@@ -32,4 +32,7 @@ pub enum ContractError {
 
     #[error("Position is already unlocking. Consider relocking to lock more tokens")]
     PositionUnlocking {},
+
+    #[error("Hub has not yet confirmed the unlock")]
+    HubNotConfirmed {},
 }

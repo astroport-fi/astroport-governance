@@ -3,7 +3,7 @@ use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{ensure, Addr, StdResult, Storage, Uint128};
 use cw_storage_plus::{Item, SnapshotItem, SnapshotMap, Strategy};
 
-use astroport_governance::voting_escrow::{Config, LockInfoResponse};
+use astroport_governance::voting_escrow::{Config, LockInfoResponse, UnlockStatus};
 
 use crate::error::ContractError;
 
@@ -20,9 +20,9 @@ fn default_addr() -> Addr {
 pub struct Lock {
     /// The total amount of xASTRO tokens that were deposited in the vxASTRO position
     pub amount: Uint128,
-    /// The timestamp when a lock will be unlocked. None for positions in Locked state
-    pub end: Option<u64>,
-    /// NOTE: The fields below are not stored in the state, it is used only in the contract logic
+    /// Unlocking status. None for positions in Locked state
+    pub unlock_status: Option<UnlockStatus>,
+    /// NOTE: The fields below are not stored in the state, they are used only in the contract logic
     #[serde(default = "default_addr", skip)]
     pub user: Addr,
     /// Current block timestamp.
@@ -34,7 +34,7 @@ impl Default for Lock {
     fn default() -> Self {
         Lock {
             amount: Uint128::zero(),
-            end: None,
+            unlock_status: None,
             user: default_addr(),
             block_time: 0,
         }
@@ -70,7 +70,10 @@ impl Lock {
         storage: &mut dyn Storage,
         amount: Uint128,
     ) -> Result<(), ContractError> {
-        ensure!(self.end.is_none(), ContractError::PositionUnlocking {});
+        ensure!(
+            self.unlock_status.is_none(),
+            ContractError::PositionUnlocking {}
+        );
 
         self.amount += amount;
         LOCKED.save(storage, &self.user, self, self.block_time)?;
@@ -83,10 +86,16 @@ impl Lock {
 
     pub fn unlock(&mut self, storage: &mut dyn Storage) -> Result<u64, ContractError> {
         ensure!(!self.amount.is_zero(), ContractError::ZeroBalance {});
-        ensure!(self.end.is_none(), ContractError::PositionUnlocking {});
+        ensure!(
+            self.unlock_status.is_none(),
+            ContractError::PositionUnlocking {}
+        );
 
         let end = self.block_time + UNLOCK_PERIOD;
-        self.end = Some(end);
+        self.unlock_status = Some(UnlockStatus {
+            end,
+            hub_confirmed: false,
+        });
         LOCKED.save(storage, &self.user, self, self.block_time)?;
 
         // Remove user's voting power from the total
@@ -97,10 +106,24 @@ impl Lock {
         Ok(end)
     }
 
-    pub fn relock(&mut self, storage: &mut dyn Storage) -> Result<(), ContractError> {
-        ensure!(self.end.is_some(), ContractError::NotInUnlockingState {});
+    pub fn confirm_unlock(&mut self, storage: &mut dyn Storage) -> StdResult<()> {
+        // If for some reason the unlock status is not set,
+        // we skip it silently so relayer can finish IBC transaction.
+        if let Some(unlock_status) = self.unlock_status.as_mut() {
+            unlock_status.hub_confirmed = true;
+            LOCKED.save(storage, &self.user, self, self.block_time)?;
+        }
 
-        self.end = None;
+        Ok(())
+    }
+
+    pub fn relock(&mut self, storage: &mut dyn Storage) -> Result<(), ContractError> {
+        ensure!(
+            self.unlock_status.is_some(),
+            ContractError::NotInUnlockingState {}
+        );
+
+        self.unlock_status = None;
         LOCKED.save(storage, &self.user, self, self.block_time)?;
 
         // Add user's voting power back to the total
@@ -112,10 +135,15 @@ impl Lock {
     }
 
     pub fn withdraw(&mut self, storage: &mut dyn Storage) -> Result<Uint128, ContractError> {
-        if let Some(end) = self.end {
+        if let Some(unlock_status) = self.unlock_status {
             ensure!(
-                self.block_time >= end,
-                ContractError::UnlockPeriodNotExpired(end)
+                self.block_time >= unlock_status.end,
+                ContractError::UnlockPeriodNotExpired(unlock_status.end)
+            );
+
+            ensure!(
+                unlock_status.hub_confirmed,
+                ContractError::HubNotConfirmed {}
             );
 
             LOCKED.remove(storage, &self.user, self.block_time)?;
@@ -127,7 +155,7 @@ impl Lock {
     }
 
     pub fn get_voting_power(&self) -> Uint128 {
-        if self.end.is_some() {
+        if self.unlock_status.is_some() {
             Uint128::zero()
         } else {
             self.amount
@@ -139,7 +167,7 @@ impl From<Lock> for LockInfoResponse {
     fn from(lock: Lock) -> Self {
         LockInfoResponse {
             amount: lock.amount,
-            end: lock.end,
+            unlock_status: lock.unlock_status,
         }
     }
 }
