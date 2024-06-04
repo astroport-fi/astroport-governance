@@ -102,7 +102,7 @@
       "additionalProperties": false
     },
     {
-      "description": "Returns paginated list of all pools that received votes",
+      "description": "Returns paginated list of all pools that received votes at the current epoch",
       "type": "object",
       "required": [
         "voted_pools_list"
@@ -153,6 +153,20 @@
       ],
       "properties": {
         "query_whitelist": {
+          "type": "object",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "SimulateTune simulates the ASTRO amount that will be emitted in the next epoch per pool considering if the next epoch starts right now. This query is useful for the UI to show the expected ASTRO emissions as well as might be useful for integrator estimations. It filters out pools which don't belong to any of outposts and invalid Hub-based LP tokens. Returns TuneResultResponse object which contains emissions state and next pools grouped by outpost prefix.",
+      "type": "object",
+      "required": [
+        "simulate_tune"
+      ],
+      "properties": {
+        "simulate_tune": {
           "type": "object",
           "additionalProperties": false
         }

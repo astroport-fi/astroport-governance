@@ -10,6 +10,7 @@ use cw2::set_contract_version;
 use cw_utils::parse_instantiate_response_data;
 
 use astroport_governance::emissions_controller::outpost::Config;
+use astroport_governance::emissions_controller::utils::query_incentives_addr;
 use astroport_governance::voting_escrow;
 
 use crate::error::ContractError;
@@ -34,10 +35,13 @@ pub fn instantiate(
 
     validate_native_denom(&msg.astro_denom)?;
 
+    let factory = deps.api.addr_validate(&msg.factory)?;
+
     let config = Config {
         owner: deps.api.addr_validate(&msg.owner)?,
         vxastro: Addr::unchecked(""),
         astro_denom: msg.astro_denom,
+        incentives_addr: query_incentives_addr(deps.querier, &factory)?,
         factory: deps.api.addr_validate(&msg.factory)?,
         // Contract owner is responsible for setting a channel via UpdateConfig
         voting_ibc_channel: "".to_string(),
@@ -48,12 +52,12 @@ pub fn instantiate(
     CONFIG.save(deps.storage, &config)?;
 
     // Instantiate vxASTRO contract
-    validate_native_denom(&msg.vxastro_deposit_denom)?;
+    validate_native_denom(&msg.xastro_denom)?;
     let init_vxastro_msg = WasmMsg::Instantiate {
         admin: Some(msg.owner),
         code_id: msg.vxastro_code_id,
         msg: to_json_binary(&voting_escrow::InstantiateMsg {
-            deposit_denom: msg.vxastro_deposit_denom.to_string(),
+            deposit_denom: msg.xastro_denom.to_string(),
             emissions_controller: env.contract.address.to_string(),
             marketing: msg.vxastro_marketing_info,
         })?,

@@ -1,11 +1,12 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
-use astroport::asset::Asset;
+use astroport::asset::{determine_asset_info, Asset};
 use astroport::incentives::{IncentivesSchedule, InputSchedule};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_schema::serde::Serialize;
 use cosmwasm_std::{
-    coin, Coin, CosmosMsg, Deps, Env, Order, StdError, StdResult, Storage, Uint128,
+    coin, Coin, CosmosMsg, Decimal, Deps, Env, Order, QuerierWrapper, StdError, StdResult, Storage,
+    Uint128,
 };
 use itertools::Itertools;
 use neutron_sdk::bindings::msg::{IbcFee, NeutronMsg};
@@ -16,11 +17,14 @@ use neutron_sdk::sudo::msg::RequestPacketTimeoutHeight;
 use astroport_governance::emissions_controller::consts::{
     EPOCHS_START, EPOCH_LENGTH, FEE_DENOM, IBC_TIMEOUT, LP_SUBDENOM,
 };
-use astroport_governance::emissions_controller::hub::{OutpostInfo, OutpostParams};
+use astroport_governance::emissions_controller::hub::{
+    Config, EmissionsState, OutpostInfo, OutpostParams,
+};
 use astroport_governance::emissions_controller::outpost::OutpostMsg;
+use astroport_governance::emissions_controller::utils::check_lp_token;
 
 use crate::error::ContractError;
-use crate::state::OUTPOSTS;
+use crate::state::{OUTPOSTS, TUNE_INFO, VOTED_POOLS};
 
 /// Determine outpost prefix from address or denom.
 pub fn determine_outpost_prefix(value: &str) -> Option<String> {
@@ -205,9 +209,156 @@ pub fn get_epoch_start(timestamp: u64) -> u64 {
     }
 }
 
-// TODO: Implement dynamic emissions curve
-pub fn astro_emissions_curve() -> Uint128 {
-    Uint128::new(100_000_000_000)
+/// Query the staking contract ASTRO balance and xASTRO total supply and derive xASTRO staking rate.
+/// Return (staking rate, total xASTRO supply).
+pub fn get_xastro_rate_and_share(
+    querier: QuerierWrapper,
+    config: &Config,
+) -> Result<(Decimal, Uint128), ContractError> {
+    let total_deposit = querier
+        .query_balance(&config.staking, &config.astro_denom)?
+        .amount;
+    let total_shares = querier.query_supply(&config.xastro_denom)?.amount;
+    let rate = Decimal::checked_from_ratio(total_deposit, total_shares)?;
+
+    Ok((rate, total_shares))
+}
+
+/// Calculate the number of ASTRO tokens collected by the staking contract from the previous epoch
+/// and derive emissions for the upcoming epoch.  
+///
+/// Calculate two-epochs EMA by the following formula:
+/// (V_n-1 * 2/3 + V_n-2 * 1/3),  
+/// where V_n is the collected ASTRO at epoch n, n is the current epoch (a starting one).
+///
+/// Dynamic emissions formula is:  
+/// next emissions = MAX(MIN(max_astro, V_n-2 * emissions_multiple), MIN(max_astro, two-epochs EMA))
+pub fn astro_emissions_curve(
+    deps: Deps,
+    emissions_state: EmissionsState,
+    config: &Config,
+) -> Result<EmissionsState, ContractError> {
+    let (actual_rate, shares) = get_xastro_rate_and_share(deps.querier, config)?;
+    let growth = actual_rate - emissions_state.xastro_rate;
+    let collected_astro = shares * growth;
+
+    let two_thirds = Decimal::from_ratio(2u8, 3u8);
+    let one_third = Decimal::from_ratio(1u8, 3u8);
+    let ema = collected_astro * two_thirds + emissions_state.collected_astro * one_third;
+
+    let min_1 = (emissions_state.collected_astro * config.emissions_multiple).min(config.max_astro);
+    let min_2 = (ema * config.emissions_multiple).min(config.max_astro);
+
+    Ok(EmissionsState {
+        xastro_rate: actual_rate,
+        collected_astro,
+        emissions_amount: min_1.max(min_2),
+    })
+}
+
+pub struct TuneResult {
+    pub candidates: Vec<(String, (String, Uint128))>,
+    pub new_emissions_state: EmissionsState,
+    pub next_pools_grouped: HashMap<String, Vec<(String, Uint128)>>,
+}
+
+/// Simulate the next tune outcome based on the voting power distribution at given timestamp.
+/// In actual tuning context (function tune_pools) timestamp must match current epoch start.
+pub fn simulate_tune(
+    deps: Deps,
+    voted_pools: &HashSet<String>,
+    outposts: &HashMap<String, OutpostInfo>,
+    timestamp: u64,
+    config: &Config,
+) -> Result<TuneResult, ContractError> {
+    // Determine outpost prefix and filter out non-outpost pools.
+    let mut candidates = voted_pools
+        .iter()
+        .filter_map(|pool| get_outpost_prefix(pool, outposts).map(|prefix| (prefix, pool.clone())))
+        .map(|(prefix, pool)| {
+            let pool_vp = VOTED_POOLS
+                .may_load_at_height(deps.storage, &pool, timestamp)?
+                .map(|info| info.voting_power)
+                .unwrap_or_default();
+            Ok((prefix, (pool, pool_vp)))
+        })
+        .collect::<StdResult<Vec<_>>>()?;
+
+    candidates.sort_by(
+        |(_, (_, a)), (_, (_, b))| b.cmp(a), // Sort in descending order
+    );
+
+    let total_pool_limit = config.pools_per_outpost as usize * outposts.len();
+
+    let tune_info = TUNE_INFO.load(deps.storage)?;
+
+    let new_emissions_state = astro_emissions_curve(deps, tune_info.emissions_state, config)?;
+
+    // Total voting power of all selected pools
+    let total_selected_vp = candidates
+        .iter()
+        .take(total_pool_limit)
+        .fold(Uint128::zero(), |acc, (_, (_, vp))| acc + vp);
+    // Calculate each pool's ASTRO emissions
+    let mut next_pools = candidates
+        .iter()
+        .take(total_pool_limit)
+        .map(|(prefix, (pool, pool_vp))| {
+            let astro_for_pool = new_emissions_state
+                .emissions_amount
+                .multiply_ratio(*pool_vp, total_selected_vp);
+            (prefix.clone(), ((*pool).clone(), astro_for_pool))
+        })
+        .collect_vec();
+
+    // Add astro pools for each registered outpost
+    next_pools.extend(outposts.iter().filter_map(|(prefix, outpost)| {
+        outpost.astro_pool_config.as_ref().map(|astro_pool_config| {
+            (
+                prefix.clone(),
+                (
+                    astro_pool_config.astro_pool.clone(),
+                    astro_pool_config.constant_emissions,
+                ),
+            )
+        })
+    }));
+
+    let next_pools_grouped: HashMap<_, _> = next_pools
+        .into_iter()
+        .filter(|(_, (_, astro_for_pool))| !astro_for_pool.is_zero())
+        .into_group_map()
+        .into_iter()
+        .filter_map(|(prefix, pools)| {
+            if outposts.get(&prefix).unwrap().params.is_none() {
+                // Ensure on the Hub that all LP tokens are valid.
+                // Otherwise, keep ASTRO directed to invalid pools on the emissions controller.
+                let pools = pools
+                    .into_iter()
+                    .filter(|(pool, _)| {
+                        determine_asset_info(pool, deps.api)
+                            .and_then(|maybe_lp| {
+                                check_lp_token(deps.querier, &config.factory, &maybe_lp)
+                            })
+                            .is_ok()
+                    })
+                    .collect_vec();
+                if !pools.is_empty() {
+                    Some((prefix, pools))
+                } else {
+                    None
+                }
+            } else {
+                Some((prefix, pools))
+            }
+        })
+        .collect();
+
+    Ok(TuneResult {
+        candidates,
+        new_emissions_state,
+        next_pools_grouped,
+    })
 }
 
 #[cfg(test)]

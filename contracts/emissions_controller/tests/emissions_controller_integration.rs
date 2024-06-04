@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::str::FromStr;
 
 use astroport::asset::AssetInfo;
 use astroport::incentives::RewardType;
@@ -13,7 +14,8 @@ use astroport_emissions_controller::utils::get_epoch_start;
 use astroport_governance::emissions_controller;
 use astroport_governance::emissions_controller::consts::{DAY, EPOCH_LENGTH, VOTE_COOLDOWN};
 use astroport_governance::emissions_controller::hub::{
-    AstroPoolConfig, HubMsg, OutpostInfo, OutpostParams, OutpostStatus, TuneInfo, UserInfoResponse,
+    AstroPoolConfig, EmissionsState, HubMsg, OutpostInfo, OutpostParams, OutpostStatus, TuneInfo,
+    UserInfoResponse,
 };
 use astroport_governance::emissions_controller::msg::ExecuteMsg;
 use astroport_voting_escrow::state::UNLOCK_PERIOD;
@@ -511,7 +513,8 @@ fn test_tune_only_hub() {
         .unwrap();
     helper.tune(&owner).unwrap();
 
-    let expected_rps = Decimal256::from_ratio(100_000_000_000u128 / 2, EPOCH_LENGTH);
+    let cur_emissions = helper.query_current_emissions().unwrap().emissions_amount;
+    let expected_rps = Decimal256::from_ratio(cur_emissions.u128() / 2, EPOCH_LENGTH);
     let rewards = helper.query_rewards(&lp_token1).unwrap();
     let epoch_start = get_epoch_start(helper.app.block_info().time.seconds());
     let first_epoch_start = epoch_start;
@@ -553,10 +556,33 @@ fn test_tune_only_hub() {
 
     // Imagine bot executed the tune late
     helper.timetravel(EPOCH_LENGTH + 3 * DAY);
+
+    // Mocking received ASTRO in staking
+    helper
+        .mint_tokens(
+            &helper.staking.clone(),
+            &coins(500_000_000_000, helper.astro.clone()),
+        )
+        .unwrap();
+
+    let sim_tune_result = helper.query_simulate_tune().unwrap();
+
     helper.tune(&owner).unwrap();
 
+    let actual_emissions_state = helper.query_current_emissions().unwrap();
+    assert_eq!(sim_tune_result.new_emissions_state, actual_emissions_state);
+    let actual_tune_info = helper.query_tune_info(None).unwrap();
+    assert_eq!(
+        sim_tune_result.next_pools_grouped,
+        actual_tune_info.pools_grouped,
+    );
+
+    // Reset incentives as nobody claimed rewards
+    helper.reset_astro_reward(&lp_token1).unwrap();
+
     // User didn't change his votes. Emissions were 3 days late, thus their duration is 11 days.
-    let expected_rps = Decimal256::from_ratio(100_000_000_000u128 / 2, EPOCH_LENGTH - 3 * DAY);
+    let cur_emissions = helper.query_current_emissions().unwrap().emissions_amount;
+    let expected_rps = Decimal256::from_ratio(cur_emissions.u128() / 2, EPOCH_LENGTH - 3 * DAY);
     let rewards = helper.query_rewards(&lp_token1).unwrap();
     let epoch_start = get_epoch_start(helper.app.block_info().time.seconds());
     assert_eq!(rewards.len(), 1);
@@ -598,8 +624,8 @@ fn test_tune_only_hub() {
         pools_grouped: HashMap::from([(
             "neutron".to_string(),
             vec![
-                (lp_token1.to_string(), Uint128::new(50000000000)),
-                (lp_token2.to_string(), Uint128::new(50000000000)),
+                (lp_token1.to_string(), Uint128::new(133333333332)),
+                (lp_token2.to_string(), Uint128::new(133333333332)),
                 (astro_pool.to_string(), Uint128::new(1000000000)),
             ]
             .into_iter()
@@ -607,6 +633,11 @@ fn test_tune_only_hub() {
             .collect(),
         )]),
         outpost_emissions_statuses: Default::default(),
+        emissions_state: EmissionsState {
+            xastro_rate: Decimal::from_str("499501.4995004995004995").unwrap(),
+            collected_astro: 499999999999u128.into(),
+            emissions_amount: 266666666665u128.into(),
+        },
     };
     assert_eq!(tune_info, expected_tune_info);
 
@@ -621,8 +652,8 @@ fn test_tune_only_hub() {
         pools_grouped: HashMap::from([(
             "neutron".to_string(),
             vec![
-                (lp_token1.to_string(), Uint128::new(50000000000)),
-                (lp_token2.to_string(), Uint128::new(50000000000)),
+                (lp_token1.to_string(), Uint128::new(133600000000)),
+                (lp_token2.to_string(), Uint128::new(133600000000)),
                 (astro_pool.to_string(), Uint128::new(1000000000)),
             ]
             .into_iter()
@@ -630,6 +661,11 @@ fn test_tune_only_hub() {
             .collect(),
         )]),
         outpost_emissions_statuses: Default::default(),
+        emissions_state: EmissionsState {
+            xastro_rate: Decimal::one(),
+            collected_astro: 0u128.into(),
+            emissions_amount: 267200000000u128.into(),
+        },
     };
     assert_eq!(tune_info, expected_tune_info);
 }
@@ -702,8 +738,8 @@ fn test_tune_outpost() {
         pools_grouped: HashMap::from([(
             "osmo".to_string(),
             vec![
-                (lp_token1.to_string(), Uint128::new(50000000000)),
-                (lp_token2.to_string(), Uint128::new(50000000000)),
+                (lp_token1.to_string(), Uint128::new(133600000000)),
+                (lp_token2.to_string(), Uint128::new(133600000000)),
                 (astro_pool.to_string(), Uint128::new(1000000000)),
             ]
             .into_iter()
@@ -714,6 +750,11 @@ fn test_tune_outpost() {
             "osmo".to_string(),
             OutpostStatus::InProgress,
         )]),
+        emissions_state: EmissionsState {
+            xastro_rate: Decimal::one(),
+            collected_astro: 0u128.into(),
+            emissions_amount: 267200000000u128.into(),
+        },
     };
     assert_eq!(tune_info, expected_tune_info);
 
@@ -803,8 +844,8 @@ fn test_tune_outpost() {
         pools_grouped: HashMap::from([(
             "osmo".to_string(),
             vec![
-                (lp_token1.to_string(), Uint128::new(50000000000)),
-                (lp_token2.to_string(), Uint128::new(50000000000)),
+                (lp_token1.to_string(), Uint128::new(133600000000)),
+                (lp_token2.to_string(), Uint128::new(133600000000)),
                 (astro_pool.to_string(), Uint128::new(1000000000)),
             ]
             .into_iter()
@@ -812,6 +853,11 @@ fn test_tune_outpost() {
             .collect(),
         )]),
         outpost_emissions_statuses: HashMap::from([("osmo".to_string(), OutpostStatus::Done)]),
+        emissions_state: EmissionsState {
+            xastro_rate: Decimal::one(),
+            collected_astro: 0u128.into(),
+            emissions_amount: 267200000000u128.into(),
+        },
     };
     assert_eq!(tune_info, expected_tune_info);
 
@@ -1010,8 +1056,8 @@ fn test_lock_unlock_vxastro() {
         .wrap()
         .query_balance(bob, &helper.xastro)
         .unwrap();
-    assert_eq!(alice_balance, coin(2_000000, "xastro"));
-    assert_eq!(bob_balance, coin(1_000000, "xastro"));
+    assert_eq!(alice_balance, coin(2_000000, &helper.xastro));
+    assert_eq!(bob_balance, coin(1_000000, &helper.xastro));
 }
 
 #[test]
@@ -1063,7 +1109,7 @@ fn test_some_epochs() {
     helper
         .mint_tokens(
             &helper.emission_controller.clone(),
-            &coins(1000000000000, helper.astro.clone()),
+            &coins(100_000_000_000_000, helper.astro.clone()),
         )
         .unwrap();
 
@@ -1118,6 +1164,8 @@ fn test_some_epochs() {
                 pools_per_outpost: Some(1),
                 whitelisting_fee: None,
                 fee_receiver: None,
+                emissions_multiple: None,
+                max_astro: None,
             }),
             &[],
         )
@@ -1289,6 +1337,8 @@ fn test_update_config() {
         pools_per_outpost: Some(8),
         whitelisting_fee: Some(coin(100, "astro")),
         fee_receiver: Some(fee_receiver.to_string()),
+        emissions_multiple: Some(Decimal::percent(90)),
+        max_astro: Some(1_000_000u128.into()),
     });
 
     let err = helper
@@ -1324,10 +1374,15 @@ fn test_update_config() {
             vxastro: helper.vxastro.clone(),
             factory: helper.factory.clone(),
             astro_denom: helper.astro.clone(),
+            xastro_denom: helper.xastro.clone(),
+            staking: helper.staking.clone(),
+            incentives_addr: helper.incentives.clone(),
             pools_per_outpost: 8,
             whitelisting_fee: coin(100, "astro"),
             fee_receiver,
             whitelist_threshold: Decimal::percent(1),
+            emissions_multiple: Decimal::percent(90),
+            max_astro: 1_000_000u128.into(),
         }
     );
 }

@@ -1,4 +1,4 @@
-use cosmwasm_std::{Coin, StdError};
+use cosmwasm_std::{CheckedFromRatioError, Coin, StdError};
 use cw_utils::{ParseReplyError, PaymentError};
 use neutron_sdk::NeutronError;
 use thiserror::Error;
@@ -19,6 +19,9 @@ pub enum ContractError {
 
     #[error("{0}")]
     ParseReplyError(#[from] ParseReplyError),
+
+    #[error("{0}")]
+    CheckedFromRatioError(#[from] CheckedFromRatioError),
 
     #[error("Unauthorized")]
     Unauthorized {},

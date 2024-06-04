@@ -231,10 +231,30 @@
             "update_config": {
               "type": "object",
               "properties": {
+                "emissions_multiple": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/definitions/Decimal"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
                 "fee_receiver": {
                   "type": [
                     "string",
                     "null"
+                  ]
+                },
+                "max_astro": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/definitions/Uint128"
+                    },
+                    {
+                      "type": "null"
+                    }
                   ]
                 },
                 "pools_per_outpost": {

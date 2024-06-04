@@ -17,7 +17,7 @@ pub struct HubInstantiateMsg {
     /// vxASTRO token marketing info
     pub vxastro_marketing_info: Option<UpdateMarketingInfo>,
     /// xASTRO denom
-    pub vxastro_deposit_denom: String,
+    pub xastro_denom: String,
     /// Astroport Factory contract
     pub factory: String,
     /// ASTRO denom on the Hub
@@ -35,6 +35,15 @@ pub struct HubInstantiateMsg {
     pub fee_receiver: String,
     /// Minimal percentage of total voting power required to keep a pool in the whitelist
     pub whitelist_threshold: Decimal,
+    /// Controls ASTRO emissions for the next epoch.
+    /// If multiple < 1 then protocol emits less ASTRO than it buys back,
+    /// otherwise protocol is inflating ASTRO supply.
+    pub emissions_multiple: Decimal,
+    /// Max ASTRO allowed per epoch. Parameter of the dynamic emissions curve.
+    pub max_astro: Uint128,
+    /// Defines the number of ASTRO collected to staking contract
+    /// from 2-weeks period preceding the current epoch.
+    pub collected_astro: Uint128,
 }
 
 #[cw_serde]
@@ -48,6 +57,8 @@ pub enum HubMsg {
         pools_per_outpost: Option<u64>,
         whitelisting_fee: Option<Coin>,
         fee_receiver: Option<String>,
+        emissions_multiple: Option<Decimal>,
+        max_astro: Option<Uint128>,
     },
     /// Whitelists a pool to receive ASTRO emissions. Requires fee payment
     WhitelistPool { pool: String },
@@ -92,7 +103,7 @@ pub enum QueryMsg {
         pool: String,
         timestamp: Option<u64>,
     },
-    /// Returns paginated list of all pools that received votes
+    /// Returns paginated list of all pools that received votes at the current epoch
     #[returns(Vec<(String, VotedPoolInfo)>)]
     VotedPoolsList {
         limit: Option<u8>,
@@ -104,6 +115,15 @@ pub enum QueryMsg {
     /// QueryWhitelist returns the list of pools that are allowed to be voted for
     #[returns(Vec<String>)]
     QueryWhitelist {},
+    /// SimulateTune simulates the ASTRO amount that will be emitted in the next epoch per pool
+    /// considering if the next epoch starts right now.
+    /// This query is useful for the UI to show the expected ASTRO emissions
+    /// as well as might be useful for integrator estimations.
+    /// It filters out pools which don't belong to any of outposts and invalid Hub-based LP tokens.
+    /// Returns TuneResultResponse object which contains
+    /// emissions state and next pools grouped by outpost prefix.
+    #[returns(SimulateTuneResponse)]
+    SimulateTune {},
 }
 
 /// General contract configuration
@@ -117,6 +137,12 @@ pub struct Config {
     pub factory: Addr,
     /// ASTRO denom on the Hub
     pub astro_denom: String,
+    /// xASTRO denom
+    pub xastro_denom: String,
+    /// Staking contract
+    pub staking: Addr,
+    /// The Astroport Incentives contract
+    pub incentives_addr: Addr,
     /// Max number of pools that can receive ASTRO emissions per outpost added.
     /// For example, if there are 3 outposts,
     /// and the pools_limit is 10, then 30 pools can receive ASTRO emissions.
@@ -130,6 +156,13 @@ pub struct Config {
     pub fee_receiver: Addr,
     /// Minimal percentage of total voting power required to keep a pool in the whitelist
     pub whitelist_threshold: Decimal,
+    /// Controls the number of ASTRO emissions for the next epoch
+    /// where next amount = two epoch EMA * emissions_multiple.
+    /// If multiple < 1 then protocol emits less ASTRO than it buys back,
+    /// otherwise protocol is inflating ASTRO supply.
+    pub emissions_multiple: Decimal,
+    /// Max ASTRO allowed per epoch. Parameter of the dynamic emissions curve.
+    pub max_astro: Uint128,
 }
 
 impl Config {
@@ -149,6 +182,17 @@ impl Config {
             self.whitelist_threshold > Decimal::zero() && self.whitelist_threshold < Decimal::one(),
             StdError::generic_err("whitelist_threshold must be within (0, 1) range")
         );
+
+        ensure!(
+            !self.emissions_multiple.is_zero(),
+            StdError::generic_err("emissions_multiple must be greater than 0")
+        );
+
+        ensure!(
+            !self.max_astro.is_zero(),
+            StdError::generic_err("max_astro must be greater than 0")
+        );
+
         Ok(())
     }
 }
@@ -249,6 +293,24 @@ pub struct TuneInfo {
     pub pools_grouped: HashMap<String, Vec<(String, Uint128)>>,
     /// Map of outpost prefix -> IBC status. Hub should never enter this map.
     pub outpost_emissions_statuses: HashMap<String, OutpostStatus>,
+    /// State of the dynamic emissions curve
+    pub emissions_state: EmissionsState,
+}
+
+#[cw_serde]
+pub struct SimulateTuneResponse {
+    pub new_emissions_state: EmissionsState,
+    pub next_pools_grouped: HashMap<String, Vec<(String, Uint128)>>,
+}
+
+#[cw_serde]
+pub struct EmissionsState {
+    /// xASTRO to ASTRO staking rate from the previous epoch
+    pub xastro_rate: Decimal,
+    /// Collected ASTRO from previous epoch.
+    pub collected_astro: Uint128,
+    /// Amount of ASTRO to be emitted in the current epoch
+    pub emissions_amount: Uint128,
 }
 
 #[cfg(test)]
@@ -264,10 +326,15 @@ mod unit_tests {
             vxastro: Addr::unchecked(""),
             factory: Addr::unchecked(""),
             astro_denom: "uastro".to_string(),
+            xastro_denom: "".to_string(),
+            staking: Addr::unchecked(""),
+            incentives_addr: Addr::unchecked(""),
             pools_per_outpost: 0,
             whitelisting_fee: coin(100, "uastro"),
             fee_receiver: Addr::unchecked(""),
             whitelist_threshold: Decimal::percent(10),
+            emissions_multiple: Decimal::percent(80),
+            max_astro: 1_400_000_000_000u128.into(),
         };
         assert_eq!(
             config.validate().unwrap_err(),
@@ -299,6 +366,22 @@ mod unit_tests {
         );
 
         config.astro_denom = "uastro".to_string();
+        config.emissions_multiple = Decimal::zero();
+
+        assert_eq!(
+            config.validate().unwrap_err(),
+            StdError::generic_err("emissions_multiple must be greater than 0")
+        );
+
+        config.emissions_multiple = Decimal::percent(80);
+        config.max_astro = Uint128::zero();
+
+        assert_eq!(
+            config.validate().unwrap_err(),
+            StdError::generic_err("max_astro must be greater than 0")
+        );
+
+        config.max_astro = 1_400_000_000_000u128.into();
 
         config.validate().unwrap();
     }

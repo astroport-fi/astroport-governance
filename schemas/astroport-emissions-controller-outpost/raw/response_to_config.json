@@ -8,6 +8,7 @@
     "factory",
     "hub_emissions_controller",
     "ics20_channel",
+    "incentives_addr",
     "owner",
     "voting_ibc_channel",
     "vxastro"
@@ -32,6 +33,14 @@
     "ics20_channel": {
       "description": "Official ICS20 IBC channel from this outpost to the Hub",
       "type": "string"
+    },
+    "incentives_addr": {
+      "description": "The Astroport Incentives contract",
+      "allOf": [
+        {
+          "$ref": "#/definitions/Addr"
+        }
+      ]
     },
     "owner": {
       "description": "Address that's allowed to change contract parameters",

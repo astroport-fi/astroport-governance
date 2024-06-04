@@ -5,19 +5,38 @@
   "type": "object",
   "required": [
     "astro_denom",
+    "collected_astro",
+    "emissions_multiple",
     "factory",
     "fee_receiver",
+    "max_astro",
     "owner",
     "pools_per_outpost",
     "vxastro_code_id",
-    "vxastro_deposit_denom",
     "whitelist_threshold",
-    "whitelisting_fee"
+    "whitelisting_fee",
+    "xastro_denom"
   ],
   "properties": {
     "astro_denom": {
       "description": "ASTRO denom on the Hub",
       "type": "string"
+    },
+    "collected_astro": {
+      "description": "Defines the number of ASTRO collected to staking contract from 2-weeks period preceding the current epoch.",
+      "allOf": [
+        {
+          "$ref": "#/definitions/Uint128"
+        }
+      ]
+    },
+    "emissions_multiple": {
+      "description": "Controls ASTRO emissions for the next epoch. If multiple < 1 then protocol emits less ASTRO than it buys back, otherwise protocol is inflating ASTRO supply.",
+      "allOf": [
+        {
+          "$ref": "#/definitions/Decimal"
+        }
+      ]
     },
     "factory": {
       "description": "Astroport Factory contract",
@@ -26,6 +45,14 @@
     "fee_receiver": {
       "description": "Address that receives the whitelisting fee",
       "type": "string"
+    },
+    "max_astro": {
+      "description": "Max ASTRO allowed per epoch. Parameter of the dynamic emissions curve.",
+      "allOf": [
+        {
+          "$ref": "#/definitions/Uint128"
+        }
+      ]
     },
     "owner": {
       "description": "Contract owner",
@@ -42,10 +69,6 @@
       "type": "integer",
       "format": "uint64",
       "minimum": 0.0
-    },
-    "vxastro_deposit_denom": {
-      "description": "xASTRO denom",
-      "type": "string"
     },
     "vxastro_marketing_info": {
       "description": "vxASTRO token marketing info",
@@ -73,6 +96,10 @@
           "$ref": "#/definitions/Coin"
         }
       ]
+    },
+    "xastro_denom": {
+      "description": "xASTRO denom",
+      "type": "string"
     }
   },
   "additionalProperties": false,

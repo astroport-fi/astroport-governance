@@ -22,9 +22,7 @@ use astroport_governance::emissions_controller::hub::{
     VotedPoolInfo,
 };
 use astroport_governance::emissions_controller::msg::ExecuteMsg;
-use astroport_governance::emissions_controller::utils::{
-    check_lp_token, get_voting_power, query_incentives_addr,
-};
+use astroport_governance::emissions_controller::utils::{check_lp_token, get_voting_power};
 use astroport_governance::utils::check_contract_supports_channel;
 use astroport_governance::voting_escrow;
 
@@ -33,8 +31,9 @@ use crate::state::{
     CONFIG, OUTPOSTS, OWNERSHIP_PROPOSAL, POOLS_WHITELIST, TUNE_INFO, USER_INFO, VOTED_POOLS,
 };
 use crate::utils::{
-    astro_emissions_curve, build_emission_ibc_msg, determine_outpost_prefix, get_epoch_start,
-    get_outpost_prefix, min_ntrn_ibc_fee, raw_emissions_to_schedules, validate_outpost_prefix,
+    build_emission_ibc_msg, determine_outpost_prefix, get_epoch_start, get_outpost_prefix,
+    min_ntrn_ibc_fee, raw_emissions_to_schedules, simulate_tune, validate_outpost_prefix,
+    TuneResult,
 };
 
 /// Exposes all the execute functions available in the contract.
@@ -161,12 +160,16 @@ pub fn execute(
                 pools_per_outpost: pools_limit,
                 whitelisting_fee,
                 fee_receiver,
+                emissions_multiple,
+                max_astro,
             } => update_config(
                 deps.into_empty(),
                 info,
                 pools_limit,
                 whitelisting_fee,
                 fee_receiver,
+                emissions_multiple,
+                max_astro,
             ),
         },
     }
@@ -570,38 +573,24 @@ pub fn tune_pools(
         ContractError::TuneCooldown(tune_info.tune_ts + EPOCH_LENGTH)
     );
 
+    let config = CONFIG.load(deps.storage)?;
+    let ibc_fee = min_ntrn_ibc_fee(deps.as_ref())?;
+    let deps = deps.into_empty();
+
     let voted_pools = VOTED_POOLS
         .keys(deps.storage, None, None, Order::Ascending)
         .collect::<StdResult<HashSet<_>>>()?;
-
     let outposts = OUTPOSTS
         .range(deps.storage, None, None, Order::Ascending)
         .collect::<StdResult<HashMap<_, _>>>()?;
-
     let epoch_start = get_epoch_start(block_ts);
 
-    // Determine outpost prefix and filter out non-outpost pools.
-    let mut candidates = voted_pools
-        .iter()
-        .filter_map(|pool| get_outpost_prefix(pool, &outposts).map(|prefix| (prefix, pool)))
-        .map(|(prefix, pool)| {
-            let pool_vp = VOTED_POOLS
-                .may_load_at_height(
-                    deps.storage,
-                    pool,
-                    epoch_start, // We need to get the VP at the begging of the epoch
-                )?
-                .map(|info| info.voting_power)
-                .unwrap_or_default();
-            Ok((prefix, (pool, pool_vp)))
-        })
-        .collect::<StdResult<Vec<_>>>()?;
+    let TuneResult {
+        candidates,
+        new_emissions_state,
+        next_pools_grouped,
+    } = simulate_tune(deps.as_ref(), &voted_pools, &outposts, epoch_start, &config)?;
 
-    candidates.sort_by(
-        |(_, (_, a)), (_, (_, b))| b.cmp(a), // Sort in descending order
-    );
-
-    let config = CONFIG.load(deps.storage)?;
     let total_pool_limit = config.pools_per_outpost as usize * outposts.len();
 
     // If candidates list size is more than the total pool number limit,
@@ -635,47 +624,7 @@ pub fn tune_pools(
         POOLS_WHITELIST.save(deps.storage, &new_whitelist.into_iter().collect())?;
     }
 
-    let astro_for_the_next_period = astro_emissions_curve();
-
-    // Total voting power of all selected pools
-    let total_selected_vp = candidates
-        .iter()
-        .take(total_pool_limit)
-        .fold(Uint128::zero(), |acc, (_, (_, vp))| acc + vp);
-    let mut next_pools = candidates
-        .into_iter()
-        .take(total_pool_limit)
-        .map(|(prefix, (pool, pool_vp))| {
-            let astro_for_pool =
-                astro_for_the_next_period.multiply_ratio(pool_vp, total_selected_vp);
-            (prefix, (pool.clone(), astro_for_pool))
-        })
-        .collect_vec();
-
-    // Add astro pools for each registered outpost
-    next_pools.extend(outposts.iter().filter_map(|(prefix, outpost)| {
-        outpost.astro_pool_config.as_ref().map(|astro_pool_config| {
-            (
-                prefix.clone(),
-                (
-                    astro_pool_config.astro_pool.clone(),
-                    astro_pool_config.constant_emissions,
-                ),
-            )
-        })
-    }));
-
-    let ibc_fee = min_ntrn_ibc_fee(deps.as_ref())?;
-
-    let next_pools_grouped: HashMap<_, _> = next_pools
-        .into_iter()
-        .into_group_map()
-        .into_iter()
-        .collect();
-
     let mut attrs = vec![attr("action", "tune_pools")];
-
-    let deps = deps.into_empty();
     let mut outpost_emissions_statuses = HashMap::new();
     let setup_pools_msgs = next_pools_grouped
         .iter()
@@ -693,21 +642,8 @@ pub fn tune_pools(
                 outpost_emissions_statuses.insert(prefix.clone(), OutpostStatus::InProgress);
                 build_emission_ibc_msg(&env, params, &ibc_fee, astro_funds, &schedules)?
             } else {
-                let incentives_contract = query_incentives_addr(deps.querier, &config.factory)?;
-                // Ensure on the Hub that all LP tokens are valid.
-                // Otherwise, keep ASTRO directed to invalid pools on the emissions controller.
-                let schedules = schedules
-                    .into_iter()
-                    .filter(|(pool, _)| {
-                        determine_asset_info(pool, deps.api)
-                            .and_then(|maybe_lp| {
-                                check_lp_token(deps.querier, &config.factory, &maybe_lp)
-                            })
-                            .is_ok()
-                    })
-                    .collect_vec();
                 let incentives_msg = incentives::ExecuteMsg::IncentivizeMany(schedules);
-                wasm_execute(incentives_contract, &incentives_msg, vec![astro_funds])?.into()
+                wasm_execute(&config.incentives_addr, &incentives_msg, vec![astro_funds])?.into()
             };
 
             attrs.push(attr("outpost", prefix));
@@ -727,6 +663,7 @@ pub fn tune_pools(
             tune_ts: epoch_start,
             pools_grouped: next_pools_grouped,
             outpost_emissions_statuses,
+            emissions_state: new_emissions_state,
         },
         block_ts,
     )?;
@@ -744,6 +681,8 @@ pub fn update_config(
     pools_limit: Option<u64>,
     whitelisting_fee: Option<Coin>,
     fee_receiver: Option<String>,
+    emissions_multiple: Option<Decimal>,
+    max_astro: Option<Uint128>,
 ) -> Result<Response<NeutronMsg>, ContractError> {
     nonpayable(&info)?;
     let mut config = CONFIG.load(deps.storage)?;
@@ -766,6 +705,21 @@ pub fn update_config(
         attrs.push(attr("new_fee_receiver", &fee_receiver));
         config.fee_receiver = deps.api.addr_validate(&fee_receiver)?;
     }
+
+    if let Some(emissions_multiple) = emissions_multiple {
+        attrs.push(attr(
+            "new_emissions_multiple",
+            emissions_multiple.to_string(),
+        ));
+        config.emissions_multiple = emissions_multiple;
+    }
+
+    if let Some(max_astro) = max_astro {
+        attrs.push(attr("new_max_astro", max_astro.to_string()));
+        config.max_astro = max_astro;
+    }
+
+    config.validate()?;
 
     CONFIG.save(deps.storage, &config)?;
 

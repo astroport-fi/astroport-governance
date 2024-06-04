@@ -1,16 +1,16 @@
 use astroport::asset::{AssetInfo, PairInfo};
 use astroport::factory::{PairConfig, PairType};
 use astroport::incentives::RewardInfo;
-use astroport::token::Logo;
-use astroport::{factory, incentives};
+use astroport::token::{Logo, MinterResponse};
+use astroport::{factory, incentives, staking};
 use cosmwasm_std::{
-    coin, coins, Addr, BlockInfo, Coin, Decimal, Empty, MemoryStorage, StdResult, Timestamp,
-    Uint128,
+    coin, coins, from_json, to_json_binary, Addr, BlockInfo, Coin, Decimal, Empty, MemoryStorage,
+    StdResult, Timestamp, Uint128,
 };
 use cw_multi_test::error::AnyResult;
 use cw_multi_test::{
     no_init, App, AppBuilder, AppResponse, BankKeeper, BankSudo, DistributionKeeper, Executor,
-    MockAddressGenerator, MockApiBech32, StakeKeeper, WasmKeeper,
+    GovFailingModule, MockAddressGenerator, MockApiBech32, StakeKeeper, WasmKeeper,
 };
 use derivative::Derivative;
 use itertools::Itertools;
@@ -19,7 +19,8 @@ use neutron_sdk::bindings::query::NeutronQuery;
 
 use astroport_governance::emissions_controller::consts::EPOCHS_START;
 use astroport_governance::emissions_controller::hub::{
-    HubInstantiateMsg, HubMsg, OutpostInfo, UserInfoResponse, VotedPoolInfo,
+    EmissionsState, HubInstantiateMsg, HubMsg, OutpostInfo, SimulateTuneResponse, TuneInfo,
+    UserInfoResponse, VotedPoolInfo,
 };
 use astroport_governance::voting_escrow::UpdateMarketingInfo;
 use astroport_governance::{emissions_controller, voting_escrow};
@@ -27,6 +28,7 @@ use astroport_governance::{emissions_controller, voting_escrow};
 use crate::common::contracts::*;
 use crate::common::ibc_module::IbcMockModule;
 use crate::common::neutron_module::MockNeutronModule;
+use crate::common::stargate::StargateModule;
 
 pub type NeutronApp = App<
     BankKeeper,
@@ -37,6 +39,8 @@ pub type NeutronApp = App<
     StakeKeeper,
     DistributionKeeper,
     IbcMockModule,
+    GovFailingModule,
+    StargateModule,
 >;
 
 fn mock_ntrn_app() -> NeutronApp {
@@ -46,6 +50,7 @@ fn mock_ntrn_app() -> NeutronApp {
         .with_api(api)
         .with_wasm(WasmKeeper::new().with_address_generator(MockAddressGenerator))
         .with_ibc(IbcMockModule)
+        .with_stargate(StargateModule)
         .with_block(BlockInfo {
             height: 1,
             time: Timestamp::from_seconds(EPOCHS_START),
@@ -63,6 +68,7 @@ pub struct ControllerHelper {
     pub astro: String,
     pub xastro: String,
     pub factory: Addr,
+    pub staking: Addr,
     pub vxastro: Addr,
     pub whitelisting_fee: Coin,
     pub emission_controller: Addr,
@@ -74,7 +80,6 @@ impl ControllerHelper {
         let mut app = mock_ntrn_app();
         let owner = app.api().addr_make("owner");
         let astro_denom = "astro";
-        let xastro_denom = "xastro";
 
         let vxastro_code_id = app.store_code(vxastro_contract());
         let emissions_controller_code_id = app.store_code(emissions_controller());
@@ -82,6 +87,8 @@ impl ControllerHelper {
         let xyk_code_id = app.store_code(pair_contract());
         let factory_code_id = app.store_code(factory_contract());
         let incentives_code_id = app.store_code(incentives_contract());
+        let staking_code_id = app.store_code(staking_contract());
+        let tracker_code_id = app.store_code(tracker_contract());
 
         let factory = app
             .instantiate_contract(
@@ -142,6 +149,47 @@ impl ControllerHelper {
         )
         .unwrap();
 
+        let astro_staking_amount = coins(1_000000, astro_denom);
+        app.sudo(
+            BankSudo::Mint {
+                to_address: owner.to_string(),
+                amount: astro_staking_amount.clone(),
+            }
+            .into(),
+        )
+        .unwrap();
+
+        let msg = staking::InstantiateMsg {
+            deposit_token_denom: astro_denom.to_string(),
+            tracking_admin: owner.to_string(),
+            tracking_code_id: tracker_code_id,
+            token_factory_addr: app.api().addr_make("token_factory").to_string(),
+        };
+        let staking = app
+            .instantiate_contract(
+                staking_code_id,
+                owner.clone(),
+                &msg,
+                &[],
+                String::from("Astroport Staking"),
+                None,
+            )
+            .unwrap();
+        let xastro_denom = app
+            .wrap()
+            .query_wasm_smart::<staking::Config>(&staking, &staking::QueryMsg::Config {})
+            .unwrap()
+            .xastro_denom;
+
+        // Lock some ASTRO in staking to get initial staking rate
+        app.execute_contract(
+            owner.clone(),
+            staking.clone(),
+            &staking::ExecuteMsg::Enter { receiver: None },
+            &astro_staking_amount,
+        )
+        .unwrap();
+
         let whitelisting_fee = coin(1_000_000, astro_denom);
         let emission_controller = app
             .instantiate_contract(
@@ -156,13 +204,16 @@ impl ControllerHelper {
                         marketing: None,
                         logo: Some(Logo::Url("".to_string())),
                     }),
-                    vxastro_deposit_denom: xastro_denom.to_string(),
+                    xastro_denom: xastro_denom.clone(),
                     factory: factory.to_string(),
                     astro_denom: astro_denom.to_string(),
                     pools_per_outpost: 5,
                     whitelisting_fee: whitelisting_fee.clone(),
                     fee_receiver: app.api().addr_make("fee_receiver").to_string(),
                     whitelist_threshold: Decimal::percent(1),
+                    emissions_multiple: Decimal::percent(80),
+                    max_astro: 1_400_000_000_000u128.into(),
+                    collected_astro: 334_000_000_000u128.into(),
                 },
                 &[],
                 "label",
@@ -182,9 +233,10 @@ impl ControllerHelper {
         let helper = Self {
             app,
             owner,
-            xastro: xastro_denom.to_string(),
+            xastro: xastro_denom.clone(),
             astro: astro_denom.to_string(),
             factory,
+            staking,
             vxastro,
             whitelisting_fee,
             emission_controller,
@@ -205,14 +257,27 @@ impl ControllerHelper {
         )
     }
 
-    pub fn lock(&mut self, user: &Addr, amount: u128) -> AnyResult<AppResponse> {
-        let funds = coins(amount, &self.xastro);
+    pub fn enter_staking(&mut self, user: &Addr, amount: u128) -> AnyResult<AppResponse> {
+        let funds = coins(amount, &self.astro);
         self.mint_tokens(user, &funds).unwrap();
+        self.app.execute_contract(
+            user.clone(),
+            self.staking.clone(),
+            &staking::ExecuteMsg::Enter { receiver: None },
+            &funds,
+        )
+    }
+
+    pub fn lock(&mut self, user: &Addr, amount: u128) -> AnyResult<AppResponse> {
+        let data = self.enter_staking(user, amount)?.data.unwrap();
+        let mint_amount = from_json::<staking::StakingResponse>(&data)
+            .unwrap()
+            .xastro_amount;
         self.app.execute_contract(
             user.clone(),
             self.vxastro.clone(),
             &voting_escrow::ExecuteMsg::Lock { receiver: None },
-            &funds,
+            &coins(mint_amount.u128(), &self.xastro),
         )
     }
 
@@ -342,6 +407,25 @@ impl ControllerHelper {
         )
     }
 
+    pub fn query_current_emissions(&self) -> StdResult<EmissionsState> {
+        self.query_tune_info(None).map(|x| x.emissions_state)
+    }
+
+    pub fn query_simulate_tune(&self) -> StdResult<SimulateTuneResponse> {
+        self.app
+            .wrap()
+            .query_wasm_smart::<SimulateTuneResponse>(
+                &self.emission_controller,
+                &emissions_controller::hub::QueryMsg::SimulateTune {},
+            )
+            .map(|mut x| {
+                x.next_pools_grouped
+                    .iter_mut()
+                    .for_each(|(_, array)| array.sort());
+                x
+            })
+    }
+
     pub fn query_pool_vp(&self, pool: &str, timestamp: Option<u64>) -> StdResult<Uint128> {
         self.query_voted_pool(pool, timestamp)
             .map(|x| x.voting_power)
@@ -400,14 +484,54 @@ impl ControllerHelper {
         )
     }
 
-    pub fn query_tune_info(
-        &self,
-        timestamp: Option<u64>,
-    ) -> StdResult<emissions_controller::hub::TuneInfo> {
-        self.app.wrap().query_wasm_smart(
-            &self.emission_controller,
-            &emissions_controller::hub::QueryMsg::TuneInfo { timestamp },
-        )
+    pub fn query_tune_info(&self, timestamp: Option<u64>) -> StdResult<TuneInfo> {
+        self.app
+            .wrap()
+            .query_wasm_smart::<TuneInfo>(
+                &self.emission_controller,
+                &emissions_controller::hub::QueryMsg::TuneInfo { timestamp },
+            )
+            .map(|mut x| {
+                x.pools_grouped
+                    .iter_mut()
+                    .for_each(|(_, array)| array.sort());
+                x
+            })
+    }
+
+    pub fn reset_astro_reward(&mut self, lp_token: &Addr) -> AnyResult<AppResponse> {
+        // Mocking LP provide and depositing to incentives contract
+        // NOTE:
+        // it doesn't really provide assets to the pair
+        // but this is fine in the context of emissions controller
+        self.app
+            .wrap()
+            .query_wasm_smart(lp_token, &cw20_base::msg::QueryMsg::Minter {})
+            .map_err(Into::into)
+            .and_then(|info: MinterResponse| {
+                self.app.execute_contract(
+                    Addr::unchecked(info.minter),
+                    lp_token.clone(),
+                    &cw20_base::msg::ExecuteMsg::Mint {
+                        recipient: self.owner.to_string(),
+                        amount: 10000u128.into(),
+                    },
+                    &[],
+                )
+            })
+            .and_then(|_| {
+                self.app.execute_contract(
+                    self.owner.clone(),
+                    lp_token.clone(),
+                    &cw20_base::msg::ExecuteMsg::Send {
+                        contract: self.incentives.to_string(),
+                        amount: 10000u128.into(),
+                        msg: to_json_binary(&incentives::Cw20Msg::Deposit { recipient: None })
+                            .unwrap(),
+                    },
+                    &[],
+                )
+            })
     }
 
     pub fn query_rewards(&self, pool: impl Into<String>) -> StdResult<Vec<RewardInfo>> {

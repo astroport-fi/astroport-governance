@@ -18,7 +18,7 @@ library = []
 [dependencies]
 cw2.workspace = true
 cw-utils.workspace = true
-cosmwasm-std = { workspace = true, features = ["ibc3"] }
+cosmwasm-std = { workspace = true, features = ["cosmwasm_1_1", "ibc3"] }
 cw-storage-plus.workspace = true
 cosmwasm-schema.workspace = true
 thiserror.workspace = true
@@ -29,10 +29,13 @@ neutron-sdk = "0.10.0"
 serde_json = "1"
 
 [dev-dependencies]
-cw-multi-test = "1"
+cw-multi-test = { version = "1", features = ["cosmwasm_1_1"] }
 astroport-voting-escrow = { path = "../voting_escrow", version = "1", features = ["library"] }
 astroport-factory = { version = "1.7", features = ["library"] }
 astroport-pair = { version = "1.5", features = ["library"] }
 cw20-base = { version = "1", features = ["library"] }
 astroport-incentives = { git = "https://github.com/astroport-fi/hidden_astroport_core", branch = "feat/incentivize_many", version = "1.2", features = ["library"] }
+astroport-staking = { git = "https://github.com/astroport-fi/hidden_astroport_core", branch = "feat/incentivize_many", version = "2.1" }
+osmosis-std = "0.21.0"
 derivative = "2.2"
+anyhow = "1"

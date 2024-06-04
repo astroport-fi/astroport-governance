@@ -12,12 +12,12 @@ pub struct OutpostInstantiateMsg {
     pub owner: String,
     /// ASTRO denom on the chain
     pub astro_denom: String,
+    /// xASTRO denom
+    pub xastro_denom: String,
     /// vxASTRO contract code id
     pub vxastro_code_id: u64,
     /// vxASTRO token marketing info
     pub vxastro_marketing_info: Option<UpdateMarketingInfo>,
-    /// xASTRO denom
-    pub vxastro_deposit_denom: String,
     /// Astroport Factory contract
     pub factory: String,
     /// Emissions controller on the Hub
@@ -87,6 +87,8 @@ pub struct Config {
     pub astro_denom: String,
     /// Astroport Factory contract
     pub factory: Addr,
+    /// The Astroport Incentives contract
+    pub incentives_addr: Addr,
     /// vxASTRO IBC channel
     pub voting_ibc_channel: String,
     /// Emissions controller on the Hub

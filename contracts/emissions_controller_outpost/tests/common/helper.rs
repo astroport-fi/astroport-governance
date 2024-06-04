@@ -164,7 +164,7 @@ impl ControllerHelper {
                         marketing: None,
                         logo: Some(Logo::Url("".to_string())),
                     }),
-                    vxastro_deposit_denom: xastro_denom.to_string(),
+                    xastro_denom: xastro_denom.to_string(),
                     factory: factory.to_string(),
                     hub_emissions_controller: "emissions_controller".to_string(),
                     ics20_channel: "channel-2".to_string(),

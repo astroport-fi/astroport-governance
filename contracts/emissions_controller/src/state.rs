@@ -7,7 +7,6 @@ use astroport_governance::emissions_controller::hub::{
 
 /// Stores config at the given key.
 pub const CONFIG: Item<Config> = Item::new("config");
-
 /// Contains a proposal to change contract ownership
 pub const OWNERSHIP_PROPOSAL: Item<OwnershipProposal> = Item::new("ownership_proposal");
 /// Array of pools eligible for voting.

@@ -5,18 +5,31 @@
   "type": "object",
   "required": [
     "astro_denom",
+    "emissions_multiple",
     "factory",
     "fee_receiver",
+    "incentives_addr",
+    "max_astro",
     "owner",
     "pools_per_outpost",
+    "staking",
     "vxastro",
     "whitelist_threshold",
-    "whitelisting_fee"
+    "whitelisting_fee",
+    "xastro_denom"
   ],
   "properties": {
     "astro_denom": {
       "description": "ASTRO denom on the Hub",
       "type": "string"
+    },
+    "emissions_multiple": {
+      "description": "Controls the number of ASTRO emissions for the next epoch where next amount = two epoch EMA * emissions_multiple. If multiple < 1 then protocol emits less ASTRO than it buys back, otherwise protocol is inflating ASTRO supply.",
+      "allOf": [
+        {
+          "$ref": "#/definitions/Decimal"
+        }
+      ]
     },
     "factory": {
       "description": "Astroport Factory contract",
@@ -34,6 +47,22 @@
         }
       ]
     },
+    "incentives_addr": {
+      "description": "The Astroport Incentives contract",
+      "allOf": [
+        {
+          "$ref": "#/definitions/Addr"
+        }
+      ]
+    },
+    "max_astro": {
+      "description": "Max ASTRO allowed per epoch. Parameter of the dynamic emissions curve.",
+      "allOf": [
+        {
+          "$ref": "#/definitions/Uint128"
+        }
+      ]
+    },
     "owner": {
       "description": "Address that's allowed to change contract parameters",
       "allOf": [
@@ -47,6 +76,14 @@
       "type": "integer",
       "format": "uint64",
       "minimum": 0.0
+    },
+    "staking": {
+      "description": "Staking contract",
+      "allOf": [
+        {
+          "$ref": "#/definitions/Addr"
+        }
+      ]
     },
     "vxastro": {
       "description": "vxASTRO contract address",
@@ -71,6 +108,10 @@
           "$ref": "#/definitions/Coin"
         }
       ]
+    },
+    "xastro_denom": {
+      "description": "xASTRO denom",
+      "type": "string"
     }
   },
   "additionalProperties": false,

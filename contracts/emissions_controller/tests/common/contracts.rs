@@ -1,7 +1,9 @@
 use std::fmt::Debug;
 
 use cosmwasm_schema::schemars::JsonSchema;
-use cosmwasm_std::{CustomMsg, CustomQuery};
+use cosmwasm_std::{
+    Binary, CustomMsg, CustomQuery, Deps, DepsMut, Empty, Env, MessageInfo, Response, StdResult,
+};
 use cw_multi_test::{Contract, ContractWrapper};
 use neutron_sdk::bindings::msg::NeutronMsg;
 use neutron_sdk::bindings::query::NeutronQuery;
@@ -82,4 +84,33 @@ pub fn emissions_controller() -> Box<dyn Contract<NeutronMsg, NeutronQuery>> {
         .with_sudo_empty(astroport_emissions_controller::sudo::sudo)
         .with_reply_empty(astroport_emissions_controller::instantiate::reply),
     )
+}
+
+pub fn staking_contract<T, C>() -> Box<dyn Contract<T, C>>
+where
+    T: CustomMsg + Clone + Debug + PartialEq + JsonSchema + 'static,
+    C: CustomQuery + for<'de> cosmwasm_schema::serde::Deserialize<'de> + 'static,
+{
+    Box::new(
+        ContractWrapper::new_with_empty(
+            astroport_staking::contract::execute,
+            astroport_staking::contract::instantiate,
+            astroport_staking::contract::query,
+        )
+        .with_reply_empty(astroport_staking::contract::reply),
+    )
+}
+
+pub fn tracker_contract<T, C>() -> Box<dyn Contract<T, C>>
+where
+    T: CustomMsg + Clone + Debug + PartialEq + JsonSchema + 'static,
+    C: CustomQuery + for<'de> cosmwasm_schema::serde::Deserialize<'de> + 'static,
+{
+    Box::new(ContractWrapper::new_with_empty(
+        |_: DepsMut, _: Env, _: MessageInfo, _: Empty| -> StdResult<Response> { unimplemented!() },
+        |_: DepsMut, _: Env, _: MessageInfo, _: Empty| -> StdResult<Response> {
+            Ok(Response::default())
+        },
+        |_: Deps, _: Env, _: Empty| -> StdResult<Binary> { unimplemented!() },
+    ))
 }

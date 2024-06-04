@@ -10,7 +10,7 @@
     "ics20_channel",
     "owner",
     "vxastro_code_id",
-    "vxastro_deposit_denom"
+    "xastro_denom"
   ],
   "properties": {
     "astro_denom": {
@@ -39,10 +39,6 @@
       "format": "uint64",
       "minimum": 0.0
     },
-    "vxastro_deposit_denom": {
-      "description": "xASTRO denom",
-      "type": "string"
-    },
     "vxastro_marketing_info": {
       "description": "vxASTRO token marketing info",
       "anyOf": [
@@ -53,6 +49,10 @@
           "type": "null"
         }
       ]
+    },
+    "xastro_denom": {
+      "description": "xASTRO denom",
+      "type": "string"
     }
   },
   "additionalProperties": false,

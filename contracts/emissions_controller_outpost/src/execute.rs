@@ -17,9 +17,7 @@ use astroport_governance::emissions_controller::consts::{IBC_TIMEOUT, MAX_POOLS_
 use astroport_governance::emissions_controller::msg::ExecuteMsg;
 use astroport_governance::emissions_controller::msg::VxAstroIbcMsg;
 use astroport_governance::emissions_controller::outpost::{Config, OutpostMsg};
-use astroport_governance::emissions_controller::utils::{
-    check_lp_token, get_voting_power, query_incentives_addr,
-};
+use astroport_governance::emissions_controller::utils::{check_lp_token, get_voting_power};
 use astroport_governance::utils::check_contract_supports_channel;
 
 use crate::error::ContractError;
@@ -206,9 +204,8 @@ pub fn execute_emissions(
 
     ensure!(!schedules.is_empty(), ContractError::NoValidSchedules {});
 
-    let incentives_contract = query_incentives_addr(deps.querier, &config.factory)?;
     let incentives_msg = wasm_execute(
-        incentives_contract,
+        config.incentives_addr,
         &incentives::ExecuteMsg::IncentivizeMany(schedules),
         coins(expected_amount, &config.astro_denom),
     )?;
