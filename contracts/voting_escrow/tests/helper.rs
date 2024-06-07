@@ -160,20 +160,21 @@ impl EscrowHelper {
         })
     }
 
-    pub fn user_vp(&self, user: &Addr, time: Option<u64>) -> StdResult<Uint128> {
+    pub fn user_vp(&self, user: &Addr, timestamp: Option<u64>) -> StdResult<Uint128> {
         self.app.wrap().query_wasm_smart(
             &self.vxastro_contract,
             &QueryMsg::UserVotingPower {
                 user: user.to_string(),
-                time,
+                timestamp,
             },
         )
     }
 
-    pub fn total_vp(&self, time: Option<u64>) -> StdResult<Uint128> {
-        self.app
-            .wrap()
-            .query_wasm_smart(&self.vxastro_contract, &QueryMsg::TotalVotingPower { time })
+    pub fn total_vp(&self, timestamp: Option<u64>) -> StdResult<Uint128> {
+        self.app.wrap().query_wasm_smart(
+            &self.vxastro_contract,
+            &QueryMsg::TotalVotingPower { timestamp },
+        )
     }
 
     pub fn lock_info(&self, user: &Addr) -> StdResult<LockInfoResponse> {

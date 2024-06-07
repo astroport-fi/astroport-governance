@@ -5,3 +5,4 @@ pub mod error;
 pub mod ibc;
 pub mod instantiate;
 pub mod query;
+pub mod utils;

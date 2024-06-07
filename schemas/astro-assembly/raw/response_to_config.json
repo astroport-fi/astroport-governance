@@ -24,6 +24,17 @@
         }
       ]
     },
+    "emissions_controller": {
+      "description": "Emissions controller contract. Optional",
+      "anyOf": [
+        {
+          "$ref": "#/definitions/Addr"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "ibc_controller": {
       "description": "Astroport IBC controller contract",
       "anyOf": [
@@ -77,6 +88,17 @@
       "format": "uint64",
       "minimum": 0.0
     },
+    "vxastro_contract": {
+      "description": "vxASTRO contract address. Optional",
+      "anyOf": [
+        {
+          "$ref": "#/definitions/Addr"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "whitelisted_links": {
       "description": "Whitelisted links",
       "type": "array",
@@ -89,6 +111,7 @@
       "type": "string"
     },
     "xastro_denom_tracking": {
+      "description": "xASTRO denom tracking contract",
       "type": "string"
     }
   },

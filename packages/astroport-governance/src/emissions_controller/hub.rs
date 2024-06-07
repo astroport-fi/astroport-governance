@@ -12,6 +12,8 @@ use crate::voting_escrow::UpdateMarketingInfo;
 pub struct HubInstantiateMsg {
     /// Contract owner
     pub owner: String,
+    /// Astroport Assembly contract address
+    pub assembly: String,
     /// vxASTRO contract code id
     pub vxastro_code_id: u64,
     /// vxASTRO token marketing info
@@ -77,6 +79,8 @@ pub enum HubMsg {
     },
     /// Remove an outpost
     RemoveOutpost { prefix: String },
+    /// Permissionless endpoint to stream proposal info from the Hub to all outposts
+    RegisterProposal { proposal_id: u64 },
 }
 
 /// This structure describes the query messages available in the contract.
@@ -131,6 +135,8 @@ pub enum QueryMsg {
 pub struct Config {
     /// Address that's allowed to change contract parameters
     pub owner: Addr,
+    /// Astroport Assembly contract address
+    pub assembly: Addr,
     /// vxASTRO contract address
     pub vxastro: Addr,
     /// Astroport Factory contract
@@ -323,6 +329,7 @@ mod unit_tests {
     fn test_validate_config() {
         let mut config = Config {
             owner: Addr::unchecked(""),
+            assembly: Addr::unchecked(""),
             vxastro: Addr::unchecked(""),
             factory: Addr::unchecked(""),
             astro_denom: "uastro".to_string(),

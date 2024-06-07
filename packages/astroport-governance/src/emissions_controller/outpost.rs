@@ -1,8 +1,9 @@
-use crate::emissions_controller::msg::VxAstroIbcMsg;
 use astroport::incentives::InputSchedule;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::Addr;
 
+use crate::assembly::ProposalVoteOption;
+use crate::emissions_controller::msg::VxAstroIbcMsg;
 use crate::voting_escrow::UpdateMarketingInfo;
 
 /// This structure describes the basic settings for creating a contract.
@@ -38,6 +39,15 @@ pub enum OutpostMsg {
     /// IBC hook wasn't triggered upon ics20 packet arrival, for example, if a chain doesn't support IBC hooks.
     PermissionedSetEmissions {
         schedules: Vec<(String, InputSchedule)>,
+    },
+    /// Allows using vxASTRO voting power to vote on general DAO proposals.
+    /// The contract requires a proposal with specific id to be registered via
+    /// a special permissionless IBC message.
+    CastVote {
+        /// Proposal id
+        proposal_id: u64,
+        /// Vote option
+        vote: ProposalVoteOption,
     },
     UpdateConfig {
         /// Voting IBC wasm<>wasm channel
@@ -93,6 +103,6 @@ pub struct Config {
     pub voting_ibc_channel: String,
     /// Emissions controller on the Hub
     pub hub_emissions_controller: String,
-    /// Official ICS20 IBC channel from this outpost to the Hub
+    /// ICS20 IBC channel from this outpost to the Hub
     pub ics20_channel: String,
 }

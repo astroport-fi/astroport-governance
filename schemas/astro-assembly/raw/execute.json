@@ -84,6 +84,53 @@
       "additionalProperties": false
     },
     {
+      "description": "Cast a vote for an active proposal. Permissioned to emissions controller contract. Called on an IBC packet receive.",
+      "type": "object",
+      "required": [
+        "cast_vote_outpost"
+      ],
+      "properties": {
+        "cast_vote_outpost": {
+          "type": "object",
+          "required": [
+            "proposal_id",
+            "vote",
+            "voter",
+            "voting_power"
+          ],
+          "properties": {
+            "proposal_id": {
+              "description": "Proposal identifier",
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            },
+            "vote": {
+              "description": "Vote option",
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ProposalVoteOption"
+                }
+              ]
+            },
+            "voter": {
+              "type": "string"
+            },
+            "voting_power": {
+              "description": "Voting power reported from outpost",
+              "allOf": [
+                {
+                  "$ref": "#/definitions/Uint128"
+                }
+              ]
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    {
       "description": "Set the status of a proposal that expired",
       "type": "object",
       "required": [
@@ -409,6 +456,10 @@
           "additionalProperties": false
         }
       ]
+    },
+    "Decimal": {
+      "description": "A fixed-point decimal value with 18 fractional digits, i.e. Decimal(1_000_000_000_000_000_000) == 1.0\n\nThe greatest possible value that can be represented is 340282366920938463463.374607431768211455 (which is (2^128 - 1) / 10^18)",
+      "type": "string"
     },
     "DistributionMsg": {
       "description": "The message types of the distribution module.\n\nSee https://github.com/cosmos/cosmos-sdk/blob/v0.42.4/proto/cosmos/distribution/v1beta1/tx.proto",
@@ -812,25 +863,35 @@
         },
         "proposal_required_deposit": {
           "description": "Proposal required deposit",
-          "type": [
-            "integer",
-            "null"
-          ],
-          "format": "uint128",
-          "minimum": 0.0
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Uint128"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "proposal_required_quorum": {
           "description": "Proposal required quorum",
-          "type": [
-            "string",
-            "null"
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Decimal"
+            },
+            {
+              "type": "null"
+            }
           ]
         },
         "proposal_required_threshold": {
           "description": "Proposal required threshold",
-          "type": [
-            "string",
-            "null"
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Decimal"
+            },
+            {
+              "type": "null"
+            }
           ]
         },
         "proposal_voting_period": {
@@ -841,6 +902,13 @@
           ],
           "format": "uint64",
           "minimum": 0.0
+        },
+        "vxastro": {
+          "description": "Set vxASTRO and emissions controller contract at the same time. Emissions controller is queried from the vxASTRO contract.",
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "whitelist_add": {
           "description": "Links to add to whitelist",

@@ -6,7 +6,7 @@ use neutron_sdk::sudo::msg::{RequestPacket, TransferSudoMsg};
 use astroport_governance::emissions_controller::hub::OutpostStatus;
 
 use crate::state::TUNE_INFO;
-use crate::utils::get_outpost_from_hub_ics20_channel;
+use crate::utils::get_outpost_from_hub_channel;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn sudo(deps: DepsMut, env: Env, msg: TransferSudoMsg) -> StdResult<Response> {
@@ -29,7 +29,11 @@ pub fn process_ibc_reply(
     packet: RequestPacket,
     failed: bool,
 ) -> StdResult<Response> {
-    let outpost = get_outpost_from_hub_ics20_channel(storage, packet.source_channel)?;
+    let source_channel = packet
+        .source_channel
+        .ok_or_else(|| StdError::generic_err("Missing source_channel in IBC ack packet"))?;
+    let outpost =
+        get_outpost_from_hub_channel(storage, source_channel, |params| &params.ics20_channel)?;
 
     let mut tune_info = TUNE_INFO.load(storage)?;
     tune_info

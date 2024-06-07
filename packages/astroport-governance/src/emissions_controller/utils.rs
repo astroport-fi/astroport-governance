@@ -63,13 +63,13 @@ pub fn get_voting_power(
     querier: QuerierWrapper,
     vxastro: &Addr,
     voter: impl Into<String>,
-    time: Option<u64>,
+    timestamp: Option<u64>,
 ) -> StdResult<Uint128> {
     querier.query_wasm_smart(
         vxastro,
         &voting_escrow::QueryMsg::UserVotingPower {
             user: voter.into(),
-            time,
+            timestamp,
         },
     )
 }

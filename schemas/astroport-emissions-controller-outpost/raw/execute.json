@@ -325,6 +325,40 @@
           "additionalProperties": false
         },
         {
+          "description": "Allows using vxASTRO voting power to vote on general DAO proposals. The contract requires a proposal with specific id to be registered via a special permissionless IBC message.",
+          "type": "object",
+          "required": [
+            "cast_vote"
+          ],
+          "properties": {
+            "cast_vote": {
+              "type": "object",
+              "required": [
+                "proposal_id",
+                "vote"
+              ],
+              "properties": {
+                "proposal_id": {
+                  "description": "Proposal id",
+                  "type": "integer",
+                  "format": "uint64",
+                  "minimum": 0.0
+                },
+                "vote": {
+                  "description": "Vote option",
+                  "allOf": [
+                    {
+                      "$ref": "#/definitions/ProposalVoteOption"
+                    }
+                  ]
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        },
+        {
           "type": "object",
           "required": [
             "update_config"
@@ -360,6 +394,14 @@
           },
           "additionalProperties": false
         }
+      ]
+    },
+    "ProposalVoteOption": {
+      "description": "This enum describes available options for voting on a proposal.",
+      "type": "string",
+      "enum": [
+        "for",
+        "against"
       ]
     },
     "Uint128": {

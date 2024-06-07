@@ -5,9 +5,10 @@ use cw_multi_test::Executor;
 use cw_utils::PaymentError;
 
 use astroport_emissions_controller_outpost::error::ContractError;
+use astroport_governance::assembly::ProposalVoteOption;
 use astroport_governance::emissions_controller::consts::{EPOCH_LENGTH, IBC_TIMEOUT};
 use astroport_governance::emissions_controller::msg::{ExecuteMsg, VxAstroIbcMsg};
-use astroport_governance::emissions_controller::outpost::{OutpostMsg, UserIbcError};
+use astroport_governance::emissions_controller::outpost::UserIbcError;
 use astroport_governance::voting_escrow::LockInfoResponse;
 use astroport_voting_escrow::state::UNLOCK_PERIOD;
 
@@ -393,7 +394,7 @@ fn test_voting() {
     );
 
     // Time out IBC packet
-    let mock_packet = VxAstroIbcMsg::Vote {
+    let mock_packet = VxAstroIbcMsg::EmissionsVote {
         voter: user.to_string(),
         voting_power: Default::default(),
         votes: Default::default(),
@@ -424,7 +425,7 @@ fn test_voting() {
 
     helper
         .mock_ibc_ack(
-            VxAstroIbcMsg::Vote {
+            VxAstroIbcMsg::EmissionsVote {
                 voter: user.to_string(),
                 voting_power: Default::default(),
                 votes: Default::default(),
@@ -542,42 +543,157 @@ fn test_unlock_and_withdraw() {
 }
 
 #[test]
+fn test_interchain_governance() {
+    let mut helper = ControllerHelper::new();
+    helper.set_voting_channel();
+
+    let user = helper.app.api().addr_make("user");
+
+    // Proposal is not registered
+    helper.cast_vote(&user, 1).unwrap_err();
+
+    let now = helper.app.block_info().time.seconds();
+
+    let err = helper
+        .mock_packet_receive(
+            VxAstroIbcMsg::RegisterProposal {
+                proposal_id: 1,
+                start_time: now - 10,
+            },
+            "channel-100",
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Generic error: Invalid channel"
+    );
+
+    helper
+        .mock_packet_receive(
+            VxAstroIbcMsg::RegisterProposal {
+                proposal_id: 1,
+                start_time: now,
+            },
+            "channel-1",
+        )
+        .unwrap();
+
+    assert!(
+        helper.is_prop_registered(1),
+        "Proposal should be registered"
+    );
+
+    let err = helper
+        .mock_packet_receive(
+            VxAstroIbcMsg::RegisterProposal {
+                proposal_id: 1,
+                start_time: now,
+            },
+            "channel-1",
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Generic error: Proposal already registered"
+    );
+
+    let err = helper.cast_vote(&user, 1).unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::ZeroVotingPower {}
+    );
+
+    helper.lock(&user, 1000u64.into()).unwrap();
+
+    // User locked after proposal registration. Still zero voting power
+    let err = helper.cast_vote(&user, 1).unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::ZeroVotingPower {}
+    );
+
+    helper.timetravel(100);
+
+    let now = helper.app.block_info().time.seconds();
+
+    helper
+        .mock_packet_receive(
+            VxAstroIbcMsg::RegisterProposal {
+                proposal_id: 2,
+                start_time: now,
+            },
+            "channel-1",
+        )
+        .unwrap();
+
+    let err = helper.cast_vote(&user, 2).unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::PendingUser(user.to_string())
+    );
+
+    // Mock ibc ack
+    helper
+        .mock_ibc_ack(
+            VxAstroIbcMsg::UpdateUserVotes {
+                voter: user.to_string(),
+                voting_power: Default::default(),
+                is_unlock: false,
+            },
+            None,
+        )
+        .unwrap();
+
+    helper.cast_vote(&user, 2).unwrap();
+
+    // Timeout voting packet
+    helper
+        .mock_ibc_timeout(VxAstroIbcMsg::GovernanceVote {
+            voter: user.to_string(),
+            voting_power: Default::default(),
+            proposal_id: 2,
+            vote: ProposalVoteOption::For,
+        })
+        .unwrap();
+
+    helper.cast_vote(&user, 2).unwrap();
+
+    // Mock ack
+    helper
+        .mock_ibc_ack(
+            VxAstroIbcMsg::GovernanceVote {
+                voter: user.to_string(),
+                voting_power: Default::default(),
+                proposal_id: 2,
+                vote: ProposalVoteOption::For,
+            },
+            None,
+        )
+        .unwrap();
+
+    // Can't vote again
+    let err = helper.cast_vote(&user, 2).unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::AlreadyVoted {}
+    );
+}
+
+#[test]
 fn test_update_config() {
     let mut helper = ControllerHelper::new();
     let owner = helper.owner.clone();
 
     // Unauthorized check
     let random = helper.app.api().addr_make("random");
-    let err = helper
-        .app
-        .execute_contract(
-            random.clone(),
-            helper.emission_controller.clone(),
-            &ExecuteMsg::Custom(OutpostMsg::UpdateConfig {
-                voting_ibc_channel: None,
-                hub_emissions_controller: None,
-                ics20_channel: None,
-            }),
-            &[],
-        )
-        .unwrap_err();
+    let err = helper.update_config(&random, None, None, None).unwrap_err();
     assert_eq!(
         err.downcast::<ContractError>().unwrap(),
         ContractError::Unauthorized {}
     );
 
     let err = helper
-        .app
-        .execute_contract(
-            owner.clone(),
-            helper.emission_controller.clone(),
-            &ExecuteMsg::Custom(OutpostMsg::UpdateConfig {
-                voting_ibc_channel: Some("channel-100".to_string()),
-                hub_emissions_controller: None,
-                ics20_channel: None,
-            }),
-            &[],
-        )
+        .update_config(&owner, Some("channel-100".to_string()), None, None)
         .unwrap_err();
     assert_eq!(
         err.root_cause().to_string(),
@@ -585,16 +701,11 @@ fn test_update_config() {
     );
 
     helper
-        .app
-        .execute_contract(
-            owner.clone(),
-            helper.emission_controller.clone(),
-            &ExecuteMsg::Custom(OutpostMsg::UpdateConfig {
-                voting_ibc_channel: Some("channel-1".to_string()),
-                hub_emissions_controller: Some("hub_emissions_controller".to_string()),
-                ics20_channel: Some("channel-10".to_string()),
-            }),
-            &[],
+        .update_config(
+            &owner,
+            Some("channel-1".to_string()),
+            Some("hub_emissions_controller".to_string()),
+            Some("channel-10".to_string()),
         )
         .unwrap();
     let config = helper.query_config().unwrap();

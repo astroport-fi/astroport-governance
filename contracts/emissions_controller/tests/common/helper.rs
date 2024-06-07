@@ -4,8 +4,8 @@ use astroport::incentives::RewardInfo;
 use astroport::token::{Logo, MinterResponse};
 use astroport::{factory, incentives, staking};
 use cosmwasm_std::{
-    coin, coins, from_json, to_json_binary, Addr, BlockInfo, Coin, Decimal, Empty, MemoryStorage,
-    StdResult, Timestamp, Uint128,
+    coin, coins, from_json, to_json_binary, Addr, BlockInfo, Coin, Decimal, Empty, IbcEndpoint,
+    IbcPacket, IbcPacketReceiveMsg, MemoryStorage, StdResult, Timestamp, Uint128,
 };
 use cw_multi_test::error::AnyResult;
 use cw_multi_test::{
@@ -17,18 +17,29 @@ use itertools::Itertools;
 use neutron_sdk::bindings::msg::NeutronMsg;
 use neutron_sdk::bindings::query::NeutronQuery;
 
+use astroport_governance::assembly::{
+    ExecuteMsg, UpdateConfig, DELAY_INTERVAL, DEPOSIT_INTERVAL, EXPIRATION_PERIOD_INTERVAL,
+    MINIMUM_PROPOSAL_REQUIRED_QUORUM_PERCENTAGE, MINIMUM_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE,
+    VOTING_PERIOD_INTERVAL,
+};
 use astroport_governance::emissions_controller::consts::EPOCHS_START;
 use astroport_governance::emissions_controller::hub::{
     EmissionsState, HubInstantiateMsg, HubMsg, OutpostInfo, SimulateTuneResponse, TuneInfo,
     UserInfoResponse, VotedPoolInfo,
 };
+use astroport_governance::emissions_controller::msg::VxAstroIbcMsg;
 use astroport_governance::voting_escrow::UpdateMarketingInfo;
-use astroport_governance::{emissions_controller, voting_escrow};
+use astroport_governance::{assembly, emissions_controller, voting_escrow};
 
 use crate::common::contracts::*;
 use crate::common::ibc_module::IbcMockModule;
 use crate::common::neutron_module::MockNeutronModule;
 use crate::common::stargate::StargateModule;
+
+pub const PROPOSAL_REQUIRED_DEPOSIT: Uint128 = Uint128::new(*DEPOSIT_INTERVAL.start());
+pub const PROPOSAL_VOTING_PERIOD: u64 = *VOTING_PERIOD_INTERVAL.start();
+pub const PROPOSAL_DELAY: u64 = *DELAY_INTERVAL.start();
+pub const PROPOSAL_EXPIRATION: u64 = *EXPIRATION_PERIOD_INTERVAL.start();
 
 pub type NeutronApp = App<
     BankKeeper,
@@ -65,6 +76,7 @@ pub struct ControllerHelper {
     #[derivative(Debug = "ignore")]
     pub app: NeutronApp,
     pub owner: Addr,
+    pub assembly: Addr,
     pub astro: String,
     pub xastro: String,
     pub factory: Addr,
@@ -89,6 +101,8 @@ impl ControllerHelper {
         let incentives_code_id = app.store_code(incentives_contract());
         let staking_code_id = app.store_code(staking_contract());
         let tracker_code_id = app.store_code(tracker_contract());
+        let assembly_code_id = app.store_code(assembly_contract());
+        let builder_code_id = app.store_code(builder_unlock_contract());
 
         let factory = app
             .instantiate_contract(
@@ -190,6 +204,49 @@ impl ControllerHelper {
         )
         .unwrap();
 
+        let builder_unlock_addr = app
+            .instantiate_contract(
+                builder_code_id,
+                owner.clone(),
+                &astroport_governance::builder_unlock::InstantiateMsg {
+                    owner: owner.to_string(),
+                    astro_denom: astro_denom.to_string(),
+                    max_allocations_amount: Default::default(),
+                },
+                &[],
+                "label",
+                None,
+            )
+            .unwrap();
+
+        let assembly = app
+            .instantiate_contract(
+                assembly_code_id,
+                owner.clone(),
+                &assembly::InstantiateMsg {
+                    staking_addr: staking.to_string(),
+                    ibc_controller: None,
+                    builder_unlock_addr: builder_unlock_addr.to_string(),
+                    proposal_voting_period: PROPOSAL_VOTING_PERIOD,
+                    proposal_effective_delay: PROPOSAL_DELAY,
+                    proposal_expiration_period: PROPOSAL_EXPIRATION,
+                    proposal_required_deposit: PROPOSAL_REQUIRED_DEPOSIT,
+                    proposal_required_quorum: MINIMUM_PROPOSAL_REQUIRED_QUORUM_PERCENTAGE
+                        .to_string(),
+                    proposal_required_threshold: Decimal::from_atomics(
+                        MINIMUM_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE,
+                        2,
+                    )
+                    .unwrap()
+                    .to_string(),
+                    whitelisted_links: vec!["https://some.link/".to_string()],
+                },
+                &[],
+                "label",
+                None,
+            )
+            .unwrap();
+
         let whitelisting_fee = coin(1_000_000, astro_denom);
         let emission_controller = app
             .instantiate_contract(
@@ -197,6 +254,7 @@ impl ControllerHelper {
                 owner.clone(),
                 &HubInstantiateMsg {
                     owner: owner.to_string(),
+                    assembly: assembly.to_string(),
                     vxastro_code_id,
                     vxastro_marketing_info: Some(UpdateMarketingInfo {
                         project: None,
@@ -230,6 +288,26 @@ impl ControllerHelper {
             .unwrap()
             .vxastro;
 
+        app.execute_contract(
+            assembly.clone(),
+            assembly.clone(),
+            &ExecuteMsg::UpdateConfig(Box::new(UpdateConfig {
+                ibc_controller: None,
+                builder_unlock_addr: None,
+                proposal_voting_period: None,
+                proposal_effective_delay: None,
+                proposal_expiration_period: None,
+                proposal_required_deposit: None,
+                proposal_required_quorum: None,
+                proposal_required_threshold: None,
+                whitelist_remove: None,
+                whitelist_add: None,
+                vxastro: Some(vxastro.to_string()),
+            })),
+            &[],
+        )
+        .unwrap();
+
         let helper = Self {
             app,
             owner,
@@ -241,6 +319,7 @@ impl ControllerHelper {
             whitelisting_fee,
             emission_controller,
             incentives,
+            assembly,
         };
         dbg!(&helper);
 
@@ -314,12 +393,18 @@ impl ControllerHelper {
         })
     }
 
-    pub fn user_vp(&self, user: &Addr, time: Option<u64>) -> StdResult<Uint128> {
+    pub fn blocktravel(&mut self, blocks: u64) {
+        self.app.update_block(|block| {
+            block.height += blocks;
+        })
+    }
+
+    pub fn user_vp(&self, user: &Addr, timestamp: Option<u64>) -> StdResult<Uint128> {
         self.app.wrap().query_wasm_smart(
             &self.vxastro,
             &voting_escrow::QueryMsg::UserVotingPower {
                 user: user.to_string(),
-                time,
+                timestamp,
             },
         )
     }
@@ -497,6 +582,57 @@ impl ControllerHelper {
                     .for_each(|(_, array)| array.sort());
                 x
             })
+    }
+
+    pub fn submit_proposal(&mut self, submitter: &Addr) -> AnyResult<AppResponse> {
+        let deposit = coins(PROPOSAL_REQUIRED_DEPOSIT.u128(), &self.xastro);
+        self.mint_tokens(submitter, &deposit).unwrap();
+        self.app.execute_contract(
+            submitter.clone(),
+            self.assembly.clone(),
+            &ExecuteMsg::SubmitProposal {
+                title: "Test title".to_string(),
+                description: "Test description".to_string(),
+                link: None,
+                messages: vec![],
+                ibc_channel: None,
+            },
+            &deposit,
+        )
+    }
+
+    pub fn register_proposal(&mut self, proposal_id: u64) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            self.owner.clone(),
+            self.emission_controller.clone(),
+            &emissions_controller::msg::ExecuteMsg::Custom(HubMsg::RegisterProposal {
+                proposal_id,
+            }),
+            &[],
+        )
+    }
+
+    pub fn mock_packet_receive(&mut self, ibc_msg: VxAstroIbcMsg) -> AnyResult<AppResponse> {
+        let packet = IbcPacketReceiveMsg::new(
+            IbcPacket::new(
+                to_json_binary(&ibc_msg).unwrap(),
+                IbcEndpoint {
+                    port_id: "".to_string(),
+                    channel_id: "".to_string(),
+                },
+                IbcEndpoint {
+                    port_id: "".to_string(),
+                    channel_id: "channel-1".to_string(),
+                },
+                0,
+                Timestamp::from_seconds(0).into(),
+            ),
+            Addr::unchecked("relayer"),
+        );
+        self.app.wasm_sudo(
+            self.emission_controller.clone(),
+            &TestSudoMsg::IbcRecv(packet),
+        )
     }
 
     pub fn reset_astro_reward(&mut self, lp_token: &Addr) -> AnyResult<AppResponse> {

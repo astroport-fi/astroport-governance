@@ -72,10 +72,13 @@ pub enum QueryMsg {
     MarketingInfo {},
     /// Return the current total amount of vxASTRO
     #[returns(Uint128)]
-    TotalVotingPower { time: Option<u64> },
+    TotalVotingPower { timestamp: Option<u64> },
     /// Return the user's current voting power (vxASTRO balance)
     #[returns(Uint128)]
-    UserVotingPower { user: String, time: Option<u64> },
+    UserVotingPower {
+        user: String,
+        timestamp: Option<u64>,
+    },
     /// Fetch a user's lock information
     #[returns(LockInfoResponse)]
     LockInfo { user: String },

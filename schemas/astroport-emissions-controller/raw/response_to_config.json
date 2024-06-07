@@ -4,6 +4,7 @@
   "description": "General contract configuration",
   "type": "object",
   "required": [
+    "assembly",
     "astro_denom",
     "emissions_multiple",
     "factory",
@@ -19,6 +20,14 @@
     "xastro_denom"
   ],
   "properties": {
+    "assembly": {
+      "description": "Astroport Assembly contract address",
+      "allOf": [
+        {
+          "$ref": "#/definitions/Addr"
+        }
+      ]
+    },
     "astro_denom": {
       "description": "ASTRO denom on the Hub",
       "type": "string"

@@ -74,20 +74,18 @@ pub fn validate_outpost_prefix(value: &str, prefix: &str) -> Result<(), Contract
         .map(|_| ())
 }
 
-/// Helper function to get outpost prefix from the ICS20 IBC packet.
-pub fn get_outpost_from_hub_ics20_channel(
+/// Helper function to get outpost prefix from an IBC channel.
+pub fn get_outpost_from_hub_channel(
     store: &dyn Storage,
-    source_channel: Option<String>,
+    source_channel: String,
+    get_channel_closure: impl Fn(&OutpostParams) -> &String,
 ) -> StdResult<String> {
-    let source_channel = source_channel
-        .ok_or_else(|| StdError::generic_err("Missing source_channel in IBC ack packet"))?;
-    // Find outpost by ics20 channel
     OUTPOSTS
         .range(store, None, None, Order::Ascending)
         .find_map(|data| {
             let (outpost_prefix, outpost) = data.ok()?;
             outpost.params.as_ref().and_then(|params| {
-                if source_channel == params.ics20_channel {
+                if get_channel_closure(params).eq(&source_channel) {
                     Some(outpost_prefix.clone())
                 } else {
                     None

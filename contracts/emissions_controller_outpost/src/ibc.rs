@@ -8,11 +8,15 @@ use cosmwasm_std::{
 };
 
 use astroport_governance::emissions_controller::consts::{IBC_APP_VERSION, IBC_ORDERING};
-use astroport_governance::emissions_controller::msg::{IbcAckResult, VxAstroIbcMsg};
+use astroport_governance::emissions_controller::msg::{
+    ack_fail, ack_ok, IbcAckResult, VxAstroIbcMsg,
+};
 use astroport_governance::emissions_controller::outpost::UserIbcError;
 use astroport_governance::voting_escrow;
 
-use crate::state::{CONFIG, PENDING_MESSAGES, USER_IBC_ERROR};
+use crate::state::{
+    CONFIG, PENDING_MESSAGES, PROPOSAL_VOTERS, REGISTERED_PROPOSALS, USER_IBC_ERROR,
+};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn ibc_channel_open(
@@ -64,14 +68,53 @@ pub fn ibc_channel_connect(
         .add_attribute("channel_id", &channel.endpoint.channel_id))
 }
 
-#[cfg(not(tarpaulin_include))]
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn ibc_packet_receive(
-    _deps: DepsMut,
-    _env: Env,
-    _msg: IbcPacketReceiveMsg,
+    deps: DepsMut,
+    env: Env,
+    msg: IbcPacketReceiveMsg,
 ) -> Result<IbcReceiveResponse, Never> {
-    unimplemented!("This contract is only sending IBC messages")
+    do_packet_receive(deps, env, msg).or_else(|err| {
+        Ok(IbcReceiveResponse::new()
+            .add_attribute("action", "ibc_packet_receive")
+            .set_ack(ack_fail(err)))
+    })
+}
+
+pub fn do_packet_receive(
+    deps: DepsMut,
+    _env: Env,
+    msg: IbcPacketReceiveMsg,
+) -> StdResult<IbcReceiveResponse> {
+    // Accept messages only from the trusted channel
+    let config = CONFIG.load(deps.storage)?;
+    ensure!(
+        msg.packet.dest.channel_id == config.voting_ibc_channel,
+        StdError::generic_err("Invalid channel")
+    );
+
+    match from_json(msg.packet.data)? {
+        VxAstroIbcMsg::RegisterProposal {
+            proposal_id,
+            start_time,
+        } => {
+            ensure!(
+                !REGISTERED_PROPOSALS.has(deps.storage, proposal_id),
+                StdError::generic_err("Proposal already registered")
+            );
+
+            // Save proposal in state
+            REGISTERED_PROPOSALS.save(deps.storage, proposal_id, &start_time)?;
+
+            let response = IbcReceiveResponse::new()
+                .set_ack(ack_ok())
+                .add_attribute("action", "register_proposal")
+                .add_attribute("proposal_id", proposal_id.to_string())
+                .add_attribute("start_time", start_time.to_string());
+            Ok(response)
+        }
+        _ => Err(StdError::generic_err("Invalid IBC message type")),
+    }
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -105,7 +148,17 @@ pub fn ibc_packet_ack(
                     voter
                 }
                 VxAstroIbcMsg::UpdateUserVotes { voter, .. }
-                | VxAstroIbcMsg::Vote { voter, .. } => voter,
+                | VxAstroIbcMsg::EmissionsVote { voter, .. } => voter,
+                VxAstroIbcMsg::RegisterProposal { .. } => {
+                    unreachable!("Outpost can't send RegisterProposal ibc msg")
+                }
+                VxAstroIbcMsg::GovernanceVote {
+                    voter, proposal_id, ..
+                } => {
+                    // Mark voter as voted on this proposal
+                    PROPOSAL_VOTERS.save(deps.storage, (*proposal_id, voter.clone()), &())?;
+                    voter
+                }
             };
             USER_IBC_ERROR.remove(deps.storage, voter);
             PENDING_MESSAGES.remove(deps.storage, voter);
@@ -165,8 +218,11 @@ pub fn process_ibc_error(
                 .add_message(relock_msg);
             voter.clone()
         }
-        VxAstroIbcMsg::Vote { voter, .. } | VxAstroIbcMsg::UpdateUserVotes { voter, .. } => {
-            voter.clone()
+        VxAstroIbcMsg::EmissionsVote { voter, .. }
+        | VxAstroIbcMsg::UpdateUserVotes { voter, .. }
+        | VxAstroIbcMsg::GovernanceVote { voter, .. } => voter.clone(),
+        VxAstroIbcMsg::RegisterProposal { .. } => {
+            unreachable!("Outpost can't send RegisterProposal ibc msg")
         }
     };
 

@@ -6,8 +6,9 @@ use astroport::incentives;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, ensure, wasm_execute, BankMsg, Coin, CosmosMsg, Decimal, DepsMut, Env, Fraction,
-    MessageInfo, Order, Response, StdError, StdResult, Storage, Uint128,
+    attr, ensure, to_json_binary, wasm_execute, BankMsg, Coin, CosmosMsg, Decimal, DepsMut, Env,
+    Fraction, IbcMsg, IbcTimeout, MessageInfo, Order, Response, StdError, StdResult, Storage,
+    Uint128,
 };
 use cw_utils::{must_pay, nonpayable};
 use itertools::Itertools;
@@ -15,16 +16,16 @@ use neutron_sdk::bindings::msg::NeutronMsg;
 use neutron_sdk::bindings::query::NeutronQuery;
 
 use astroport_governance::emissions_controller::consts::{
-    EPOCH_LENGTH, MAX_POOLS_TO_VOTE, VOTE_COOLDOWN,
+    EPOCH_LENGTH, IBC_TIMEOUT, MAX_POOLS_TO_VOTE, VOTE_COOLDOWN,
 };
 use astroport_governance::emissions_controller::hub::{
     AstroPoolConfig, HubMsg, OutpostInfo, OutpostParams, OutpostStatus, TuneInfo, UserInfo,
     VotedPoolInfo,
 };
-use astroport_governance::emissions_controller::msg::ExecuteMsg;
+use astroport_governance::emissions_controller::msg::{ExecuteMsg, VxAstroIbcMsg};
 use astroport_governance::emissions_controller::utils::{check_lp_token, get_voting_power};
 use astroport_governance::utils::check_contract_supports_channel;
-use astroport_governance::voting_escrow;
+use astroport_governance::{assembly, voting_escrow};
 
 use crate::error::ContractError;
 use crate::state::{
@@ -163,7 +164,7 @@ pub fn execute(
                 emissions_multiple,
                 max_astro,
             } => update_config(
-                deps.into_empty(),
+                deps,
                 info,
                 pools_limit,
                 whitelisting_fee,
@@ -171,6 +172,7 @@ pub fn execute(
                 emissions_multiple,
                 max_astro,
             ),
+            HubMsg::RegisterProposal { proposal_id } => register_proposal(deps, env, proposal_id),
         },
     }
 }
@@ -676,7 +678,7 @@ pub fn tune_pools(
 /// Permissioned to the contract owner.
 /// Updates the contract configuration.
 pub fn update_config(
-    deps: DepsMut,
+    deps: DepsMut<NeutronQuery>,
     info: MessageInfo,
     pools_limit: Option<u64>,
     whitelisting_fee: Option<Coin>,
@@ -724,4 +726,60 @@ pub fn update_config(
     CONFIG.save(deps.storage, &config)?;
 
     Ok(Response::default().add_attributes(attrs))
+}
+
+/// Register an active proposal on all available outposts.
+/// Endpoint is permissionless so anyone can retry to register a proposal in case of IBC timeout.
+pub fn register_proposal(
+    deps: DepsMut<NeutronQuery>,
+    env: Env,
+    proposal_id: u64,
+) -> Result<Response<NeutronMsg>, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+    // Ensure a proposal exists and active
+    let proposal = deps
+        .querier
+        .query_wasm_smart::<assembly::Proposal>(
+            &config.assembly,
+            &assembly::QueryMsg::Proposal { proposal_id },
+        )
+        .and_then(|proposal| {
+            ensure!(
+                env.block.height <= proposal.end_block,
+                StdError::generic_err("Proposal is not active")
+            );
+
+            Ok(proposal)
+        })?;
+
+    let outposts = OUTPOSTS
+        .range(deps.storage, None, None, Order::Ascending)
+        .collect::<StdResult<Vec<_>>>()?;
+
+    let data = to_json_binary(&VxAstroIbcMsg::RegisterProposal {
+        proposal_id,
+        start_time: proposal.start_time,
+    })?;
+    let timeout = IbcTimeout::from(env.block.time.plus_seconds(IBC_TIMEOUT));
+
+    let mut attrs = vec![("action", "register_proposal")];
+
+    let ibc_messages: Vec<CosmosMsg<NeutronMsg>> = outposts
+        .iter()
+        .filter_map(|(outpost, outpost_info)| {
+            attrs.push(("outpost", outpost));
+            outpost_info.params.as_ref().map(|params| {
+                IbcMsg::SendPacket {
+                    channel_id: params.voting_channel.clone(),
+                    data: data.clone(),
+                    timeout: timeout.clone(),
+                }
+                .into()
+            })
+        })
+        .collect();
+
+    Ok(Response::new()
+        .add_messages(ibc_messages)
+        .add_attributes(attrs))
 }

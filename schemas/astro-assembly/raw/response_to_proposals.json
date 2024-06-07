@@ -474,8 +474,6 @@
         "expiration_block",
         "for_power",
         "messages",
-        "outpost_against_power",
-        "outpost_for_power",
         "proposal_id",
         "start_block",
         "start_time",
@@ -500,7 +498,7 @@
           "minimum": 0.0
         },
         "deposit_amount": {
-          "description": "Amount of xASTRO deposited in order to post the proposal",
+          "description": "Amount of xASTRO deposited to post the proposal",
           "allOf": [
             {
               "$ref": "#/definitions/Uint128"
@@ -551,22 +549,6 @@
           "items": {
             "$ref": "#/definitions/CosmosMsg_for_Empty"
           }
-        },
-        "outpost_against_power": {
-          "description": "`Against` power of proposal cast from all Outposts",
-          "allOf": [
-            {
-              "$ref": "#/definitions/Uint128"
-            }
-          ]
-        },
-        "outpost_for_power": {
-          "description": "`For` power of proposal cast from all Outposts",
-          "allOf": [
-            {
-              "$ref": "#/definitions/Uint128"
-            }
-          ]
         },
         "proposal_id": {
           "description": "Unique proposal ID",

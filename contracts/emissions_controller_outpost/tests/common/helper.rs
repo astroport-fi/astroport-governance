@@ -3,10 +3,11 @@ use astroport::factory::{PairConfig, PairType};
 use astroport::incentives::{InputSchedule, RewardInfo};
 use astroport::token::Logo;
 use astroport::{factory, incentives};
+use astroport_emissions_controller_outpost::state::REGISTERED_PROPOSALS;
 use cosmwasm_std::{
     coin, coins, to_json_binary, Addr, BlockInfo, Coin, Decimal, Empty, IbcAcknowledgement,
-    IbcEndpoint, IbcPacket, IbcPacketAckMsg, IbcPacketTimeoutMsg, MemoryStorage, StdResult,
-    Timestamp, Uint128,
+    IbcEndpoint, IbcPacket, IbcPacketAckMsg, IbcPacketReceiveMsg, IbcPacketTimeoutMsg,
+    MemoryStorage, StdResult, Timestamp, Uint128,
 };
 use cw_multi_test::error::AnyResult;
 use cw_multi_test::{
@@ -15,6 +16,7 @@ use cw_multi_test::{
 };
 use derivative::Derivative;
 
+use astroport_governance::assembly::ProposalVoteOption;
 use astroport_governance::emissions_controller::consts::{EPOCHS_START, EPOCH_LENGTH};
 use astroport_governance::emissions_controller::msg::{ExecuteMsg, IbcAckResult, VxAstroIbcMsg};
 use astroport_governance::emissions_controller::outpost::{OutpostInstantiateMsg, OutpostMsg};
@@ -226,12 +228,12 @@ impl ControllerHelper {
         )
     }
 
-    pub fn user_vp(&self, user: &Addr, time: Option<u64>) -> StdResult<Uint128> {
+    pub fn user_vp(&self, user: &Addr, timestamp: Option<u64>) -> StdResult<Uint128> {
         self.app.wrap().query_wasm_smart(
             &self.vxastro,
             &voting_escrow::QueryMsg::UserVotingPower {
                 user: user.to_string(),
-                time,
+                timestamp,
             },
         )
     }
@@ -376,19 +378,13 @@ impl ControllerHelper {
     }
 
     pub fn set_voting_channel(&mut self) {
-        self.app
-            .execute_contract(
-                self.owner.clone(),
-                self.emission_controller.clone(),
-                &ExecuteMsg::Custom(OutpostMsg::UpdateConfig {
-                    // channel-1 is hardcoded in the mocked ibc module
-                    voting_ibc_channel: Some("channel-1".to_string()),
-                    hub_emissions_controller: None,
-                    ics20_channel: None,
-                }),
-                &[],
-            )
-            .unwrap();
+        self.update_config(
+            &self.owner.clone(),
+            Some("channel-1".to_string()),
+            None,
+            None,
+        )
+        .unwrap();
     }
 
     pub fn mock_ibc_ack(
@@ -399,7 +395,7 @@ impl ControllerHelper {
         let ack_result = if let Some(err) = error {
             IbcAckResult::Error(err.to_string())
         } else {
-            IbcAckResult::Ok(b"ok".into())
+            IbcAckResult::Ok(b"null".into())
         };
         let packet = IbcPacketAckMsg::new(
             IbcAcknowledgement::encode_json(&ack_result).unwrap(),
@@ -443,5 +439,74 @@ impl ControllerHelper {
             self.emission_controller.clone(),
             &TestSudoMsg::Timeout(packet),
         )
+    }
+
+    pub fn mock_packet_receive(
+        &mut self,
+        ibc_msg: VxAstroIbcMsg,
+        dst_channel: &str,
+    ) -> AnyResult<AppResponse> {
+        let packet = IbcPacketReceiveMsg::new(
+            IbcPacket::new(
+                to_json_binary(&ibc_msg).unwrap(),
+                IbcEndpoint {
+                    port_id: "".to_string(),
+                    channel_id: "".to_string(),
+                },
+                IbcEndpoint {
+                    port_id: "".to_string(),
+                    channel_id: dst_channel.to_string(),
+                },
+                0,
+                Timestamp::from_seconds(0).into(),
+            ),
+            Addr::unchecked("relayer"),
+        );
+        self.app.wasm_sudo(
+            self.emission_controller.clone(),
+            &TestSudoMsg::IbcRecv(packet),
+        )
+    }
+
+    pub fn update_config(
+        &mut self,
+        sender: &Addr,
+        voting_ibc_channel: Option<String>,
+        hub_emissions_controller: Option<String>,
+        ics20_channel: Option<String>,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            sender.clone(),
+            self.emission_controller.clone(),
+            &ExecuteMsg::Custom(OutpostMsg::UpdateConfig {
+                voting_ibc_channel,
+                hub_emissions_controller,
+                ics20_channel,
+            }),
+            &[],
+        )
+    }
+
+    pub fn cast_vote(&mut self, user: &Addr, proposal_id: u64) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            user.clone(),
+            self.emission_controller.clone(),
+            &ExecuteMsg::Custom(OutpostMsg::CastVote {
+                proposal_id,
+                vote: ProposalVoteOption::For,
+            }),
+            &[],
+        )
+    }
+
+    pub fn is_prop_registered(&self, proposal_id: u64) -> bool {
+        REGISTERED_PROPOSALS
+            .query(
+                &self.app.wrap(),
+                self.emission_controller.clone(),
+                proposal_id,
+            )
+            .unwrap()
+            .is_some()
     }
 }

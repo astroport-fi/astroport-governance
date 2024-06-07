@@ -1,10 +1,13 @@
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
-    DepsMut, Empty, Env, IbcPacketAckMsg, IbcPacketTimeoutMsg, Response, StdResult,
+    DepsMut, Empty, Env, IbcBasicResponse, IbcPacketAckMsg, IbcPacketReceiveMsg,
+    IbcPacketTimeoutMsg, Response, StdResult,
 };
 use cw_multi_test::{Contract, ContractWrapper};
 
-use astroport_emissions_controller_outpost::ibc::{ibc_packet_ack, ibc_packet_timeout};
+use astroport_emissions_controller_outpost::ibc::{
+    do_packet_receive, ibc_packet_ack, ibc_packet_timeout,
+};
 
 pub fn token_contract() -> Box<dyn Contract<Empty>> {
     Box::new(ContractWrapper::new_with_empty(
@@ -56,12 +59,18 @@ pub fn factory_contract() -> Box<dyn Contract<Empty>> {
 pub enum TestSudoMsg {
     Ack(IbcPacketAckMsg),
     Timeout(IbcPacketTimeoutMsg),
+    IbcRecv(IbcPacketReceiveMsg),
 }
 
 fn sudo(deps: DepsMut, env: Env, msg: TestSudoMsg) -> StdResult<Response> {
     match msg {
         TestSudoMsg::Ack(packet) => ibc_packet_ack(deps, env, packet),
         TestSudoMsg::Timeout(packet) => ibc_packet_timeout(deps, env, packet),
+        TestSudoMsg::IbcRecv(packet) => do_packet_receive(deps, env, packet).map(|ibc_response| {
+            IbcBasicResponse::default()
+                .add_attributes(ibc_response.attributes)
+                .add_submessages(ibc_response.messages)
+        }),
     }
     .map(|ibc_response| {
         Response::default()

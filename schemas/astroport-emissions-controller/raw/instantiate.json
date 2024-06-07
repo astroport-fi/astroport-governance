@@ -4,6 +4,7 @@
   "description": "This structure describes the basic settings for creating a contract.",
   "type": "object",
   "required": [
+    "assembly",
     "astro_denom",
     "collected_astro",
     "emissions_multiple",
@@ -18,6 +19,10 @@
     "xastro_denom"
   ],
   "properties": {
+    "assembly": {
+      "description": "Astroport Assembly contract address",
+      "type": "string"
+    },
     "astro_denom": {
       "description": "ASTRO denom on the Hub",
       "type": "string"

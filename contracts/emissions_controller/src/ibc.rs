@@ -1,17 +1,21 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    ensure, from_json, DepsMut, Env, Ibc3ChannelOpenResponse, IbcBasicResponse, IbcChannelCloseMsg,
-    IbcChannelConnectMsg, IbcChannelOpenMsg, IbcPacketAckMsg, IbcPacketReceiveMsg,
-    IbcPacketTimeoutMsg, IbcReceiveResponse, Never, Order, StdError, StdResult,
+    ensure, from_json, wasm_execute, DepsMut, Env, Ibc3ChannelOpenResponse, IbcBasicResponse,
+    IbcChannelCloseMsg, IbcChannelConnectMsg, IbcChannelOpenMsg, IbcPacketAckMsg,
+    IbcPacketReceiveMsg, IbcPacketTimeoutMsg, IbcReceiveResponse, Never, Order, StdError,
+    StdResult,
 };
 
+use astroport_governance::assembly;
 use astroport_governance::emissions_controller::consts::{IBC_APP_VERSION, IBC_ORDERING};
-use astroport_governance::emissions_controller::msg::{ack_fail, ack_ok, VxAstroIbcMsg};
+use astroport_governance::emissions_controller::msg::{
+    ack_fail, ack_ok, IbcAckResult, VxAstroIbcMsg,
+};
 
 use crate::error::ContractError;
 use crate::execute::{handle_update_user, handle_vote};
-use crate::state::OUTPOSTS;
+use crate::state::{CONFIG, OUTPOSTS};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn ibc_channel_open(
@@ -102,7 +106,7 @@ pub fn do_packet_receive(
         })?;
 
     match from_json(&msg.packet.data)? {
-        VxAstroIbcMsg::Vote {
+        VxAstroIbcMsg::EmissionsVote {
             voter,
             voting_power,
             votes,
@@ -122,6 +126,31 @@ pub fn do_packet_receive(
                     .set_ack(ack_ok())
             },
         ),
+        VxAstroIbcMsg::GovernanceVote {
+            voter,
+            voting_power,
+            proposal_id,
+            vote,
+        } => {
+            let config = CONFIG.load(deps.storage)?;
+            let cast_vote_msg = wasm_execute(
+                config.assembly,
+                &assembly::ExecuteMsg::CastVoteOutpost {
+                    voter,
+                    voting_power,
+                    proposal_id,
+                    vote,
+                },
+                vec![],
+            )?;
+
+            Ok(IbcReceiveResponse::new()
+                .add_message(cast_vote_msg)
+                .set_ack(ack_ok()))
+        }
+        VxAstroIbcMsg::RegisterProposal { .. } => {
+            unreachable!("Hub can't receive RegisterProposal message")
+        }
     }
 }
 
@@ -130,9 +159,14 @@ pub fn do_packet_receive(
 pub fn ibc_packet_ack(
     _deps: DepsMut,
     _env: Env,
-    _msg: IbcPacketAckMsg,
+    msg: IbcPacketAckMsg,
 ) -> StdResult<IbcBasicResponse> {
-    unimplemented!("This contract is only receiving IBC messages")
+    match from_json(msg.acknowledgement.data)? {
+        IbcAckResult::Ok(_) => {
+            Ok(IbcBasicResponse::default().add_attribute("action", "ibc_packet_ack"))
+        }
+        IbcAckResult::Error(err) => Ok(IbcBasicResponse::default().add_attribute("error", err)),
+    }
 }
 
 #[cfg(not(tarpaulin_include))]
@@ -142,7 +176,7 @@ pub fn ibc_packet_timeout(
     _env: Env,
     _msg: IbcPacketTimeoutMsg,
 ) -> StdResult<IbcBasicResponse> {
-    unimplemented!("This contract is only receiving IBC messages")
+    Ok(IbcBasicResponse::default().add_attribute("action", "ibc_packet_timeout"))
 }
 
 #[cfg(not(tarpaulin_include))]
@@ -303,7 +337,7 @@ mod unit_tests {
     fn test_packet_receive() {
         let mut deps = mock_custom_dependencies();
 
-        let voting_msg = VxAstroIbcMsg::Vote {
+        let voting_msg = VxAstroIbcMsg::EmissionsVote {
             voter: "osmo1voter".to_string(),
             voting_power: 1000u128.into(),
             votes: HashMap::from([("osmo1pool1".to_string(), Decimal::one())]),

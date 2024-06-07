@@ -7,12 +7,13 @@ use astroport::incentives::{IncentivesSchedule, InputSchedule};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, coin, coins, ensure, to_json_binary, wasm_execute, Addr, Coin, Decimal, DepsMut, Env,
-    IbcMsg, MessageInfo, Response, StdError, Uint128,
+    attr, coin, coins, ensure, wasm_execute, Addr, Coin, Decimal, DepsMut, Env, IbcMsg,
+    MessageInfo, Response, StdError, Uint128,
 };
 use cw_utils::{may_pay, nonpayable};
 use itertools::Itertools;
 
+use astroport_governance::assembly::ProposalVoteOption;
 use astroport_governance::emissions_controller::consts::{IBC_TIMEOUT, MAX_POOLS_TO_VOTE};
 use astroport_governance::emissions_controller::msg::ExecuteMsg;
 use astroport_governance::emissions_controller::msg::VxAstroIbcMsg;
@@ -21,7 +22,8 @@ use astroport_governance::emissions_controller::utils::{check_lp_token, get_voti
 use astroport_governance::utils::check_contract_supports_channel;
 
 use crate::error::ContractError;
-use crate::state::{CONFIG, OWNERSHIP_PROPOSAL, PENDING_MESSAGES};
+use crate::state::{CONFIG, OWNERSHIP_PROPOSAL, PROPOSAL_VOTERS, REGISTERED_PROPOSALS};
+use crate::utils::prepare_ibc_packet;
 
 /// Exposes all execute endpoints available in the contract.
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -54,7 +56,7 @@ pub fn execute(
             let config = CONFIG.load(deps.storage)?;
             let voting_power = get_voting_power(deps.querier, &config.vxastro, &info.sender, None)?;
 
-            // Blocking updates if this is not unlocking and new_voting_power is zero.
+            // Blocking updates if new_voting_power is zero.
             // Potentially reduces IBC spam attack vector
             ensure!(!voting_power.is_zero(), ContractError::ZeroVotingPower {});
             handle_update_user(deps, env, info.sender, voting_power, false, config)
@@ -113,6 +115,9 @@ pub fn execute(
                 hub_emissions_controller,
                 ics20_channel,
             ),
+            OutpostMsg::CastVote { proposal_id, vote } => {
+                governance_vote(deps, env, info, proposal_id, vote)
+            }
         },
     }
 }
@@ -266,25 +271,17 @@ pub fn handle_vote(
     let voting_power = get_voting_power(deps.querier, &config.vxastro, &info.sender, None)?;
     ensure!(!voting_power.is_zero(), ContractError::ZeroVotingPower {});
 
-    let vote_payload = VxAstroIbcMsg::Vote {
-        voter: info.sender.to_string(),
-        voting_power,
-        votes: votes_map,
-    };
-
-    // Blocks any new IBC messages for users with pending IBC requests
-    // until the previous one is acknowledged, failed or timed out.
-    PENDING_MESSAGES.update(deps.storage, info.sender.as_ref(), |v| match v {
-        Some(_) => Err(ContractError::PendingUser(info.sender.to_string())),
-        None => Ok(vote_payload.clone()),
-    })?;
-
-    let config = CONFIG.load(deps.storage)?;
-    let vote_ibc_msg = IbcMsg::SendPacket {
-        channel_id: config.voting_ibc_channel,
-        data: to_json_binary(&vote_payload)?,
-        timeout: env.block.time.plus_seconds(IBC_TIMEOUT).into(),
-    };
+    let vote_ibc_msg = prepare_ibc_packet(
+        deps.storage,
+        &env,
+        info.sender.as_str(),
+        VxAstroIbcMsg::EmissionsVote {
+            voter: info.sender.to_string(),
+            voting_power,
+            votes: votes_map,
+        },
+        config.voting_ibc_channel,
+    )?;
 
     Ok(Response::default()
         .add_attributes([("action", "vote")])
@@ -307,24 +304,17 @@ pub fn handle_update_user(
         attr("new_voting_power", voting_power),
     ];
 
-    let payload = VxAstroIbcMsg::UpdateUserVotes {
-        voter: voter.to_string(),
-        voting_power,
-        is_unlock,
-    };
-
-    // Blocks any new IBC messages for users with pending IBC requests
-    // until the previous one is acknowledged, failed or timed out.
-    PENDING_MESSAGES.update(deps.storage, voter.as_str(), |v| match v {
-        Some(_) => Err(ContractError::PendingUser(voter.to_string())),
-        None => Ok(payload.clone()),
-    })?;
-
-    let ibc_msg = IbcMsg::SendPacket {
-        channel_id: config.voting_ibc_channel,
-        data: to_json_binary(&payload)?,
-        timeout: env.block.time.plus_seconds(IBC_TIMEOUT).into(),
-    };
+    let ibc_msg = prepare_ibc_packet(
+        deps.storage,
+        &env,
+        voter.as_str(),
+        VxAstroIbcMsg::UpdateUserVotes {
+            voter: voter.to_string(),
+            voting_power,
+            is_unlock,
+        },
+        config.voting_ibc_channel,
+    )?;
 
     Ok(Response::default()
         .add_attributes(attrs)
@@ -373,4 +363,49 @@ fn update_config(
     CONFIG.save(deps.storage, &config)?;
 
     Ok(Response::default().add_attributes(attrs))
+}
+
+pub fn governance_vote(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    proposal_id: u64,
+    vote: ProposalVoteOption,
+) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+    let voter = info.sender.to_string();
+
+    ensure!(
+        !PROPOSAL_VOTERS.has(deps.storage, (proposal_id, voter.clone())),
+        ContractError::AlreadyVoted {}
+    );
+
+    let start_time = REGISTERED_PROPOSALS.load(deps.storage, proposal_id)?;
+
+    let voting_power =
+        get_voting_power(deps.querier, &config.vxastro, &voter, Some(start_time - 1))?;
+    ensure!(!voting_power.is_zero(), ContractError::ZeroVotingPower {});
+
+    let attrs = vec![
+        attr("action", "governance_vote"),
+        attr("voter", &info.sender),
+        attr("voting_power", voting_power),
+    ];
+
+    let ibc_msg = prepare_ibc_packet(
+        deps.storage,
+        &env,
+        &voter,
+        VxAstroIbcMsg::GovernanceVote {
+            voter: voter.clone(),
+            voting_power,
+            proposal_id,
+            vote,
+        },
+        config.voting_ibc_channel,
+    )?;
+
+    Ok(Response::default()
+        .add_attributes(attrs)
+        .add_message(ibc_msg))
 }

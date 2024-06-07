@@ -4,6 +4,8 @@ use std::fmt::Display;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{to_json_binary, Binary, Decimal, Uint128};
 
+use crate::assembly::ProposalVoteOption;
+
 #[cw_serde]
 pub enum ExecuteMsg<T> {
     /// Vote allows a vxASTRO holders
@@ -50,21 +52,35 @@ pub fn ack_ok() -> Binary {
     to_json_binary(&IbcAckResult::Ok(b"ok".into())).unwrap()
 }
 
-/// Internal IBC message to be sent from outpost to the hub over voting channel
+/// Internal IBC messages for hub and outposts interactions
 #[cw_serde]
 pub enum VxAstroIbcMsg {
-    Vote {
+    /// Sender: Outpost
+    EmissionsVote {
         voter: String,
         /// Actual voting power reported from outpost
         voting_power: Uint128,
         /// Voting power distribution
         votes: HashMap<String, Decimal>,
     },
+    /// Sender: Outpost
     UpdateUserVotes {
         voter: String,
         /// Actual voting power reported from outpost
         voting_power: Uint128,
         /// Marker defines whether this packet was sent from vxASTRO unlock context
         is_unlock: bool,
+    },
+    /// Sender: Hub
+    RegisterProposal { proposal_id: u64, start_time: u64 },
+    /// Sender: Outpost
+    GovernanceVote {
+        voter: String,
+        /// Actual voting power reported from outpost
+        voting_power: Uint128,
+        /// Proposal id
+        proposal_id: u64,
+        /// Vote option
+        vote: ProposalVoteOption,
     },
 }

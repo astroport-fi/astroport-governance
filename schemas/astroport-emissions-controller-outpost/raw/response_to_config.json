@@ -31,7 +31,7 @@
       "type": "string"
     },
     "ics20_channel": {
-      "description": "Official ICS20 IBC channel from this outpost to the Hub",
+      "description": "ICS20 IBC channel from this outpost to the Hub",
       "type": "string"
     },
     "incentives_addr": {

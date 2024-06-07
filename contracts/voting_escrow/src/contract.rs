@@ -218,11 +218,13 @@ pub fn execute(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::TotalVotingPower { time } => {
-            to_json_binary(&get_total_vp(deps.storage, env.block.time.seconds(), time)?)
-        }
-        QueryMsg::UserVotingPower { user, time } => {
-            to_json_binary(&query_user_voting_power(deps, env, user, time)?)
+        QueryMsg::TotalVotingPower { timestamp } => to_json_binary(&get_total_vp(
+            deps.storage,
+            env.block.time.seconds(),
+            timestamp,
+        )?),
+        QueryMsg::UserVotingPower { user, timestamp } => {
+            to_json_binary(&query_user_voting_power(deps, env, user, timestamp)?)
         }
         QueryMsg::LockInfo { user } => {
             let user = deps.api.addr_validate(&user)?;

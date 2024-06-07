@@ -45,4 +45,7 @@ pub enum ContractError {
 
     #[error("No valid schedules found")]
     NoValidSchedules {},
+
+    #[error("User already voted")]
+    AlreadyVoted {},
 }

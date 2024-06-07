@@ -55,6 +55,7 @@ pub fn instantiate(
 
     let config = Config {
         owner: deps.api.addr_validate(&msg.owner)?,
+        assembly: deps.api.addr_validate(&msg.assembly)?,
         vxastro: Addr::unchecked(""),
         incentives_addr: query_incentives_addr(deps.querier, &factory)?,
         factory,

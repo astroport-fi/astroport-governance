@@ -8,6 +8,7 @@
     "description": "This structure describes the basic settings for creating a contract.",
     "type": "object",
     "required": [
+      "assembly",
       "astro_denom",
       "collected_astro",
       "emissions_multiple",
@@ -22,6 +23,10 @@
       "xastro_denom"
     ],
     "properties": {
+      "assembly": {
+        "description": "Astroport Assembly contract address",
+        "type": "string"
+      },
       "astro_denom": {
         "description": "ASTRO denom on the Hub",
         "type": "string"
@@ -614,6 +619,30 @@
               }
             },
             "additionalProperties": false
+          },
+          {
+            "description": "Permissionless endpoint to stream proposal info from the Hub to all outposts",
+            "type": "object",
+            "required": [
+              "register_proposal"
+            ],
+            "properties": {
+              "register_proposal": {
+                "type": "object",
+                "required": [
+                  "proposal_id"
+                ],
+                "properties": {
+                  "proposal_id": {
+                    "type": "integer",
+                    "format": "uint64",
+                    "minimum": 0.0
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            "additionalProperties": false
           }
         ]
       },
@@ -832,6 +861,7 @@
       "description": "General contract configuration",
       "type": "object",
       "required": [
+        "assembly",
         "astro_denom",
         "emissions_multiple",
         "factory",
@@ -847,6 +877,14 @@
         "xastro_denom"
       ],
       "properties": {
+        "assembly": {
+          "description": "Astroport Assembly contract address",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Addr"
+            }
+          ]
+        },
         "astro_denom": {
           "description": "ASTRO denom on the Hub",
           "type": "string"

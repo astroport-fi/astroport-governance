@@ -28,7 +28,7 @@ impl Module for IbcMockModule {
         ExecC: CustomMsg + DeserializeOwned + 'static,
         QueryC: CustomQuery + DeserializeOwned + 'static,
     {
-        unimplemented!()
+        Ok(AppResponse::default())
     }
 
     fn query(

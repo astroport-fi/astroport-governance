@@ -63,7 +63,7 @@
         "total_voting_power": {
           "type": "object",
           "properties": {
-            "time": {
+            "timestamp": {
               "type": [
                 "integer",
                 "null"
@@ -90,7 +90,7 @@
             "user"
           ],
           "properties": {
-            "time": {
+            "timestamp": {
               "type": [
                 "integer",
                 "null"

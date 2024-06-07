@@ -3,7 +3,7 @@ use std::str::FromStr;
 
 use astroport::asset::AssetInfo;
 use astroport::incentives::RewardType;
-use cosmwasm_std::{coin, coins, Decimal, Decimal256, Empty, Uint128};
+use cosmwasm_std::{coin, coins, Decimal, Decimal256, Empty, Event, Uint128};
 use cw_multi_test::Executor;
 use cw_utils::PaymentError;
 use itertools::Itertools;
@@ -11,16 +11,17 @@ use neutron_sdk::sudo::msg::{RequestPacket, TransferSudoMsg};
 
 use astroport_emissions_controller::error::ContractError;
 use astroport_emissions_controller::utils::get_epoch_start;
-use astroport_governance::emissions_controller;
+use astroport_governance::assembly::{ProposalVoteOption, ProposalVoterResponse};
 use astroport_governance::emissions_controller::consts::{DAY, EPOCH_LENGTH, VOTE_COOLDOWN};
 use astroport_governance::emissions_controller::hub::{
     AstroPoolConfig, EmissionsState, HubMsg, OutpostInfo, OutpostParams, OutpostStatus, TuneInfo,
     UserInfoResponse,
 };
-use astroport_governance::emissions_controller::msg::ExecuteMsg;
+use astroport_governance::emissions_controller::msg::{ExecuteMsg, VxAstroIbcMsg};
+use astroport_governance::{assembly, emissions_controller};
 use astroport_voting_escrow::state::UNLOCK_PERIOD;
 
-use crate::common::helper::ControllerHelper;
+use crate::common::helper::{ControllerHelper, PROPOSAL_VOTING_PERIOD};
 
 mod common;
 
@@ -1218,6 +1219,134 @@ fn test_some_epochs() {
 }
 
 #[test]
+fn test_interchain_governance() {
+    let mut helper = ControllerHelper::new();
+    let owner = helper.owner.clone();
+
+    // No proposal yet
+    let err = helper.register_proposal(1).unwrap_err();
+    assert_eq!(err.root_cause().to_string(), "Generic error: Querier contract error: type: astroport_governance::assembly::Proposal; key: [00, 09, 70, 72, 6F, 70, 6F, 73, 61, 6C, 73, 00, 00, 00, 00, 00, 00, 00, 01] not found");
+
+    helper.submit_proposal(&owner).unwrap();
+
+    // No outposts yet but it shouldn't fail transaction
+    let resp = helper.register_proposal(1).unwrap();
+    assert!(
+        !resp.has_event(
+            &Event::new("wasm")
+                .add_attributes([("action", "register_proposal"), ("outpost", "osmo")])
+        ),
+        "Controller tried to register outpost {:?}",
+        resp.events
+    );
+
+    // Add outpost
+    helper
+        .add_outpost(
+            "osmo",
+            OutpostInfo {
+                astro_denom: "ibc/C4CFF46FD6DE35CA4CF4CE031E643C8FDC9BA4B99AE598E9B0ED98FE3A2319F9"
+                    .to_string(),
+                params: Some(OutpostParams {
+                    emissions_controller: "osmo1controller".to_string(),
+                    voting_channel: "channel-1".to_string(),
+                    ics20_channel: "channel-2".to_string(),
+                }),
+                astro_pool_config: None,
+            },
+        )
+        .unwrap();
+
+    // Submit 2nd proposal. Ensure it registers a proposal on osmosis
+    let resp = helper.submit_proposal(&owner).unwrap();
+    resp.assert_event(
+        &Event::new("wasm").add_attributes([("action", "register_proposal"), ("outpost", "osmo")]),
+    );
+
+    // Now we can register 1st proposal
+    helper.register_proposal(1).unwrap();
+    resp.assert_event(
+        &Event::new("wasm").add_attributes([("action", "register_proposal"), ("outpost", "osmo")]),
+    );
+
+    // Timeout both proposals
+    helper.blocktravel(PROPOSAL_VOTING_PERIOD + 1);
+
+    let err = helper.register_proposal(1).unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Generic error: Proposal is not active"
+    );
+
+    // Emulate outpost vote after a voting period is over.
+    // It shouldn't fail but must not register a vote
+    let resp = helper
+        .mock_packet_receive(VxAstroIbcMsg::GovernanceVote {
+            voter: "osmo1voter".to_string(),
+            voting_power: Default::default(),
+            proposal_id: 1,
+            vote: ProposalVoteOption::For,
+        })
+        .unwrap();
+    resp.assert_event(
+        &Event::new("wasm")
+            .add_attributes([("action", "cast_vote"), ("error", "Voting period ended!")]),
+    );
+
+    // Submit 3rd proposal
+    helper.submit_proposal(&owner).unwrap();
+
+    // Emulate vote from osmosis
+    let resp = helper
+        .mock_packet_receive(VxAstroIbcMsg::GovernanceVote {
+            voter: "osmo1voter".to_string(),
+            voting_power: 1_000000u128.into(),
+            proposal_id: 3,
+            vote: ProposalVoteOption::For,
+        })
+        .unwrap();
+
+    resp.assert_event(&Event::new("wasm").add_attributes([
+        ("action", "cast_vote"),
+        ("proposal_id", "3"),
+        ("voter", "osmo1voter"),
+        ("vote", "for"),
+        ("voting_power", "1000000"),
+    ]));
+
+    // Ensure voter has been reflected in assembly
+    let proposal = helper
+        .app
+        .wrap()
+        .query_wasm_smart::<assembly::Proposal>(
+            helper.assembly.clone(),
+            &assembly::QueryMsg::Proposal { proposal_id: 3 },
+        )
+        .unwrap();
+    assert_eq!(proposal.for_power.u128(), 1_000000);
+
+    let voters = helper
+        .app
+        .wrap()
+        .query_wasm_smart::<Vec<ProposalVoterResponse>>(
+            helper.assembly.clone(),
+            &assembly::QueryMsg::ProposalVoters {
+                proposal_id: 3,
+                start_after: None,
+                limit: None,
+            },
+        )
+        .unwrap();
+    assert_eq!(
+        voters,
+        vec![ProposalVoterResponse {
+            address: "osmo1voter".to_string(),
+            vote_option: ProposalVoteOption::For,
+        }]
+    );
+}
+
+#[test]
 fn test_change_ownership() {
     let mut helper = ControllerHelper::new();
 
@@ -1371,6 +1500,7 @@ fn test_update_config() {
         config,
         emissions_controller::hub::Config {
             owner: helper.owner.clone(),
+            assembly: helper.assembly.clone(),
             vxastro: helper.vxastro.clone(),
             factory: helper.factory.clone(),
             astro_denom: helper.astro.clone(),

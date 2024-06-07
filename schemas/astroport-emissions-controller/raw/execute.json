@@ -374,6 +374,30 @@
             }
           },
           "additionalProperties": false
+        },
+        {
+          "description": "Permissionless endpoint to stream proposal info from the Hub to all outposts",
+          "type": "object",
+          "required": [
+            "register_proposal"
+          ],
+          "properties": {
+            "register_proposal": {
+              "type": "object",
+              "required": [
+                "proposal_id"
+              ],
+              "properties": {
+                "proposal_id": {
+                  "type": "integer",
+                  "format": "uint64",
+                  "minimum": 0.0
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
         }
       ]
     },
