@@ -18,6 +18,7 @@
       "owner",
       "pools_per_outpost",
       "vxastro_code_id",
+      "vxastro_marketing_info",
       "whitelist_threshold",
       "whitelisting_fee",
       "xastro_denom"
@@ -81,12 +82,9 @@
       },
       "vxastro_marketing_info": {
         "description": "vxASTRO token marketing info",
-        "anyOf": [
+        "allOf": [
           {
             "$ref": "#/definitions/UpdateMarketingInfo"
-          },
-          {
-            "type": "null"
           }
         ]
       },

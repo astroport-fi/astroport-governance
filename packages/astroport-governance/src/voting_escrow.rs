@@ -23,7 +23,7 @@ pub struct InstantiateMsg {
     /// Astroport Emissions Controller contract
     pub emissions_controller: String,
     /// Marketing info for vxASTRO
-    pub marketing: Option<UpdateMarketingInfo>,
+    pub marketing: UpdateMarketingInfo,
 }
 
 /// This structure describes the execute functions in the contract.

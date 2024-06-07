@@ -42,27 +42,23 @@ pub fn instantiate(
     };
     CONFIG.save(deps.storage, &config)?;
 
-    if let Some(marketing) = msg.marketing {
-        let logo = match &marketing.logo {
-            Some(Logo::Url(url)) => {
-                LOGO.save(deps.storage, &marketing.logo.clone().unwrap())?;
-                Some(LogoInfo::Url(url.clone()))
-            }
-            _ => {
-                return Err(StdError::generic_err("Logo url must be set").into());
-            }
-        };
+    let logo = match &msg.marketing.logo {
+        Some(Logo::Url(url)) => {
+            LOGO.save(deps.storage, &msg.marketing.logo.clone().unwrap())?;
+            Some(LogoInfo::Url(url.clone()))
+        }
+        _ => {
+            return Err(StdError::generic_err("Logo url must be set").into());
+        }
+    };
 
-        let data = MarketingInfoResponse {
-            project: marketing.project,
-            description: marketing.description,
-            marketing: addr_opt_validate(deps.api, &marketing.marketing)?,
-            logo,
-        };
-        MARKETING_INFO.save(deps.storage, &data)?;
-    } else {
-        return Err(StdError::generic_err("Marketing info is required").into());
-    }
+    let data = MarketingInfoResponse {
+        project: msg.marketing.project,
+        description: msg.marketing.description,
+        marketing: addr_opt_validate(deps.api, &msg.marketing.marketing)?,
+        logo,
+    };
+    MARKETING_INFO.save(deps.storage, &data)?;
 
     // Store token info
     let data = TokenInfo {

@@ -160,12 +160,12 @@ impl ControllerHelper {
                     owner: owner.to_string(),
                     astro_denom: astro_denom.to_string(),
                     vxastro_code_id,
-                    vxastro_marketing_info: Some(UpdateMarketingInfo {
+                    vxastro_marketing_info: UpdateMarketingInfo {
                         project: None,
                         description: None,
                         marketing: None,
                         logo: Some(Logo::Url("".to_string())),
-                    }),
+                    },
                     xastro_denom: xastro_denom.to_string(),
                     factory: factory.to_string(),
                     hub_emissions_controller: "emissions_controller".to_string(),

@@ -5,7 +5,8 @@
   "type": "object",
   "required": [
     "deposit_denom",
-    "emissions_controller"
+    "emissions_controller",
+    "marketing"
   ],
   "properties": {
     "deposit_denom": {
@@ -18,12 +19,9 @@
     },
     "marketing": {
       "description": "Marketing info for vxASTRO",
-      "anyOf": [
+      "allOf": [
         {
           "$ref": "#/definitions/UpdateMarketingInfo"
-        },
-        {
-          "type": "null"
         }
       ]
     }

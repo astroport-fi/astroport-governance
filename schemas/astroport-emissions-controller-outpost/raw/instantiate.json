@@ -10,6 +10,7 @@
     "ics20_channel",
     "owner",
     "vxastro_code_id",
+    "vxastro_marketing_info",
     "xastro_denom"
   ],
   "properties": {
@@ -41,12 +42,9 @@
     },
     "vxastro_marketing_info": {
       "description": "vxASTRO token marketing info",
-      "anyOf": [
+      "allOf": [
         {
           "$ref": "#/definitions/UpdateMarketingInfo"
-        },
-        {
-          "type": "null"
         }
       ]
     },

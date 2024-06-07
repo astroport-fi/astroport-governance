@@ -225,12 +225,12 @@ impl Helper {
                 &voting_escrow::InstantiateMsg {
                     deposit_denom: xastro_denom.to_string(),
                     emissions_controller: mocked_emission_controller.to_string(),
-                    marketing: Some(UpdateMarketingInfo {
+                    marketing: UpdateMarketingInfo {
                         project: None,
                         description: None,
                         marketing: Some(owner.to_string()),
                         logo: Some(Logo::Url("https://example.com".to_string())),
-                    }),
+                    },
                 },
                 &[],
                 "label",

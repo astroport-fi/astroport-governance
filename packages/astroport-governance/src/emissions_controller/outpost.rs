@@ -18,7 +18,7 @@ pub struct OutpostInstantiateMsg {
     /// vxASTRO contract code id
     pub vxastro_code_id: u64,
     /// vxASTRO token marketing info
-    pub vxastro_marketing_info: Option<UpdateMarketingInfo>,
+    pub vxastro_marketing_info: UpdateMarketingInfo,
     /// Astroport Factory contract
     pub factory: String,
     /// Emissions controller on the Hub
