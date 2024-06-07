@@ -1,6 +1,6 @@
 [package]
 name = "astro-assembly"
-version = "2.0.0"
+version = "3.0.0"
 authors = ["Astroport"]
 edition = "2021"
 description = "Astroport DAO Contract"
@@ -23,7 +23,7 @@ cw-storage-plus.workspace = true
 thiserror.workspace = true
 cosmwasm-schema.workspace = true
 cw-utils.workspace = true
-astroport-governance = { path = "../../packages/astroport-governance", version = "3" }
+astroport-governance = { path = "../../packages/astroport-governance", version = "4" }
 astroport.workspace = true
 astro-satellite = { version = "1.1.0", features = ["library"] }
 ibc-controller-package = "1.0.0"
