@@ -61,12 +61,21 @@
       "type": "object",
       "required": [
         "collected_astro",
+        "ema",
         "emissions_amount",
         "xastro_rate"
       ],
       "properties": {
         "collected_astro": {
           "description": "Collected ASTRO from previous epoch.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Uint128"
+            }
+          ]
+        },
+        "ema": {
+          "description": "EMA of the collected ASTRO from the previous epoch",
           "allOf": [
             {
               "$ref": "#/definitions/Uint128"

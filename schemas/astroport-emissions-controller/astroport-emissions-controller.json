@@ -11,6 +11,7 @@
       "assembly",
       "astro_denom",
       "collected_astro",
+      "ema",
       "emissions_multiple",
       "factory",
       "fee_receiver",
@@ -34,6 +35,14 @@
       },
       "collected_astro": {
         "description": "Defines the number of ASTRO collected to staking contract from 2-weeks period preceding the current epoch.",
+        "allOf": [
+          {
+            "$ref": "#/definitions/Uint128"
+          }
+        ]
+      },
+      "ema": {
+        "description": "EMA of the collected ASTRO from the previous epoch",
         "allOf": [
           {
             "$ref": "#/definitions/Uint128"
@@ -1163,12 +1172,21 @@
           "type": "object",
           "required": [
             "collected_astro",
+            "ema",
             "emissions_amount",
             "xastro_rate"
           ],
           "properties": {
             "collected_astro": {
               "description": "Collected ASTRO from previous epoch.",
+              "allOf": [
+                {
+                  "$ref": "#/definitions/Uint128"
+                }
+              ]
+            },
+            "ema": {
+              "description": "EMA of the collected ASTRO from the previous epoch",
               "allOf": [
                 {
                   "$ref": "#/definitions/Uint128"
@@ -1263,12 +1281,21 @@
           "type": "object",
           "required": [
             "collected_astro",
+            "ema",
             "emissions_amount",
             "xastro_rate"
           ],
           "properties": {
             "collected_astro": {
               "description": "Collected ASTRO from previous epoch.",
+              "allOf": [
+                {
+                  "$ref": "#/definitions/Uint128"
+                }
+              ]
+            },
+            "ema": {
+              "description": "EMA of the collected ASTRO from the previous epoch",
               "allOf": [
                 {
                   "$ref": "#/definitions/Uint128"
