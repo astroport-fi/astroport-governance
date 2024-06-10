@@ -226,11 +226,11 @@ pub fn get_xastro_rate_and_share(
 /// and derive emissions for the upcoming epoch.  
 ///
 /// Calculate two-epochs EMA by the following formula:
-/// (V_n-1 * 2/3 + V_n-2 * 1/3),  
+/// (V_n-1 * 2/3 + EMA_n-1 * 1/3),  
 /// where V_n is the collected ASTRO at epoch n, n is the current epoch (a starting one).
 ///
 /// Dynamic emissions formula is:  
-/// next emissions = MAX(MIN(max_astro, V_n-2 * emissions_multiple), MIN(max_astro, two-epochs EMA))
+/// next emissions = MAX(MIN(max_astro, V_n-1 * emissions_multiple), MIN(max_astro, two-epochs EMA))
 pub fn astro_emissions_curve(
     deps: Deps,
     emissions_state: EmissionsState,
@@ -242,7 +242,7 @@ pub fn astro_emissions_curve(
 
     let two_thirds = Decimal::from_ratio(2u8, 3u8);
     let one_third = Decimal::from_ratio(1u8, 3u8);
-    let ema = collected_astro * two_thirds + emissions_state.collected_astro * one_third;
+    let ema = collected_astro * two_thirds + emissions_state.ema * one_third;
 
     let min_1 = (emissions_state.collected_astro * config.emissions_multiple).min(config.max_astro);
     let min_2 = (ema * config.emissions_multiple).min(config.max_astro);
@@ -250,6 +250,7 @@ pub fn astro_emissions_curve(
     Ok(EmissionsState {
         xastro_rate: actual_rate,
         collected_astro,
+        ema,
         emissions_amount: min_1.max(min_2),
     })
 }

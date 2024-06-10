@@ -86,6 +86,7 @@ pub fn instantiate(
             emissions_state: EmissionsState {
                 xastro_rate,
                 collected_astro: msg.collected_astro,
+                ema: msg.ema,
                 emissions_amount: Uint128::zero(),
             },
         },

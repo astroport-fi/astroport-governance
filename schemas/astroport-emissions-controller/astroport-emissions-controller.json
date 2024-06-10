@@ -780,10 +780,10 @@
         "description": "Returns paginated list of all pools that received votes at the current epoch",
         "type": "object",
         "required": [
-          "voted_pools_list"
+          "voted_pools"
         ],
         "properties": {
-          "voted_pools_list": {
+          "voted_pools": {
             "type": "object",
             "properties": {
               "limit": {
@@ -1392,7 +1392,7 @@
         }
       }
     },
-    "voted_pools_list": {
+    "voted_pools": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Array_of_Tuple_of_String_and_VotedPoolInfo",
       "type": "array",

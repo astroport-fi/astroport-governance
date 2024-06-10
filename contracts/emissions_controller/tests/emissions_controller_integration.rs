@@ -625,8 +625,8 @@ fn test_tune_only_hub() {
         pools_grouped: HashMap::from([(
             "neutron".to_string(),
             vec![
-                (lp_token1.to_string(), Uint128::new(133333333332)),
-                (lp_token2.to_string(), Uint128::new(133333333332)),
+                (lp_token1.to_string(), Uint128::new(146666666665)),
+                (lp_token2.to_string(), Uint128::new(146666666665)),
                 (astro_pool.to_string(), Uint128::new(1000000000)),
             ]
             .into_iter()
@@ -637,7 +637,8 @@ fn test_tune_only_hub() {
         emissions_state: EmissionsState {
             xastro_rate: Decimal::from_str("499501.4995004995004995").unwrap(),
             collected_astro: 499999999999u128.into(),
-            emissions_amount: 266666666665u128.into(),
+            ema: 366666666664u128.into(),
+            emissions_amount: 293333333331u128.into(),
         },
     };
     assert_eq!(tune_info, expected_tune_info);
@@ -665,6 +666,7 @@ fn test_tune_only_hub() {
         emissions_state: EmissionsState {
             xastro_rate: Decimal::one(),
             collected_astro: 0u128.into(),
+            ema: 99999999999u128.into(),
             emissions_amount: 267200000000u128.into(),
         },
     };
@@ -754,6 +756,7 @@ fn test_tune_outpost() {
         emissions_state: EmissionsState {
             xastro_rate: Decimal::one(),
             collected_astro: 0u128.into(),
+            ema: 99999999999u128.into(),
             emissions_amount: 267200000000u128.into(),
         },
     };
@@ -857,6 +860,7 @@ fn test_tune_outpost() {
         emissions_state: EmissionsState {
             xastro_rate: Decimal::one(),
             collected_astro: 0u128.into(),
+            ema: 99999999999u128.into(),
             emissions_amount: 267200000000u128.into(),
         },
     };

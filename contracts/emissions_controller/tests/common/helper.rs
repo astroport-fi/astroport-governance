@@ -272,6 +272,7 @@ impl ControllerHelper {
                     emissions_multiple: Decimal::percent(80),
                     max_astro: 1_400_000_000_000u128.into(),
                     collected_astro: 334_000_000_000u128.into(),
+                    ema: 300_000_000_000u128.into(),
                 },
                 &[],
                 "label",
@@ -519,7 +520,7 @@ impl ControllerHelper {
     pub fn query_voted_pools(&self, limit: Option<u8>) -> StdResult<Vec<(String, VotedPoolInfo)>> {
         self.app.wrap().query_wasm_smart(
             &self.emission_controller,
-            &emissions_controller::hub::QueryMsg::VotedPoolsList {
+            &emissions_controller::hub::QueryMsg::VotedPools {
                 limit,
                 start_after: None,
             },

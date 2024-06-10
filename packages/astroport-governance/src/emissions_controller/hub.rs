@@ -46,6 +46,8 @@ pub struct HubInstantiateMsg {
     /// Defines the number of ASTRO collected to staking contract
     /// from 2-weeks period preceding the current epoch.
     pub collected_astro: Uint128,
+    /// EMA of the collected ASTRO from the previous epoch
+    pub ema: Uint128,
 }
 
 #[cw_serde]
@@ -109,7 +111,7 @@ pub enum QueryMsg {
     },
     /// Returns paginated list of all pools that received votes at the current epoch
     #[returns(Vec<(String, VotedPoolInfo)>)]
-    VotedPoolsList {
+    VotedPools {
         limit: Option<u8>,
         start_after: Option<String>,
     },
@@ -315,6 +317,8 @@ pub struct EmissionsState {
     pub xastro_rate: Decimal,
     /// Collected ASTRO from previous epoch.
     pub collected_astro: Uint128,
+    /// EMA of the collected ASTRO from the previous epoch
+    pub ema: Uint128,
     /// Amount of ASTRO to be emitted in the current epoch
     pub emissions_amount: Uint128,
 }

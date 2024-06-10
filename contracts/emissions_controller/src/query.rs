@@ -14,7 +14,7 @@ use astroport_governance::emissions_controller::hub::{
 
 use crate::error::ContractError;
 use crate::state::{CONFIG, OUTPOSTS, POOLS_WHITELIST, TUNE_INFO, USER_INFO, VOTED_POOLS};
-use crate::utils::{get_epoch_start, simulate_tune};
+use crate::utils::simulate_tune;
 
 /// Expose available contract queries.
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -79,7 +79,7 @@ pub fn query(deps: Deps<NeutronQuery>, env: Env, msg: QueryMsg) -> Result<Binary
             .ok_or_else(|| StdError::generic_err(format!("Voted pool not found at {timestamp}")))?;
             Ok(to_json_binary(&voted_pool)?)
         }
-        QueryMsg::VotedPoolsList { limit, start_after } => {
+        QueryMsg::VotedPools { limit, start_after } => {
             let limit = limit.unwrap_or(MAX_PAGE_LIMIT) as usize;
             let voted_pools = VOTED_POOLS
                 .range(
@@ -108,10 +108,15 @@ pub fn query(deps: Deps<NeutronQuery>, env: Env, msg: QueryMsg) -> Result<Binary
             let outposts = OUTPOSTS
                 .range(deps.storage, None, None, Order::Ascending)
                 .collect::<StdResult<HashMap<_, _>>>()?;
-            let epoch_start = get_epoch_start(env.block.time.seconds());
             let config = CONFIG.load(deps.storage)?;
 
-            let tune_result = simulate_tune(deps, &voted_pools, &outposts, epoch_start, &config)?;
+            let tune_result = simulate_tune(
+                deps,
+                &voted_pools,
+                &outposts,
+                env.block.time.seconds(),
+                &config,
+            )?;
             Ok(to_json_binary(&SimulateTuneResponse {
                 new_emissions_state: tune_result.new_emissions_state,
                 next_pools_grouped: tune_result.next_pools_grouped,
