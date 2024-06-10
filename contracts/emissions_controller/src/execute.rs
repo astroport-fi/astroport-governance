@@ -139,7 +139,7 @@ pub fn execute(
             .map_err(Into::into)
         }
         ExecuteMsg::Custom(hub_msg) => match hub_msg {
-            HubMsg::WhitelistPool { pool } => whitelist_pool(deps, env, info, pool),
+            HubMsg::WhitelistPool { lp_token: pool } => whitelist_pool(deps, env, info, pool),
             HubMsg::UpdateOutpost {
                 prefix,
                 astro_denom,

@@ -291,10 +291,10 @@
             "whitelist_pool": {
               "type": "object",
               "required": [
-                "pool"
+                "lp_token"
               ],
               "properties": {
-                "pool": {
+                "lp_token": {
                   "type": "string"
                 }
               },

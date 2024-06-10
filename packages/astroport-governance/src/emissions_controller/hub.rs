@@ -63,7 +63,7 @@ pub enum HubMsg {
         max_astro: Option<Uint128>,
     },
     /// Whitelists a pool to receive ASTRO emissions. Requires fee payment
-    WhitelistPool { pool: String },
+    WhitelistPool { lp_token: String },
     /// Register or update an outpost
     UpdateOutpost {
         /// Bech32 prefix

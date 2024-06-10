@@ -462,7 +462,7 @@ impl ControllerHelper {
             user.clone(),
             self.emission_controller.clone(),
             &emissions_controller::msg::ExecuteMsg::Custom(HubMsg::WhitelistPool {
-                pool: pool.into(),
+                lp_token: pool.into(),
             }),
             fees,
         )
