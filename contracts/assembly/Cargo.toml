@@ -25,7 +25,6 @@ cosmwasm-schema.workspace = true
 cw-utils.workspace = true
 astroport-governance = { path = "../../packages/astroport-governance", version = "4" }
 astroport.workspace = true
-astro-satellite = { version = "1.1.0", features = ["library"] }
 ibc-controller-package = "1.0.0"
 
 [dev-dependencies]

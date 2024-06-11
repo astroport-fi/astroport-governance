@@ -79,7 +79,7 @@ impl EscrowHelper {
                         project: None,
                         description: None,
                         marketing: Some(owner.to_string()),
-                        logo: Some(Logo::Url("https://example.com".to_string())),
+                        logo: Logo::Url("https://example.com".to_string()),
                     },
                 },
                 &[],

@@ -12,7 +12,7 @@ pub struct UpdateMarketingInfo {
     /// Token marketing information
     pub marketing: Option<String>,
     /// Token logo
-    pub logo: Option<Logo>,
+    pub logo: Logo,
 }
 
 /// This structure stores general parameters for the vxASTRO contract.
@@ -82,7 +82,7 @@ pub enum QueryMsg {
     /// Fetch a user's lock information
     #[returns(LockInfoResponse)]
     LockInfo { user: String },
-    /// Return the  vxASTRO contract configuration
+    /// Return the vxASTRO contract configuration
     #[returns(Config)]
     Config {},
 }
@@ -99,7 +99,7 @@ pub struct Config {
 #[derive(Copy)]
 #[cw_serde]
 pub struct UnlockStatus {
-    /// The timestamp when a lock will be unlocked.
+    /// The timestamp when position will be unlocked.
     pub end: u64,
     /// Whether The Hub confirmed unlocking
     pub hub_confirmed: bool,
@@ -109,6 +109,6 @@ pub struct UnlockStatus {
 pub struct LockInfoResponse {
     /// The total number of xASTRO tokens that were deposited in the vxASTRO position
     pub amount: Uint128,
-    /// Unlocking status. None for positions in Locked state
+    /// Unlocking status. None for positions in locked state
     pub unlock_status: Option<UnlockStatus>,
 }

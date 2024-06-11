@@ -124,6 +124,9 @@
     "UpdateMarketingInfo": {
       "description": "This structure stores marketing information for vxASTRO.",
       "type": "object",
+      "required": [
+        "logo"
+      ],
       "properties": {
         "description": {
           "description": "Token description",
@@ -134,12 +137,9 @@
         },
         "logo": {
           "description": "Token logo",
-          "anyOf": [
+          "allOf": [
             {
               "$ref": "#/definitions/Logo"
-            },
-            {
-              "type": "null"
             }
           ]
         },

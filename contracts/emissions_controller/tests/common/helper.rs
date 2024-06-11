@@ -260,7 +260,7 @@ impl ControllerHelper {
                         project: None,
                         description: None,
                         marketing: None,
-                        logo: Some(Logo::Url("".to_string())),
+                        logo: Logo::Url("".to_string()),
                     },
                     xastro_denom: xastro_denom.clone(),
                     factory: factory.to_string(),

@@ -15,7 +15,7 @@
       ]
     },
     "unlock_status": {
-      "description": "Unlocking status. None for positions in Locked state",
+      "description": "Unlocking status. None for positions in locked state",
       "anyOf": [
         {
           "$ref": "#/definitions/UnlockStatus"
@@ -40,7 +40,7 @@
       ],
       "properties": {
         "end": {
-          "description": "The timestamp when a lock will be unlocked.",
+          "description": "The timestamp when position will be unlocked.",
           "type": "integer",
           "format": "uint64",
           "minimum": 0.0

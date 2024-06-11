@@ -1,4 +1,4 @@
-use cosmwasm_std::{OverflowError, StdError};
+use cosmwasm_std::StdError;
 use cw20_base::ContractError as CW20Error;
 use cw_utils::PaymentError;
 use thiserror::Error;
@@ -11,9 +11,6 @@ pub enum ContractError {
 
     #[error("{0}")]
     PaymentError(#[from] PaymentError),
-
-    #[error("{0}")]
-    OverflowError(#[from] OverflowError),
 
     #[error("{0}")]
     Cw20Base(#[from] CW20Error),

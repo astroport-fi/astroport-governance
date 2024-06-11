@@ -1,4 +1,3 @@
-use astroport::common::OwnershipProposal;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{ensure, Addr, StdResult, Storage, Uint128};
 use cw_storage_plus::{Item, SnapshotItem, SnapshotMap, Strategy};
@@ -18,7 +17,7 @@ fn default_addr() -> Addr {
 
 #[cw_serde]
 pub struct Lock {
-    /// The total amount of xASTRO tokens that were deposited in the vxASTRO position
+    /// The total number of xASTRO tokens that were deposited in the vxASTRO position
     pub amount: Uint128,
     /// Unlocking status. None for positions in Locked state
     pub unlock_status: Option<UnlockStatus>,
@@ -198,6 +197,3 @@ pub const TOTAL_POWER: SnapshotItem<Uint128> = SnapshotItem::new(
     "total_power__changelog",
     Strategy::EveryBlock,
 );
-
-/// Contains a proposal to change contract ownership
-pub const OWNERSHIP_PROPOSAL: Item<OwnershipProposal> = Item::new("ownership_proposal");

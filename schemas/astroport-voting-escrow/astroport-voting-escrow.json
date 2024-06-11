@@ -101,6 +101,9 @@
       "UpdateMarketingInfo": {
         "description": "This structure stores marketing information for vxASTRO.",
         "type": "object",
+        "required": [
+          "logo"
+        ],
         "properties": {
           "description": {
             "description": "Token description",
@@ -111,12 +114,9 @@
           },
           "logo": {
             "description": "Token logo",
-            "anyOf": [
+            "allOf": [
               {
                 "$ref": "#/definitions/Logo"
-              },
-              {
-                "type": "null"
               }
             ]
           },
@@ -423,7 +423,7 @@
         "additionalProperties": false
       },
       {
-        "description": "Return the  vxASTRO contract configuration",
+        "description": "Return the vxASTRO contract configuration",
         "type": "object",
         "required": [
           "config"
@@ -509,7 +509,7 @@
           ]
         },
         "unlock_status": {
-          "description": "Unlocking status. None for positions in Locked state",
+          "description": "Unlocking status. None for positions in locked state",
           "anyOf": [
             {
               "$ref": "#/definitions/UnlockStatus"
@@ -534,7 +534,7 @@
           ],
           "properties": {
             "end": {
-              "description": "The timestamp when a lock will be unlocked.",
+              "description": "The timestamp when position will be unlocked.",
               "type": "integer",
               "format": "uint64",
               "minimum": 0.0

@@ -20,9 +20,9 @@ use crate::error::ContractError;
 use crate::state::{get_total_vp, Lock, CONFIG};
 
 /// Contract name that is used for migration.
-const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
+pub const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 /// Contract version that is used for migration.
-const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
+pub const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Creates a new contract with the specified parameters in [`InstantiateMsg`].
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -37,14 +37,14 @@ pub fn instantiate(
     validate_native_denom(&msg.deposit_denom)?;
 
     let config = Config {
-        deposit_denom: msg.deposit_denom.clone(),
+        deposit_denom: msg.deposit_denom,
         emissions_controller: deps.api.addr_validate(&msg.emissions_controller)?,
     };
     CONFIG.save(deps.storage, &config)?;
 
     let logo = match &msg.marketing.logo {
-        Some(Logo::Url(url)) => {
-            LOGO.save(deps.storage, &msg.marketing.logo.clone().unwrap())?;
+        Logo::Url(url) => {
+            LOGO.save(deps.storage, &msg.marketing.logo)?;
             Some(LogoInfo::Url(url.clone()))
         }
         _ => {

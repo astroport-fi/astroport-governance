@@ -130,7 +130,7 @@
       "additionalProperties": false
     },
     {
-      "description": "Return the  vxASTRO contract configuration",
+      "description": "Return the vxASTRO contract configuration",
       "type": "object",
       "required": [
         "config"

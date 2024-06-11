@@ -322,6 +322,7 @@ pub fn handle_update_user(
 }
 
 /// Only contract owner can call this function.
+///
 /// * voting_ibc_channel: new IBC channel to send votes to the Hub.
 /// The contract must be connected to this channel.
 /// * hub_emissions_controller: new address of the Hub Emissions Controller contract.

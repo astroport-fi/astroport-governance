@@ -42,7 +42,7 @@ pub fn instantiate(
         vxastro: Addr::unchecked(""),
         astro_denom: msg.astro_denom,
         incentives_addr: query_incentives_addr(deps.querier, &factory)?,
-        factory: deps.api.addr_validate(&msg.factory)?,
+        factory,
         // Contract owner is responsible for setting a channel via UpdateConfig
         voting_ibc_channel: "".to_string(),
         hub_emissions_controller: msg.hub_emissions_controller,
