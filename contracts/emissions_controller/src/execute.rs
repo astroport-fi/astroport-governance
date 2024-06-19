@@ -559,7 +559,6 @@ pub fn handle_update_user(
 
 /// The function checks that the last pools tuning happened >= 14 days ago.
 /// Then it calculates voting power per each pool.
-/// Filters all non-whitelisted pools,
 /// takes top X pools by voting power, where X is
 /// 'config.pools_per_outpost' * number of outposts,
 /// calculates total ASTRO emission amount for upcoming epoch,

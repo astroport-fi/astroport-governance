@@ -1,282 +1,35 @@
-# Emissions Controller
+# Emissions Controller (Outpost)
 
-The Emissions Controller allows vxASTRO holders to vote on changing `alloc_point`s in the Generator contract every 2
-weeks. Note that the Controller contract uses the word "pool" when referring to LP tokens.
+The Emissions Controller Outpost is a lightweight satellite for the main Emissions Controller located on the Hub.
+For the vxASTRO staker perspective, this contract has the same API as the main Emissions Controller.
+However, Outpost can't perform fine-grained sanity checks for voted LP tokens.
+Same restrictions as on the Hub are applied, like voting every 10 days for up to 5 pools at once.
+The contract composes a special internal IBC message to the Hub with the user's vote.
+If sanity checks passed on the Hub, the vote is accepted.
+In case of IBC failure or timeouts, the user can try to vote again.
 
-## InstantiateMsg
+## Emissions Setting
 
-Initialize the contract with the initial owner, the addresses of the xvASTRO, the Generator and the Factory contracts
-and the max amount of pools that can receive ASTRO emissions at the same time.
+This endpoint is meant to be called during IBC hook processing.
+It might be a gas extensive transaction, thus Astroport devs must settle it with supporting relayer operators prior to
+the vxASTRO launch.
+The contract has a permissionless endpoint which allows setting ASTRO emissions in the incentives contract for the next
+epoch.
+It filters out invalid LP tokens, checks that schedules have >= 1 uASTRO per second, sets reward schedules, and
+IBC sends leftover funds back to the Hub.
+Contract call must supply the exact ASTRO amount contained in the schedules.
 
-```json
-{
-  "owner": "wasm...",
-  "escrow_addr": "wasm...",
-  "generator_addr": "wasm...",
-  "factory_addr": "wasm...",
-  "pools_limit": 5
-}
-```
+## Permissioned Emissions Setting
 
-## ExecuteMsg
+In case the chain (for example, Sei) doesn't support IBC hooks, emissions message from the Hub might end up with ASTRO
+bridged to the chain but not distributed.
+In that case, the contract owner can call this endpoint along with the emissions voting outcome (schedules) for this
+specific chain.
+Same as in permissionless endpoint, this endpoint performs sanity checks, sets reward schedules, and IBC sends leftover
+funds back to the Hub.
 
-### `kick_blacklisted_voters`
+## Governance voting
 
-Remove votes of voters that are blacklisted.
-
-```json
-{
-  "kick_blacklisted_voters": {
-    "blacklisted_voters": [
-      "wasm...",
-      "wasm..."
-    ]
-  }
-}
-```
-
-### `update_config`
-
-Sets various configuration parameters. Any of them can be omitted.
-
-```json
-{
-  "update_config": {
-    "blacklisted_voters_limit": 22,
-    "main_pool": "wasm...",
-    "main_pool_min_alloc": "0.3"
-  }
-}
-```
-
-### `vote`
-
-Vote on pools that will start to get an ASTRO distribution in the next period. For example, assume an address has voting
-power `100`. Then, following the example below, pools will receive voting power 10, 50, 40 respectively. Note that all
-values are scaled so they sum to 10,000.
-
-```json
-{
-  "vote": {
-    "votes": [
-      [
-        "wasm...",
-        1000
-      ],
-      [
-        "wasm...",
-        5000
-      ],
-      [
-        "wasm...",
-        4000
-      ]
-    ]
-  }
-}
-```
-
-### `tune_pools`
-
-Calculate voting power for all pools and apply new allocation points in generator contract.
-
-```json
-{
-  "tune_pools": {}
-}
-```
-
-### `change_pool_limit`
-
-Only contract owner can call this function. Change max number of pools that can receive an ASTRO allocation.
-
-```json
-{
-  "change_pool_limit": {
-    "limit": 6
-  }
-}
-```
-
-### `propose_new_owner`
-
-Create a request to change contract ownership. The validity period of the offer is set by the `expires_in` variable.
-Only the current contract owner can execute this method.
-
-```json
-{
-  "propose_new_owner": {
-    "owner": "wasm...",
-    "expires_in": 1234567
-  }
-}
-```
-
-### `drop_ownership_proposal`
-
-Delete the contract ownership transfer proposal. Only the current contract owner can execute this method.
-
-```json
-{
-  "drop_ownership_proposal": {}
-}
-```
-
-### `claim_ownership`
-
-Used to claim contract ownership. Only the newly proposed contract owner can execute this method.
-
-```json
-{
-  "claim_ownership": {}
-}
-```
-
-### `update_whitelist`
-
-Adds or removes lp tokens which are eligible to receive votes.
-
-```json
-{
-  "update_whitelist": {
-    "add": [
-      "wasm...",
-      "wasm..."
-    ],
-    "remove": [
-      "wasm...",
-      "wasm..."
-    ]
-  }
-}
-```
-
-## QueryMsg
-
-All query messages are described below. A custom struct is defined for each query response.
-
-### `user_info`
-
-Request:
-
-```json
-{
-  "user_info": {
-    "user": "wasm..."
-  }
-}
-```
-
-Returns last user's voting parameters.
-
-```json
-{
-  "user_info_response": {
-    "vote_ts": 1234567,
-    "voting_power": 100,
-    "slope": 15.45,
-    "lock_end": 10,
-    "votes": [
-      [
-        "wasm...",
-        1000
-      ],
-      [
-        "wasm...",
-        5000
-      ],
-      [
-        "wasm...",
-        4000
-      ]
-    ]
-  }
-}
-```
-
-### `tune_info`
-
-Returns last tune information.
-
-```json
-{
-  "tune_info_response": {
-    "tune_ts": 1234567,
-    "pool_alloc_points": [
-      [
-        "wasm...",
-        4000
-      ],
-      [
-        "wasm...",
-        6000
-      ]
-    ]
-  }
-}
-```
-
-### `pool_info`
-
-Returns pool voting parameters at the current block period.
-
-Request:
-
-```json
-{
-  "pool_info": {
-    "pool_addr": "wasm..."
-  }
-}
-```
-
-Response:
-
-```json
-{
-  "voted_pool_info_response": {
-    "vxastro_amount": 1000,
-    "slope": 10.2
-  }
-}
-```
-
-### `pool_info_at_period`
-
-Returns pool voting parameters at specified period.
-
-Request:
-
-```json
-{
-  "pool_info_at_period": {
-    "pool_addr": "wasm...",
-    "period": 10
-  }
-}
-```
-
-Response:
-
-```json
-{
-  "voted_pool_info_response": {
-    "vxastro_amount": 1000,
-    "slope": 10.2
-  }
-}
-```
-
-### `config`
-
-Returns the contract's config.
-
-```json
-{
-  "owner": "wasm...",
-  "escrow_addr": "wasm...",
-  "generator_addr": "wasm...",
-  "factory_addr": "wasm...",
-  "pools_limit": 5
-}
-```
+vxASTRO stakers are allowed to vote on registered governance proposals from the Hub.
+Proposal registration sets proposal start time so contract knows user's voting power at that time.
+Only Hub's Emissions Contrller can initiate proposal registration via IBC messages.
