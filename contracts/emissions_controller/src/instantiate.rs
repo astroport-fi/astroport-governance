@@ -76,7 +76,7 @@ pub fn instantiate(
     // Query dynamic emissions curve state
     let (xastro_rate, _) = get_xastro_rate_and_share(deps.querier, &config)?;
 
-    // Set tune_ts just for safety so the first tuning could happen in 2 weeks
+    // Set tune_ts so the first tuning happens in 2 weeks
     TUNE_INFO.save(
         deps.storage,
         &TuneInfo {

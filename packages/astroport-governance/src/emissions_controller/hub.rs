@@ -52,7 +52,7 @@ pub struct HubInstantiateMsg {
 
 #[cw_serde]
 pub enum HubMsg {
-    /// TunePools transforms the latest vote distribution into alloc_points which turn into ASTRO emissions
+    /// TunePools transforms the latest vote distribution into ASTRO emissions
     TunePools {},
     /// Repeats IBC transfer messages with IBC hook for all outposts in Failed state.
     RetryFailedOutposts {},
@@ -215,11 +215,13 @@ pub struct OutpostParams {
     pub ics20_channel: String,
 }
 
+/// Each outpost may have one pool that receives flat ASTRO emissions.
+/// This pools doesn't participate in the voting process.
 #[cw_serde]
 pub struct AstroPoolConfig {
-    /// The most liquid ASTRO pool on this outpost
+    /// Pool with ASTRO which needs to receive flat emissions
     pub astro_pool: String,
-    /// The constant ASTRO pool emissions. Can be set to 0 if emissions are not needed.
+    /// Amount of ASTRO per epoch
     pub constant_emissions: Uint128,
 }
 

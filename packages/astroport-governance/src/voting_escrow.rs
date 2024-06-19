@@ -15,7 +15,7 @@ pub struct UpdateMarketingInfo {
     pub logo: Logo,
 }
 
-/// This structure stores general parameters for the vxASTRO contract.
+/// vxASTRO contract instantiation message
 #[cw_serde]
 pub struct InstantiateMsg {
     /// xASTRO denom
@@ -26,7 +26,7 @@ pub struct InstantiateMsg {
     pub marketing: UpdateMarketingInfo,
 }
 
-/// This structure describes the execute functions in the contract.
+/// This structure describes the execute endpoints in the contract.
 #[cw_serde]
 pub enum ExecuteMsg {
     /// Create a vxASTRO position and lock xASTRO

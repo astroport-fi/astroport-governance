@@ -232,7 +232,7 @@
         "additionalProperties": false
       },
       {
-        "description": "Permissionless endpoint which allows user to update their voting power contribution in case of IBC failures or pool has been re-added to whitelist.",
+        "description": "Permissionless endpoint which allows user to update their voting power contribution in case of IBC failures or if pool has been re-added to whitelist.",
         "type": "object",
         "required": [
           "refresh_user_votes"

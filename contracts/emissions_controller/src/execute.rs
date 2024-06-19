@@ -158,7 +158,7 @@ pub fn execute(
             HubMsg::TunePools {} => tune_pools(deps, env),
             HubMsg::RetryFailedOutposts {} => retry_failed_outposts(deps, info, env),
             HubMsg::UpdateConfig {
-                pools_per_outpost: pools_limit,
+                pools_per_outpost,
                 whitelisting_fee,
                 fee_receiver,
                 emissions_multiple,
@@ -166,7 +166,7 @@ pub fn execute(
             } => update_config(
                 deps,
                 info,
-                pools_limit,
+                pools_per_outpost,
                 whitelisting_fee,
                 fee_receiver,
                 emissions_multiple,
@@ -261,6 +261,7 @@ pub fn update_outpost(
     astro_pool_config: Option<AstroPoolConfig>,
 ) -> Result<Response<NeutronMsg>, ContractError> {
     nonpayable(&info)?;
+    let deps = deps.into_empty();
     let config = CONFIG.load(deps.storage)?;
 
     ensure!(info.sender == config.owner, ContractError::Unauthorized {});
@@ -291,7 +292,8 @@ pub fn update_outpost(
         );
     } else {
         if let Some(conf) = &astro_pool_config {
-            deps.api.addr_validate(&conf.astro_pool)?;
+            let maybe_lp_token = determine_asset_info(&conf.astro_pool, deps.api)?;
+            check_lp_token(deps.querier, &config.factory, &maybe_lp_token)?;
         }
         ensure!(
             astro_denom == config.astro_denom,
@@ -345,7 +347,7 @@ pub fn remove_outpost(
     Ok(Response::default().add_attributes([("action", "remove_outpost"), ("prefix", &prefix)]))
 }
 
-/// This permissionless function retries failed emission IBC messages.
+/// This permissionless endpoint retries failed emission IBC messages.
 pub fn retry_failed_outposts(
     deps: DepsMut<NeutronQuery>,
     info: MessageInfo,
@@ -767,8 +769,8 @@ pub fn register_proposal(
     let ibc_messages: Vec<CosmosMsg<NeutronMsg>> = outposts
         .iter()
         .filter_map(|(outpost, outpost_info)| {
-            attrs.push(("outpost", outpost));
             outpost_info.params.as_ref().map(|params| {
+                attrs.push(("outpost", outpost));
                 IbcMsg::SendPacket {
                     channel_id: params.voting_channel.clone(),
                     data: data.clone(),

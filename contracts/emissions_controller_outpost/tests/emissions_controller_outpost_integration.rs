@@ -37,7 +37,7 @@ fn set_emissions_test() {
     let err = helper.set_emissions(&user, &schedules, &funds).unwrap_err();
     assert_eq!(
         err.downcast::<ContractError>().unwrap(),
-        ContractError::PaymentError(PaymentError::ExtraDenom("token1".to_string()))
+        ContractError::PaymentError(PaymentError::MissingDenom("astro".to_string()))
     );
 
     // Trying to bypass payment error by sending astro.

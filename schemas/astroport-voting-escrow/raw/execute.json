@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "ExecuteMsg",
-  "description": "This structure describes the execute functions in the contract.",
+  "description": "This structure describes the execute endpoints in the contract.",
   "oneOf": [
     {
       "description": "Create a vxASTRO position and lock xASTRO",

@@ -44,7 +44,7 @@ pub enum ContractError {
     #[error("Pool {0} is already whitelisted")]
     PoolAlreadyWhitelisted(String),
 
-    #[error("Invalid total votes weight. Must be 1.")]
+    #[error("Invalid total votes weight. Must be 1")]
     InvalidTotalWeight {},
 
     #[error("Failed to parse reply")]
@@ -64,9 +64,6 @@ pub enum ContractError {
 
     #[error("Failed to determine outpost for pool {0}")]
     NoOutpostForPool(String),
-
-    #[error("Unknown IBC packet data")]
-    UnknownIbcPacketData {},
 
     #[error("You can vote maximum for {MAX_POOLS_TO_VOTE} pools")]
     ExceededMaxPoolsToVote {},

@@ -26,7 +26,7 @@ use astroport_governance::emissions_controller::utils::check_lp_token;
 use crate::error::ContractError;
 use crate::state::{OUTPOSTS, TUNE_INFO, VOTED_POOLS};
 
-/// Determine outpost prefix from address or denom.
+/// Determine outpost prefix from address or tokenfactory denom.
 pub fn determine_outpost_prefix(value: &str) -> Option<String> {
     let mut maybe_addr = Some(value);
 
@@ -255,9 +255,13 @@ pub fn astro_emissions_curve(
     })
 }
 
+/// Internal structure to pass the tune simulation result.
 pub struct TuneResult {
+    /// All candidates with their voting power and outpost prefix.
     pub candidates: Vec<(String, (String, Uint128))>,
+    /// Dynammic emissions curve state
     pub new_emissions_state: EmissionsState,
+    /// Next pools grouped by outpost prefix.
     pub next_pools_grouped: HashMap<String, Vec<(String, Uint128)>>,
 }
 

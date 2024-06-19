@@ -10,7 +10,7 @@ use cosmwasm_std::{
     attr, coin, coins, ensure, wasm_execute, Addr, Coin, Decimal, DepsMut, Env, IbcMsg,
     MessageInfo, Response, StdError, Uint128,
 };
-use cw_utils::{may_pay, nonpayable};
+use cw_utils::{must_pay, nonpayable};
 use itertools::Itertools;
 
 use astroport_governance::assembly::ProposalVoteOption;
@@ -131,7 +131,7 @@ pub fn set_emissions(
     schedules: Vec<(String, InputSchedule)>,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
-    let amount = may_pay(&info, &config.astro_denom)?;
+    let amount = must_pay(&info, &config.astro_denom)?;
 
     // Ensure we received exact amount of ASTRO
     let schedules_total: Uint128 = schedules

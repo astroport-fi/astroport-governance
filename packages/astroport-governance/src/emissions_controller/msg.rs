@@ -15,7 +15,7 @@ pub enum ExecuteMsg<T> {
     /// Updates user votes according to the current voting power.
     UpdateUserVotes { user: String, is_unlock: bool },
     /// Permissionless endpoint which allows user to update their
-    /// voting power contribution in case of IBC failures or pool has been re-added to whitelist.
+    /// voting power contribution in case of IBC failures or if pool has been re-added to whitelist.
     RefreshUserVotes {},
     /// ProposeNewOwner proposes a new owner for the contract
     ProposeNewOwner {

@@ -17,6 +17,7 @@
   },
   "definitions": {
     "AstroPoolConfig": {
+      "description": "Each outpost may have one pool that receives flat ASTRO emissions. This pools doesn't participate in the voting process.",
       "type": "object",
       "required": [
         "astro_pool",
@@ -24,11 +25,11 @@
       ],
       "properties": {
         "astro_pool": {
-          "description": "The most liquid ASTRO pool on this outpost",
+          "description": "Pool with ASTRO which needs to receive flat emissions",
           "type": "string"
         },
         "constant_emissions": {
-          "description": "The constant ASTRO pool emissions. Can be set to 0 if emissions are not needed.",
+          "description": "Amount of ASTRO per epoch",
           "allOf": [
             {
               "$ref": "#/definitions/Uint128"
