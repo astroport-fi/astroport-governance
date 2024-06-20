@@ -1,6 +1,6 @@
 [package]
 name = "astro-assembly"
-version = "3.0.0"
+version = "3.0.0-rc.1"
 authors = ["Astroport"]
 edition = "2021"
 description = "Astroport DAO Contract"
@@ -23,7 +23,7 @@ cw-storage-plus.workspace = true
 thiserror.workspace = true
 cosmwasm-schema.workspace = true
 cw-utils.workspace = true
-astroport-governance = { path = "../../packages/astroport-governance", version = "4" }
+astroport-governance = { path = "../../packages/astroport-governance", version = "4.0.0-rc.1" }
 astroport.workspace = true
 ibc-controller-package = "1.0.0"
 
@@ -32,7 +32,7 @@ cw-multi-test = { git = "https://github.com/astroport-fi/cw-multi-test", branch 
 osmosis-std = "0.21"
 astroport-staking = { git = "https://github.com/astroport-fi/hidden_astroport_core", version = "2" }
 astroport-tokenfactory-tracker = { git = "https://github.com/astroport-fi/hidden_astroport_core", version = "1" }
-astroport-voting-escrow = { path = "../voting_escrow", version = "1.0", features = ["library"] }
+astroport-voting-escrow = { path = "../voting_escrow", version = "1.0.0-rc.1", features = ["library"] }
 builder-unlock = { path = "../builder_unlock", version = "3" }
 anyhow = "1"
 test-case = "3.3.1"

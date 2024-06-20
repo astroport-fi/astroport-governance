@@ -1,6 +1,6 @@
 [package]
 name = "astroport-emissions-controller-outpost"
-version = "1.0.0"
+version = "1.0.0-rc.1"
 authors = ["Astroport"]
 edition = "2021"
 description = "Astroport vxASTRO Emissions Voting Contract. Outpost version"
@@ -23,15 +23,15 @@ cw-storage-plus.workspace = true
 cosmwasm-schema.workspace = true
 thiserror.workspace = true
 itertools.workspace = true
-astroport-governance = { path = "../../packages/astroport-governance", version = "4" }
+astroport-governance = { path = "../../packages/astroport-governance", version = "4.0.0-rc.1" }
 astroport.workspace = true
 serde_json = "1"
 
 [dev-dependencies]
 cw-multi-test = "1"
-astroport-voting-escrow = { path = "../voting_escrow", version = "1", features = ["library"] }
+astroport-voting-escrow = { path = "../voting_escrow", version = "1.0.0-rc.1", features = ["library"] }
 astroport-factory = { version = "1.7", features = ["library"] }
 astroport-pair = { version = "1.5", features = ["library"] }
 cw20-base = { version = "1", features = ["library"] }
-astroport-incentives = { git = "https://github.com/astroport-fi/hidden_astroport_core", branch = "feat/incentivize_many", version = "1.2" }
+astroport-incentives = { git = "https://github.com/astroport-fi/hidden_astroport_core", branch = "feat/incentivize_many", version = "1.2.0-vxastro-rc.1" }
 derivative = "2.2"

@@ -448,7 +448,7 @@ pub fn handle_vote(
     }
 
     // Cancel previous user votes. Filter non-whitelisted pools.
-    let cache = user_info
+    let mut cache = user_info
         .votes
         .into_iter()
         .filter(|(pool, _)| whitelist.contains(pool))
@@ -473,7 +473,7 @@ pub fn handle_vote(
             let pool_dedicated_vp =
                 voting_power.multiply_ratio(weight.numerator(), weight.denominator());
 
-            let pool_info = if let Some(pool_info) = cache.get(pool).cloned() {
+            let pool_info = if let Some(pool_info) = cache.remove(pool) {
                 pool_info
             } else {
                 VOTED_POOLS.load(deps.storage, pool)?
@@ -486,6 +486,11 @@ pub fn handle_vote(
                 block_ts,
             )
         })?;
+
+    // Save pool changes which are not part of the new votes
+    cache.into_iter().try_for_each(|(pool, pool_info)| {
+        VOTED_POOLS.save(deps.storage, &pool, &pool_info, block_ts)
+    })?;
 
     USER_INFO.save(
         deps.storage,
