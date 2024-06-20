@@ -4,7 +4,7 @@ version = "4.0.0-rc.1"
 authors = ["Astroport"]
 edition = "2021"
 description = "Astroport Governance common types, queriers and other utils"
-license = "GPL-3.0-only"
+license = "Apache-2.0"
 repository = "https://github.com/astroport-fi/astroport-governance"
 homepage = "https://astroport.fi"
 
