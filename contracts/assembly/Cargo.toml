@@ -29,10 +29,10 @@ ibc-controller-package = "1.0.0"
 
 [dev-dependencies]
 cw-multi-test = { git = "https://github.com/astroport-fi/cw-multi-test", branch = "feat/bank_with_send_hooks", features = ["cosmwasm_1_1"] }
-osmosis-std = "0.21"
-astroport-staking = { git = "https://github.com/astroport-fi/hidden_astroport_core", version = "2" }
-astroport-tokenfactory-tracker = { git = "https://github.com/astroport-fi/hidden_astroport_core", version = "1" }
+osmosis-std = "0.25.0"
+astroport-staking = "2.1"
+astroport-tokenfactory-tracker = { version = "1", features = ["library"] }
 astroport-voting-escrow = { path = "../voting_escrow", version = "1.0.0-rc.1", features = ["library"] }
-builder-unlock = { path = "../builder_unlock", version = "3" }
+builder-unlock = { version = "3", features = ["library"] }
 anyhow = "1"
 test-case = "3.3.1"
