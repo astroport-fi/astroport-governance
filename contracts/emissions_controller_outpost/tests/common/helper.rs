@@ -3,7 +3,6 @@ use astroport::factory::{PairConfig, PairType};
 use astroport::incentives::{InputSchedule, RewardInfo};
 use astroport::token::Logo;
 use astroport::{factory, incentives};
-use astroport_emissions_controller_outpost::state::REGISTERED_PROPOSALS;
 use cosmwasm_std::{
     coin, coins, to_json_binary, Addr, BlockInfo, Coin, Decimal, Empty, IbcAcknowledgement,
     IbcEndpoint, IbcPacket, IbcPacketAckMsg, IbcPacketReceiveMsg, IbcPacketTimeoutMsg,
@@ -12,10 +11,11 @@ use cosmwasm_std::{
 use cw_multi_test::error::AnyResult;
 use cw_multi_test::{
     no_init, App, AppBuilder, AppResponse, BankKeeper, BankSudo, DistributionKeeper, Executor,
-    FailingModule, MockAddressGenerator, MockApiBech32, StakeKeeper, WasmKeeper,
+    FailingModule, GovFailingModule, MockAddressGenerator, MockApiBech32, StakeKeeper, WasmKeeper,
 };
 use derivative::Derivative;
 
+use astroport_emissions_controller_outpost::state::REGISTERED_PROPOSALS;
 use astroport_governance::assembly::ProposalVoteOption;
 use astroport_governance::emissions_controller::consts::{EPOCHS_START, EPOCH_LENGTH};
 use astroport_governance::emissions_controller::msg::{ExecuteMsg, IbcAckResult, VxAstroIbcMsg};
@@ -25,6 +25,7 @@ use astroport_governance::{emissions_controller, voting_escrow};
 
 use crate::common::contracts::*;
 use crate::common::ibc_module::IbcMockModule;
+use crate::common::stargate::StargateModule;
 
 pub type OutpostApp = App<
     BankKeeper,
@@ -35,6 +36,8 @@ pub type OutpostApp = App<
     StakeKeeper,
     DistributionKeeper,
     IbcMockModule,
+    GovFailingModule,
+    StargateModule,
 >;
 
 fn mock_app() -> OutpostApp {
@@ -42,6 +45,7 @@ fn mock_app() -> OutpostApp {
         .with_ibc(IbcMockModule)
         .with_api(MockApiBech32::new("osmo"))
         .with_wasm(WasmKeeper::new().with_address_generator(MockAddressGenerator))
+        .with_stargate(StargateModule)
         .with_block(BlockInfo {
             height: 1,
             time: Timestamp::from_seconds(EPOCHS_START),
@@ -110,6 +114,7 @@ impl ControllerHelper {
                     owner: owner.to_string(),
                     whitelist_code_id: 0,
                     coin_registry_address: app.api().addr_make("coin_registry").to_string(),
+                    tracker_config: None,
                 },
                 &[],
                 "label",
@@ -238,7 +243,7 @@ impl ControllerHelper {
         )
     }
 
-    pub fn create_pair(&mut self, denom1: &str, denom2: &str) -> Addr {
+    pub fn create_pair(&mut self, denom1: &str, denom2: &str) -> String {
         let asset_infos = vec![AssetInfo::native(denom1), AssetInfo::native(denom2)];
         self.app
             .execute_contract(

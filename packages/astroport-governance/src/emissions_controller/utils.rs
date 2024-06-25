@@ -1,8 +1,8 @@
 use astroport::asset::{pair_info_by_pool, AssetInfo, PairInfo};
+use astroport::common::LP_SUBDENOM;
 use astroport::{factory, pair};
 use cosmwasm_std::{Addr, QuerierWrapper, StdError, StdResult, Uint128};
 
-use crate::emissions_controller::consts::LP_SUBDENOM;
 use crate::voting_escrow;
 
 /// Queries pair info corresponding to given LP token.

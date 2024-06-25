@@ -1,6 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use astroport::asset::{determine_asset_info, Asset};
+use astroport::common::LP_SUBDENOM;
 use astroport::incentives::{IncentivesSchedule, InputSchedule};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_schema::serde::Serialize;
@@ -15,7 +16,7 @@ use neutron_sdk::query::min_ibc_fee::query_min_ibc_fee;
 use neutron_sdk::sudo::msg::RequestPacketTimeoutHeight;
 
 use astroport_governance::emissions_controller::consts::{
-    EPOCHS_START, EPOCH_LENGTH, FEE_DENOM, IBC_TIMEOUT, LP_SUBDENOM,
+    EPOCHS_START, EPOCH_LENGTH, FEE_DENOM, IBC_TIMEOUT,
 };
 use astroport_governance::emissions_controller::hub::{
     Config, EmissionsState, OutpostInfo, OutpostParams,

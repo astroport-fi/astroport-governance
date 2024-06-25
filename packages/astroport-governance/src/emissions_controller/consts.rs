@@ -7,9 +7,6 @@ pub const EPOCHS_START: u64 = 1716163200;
 pub const DAY: u64 = 86400;
 /// vxASTRO voting epoch lasts 14 days
 pub const EPOCH_LENGTH: u64 = DAY * 14;
-// TODO: import from the main astroport crate?
-/// Astroport token factory LP token subdenom
-pub const LP_SUBDENOM: &str = "/astroport/share";
 /// Timeout for IBC messages in seconds. Used for both `ics20` and `vxastro-ibc-v1` packets.
 pub const IBC_TIMEOUT: u64 = 3600;
 /// Denom used to pay IBC fees

@@ -59,24 +59,6 @@ dependencies = [
 
 [[package]]
 name = "astroport"
-version = "3.12.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bdebdf96895f363e121710cb84bbbfa659cea1bb1470260d4976d1a7206b3b16"
-dependencies = [
- "astroport-circular-buffer 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "cosmwasm-schema",
- "cosmwasm-std",
- "cw-asset",
- "cw-storage-plus 0.15.1",
- "cw-utils 1.0.3",
- "cw20 0.15.1",
- "cw3",
- "itertools 0.10.5",
- "uint",
-]
-
-[[package]]
-name = "astroport"
 version = "4.0.2"
 source = "git+https://github.com/astroport-fi/hidden_astroport_core#02eafc677d9c402a55e45e956fd185d67ac3a8a6"
 dependencies = [
@@ -114,6 +96,25 @@ version = "5.1.0-vxastro-rc.1"
 source = "git+https://github.com/astroport-fi/hidden_astroport_core?branch=feat/incentivize_many#d2990d817b840cc5071cdb65db9a9e45db52daf5"
 dependencies = [
  "astroport-circular-buffer 0.2.0 (git+https://github.com/astroport-fi/hidden_astroport_core?branch=feat/incentivize_many)",
+ "cosmos-sdk-proto 0.19.0",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-asset",
+ "cw-storage-plus 1.2.0",
+ "cw-utils 1.0.3",
+ "cw20 1.1.2",
+ "itertools 0.12.1",
+ "prost 0.11.9",
+ "uint",
+]
+
+[[package]]
+name = "astroport"
+version = "5.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "314b84869c5e8cce3c9a7ec7d0a280350f8d2e8e05a772d8b14622da7263784e"
+dependencies = [
+ "astroport-circular-buffer 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "cosmos-sdk-proto 0.19.0",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -171,8 +172,8 @@ dependencies = [
  "astroport-governance 4.0.0-rc.1",
  "astroport-incentives",
  "astroport-pair",
- "astroport-staking 2.1.0 (git+https://github.com/astroport-fi/hidden_astroport_core?branch=feat/incentivize_many)",
- "astroport-tokenfactory-tracker 1.0.0 (git+https://github.com/astroport-fi/hidden_astroport_core?branch=feat/incentivize_many)",
+ "astroport-staking 2.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "astroport-tokenfactory-tracker 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "astroport-voting-escrow",
  "builder-unlock",
  "cosmwasm-schema",
@@ -194,6 +195,7 @@ dependencies = [
 name = "astroport-emissions-controller-outpost"
 version = "1.0.0-rc.1"
 dependencies = [
+ "anyhow",
  "astroport 5.1.0-vxastro-rc.1",
  "astroport-factory",
  "astroport-governance 4.0.0-rc.1",
@@ -209,24 +211,24 @@ dependencies = [
  "cw20-base",
  "derivative",
  "itertools 0.12.1",
+ "osmosis-std",
  "serde_json",
  "thiserror",
 ]
 
 [[package]]
 name = "astroport-factory"
-version = "1.7.0"
+version = "1.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "afc4250f45bd4697476921a3533f151a73f7352c271b68ff411321006d5a4977"
+checksum = "68abcc896255acba2f4aa39f239a1e8361a6035d7bc712442da122dc31f6f959"
 dependencies = [
- "astroport 3.12.2",
+ "astroport 5.1.0",
  "cosmwasm-schema",
  "cosmwasm-std",
- "cw-storage-plus 0.15.1",
+ "cw-storage-plus 1.2.0",
  "cw-utils 1.0.3",
- "cw2 0.15.1",
- "itertools 0.10.5",
- "protobuf 2.28.0",
+ "cw2 1.1.2",
+ "itertools 0.12.1",
  "thiserror",
 ]
 
@@ -296,26 +298,26 @@ dependencies = [
 
 [[package]]
 name = "astroport-pair"
-version = "1.5.1"
+version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4336db82506bc3aaf52e194711ed0785896ad92825eb18d870d535023e33b666"
+checksum = "9a5e6cd4508d45d89f9f44b607eb482aa614fa54274c46746d6f251bf10b27ae"
 dependencies = [
- "astroport 3.12.2",
+ "astroport 5.1.0",
  "cosmwasm-schema",
  "cosmwasm-std",
- "cw-storage-plus 0.15.1",
+ "cw-storage-plus 1.2.0",
  "cw-utils 1.0.3",
- "cw2 0.15.1",
- "cw20 0.15.1",
+ "cw2 1.1.2",
+ "cw20 1.1.2",
  "integer-sqrt",
- "protobuf 2.28.0",
  "thiserror",
 ]
 
 [[package]]
 name = "astroport-staking"
 version = "2.1.0"
-source = "git+https://github.com/astroport-fi/hidden_astroport_core?branch=feat/incentivize_many#d2990d817b840cc5071cdb65db9a9e45db52daf5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "315e43350f20d04f8d65bbb4d29ae423eea2fb12e292f0185b983a210d1c6d1a"
 dependencies = [
  "astroport 4.0.3",
  "cosmwasm-std",
@@ -343,7 +345,8 @@ dependencies = [
 [[package]]
 name = "astroport-tokenfactory-tracker"
 version = "1.0.0"
-source = "git+https://github.com/astroport-fi/hidden_astroport_core?branch=feat/incentivize_many#d2990d817b840cc5071cdb65db9a9e45db52daf5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0586ec0e015b5d9da5c94a5c9d7bd8a6fabdb38fb66905d61caad796a98b0650"
 dependencies = [
  "astroport 4.0.3",
  "cosmwasm-schema",
@@ -860,21 +863,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "cw3"
-version = "1.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2967fbd073d4b626dd9e7148e05a84a3bebd9794e71342e12351110ffbb12395"
-dependencies = [
- "cosmwasm-schema",
- "cosmwasm-std",
- "cw-utils 1.0.3",
- "cw20 1.1.2",
- "schemars",
- "serde",
- "thiserror",
-]
-
-[[package]]
 name = "der"
 version = "0.7.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1150,7 +1138,7 @@ dependencies = [
  "cosmwasm-std",
  "prost 0.12.4",
  "prost-types 0.12.4",
- "protobuf 3.4.0",
+ "protobuf",
  "schemars",
  "serde",
  "serde-json-wasm 1.0.1",
@@ -1320,15 +1308,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3235c33eb02c1f1e212abdbe34c78b264b038fb58ca612664343271e36e55ffe"
 dependencies = [
  "prost 0.12.4",
-]
-
-[[package]]
-name = "protobuf"
-version = "2.28.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "106dd99e98437432fed6519dedecfade6a06a73bb7b2a1e019fdd2bee5778d94"
-dependencies = [
- "bytes",
 ]
 
 [[package]]

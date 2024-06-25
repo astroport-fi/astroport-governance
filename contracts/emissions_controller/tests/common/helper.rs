@@ -1,7 +1,7 @@
 use astroport::asset::{AssetInfo, PairInfo};
 use astroport::factory::{PairConfig, PairType};
 use astroport::incentives::RewardInfo;
-use astroport::token::{Logo, MinterResponse};
+use astroport::token::Logo;
 use astroport::{factory, incentives, staking};
 use cosmwasm_std::{
     coin, coins, from_json, to_json_binary, Addr, BlockInfo, Coin, Decimal, Empty, IbcEndpoint,
@@ -124,6 +124,7 @@ impl ControllerHelper {
                     owner: owner.to_string(),
                     whitelist_code_id: 0,
                     coin_registry_address: app.api().addr_make("coin_registry").to_string(),
+                    tracker_config: None,
                 },
                 &[],
                 "label",
@@ -420,7 +421,7 @@ impl ControllerHelper {
         )
     }
 
-    pub fn create_pair(&mut self, denom1: &str, denom2: &str) -> Addr {
+    pub fn create_pair(&mut self, denom1: &str, denom2: &str) -> String {
         let asset_infos = vec![AssetInfo::native(denom1), AssetInfo::native(denom2)];
         self.app
             .execute_contract(
@@ -636,39 +637,19 @@ impl ControllerHelper {
         )
     }
 
-    pub fn reset_astro_reward(&mut self, lp_token: &Addr) -> AnyResult<AppResponse> {
+    pub fn reset_astro_reward(&mut self, lp_token: &str) -> AnyResult<AppResponse> {
         // Mocking LP provide and depositing to incentives contract
         // NOTE:
         // it doesn't really provide assets to the pair
         // but this is fine in the context of emissions controller
-        self.app
-            .wrap()
-            .query_wasm_smart(lp_token, &cw20_base::msg::QueryMsg::Minter {})
-            .map_err(Into::into)
-            .and_then(|info: MinterResponse| {
-                self.app.execute_contract(
-                    Addr::unchecked(info.minter),
-                    lp_token.clone(),
-                    &cw20_base::msg::ExecuteMsg::Mint {
-                        recipient: self.owner.to_string(),
-                        amount: 10000u128.into(),
-                    },
-                    &[],
-                )
-            })
-            .and_then(|_| {
-                self.app.execute_contract(
-                    self.owner.clone(),
-                    lp_token.clone(),
-                    &cw20_base::msg::ExecuteMsg::Send {
-                        contract: self.incentives.to_string(),
-                        amount: 10000u128.into(),
-                        msg: to_json_binary(&incentives::Cw20Msg::Deposit { recipient: None })
-                            .unwrap(),
-                    },
-                    &[],
-                )
-            })
+        let lp_coins = coins(10000, lp_token);
+        self.mint_tokens(&self.owner.clone(), &lp_coins).unwrap();
+        self.app.execute_contract(
+            self.owner.clone(),
+            self.incentives.clone(),
+            &incentives::ExecuteMsg::Deposit { recipient: None },
+            &lp_coins,
+        )
     }
 
     pub fn query_rewards(&self, pool: impl Into<String>) -> StdResult<Vec<RewardInfo>> {
