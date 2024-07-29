@@ -15,11 +15,12 @@ use cw_multi_test::{
 };
 use derivative::Derivative;
 
-use astroport_emissions_controller_outpost::state::REGISTERED_PROPOSALS;
 use astroport_governance::assembly::ProposalVoteOption;
 use astroport_governance::emissions_controller::consts::{EPOCHS_START, EPOCH_LENGTH};
 use astroport_governance::emissions_controller::msg::{ExecuteMsg, IbcAckResult, VxAstroIbcMsg};
-use astroport_governance::emissions_controller::outpost::{OutpostInstantiateMsg, OutpostMsg};
+use astroport_governance::emissions_controller::outpost::{
+    OutpostInstantiateMsg, OutpostMsg, RegisteredProposal,
+};
 use astroport_governance::voting_escrow::{LockInfoResponse, UpdateMarketingInfo};
 use astroport_governance::{emissions_controller, voting_escrow};
 
@@ -505,13 +506,16 @@ impl ControllerHelper {
     }
 
     pub fn is_prop_registered(&self, proposal_id: u64) -> bool {
-        REGISTERED_PROPOSALS
-            .query(
-                &self.app.wrap(),
-                self.emission_controller.clone(),
-                proposal_id,
+        self.app
+            .wrap()
+            .query_wasm_smart::<Vec<RegisteredProposal>>(
+                &self.emission_controller,
+                &emissions_controller::outpost::QueryMsg::QueryRegisteredProposals {
+                    limit: Some(100),
+                    start_after: None,
+                },
             )
+            .map(|proposals| proposals.iter().any(|p| p.id == proposal_id))
             .unwrap()
-            .is_some()
     }
 }

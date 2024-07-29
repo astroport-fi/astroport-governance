@@ -70,6 +70,19 @@ pub enum QueryMsg {
     /// Whether they have a pending request or an error.
     #[returns(UserIbcStatus)]
     QueryUserIbcStatus { user: String },
+    /// QueryRegisteredProposals returns the list of registered proposals.
+    #[returns(Vec<RegisteredProposal>)]
+    QueryRegisteredProposals {
+        limit: Option<u8>,
+        start_after: Option<u64>,
+    },
+    /// QueryProposalVoters returns the list of voters for the proposal.
+    #[returns(Vec<String>)]
+    QueryProposalVoters {
+        proposal_id: u64,
+        limit: Option<u8>,
+        start_after: Option<String>,
+    },
 }
 
 /// Contains failed IBC along with the error message
@@ -105,4 +118,12 @@ pub struct Config {
     pub hub_emissions_controller: String,
     /// ICS20 IBC channel from this outpost to the Hub
     pub ics20_channel: String,
+}
+
+/// Contains the proposal id and the start time.
+/// Used exclusively in query response.
+#[cw_serde]
+pub struct RegisteredProposal {
+    pub id: u64,
+    pub start_time: u64,
 }

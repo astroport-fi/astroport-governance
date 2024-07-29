@@ -6,6 +6,7 @@ use cw_utils::PaymentError;
 
 use astroport_emissions_controller_outpost::error::ContractError;
 use astroport_governance::assembly::ProposalVoteOption;
+use astroport_governance::emissions_controller;
 use astroport_governance::emissions_controller::consts::{EPOCH_LENGTH, IBC_TIMEOUT};
 use astroport_governance::emissions_controller::msg::{ExecuteMsg, VxAstroIbcMsg};
 use astroport_governance::emissions_controller::outpost::UserIbcError;
@@ -677,6 +678,20 @@ fn test_interchain_governance() {
         err.downcast::<ContractError>().unwrap(),
         ContractError::AlreadyVoted {}
     );
+
+    let voters = helper
+        .app
+        .wrap()
+        .query_wasm_smart::<Vec<String>>(
+            &helper.emission_controller,
+            &emissions_controller::outpost::QueryMsg::QueryProposalVoters {
+                proposal_id: 2,
+                limit: Some(100),
+                start_after: None,
+            },
+        )
+        .unwrap();
+    assert_eq!(voters, vec![user.to_string()]);
 }
 
 #[test]
