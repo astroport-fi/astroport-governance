@@ -95,7 +95,7 @@ pub fn instantiate(
 
     // Instantiate vxASTRO contract
     let init_vxastro_msg = WasmMsg::Instantiate {
-        admin: Some(msg.owner),
+        admin: Some(msg.assembly),
         code_id: msg.vxastro_code_id,
         msg: to_json_binary(&voting_escrow::InstantiateMsg {
             deposit_denom: msg.xastro_denom.to_string(),
