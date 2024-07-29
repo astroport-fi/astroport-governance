@@ -272,7 +272,16 @@ pub fn update_outpost(
         ensure!(
             !conf.constant_emissions.is_zero(),
             ContractError::ZeroAstroEmissions {}
-        )
+        );
+
+        // Remove this pool from whitelist
+        POOLS_WHITELIST.update::<_, StdError>(deps.storage, |mut pools| {
+            pools.retain(|pool| pool != &conf.astro_pool);
+            Ok(pools)
+        })?;
+
+        // And remove from votable pools
+        VOTED_POOLS.remove(deps.storage, &conf.astro_pool, env.block.time.seconds())?;
     }
 
     if let Some(params) = &outpost_params {

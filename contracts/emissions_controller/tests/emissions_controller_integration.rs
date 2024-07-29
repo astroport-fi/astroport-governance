@@ -1,13 +1,13 @@
-use std::collections::HashMap;
-use std::str::FromStr;
-
 use astroport::asset::AssetInfo;
+use astroport::common::LP_SUBDENOM;
 use astroport::incentives::RewardType;
 use cosmwasm_std::{coin, coins, Decimal, Decimal256, Empty, Event, Uint128};
 use cw_multi_test::Executor;
 use cw_utils::PaymentError;
 use itertools::Itertools;
 use neutron_sdk::sudo::msg::{RequestPacket, TransferSudoMsg};
+use std::collections::HashMap;
+use std::str::FromStr;
 
 use astroport_emissions_controller::error::ContractError;
 use astroport_emissions_controller::utils::get_epoch_start;
@@ -382,7 +382,7 @@ fn test_outpost_management() {
         outposts,
         vec![
             ("neutron".to_string(), neutron),
-            ("osmo".to_string(), osmosis)
+            ("osmo".to_string(), osmosis.clone())
         ]
     );
 
@@ -399,6 +399,54 @@ fn test_outpost_management() {
     helper
         .vote(&user, &[(lp_token.to_string(), Decimal::one())])
         .unwrap();
+
+    // Whitelist astro pool on Osmosis before marking it as ASTRO pool with flat emissions
+    let osmosis_astro_pool = format!("factory/osmo1pool/{LP_SUBDENOM}");
+    helper
+        .mint_tokens(&user, &[helper.whitelisting_fee.clone()])
+        .unwrap();
+    helper
+        .whitelist(
+            &user,
+            &osmosis_astro_pool,
+            &[helper.whitelisting_fee.clone()],
+        )
+        .unwrap();
+
+    // Confirm it has been included
+    let whitelist = helper
+        .app
+        .wrap()
+        .query_wasm_smart::<Vec<String>>(
+            helper.emission_controller.clone(),
+            &emissions_controller::hub::QueryMsg::QueryWhitelist {},
+        )
+        .unwrap()
+        .into_iter()
+        .sorted()
+        .collect_vec();
+    assert_eq!(
+        whitelist,
+        vec![lp_token.to_string(), osmosis_astro_pool.clone()]
+    );
+
+    // Mark 'osmosis_astro_pool' as ASTRO pool
+    osmosis.astro_pool_config = Some(AstroPoolConfig {
+        astro_pool: osmosis_astro_pool,
+        constant_emissions: Uint128::from(100000u128),
+    });
+    helper.add_outpost("osmo", osmosis.clone()).unwrap();
+
+    // Confirm it has been excluded from whitelist
+    let whitelist = helper
+        .app
+        .wrap()
+        .query_wasm_smart::<Vec<String>>(
+            helper.emission_controller.clone(),
+            &emissions_controller::hub::QueryMsg::QueryWhitelist {},
+        )
+        .unwrap();
+    assert_eq!(whitelist, vec![lp_token.to_string()]);
 
     // Remove neutron outpost
     let rand_user = helper.app.api().addr_make("random");
