@@ -98,7 +98,29 @@ pub fn query(deps: Deps<NeutronQuery>, env: Env, msg: QueryMsg) -> Result<Binary
                 .collect::<StdResult<Vec<_>>>()?;
             Ok(to_json_binary(&outposts)?)
         }
-        QueryMsg::QueryWhitelist {} => Ok(to_json_binary(&POOLS_WHITELIST.load(deps.storage)?)?),
+        QueryMsg::QueryWhitelist { limit, start_after } => {
+            let limit = limit.unwrap_or(MAX_PAGE_LIMIT) as usize;
+            let pools_whitelist = POOLS_WHITELIST
+                .load(deps.storage)?
+                .into_iter()
+                .skip_while(|pool| {
+                    if let Some(start_after) = &start_after {
+                        pool != start_after
+                    } else {
+                        false
+                    }
+                })
+                .take(limit)
+                .collect_vec();
+
+            let pools_whitelist = if start_after.is_some() {
+                &pools_whitelist[1..]
+            } else {
+                &pools_whitelist
+            };
+
+            Ok(to_json_binary(pools_whitelist)?)
+        }
         QueryMsg::SimulateTune {} => {
             let deps = deps.into_empty();
 

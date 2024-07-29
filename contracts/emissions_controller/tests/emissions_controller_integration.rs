@@ -238,14 +238,7 @@ fn test_whitelist() {
         ContractError::PoolAlreadyWhitelisted(lp_token.to_string())
     );
 
-    let whitelist = helper
-        .app
-        .wrap()
-        .query_wasm_smart::<Vec<String>>(
-            helper.emission_controller.clone(),
-            &emissions_controller::hub::QueryMsg::QueryWhitelist {},
-        )
-        .unwrap();
+    let whitelist = helper.query_whitelist().unwrap();
     assert_eq!(whitelist, vec![lp_token.to_string()]);
 }
 
@@ -415,12 +408,7 @@ fn test_outpost_management() {
 
     // Confirm it has been included
     let whitelist = helper
-        .app
-        .wrap()
-        .query_wasm_smart::<Vec<String>>(
-            helper.emission_controller.clone(),
-            &emissions_controller::hub::QueryMsg::QueryWhitelist {},
-        )
+        .query_whitelist()
         .unwrap()
         .into_iter()
         .sorted()
@@ -438,14 +426,7 @@ fn test_outpost_management() {
     helper.add_outpost("osmo", osmosis.clone()).unwrap();
 
     // Confirm it has been excluded from whitelist
-    let whitelist = helper
-        .app
-        .wrap()
-        .query_wasm_smart::<Vec<String>>(
-            helper.emission_controller.clone(),
-            &emissions_controller::hub::QueryMsg::QueryWhitelist {},
-        )
-        .unwrap();
+    let whitelist = helper.query_whitelist().unwrap();
     assert_eq!(whitelist, vec![lp_token.to_string()]);
 
     // Remove neutron outpost
@@ -1232,14 +1213,7 @@ fn test_some_epochs() {
     assert_eq!(voted_pools, [(pool1.to_string(), 1_000000u128.into())]);
 
     // And from whitelist
-    let whitelist = helper
-        .app
-        .wrap()
-        .query_wasm_smart::<Vec<String>>(
-            helper.emission_controller.clone(),
-            &emissions_controller::hub::QueryMsg::QueryWhitelist {},
-        )
-        .unwrap();
+    let whitelist = helper.query_whitelist().unwrap();
     assert_eq!(whitelist, vec![pool1.to_string()]);
 
     // If user2 relocks his votes won't be restored as pool2 must be whitelisted again

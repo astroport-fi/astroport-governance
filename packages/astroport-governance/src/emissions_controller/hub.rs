@@ -118,9 +118,14 @@ pub enum QueryMsg {
     /// ListOutposts returns all outposts registered in the contract
     #[returns(Vec<(String, OutpostInfo)>)]
     ListOutposts {},
-    /// QueryWhitelist returns the list of pools that are allowed to be voted for
+    /// QueryWhitelist returns the list of pools that are allowed to be voted for.
+    /// The query is paginated.
+    /// If 'start_after' is provided, it yields a list **excluding** 'start_after'.
     #[returns(Vec<String>)]
-    QueryWhitelist {},
+    QueryWhitelist {
+        limit: Option<u8>,
+        start_after: Option<String>,
+    },
     /// SimulateTune simulates the ASTRO amount that will be emitted in the next epoch per pool
     /// considering if the next epoch starts right now.
     /// This query is useful for the UI to show the expected ASTRO emissions

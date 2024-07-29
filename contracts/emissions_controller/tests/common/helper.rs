@@ -528,6 +528,16 @@ impl ControllerHelper {
         )
     }
 
+    pub fn query_whitelist(&self) -> StdResult<Vec<String>> {
+        self.app.wrap().query_wasm_smart(
+            &self.emission_controller,
+            &emissions_controller::hub::QueryMsg::QueryWhitelist {
+                limit: Some(100),
+                start_after: None,
+            },
+        )
+    }
+
     pub fn query_pools_vp(&self, limit: Option<u8>) -> StdResult<Vec<(String, Uint128)>> {
         self.query_voted_pools(limit).map(|res| {
             res.into_iter()

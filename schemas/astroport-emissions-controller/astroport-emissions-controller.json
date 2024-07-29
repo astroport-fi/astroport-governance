@@ -831,7 +831,7 @@
         "additionalProperties": false
       },
       {
-        "description": "QueryWhitelist returns the list of pools that are allowed to be voted for",
+        "description": "QueryWhitelist returns the list of pools that are allowed to be voted for. The query is paginated. If 'start_after' is provided, it yields a list **excluding** 'start_after'.",
         "type": "object",
         "required": [
           "query_whitelist"
@@ -839,6 +839,22 @@
         "properties": {
           "query_whitelist": {
             "type": "object",
+            "properties": {
+              "limit": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "format": "uint8",
+                "minimum": 0.0
+              },
+              "start_after": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
             "additionalProperties": false
           }
         },
