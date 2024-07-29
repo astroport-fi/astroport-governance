@@ -82,9 +82,6 @@ pub fn instantiate(
 /// Exposes all the execute functions available in the contract.
 ///
 /// ## Execute messages
-/// * **ExecuteMsg::Receive(cw20_msg)** Receives a message of type [`Cw20ReceiveMsg`] and processes
-/// it depending on the received template.
-///
 /// * **ExecuteMsg::SubmitProposal { title, description, link, messages, ibc_channel }** Submits a new proposal.
 ///
 /// * **ExecuteMsg::CheckMessages { messages }** Checks if the messages are correct.
@@ -93,6 +90,9 @@ pub fn instantiate(
 /// * **ExecuteMsg::CheckMessagesPassed {}** Closing message for the `CheckMessages` endpoint.
 ///
 /// * **ExecuteMsg::CastVote { proposal_id, vote }** Cast a vote on a specific proposal.
+///
+/// * **ExecuteMsg::CastVoteOutpost { voter, voting_power, proposal_id, vote }** Applies a vote on a specific proposal from outpost.
+/// Only emissions controller is allowed to call this endpoint.
 ///
 /// * **ExecuteMsg::EndProposal { proposal_id }** Sets the status of an expired/finalized proposal.
 ///
