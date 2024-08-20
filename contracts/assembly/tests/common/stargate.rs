@@ -78,10 +78,7 @@ impl Stargate for StargateKeeper {
                     burn_msg.into(),
                 )
             }
-            MsgSetDenomMetadata::TYPE_URL => {
-                // TODO: Implement this if needed
-                Ok(AppResponse::default())
-            }
+            MsgSetDenomMetadata::TYPE_URL => Ok(AppResponse::default()),
             MsgSetBeforeSendHook::TYPE_URL => {
                 let tf_msg: MsgSetBeforeSendHook = value.try_into()?;
 

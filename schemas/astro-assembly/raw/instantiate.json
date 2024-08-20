@@ -19,20 +19,6 @@
       "description": "Address of the builder unlock contract",
       "type": "string"
     },
-    "generator_controller_addr": {
-      "description": "Generator controller contract capable of immediate proposals",
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "hub_addr": {
-      "description": "Hub contract that handles voting from Outposts",
-      "type": [
-        "string",
-        "null"
-      ]
-    },
     "ibc_controller": {
       "description": "Astroport IBC controller contract",
       "type": [
@@ -77,20 +63,6 @@
     "staking_addr": {
       "description": "Astroport xASTRO staking address. xASTRO denom and tracker contract address are queried on assembly instantiation.",
       "type": "string"
-    },
-    "voting_escrow_delegator_addr": {
-      "description": "Voting Escrow delegator address",
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "vxastro_token_addr": {
-      "description": "Address of vxASTRO token",
-      "type": [
-        "string",
-        "null"
-      ]
     },
     "whitelisted_links": {
       "description": "Whitelisted links",

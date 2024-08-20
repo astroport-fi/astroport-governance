@@ -1,6 +1,6 @@
 {
   "contract_name": "astro-assembly",
-  "contract_version": "2.0.0",
+  "contract_version": "3.0.0-rc.1",
   "idl_version": "1.0.0",
   "instantiate": {
     "$schema": "http://json-schema.org/draft-07/schema#",
@@ -22,20 +22,6 @@
       "builder_unlock_addr": {
         "description": "Address of the builder unlock contract",
         "type": "string"
-      },
-      "generator_controller_addr": {
-        "description": "Generator controller contract capable of immediate proposals",
-        "type": [
-          "string",
-          "null"
-        ]
-      },
-      "hub_addr": {
-        "description": "Hub contract that handles voting from Outposts",
-        "type": [
-          "string",
-          "null"
-        ]
       },
       "ibc_controller": {
         "description": "Astroport IBC controller contract",
@@ -81,20 +67,6 @@
       "staking_addr": {
         "description": "Astroport xASTRO staking address. xASTRO denom and tracker contract address are queried on assembly instantiation.",
         "type": "string"
-      },
-      "voting_escrow_delegator_addr": {
-        "description": "Voting Escrow delegator address",
-        "type": [
-          "string",
-          "null"
-        ]
-      },
-      "vxastro_token_addr": {
-        "description": "Address of vxASTRO token",
-        "type": [
-          "string",
-          "null"
-        ]
       },
       "whitelisted_links": {
         "description": "Whitelisted links",
@@ -188,6 +160,53 @@
                 "allOf": [
                   {
                     "$ref": "#/definitions/ProposalVoteOption"
+                  }
+                ]
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      {
+        "description": "Cast a vote for an active proposal. Permissioned to emissions controller contract. Called on an IBC packet receive.",
+        "type": "object",
+        "required": [
+          "cast_vote_outpost"
+        ],
+        "properties": {
+          "cast_vote_outpost": {
+            "type": "object",
+            "required": [
+              "proposal_id",
+              "vote",
+              "voter",
+              "voting_power"
+            ],
+            "properties": {
+              "proposal_id": {
+                "description": "Proposal identifier",
+                "type": "integer",
+                "format": "uint64",
+                "minimum": 0.0
+              },
+              "vote": {
+                "description": "Vote option",
+                "allOf": [
+                  {
+                    "$ref": "#/definitions/ProposalVoteOption"
+                  }
+                ]
+              },
+              "voter": {
+                "type": "string"
+              },
+              "voting_power": {
+                "description": "Voting power reported from outpost",
+                "allOf": [
+                  {
+                    "$ref": "#/definitions/Uint128"
                   }
                 ]
               }
@@ -523,6 +542,10 @@
             "additionalProperties": false
           }
         ]
+      },
+      "Decimal": {
+        "description": "A fixed-point decimal value with 18 fractional digits, i.e. Decimal(1_000_000_000_000_000_000) == 1.0\n\nThe greatest possible value that can be represented is 340282366920938463463.374607431768211455 (which is (2^128 - 1) / 10^18)",
+        "type": "string"
       },
       "DistributionMsg": {
         "description": "The message types of the distribution module.\n\nSee https://github.com/cosmos/cosmos-sdk/blob/v0.42.4/proto/cosmos/distribution/v1beta1/tx.proto",
@@ -926,25 +949,35 @@
           },
           "proposal_required_deposit": {
             "description": "Proposal required deposit",
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "uint128",
-            "minimum": 0.0
+            "anyOf": [
+              {
+                "$ref": "#/definitions/Uint128"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "proposal_required_quorum": {
             "description": "Proposal required quorum",
-            "type": [
-              "string",
-              "null"
+            "anyOf": [
+              {
+                "$ref": "#/definitions/Decimal"
+              },
+              {
+                "type": "null"
+              }
             ]
           },
           "proposal_required_threshold": {
             "description": "Proposal required threshold",
-            "type": [
-              "string",
-              "null"
+            "anyOf": [
+              {
+                "$ref": "#/definitions/Decimal"
+              },
+              {
+                "type": "null"
+              }
             ]
           },
           "proposal_voting_period": {
@@ -955,6 +988,13 @@
             ],
             "format": "uint64",
             "minimum": 0.0
+          },
+          "vxastro": {
+            "description": "Set vxASTRO and emissions controller contract at the same time. Emissions controller is queried from the vxASTRO contract.",
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "whitelist_add": {
             "description": "Links to add to whitelist",
@@ -1390,6 +1430,17 @@
             }
           ]
         },
+        "emissions_controller": {
+          "description": "Emissions controller contract. Optional",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Addr"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "ibc_controller": {
           "description": "Astroport IBC controller contract",
           "anyOf": [
@@ -1443,6 +1494,17 @@
           "format": "uint64",
           "minimum": 0.0
         },
+        "vxastro_contract": {
+          "description": "vxASTRO contract address. Optional",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Addr"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "whitelisted_links": {
           "description": "Whitelisted links",
           "type": "array",
@@ -1455,6 +1517,7 @@
           "type": "string"
         },
         "xastro_denom_tracking": {
+          "description": "xASTRO denom tracking contract",
           "type": "string"
         }
       },
@@ -1488,8 +1551,6 @@
         "expiration_block",
         "for_power",
         "messages",
-        "outpost_against_power",
-        "outpost_for_power",
         "proposal_id",
         "start_block",
         "start_time",
@@ -1514,7 +1575,7 @@
           "minimum": 0.0
         },
         "deposit_amount": {
-          "description": "Amount of xASTRO deposited in order to post the proposal",
+          "description": "Amount of xASTRO deposited to post the proposal",
           "allOf": [
             {
               "$ref": "#/definitions/Uint128"
@@ -1565,22 +1626,6 @@
           "items": {
             "$ref": "#/definitions/CosmosMsg_for_Empty"
           }
-        },
-        "outpost_against_power": {
-          "description": "`Against` power of proposal cast from all Outposts",
-          "allOf": [
-            {
-              "$ref": "#/definitions/Uint128"
-            }
-          ]
-        },
-        "outpost_for_power": {
-          "description": "`For` power of proposal cast from all Outposts",
-          "allOf": [
-            {
-              "$ref": "#/definitions/Uint128"
-            }
-          ]
         },
         "proposal_id": {
           "description": "Unique proposal ID",
@@ -2926,8 +2971,6 @@
             "expiration_block",
             "for_power",
             "messages",
-            "outpost_against_power",
-            "outpost_for_power",
             "proposal_id",
             "start_block",
             "start_time",
@@ -2952,7 +2995,7 @@
               "minimum": 0.0
             },
             "deposit_amount": {
-              "description": "Amount of xASTRO deposited in order to post the proposal",
+              "description": "Amount of xASTRO deposited to post the proposal",
               "allOf": [
                 {
                   "$ref": "#/definitions/Uint128"
@@ -3003,22 +3046,6 @@
               "items": {
                 "$ref": "#/definitions/CosmosMsg_for_Empty"
               }
-            },
-            "outpost_against_power": {
-              "description": "`Against` power of proposal cast from all Outposts",
-              "allOf": [
-                {
-                  "$ref": "#/definitions/Uint128"
-                }
-              ]
-            },
-            "outpost_for_power": {
-              "description": "`For` power of proposal cast from all Outposts",
-              "allOf": [
-                {
-                  "$ref": "#/definitions/Uint128"
-                }
-              ]
             },
             "proposal_id": {
               "description": "Unique proposal ID",

@@ -66,7 +66,7 @@ publish() {
 ROOT_DIR="$(realpath "$1")"
 
 FIRST_CRATES="astroport-governance"
-SKIP_CRATES="ALL"
+SKIP_CRATES=""
 
 main() {
   for contract in $FIRST_CRATES; do

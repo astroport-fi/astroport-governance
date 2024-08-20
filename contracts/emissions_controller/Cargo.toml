@@ -1,0 +1,44 @@
+[package]
+name = "astroport-emissions-controller"
+version = "1.0.0-rc.1"
+authors = ["Astroport"]
+edition = "2021"
+description = "Astroport vxASTRO Emissions Voting Contract"
+license = "GPL-3.0-only"
+repository = "https://github.com/astroport-fi/astroport-governance"
+homepage = "https://astroport.fi"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+# use library feature to disable all init/handle/query exports
+library = []
+
+[dependencies]
+cw2.workspace = true
+cw-utils.workspace = true
+cosmwasm-std = { workspace = true, features = ["cosmwasm_1_1", "ibc3"] }
+cw-storage-plus.workspace = true
+cosmwasm-schema.workspace = true
+thiserror.workspace = true
+itertools.workspace = true
+astroport-governance = { path = "../../packages/astroport-governance", version = "4.0.0-rc.1" }
+astroport.workspace = true
+neutron-sdk = "0.10.0"
+serde_json = "1"
+
+[dev-dependencies]
+cw-multi-test = { git = "https://github.com/astroport-fi/cw-multi-test", branch = "feat/bank_with_send_hooks_1_0", features = ["cosmwasm_1_1"] }
+astroport-voting-escrow = { path = "../voting_escrow", version = "1.0.0-rc.1", features = ["library"] }
+astro-assembly = { path = "../assembly", version = "3.0.0-rc.1", features = ["library"] }
+builder-unlock = { version = "3", features = ["library"] }
+astroport-factory = { version = "1.8", features = ["library"] }
+astroport-pair = { version = "2", features = ["library"] }
+cw20-base = { version = "1", features = ["library"] }
+astroport-incentives = { git = "https://github.com/astroport-fi/hidden_astroport_core", branch = "feat/incentivize_many", version = "1.2.0-vxastro-rc.1", features = ["library"] }
+astroport-staking = "2.1"
+astroport-tokenfactory-tracker = { version = "1", features = ["library"] }
+osmosis-std = "0.25.0"
+derivative = "2.2"
+anyhow = "1"

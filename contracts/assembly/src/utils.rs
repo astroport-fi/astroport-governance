@@ -6,6 +6,7 @@ use astroport_governance::assembly::Proposal;
 use astroport_governance::builder_unlock::{
     AllocationResponse, QueryMsg as BuilderUnlockQueryMsg, State,
 };
+use astroport_governance::voting_escrow;
 
 use crate::state::CONFIG;
 
@@ -17,7 +18,7 @@ use crate::state::CONFIG;
 pub fn calc_voting_power(deps: Deps, sender: String, proposal: &Proposal) -> StdResult<Uint128> {
     let config = CONFIG.load(deps.storage)?;
 
-    let mut total: Uint128 = deps.querier.query_wasm_smart(
+    let xastro_vp: Uint128 = deps.querier.query_wasm_smart(
         &config.xastro_denom_tracking,
         &tokenfactory_tracker::QueryMsg::BalanceAt {
             address: sender.clone(),
@@ -29,20 +30,32 @@ pub fn calc_voting_power(deps: Deps, sender: String, proposal: &Proposal) -> Std
     let locked_amount: AllocationResponse = deps.querier.query_wasm_smart(
         config.builder_unlock_addr,
         &BuilderUnlockQueryMsg::Allocation {
-            account: sender,
+            account: sender.clone(),
             timestamp: Some(proposal.start_time - 1),
         },
     )?;
 
-    total += locked_amount.status.amount - locked_amount.status.astro_withdrawn;
+    let vxastro_vp = if let Some(vxastro_contract) = &config.vxastro_contract {
+        deps.querier.query_wasm_smart(
+            vxastro_contract,
+            &voting_escrow::QueryMsg::UserVotingPower {
+                user: sender,
+                timestamp: Some(proposal.start_time - 1),
+            },
+        )?
+    } else {
+        Uint128::zero()
+    };
 
-    Ok(total)
+    Ok(xastro_vp
+        + (locked_amount.status.amount - locked_amount.status.astro_withdrawn)
+        + vxastro_vp)
 }
 
 /// Calculates the combined total voting power at a specified timestamp (that is relevant for a specific proposal).
 /// Combined voting power includes:
 /// * xASTRO total supply
-/// * ASTRO tokens which still locked in the builder's unlock contract
+/// * ASTRO tokens which are still locked in the builder's unlock contract
 ///
 /// ## Parameters
 /// * **config** contract settings.
@@ -52,7 +65,7 @@ pub fn calc_total_voting_power_at(
     config: &Config,
     timestamp: u64,
 ) -> StdResult<Uint128> {
-    let mut total: Uint128 = querier.query_wasm_smart(
+    let total: Uint128 = querier.query_wasm_smart(
         &config.xastro_denom_tracking,
         &tokenfactory_tracker::QueryMsg::TotalSupplyAt {
             timestamp: Some(timestamp),
@@ -67,7 +80,5 @@ pub fn calc_total_voting_power_at(
         },
     )?;
 
-    total += builder_state.remaining_astro_tokens;
-
-    Ok(total)
+    Ok(total + builder_state.remaining_astro_tokens)
 }

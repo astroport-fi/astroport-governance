@@ -1,40 +1,35 @@
 use cosmwasm_std::StdError;
-use cw20_base::ContractError as cw20baseError;
+use cw20_base::ContractError as CW20Error;
+use cw_utils::PaymentError;
 use thiserror::Error;
 
 /// This enum describes vxASTRO contract errors
-#[derive(Error, Debug)]
+#[derive(Error, Debug, PartialEq)]
 pub enum ContractError {
     #[error("{0}")]
     Std(#[from] StdError),
 
     #[error("{0}")]
-    Cw20Base(#[from] cw20baseError),
+    PaymentError(#[from] PaymentError),
+
+    #[error("{0}")]
+    Cw20Base(#[from] CW20Error),
 
     #[error("Unauthorized")]
     Unauthorized {},
 
-    #[error("Lock already exists")]
-    LockAlreadyExists {},
+    #[error("No withdrawal balance available")]
+    ZeroBalance {},
 
-    #[error("Lock does not exist")]
-    LockDoesNotExist {},
+    #[error("Unlock period not expired. Expected: at {0}")]
+    UnlockPeriodNotExpired(u64),
 
-    #[error("Lock time must be within limits (week <= lock time < 2 years)")]
-    LockTimeLimitsError {},
+    #[error("Position is not in unlocking state")]
+    NotInUnlockingState {},
 
-    #[error("The lock time has not yet expired")]
-    LockHasNotExpired {},
+    #[error("Position is already unlocking. Consider relocking to lock more tokens")]
+    PositionUnlocking {},
 
-    #[error("The lock expired. Withdraw and create new lock")]
-    LockExpired {},
-
-    #[error("The {0} address is blacklisted")]
-    AddressBlacklisted(String),
-
-    #[error("Marketing info validation error: {0}")]
-    MarketingInfoValidationError(String),
-
-    #[error("Contract can't be migrated!")]
-    MigrationError {},
+    #[error("Hub has not yet confirmed the unlock")]
+    HubNotConfirmed {},
 }
