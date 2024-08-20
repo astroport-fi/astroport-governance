@@ -96,9 +96,9 @@ dependencies = [
 [[package]]
 name = "astroport"
 version = "5.3.0"
-source = "git+https://github.com/astroport-fi/hidden_astroport_core#55f38f8bc49d131431c24fccd7346957601cce7b"
+source = "git+https://github.com/astroport-fi/astroport-core#2bb41b80cfb0c6038c754461b1da143e2065002e"
 dependencies = [
- "astroport-circular-buffer 0.2.0 (git+https://github.com/astroport-fi/hidden_astroport_core)",
+ "astroport-circular-buffer 0.2.0 (git+https://github.com/astroport-fi/astroport-core)",
  "cosmos-sdk-proto 0.19.0",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -126,7 +126,7 @@ dependencies = [
 [[package]]
 name = "astroport-circular-buffer"
 version = "0.2.0"
-source = "git+https://github.com/astroport-fi/hidden_astroport_core#55f38f8bc49d131431c24fccd7346957601cce7b"
+source = "git+https://github.com/astroport-fi/astroport-core#2bb41b80cfb0c6038c754461b1da143e2065002e"
 dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -256,7 +256,7 @@ dependencies = [
 [[package]]
 name = "astroport-incentives"
 version = "1.2.0"
-source = "git+https://github.com/astroport-fi/hidden_astroport_core#55f38f8bc49d131431c24fccd7346957601cce7b"
+source = "git+https://github.com/astroport-fi/astroport-core#2bb41b80cfb0c6038c754461b1da143e2065002e"
 dependencies = [
  "astroport 5.3.0",
  "cosmwasm-schema",
@@ -483,12 +483,11 @@ dependencies = [
 
 [[package]]
 name = "cosmwasm-crypto"
-version = "1.5.5"
+version = "1.5.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dd50718a2b6830ce9eb5d465de5a018a12e71729d66b70807ce97e6dd14f931d"
+checksum = "0f862b355f7e47711e0acfe6af92cb3fd8fd5936b66a9eaa338b51edabd1e77d"
 dependencies = [
  "digest 0.10.7",
- "ecdsa",
  "ed25519-zebra",
  "k256",
  "rand_core 0.6.4",
@@ -497,9 +496,9 @@ dependencies = [
 
 [[package]]
 name = "cosmwasm-derive"
-version = "1.5.5"
+version = "1.5.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "242e98e7a231c122e08f300d9db3262d1007b51758a8732cd6210b3e9faa4f3a"
+checksum = "cd85de6467cd1073688c86b39833679ae6db18cf4771471edd9809f15f1679f1"
 dependencies = [
  "syn 1.0.109",
 ]
@@ -530,9 +529,9 @@ dependencies = [
 
 [[package]]
 name = "cosmwasm-std"
-version = "1.5.5"
+version = "1.5.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "78c1556156fdf892a55cced6115968b961eaaadd6f724a2c2cb7d1e168e32dd3"
+checksum = "2685c2182624b2e9e17f7596192de49a3f86b7a0c9a5f6b25c1df5e24592e836"
 dependencies = [
  "base64",
  "bech32 0.9.1",
@@ -1079,9 +1078,9 @@ checksum = "49f1f14873335454500d59611f1cf4a4b0f786f9ac11f4312a78e4cf2566695b"
 
 [[package]]
 name = "k256"
-version = "0.13.1"
+version = "0.13.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cadb76004ed8e97623117f3df85b17aaa6626ab0b0831e6573f104df16cd1bcc"
+checksum = "956ff9b67e26e1a6a866cb758f12c6f8746208489e3e4a4b5580802f2f0a587b"
 dependencies = [
  "cfg-if",
  "ecdsa",

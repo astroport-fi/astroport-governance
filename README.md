@@ -42,7 +42,7 @@ The optimized contracts are generated in the artifacts/ directory.
 
 ## Deployment
 
-Actual deployed contracts and with respective commits [here](https://github.com/astroport-fi/astroport-changelog).
+Actual deployed contracts with respective commits [here](https://github.com/astroport-fi/astroport-changelog).
 
 ## Docs
 

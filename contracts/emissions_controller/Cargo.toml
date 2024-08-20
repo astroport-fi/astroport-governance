@@ -36,7 +36,7 @@ builder-unlock = { version = "3", features = ["library"] }
 astroport-factory = { version = "1.8", features = ["library"] }
 astroport-pair = { version = "2", features = ["library"] }
 cw20-base = { version = "1", features = ["library"] }
-astroport-incentives = { git = "https://github.com/astroport-fi/hidden_astroport_core", version = "1.2.0", features = ["library"] }
+astroport-incentives = { git = "https://github.com/astroport-fi/astroport-core", version = "1.2.0", features = ["library"] }
 astroport-staking = "2.1"
 astroport-tokenfactory-tracker = { version = "1", features = ["library"] }
 osmosis-std = "0.25.0"
