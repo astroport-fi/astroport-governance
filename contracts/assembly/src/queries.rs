@@ -1,4 +1,6 @@
-use cosmwasm_std::{entry_point, to_json_binary, Binary, Deps, Env, Order, StdResult};
+#[cfg(not(feature = "library"))]
+use cosmwasm_std::entry_point;
+use cosmwasm_std::{to_json_binary, Binary, Deps, Env, Order, StdResult};
 use cw_storage_plus::Bound;
 
 use astroport_governance::assembly::{
@@ -50,9 +52,6 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         }
         QueryMsg::UserVotingPower { user, proposal_id } => {
             let proposal = PROPOSALS.load(deps.storage, proposal_id)?;
-
-            deps.api.addr_validate(&user)?;
-
             to_json_binary(&calc_voting_power(deps, user, &proposal)?)
         }
         QueryMsg::TotalVotingPower { proposal_id } => {

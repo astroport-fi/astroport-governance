@@ -2,6 +2,7 @@
 
 use anyhow::Result as AnyResult;
 use astroport::staking;
+use astroport::token::Logo;
 use cosmwasm_std::testing::MockApi;
 use cosmwasm_std::{
     coin, coins, Addr, BankMsg, Binary, Coin, CosmosMsg, Decimal, Deps, DepsMut, Empty, Env,
@@ -14,11 +15,13 @@ use cw_multi_test::{
 
 use astroport_governance::assembly::{
     ExecuteMsg, InstantiateMsg, Proposal, ProposalVoteOption, ProposalVoterResponse,
-    ProposalVotesResponse, QueryMsg, DELAY_INTERVAL, DEPOSIT_INTERVAL, EXPIRATION_PERIOD_INTERVAL,
-    MINIMUM_PROPOSAL_REQUIRED_QUORUM_PERCENTAGE, MINIMUM_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE,
-    VOTING_PERIOD_INTERVAL,
+    ProposalVotesResponse, QueryMsg, UpdateConfig, DELAY_INTERVAL, DEPOSIT_INTERVAL,
+    EXPIRATION_PERIOD_INTERVAL, MINIMUM_PROPOSAL_REQUIRED_QUORUM_PERCENTAGE,
+    MINIMUM_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE, VOTING_PERIOD_INTERVAL,
 };
 use astroport_governance::builder_unlock::{CreateAllocationParams, Schedule};
+use astroport_governance::voting_escrow::UpdateMarketingInfo;
+use astroport_governance::{emissions_controller, voting_escrow};
 
 use crate::common::stargate::StargateKeeper;
 
@@ -54,6 +57,14 @@ fn assembly_contract() -> Box<dyn Contract<Empty>> {
     ))
 }
 
+fn vxastro_contract() -> Box<dyn Contract<Empty>> {
+    Box::new(ContractWrapper::new_with_empty(
+        astroport_voting_escrow::contract::execute,
+        astroport_voting_escrow::contract::instantiate,
+        astroport_voting_escrow::contract::query,
+    ))
+}
+
 fn builder_contract() -> Box<dyn Contract<Empty>> {
     Box::new(ContractWrapper::new_with_empty(
         builder_unlock::contract::execute,
@@ -83,6 +94,31 @@ pub fn noop_contract() -> Box<dyn Contract<Empty>> {
     ))
 }
 
+fn mock_emissions_controller() -> Box<dyn Contract<Empty>> {
+    fn instantiate(
+        _deps: DepsMut,
+        _env: Env,
+        _info: MessageInfo,
+        _msg: Empty,
+    ) -> StdResult<Response> {
+        Ok(Response::default())
+    }
+    fn execute(
+        _deps: DepsMut,
+        _env: Env,
+        _info: MessageInfo,
+        _msg: emissions_controller::msg::ExecuteMsg<Empty>,
+    ) -> StdResult<Response> {
+        Ok(Response::default())
+    }
+
+    fn query(_deps: Deps, _env: Env, _msg: Empty) -> StdResult<Binary> {
+        unimplemented!()
+    }
+
+    Box::new(ContractWrapper::new_with_empty(execute, instantiate, query))
+}
+
 pub const PROPOSAL_REQUIRED_DEPOSIT: Uint128 = Uint128::new(*DEPOSIT_INTERVAL.start());
 pub const PROPOSAL_VOTING_PERIOD: u64 = *VOTING_PERIOD_INTERVAL.start();
 pub const PROPOSAL_DELAY: u64 = *DELAY_INTERVAL.start();
@@ -91,11 +127,7 @@ pub const PROPOSAL_EXPIRATION: u64 = *EXPIRATION_PERIOD_INTERVAL.start();
 pub fn default_init_msg(staking: &Addr, builder_unlock: &Addr) -> InstantiateMsg {
     InstantiateMsg {
         staking_addr: staking.to_string(),
-        vxastro_token_addr: None,
-        voting_escrow_delegator_addr: None,
         ibc_controller: None,
-        generator_controller_addr: None,
-        hub_addr: None,
         builder_unlock_addr: builder_unlock.to_string(),
         proposal_voting_period: PROPOSAL_VOTING_PERIOD,
         proposal_effective_delay: PROPOSAL_DELAY,
@@ -132,6 +164,7 @@ pub struct Helper {
     pub assembly: Addr,
     pub builder_unlock: Addr,
     pub xastro_denom: String,
+    pub vxastro: Addr,
     pub assembly_code_id: u64,
 }
 
@@ -151,6 +184,8 @@ impl Helper {
         let staking_code_id = app.store_code(staking_contract());
         let tracker_code_id = app.store_code(tracker_contract());
         let assembly_code_id = app.store_code(assembly_contract());
+        let vxastro_code_id = app.store_code(vxastro_contract());
+        let emissions_controller_code_id = app.store_code(mock_emissions_controller());
 
         let msg = staking::InstantiateMsg {
             deposit_token_denom: ASTRO_DENOM.to_string(),
@@ -171,6 +206,36 @@ impl Helper {
         let staking::Config { xastro_denom, .. } = app
             .wrap()
             .query_wasm_smart(&staking, &staking::QueryMsg::Config {})
+            .unwrap();
+
+        let mocked_emission_controller = app
+            .instantiate_contract(
+                emissions_controller_code_id,
+                owner.clone(),
+                &Empty {},
+                &[],
+                "label",
+                None,
+            )
+            .unwrap();
+        let vxastro = app
+            .instantiate_contract(
+                vxastro_code_id,
+                owner.clone(),
+                &voting_escrow::InstantiateMsg {
+                    deposit_denom: xastro_denom.to_string(),
+                    emissions_controller: mocked_emission_controller.to_string(),
+                    marketing: UpdateMarketingInfo {
+                        project: None,
+                        description: None,
+                        marketing: Some(owner.to_string()),
+                        logo: Logo::Url("https://example.com".to_string()),
+                    },
+                },
+                &[],
+                "label",
+                None,
+            )
             .unwrap();
 
         let builder_unlock_code_id = app.store_code(builder_contract());
@@ -203,6 +268,26 @@ impl Helper {
             )
             .unwrap();
 
+        app.execute_contract(
+            assembly.clone(),
+            assembly.clone(),
+            &ExecuteMsg::UpdateConfig(Box::new(UpdateConfig {
+                ibc_controller: None,
+                builder_unlock_addr: None,
+                proposal_voting_period: None,
+                proposal_effective_delay: None,
+                proposal_expiration_period: None,
+                proposal_required_deposit: None,
+                proposal_required_quorum: None,
+                proposal_required_threshold: None,
+                whitelist_remove: None,
+                whitelist_add: None,
+                vxastro: Some(vxastro.to_string()),
+            })),
+            &[],
+        )
+        .unwrap();
+
         app.execute(
             owner.clone(),
             WasmMsg::UpdateAdmin {
@@ -220,6 +305,7 @@ impl Helper {
             assembly,
             builder_unlock,
             xastro_denom,
+            vxastro,
             assembly_code_id,
         })
     }
@@ -238,7 +324,7 @@ impl Helper {
         self.app.execute_contract(
             sender.clone(),
             self.staking.clone(),
-            &staking::ExecuteMsg::Enter {},
+            &staking::ExecuteMsg::Enter { receiver: None },
             &coins(amount, ASTRO_DENOM),
         )
     }
@@ -255,6 +341,19 @@ impl Helper {
     pub fn get_xastro(&mut self, recipient: &Addr, amount: impl Into<u128> + Copy) -> AppResponse {
         self.give_astro(amount.into(), recipient);
         self.stake(recipient, amount.into()).unwrap()
+    }
+
+    pub fn get_vxastro(&mut self, recipient: &Addr, amount: impl Into<u128> + Copy) -> AppResponse {
+        let amount = amount.into();
+        self.get_xastro(recipient, amount);
+        self.app
+            .execute_contract(
+                recipient.clone(),
+                self.vxastro.clone(),
+                &voting_escrow::ExecuteMsg::Lock { receiver: None },
+                &coins(amount, &self.xastro_denom),
+            )
+            .unwrap()
     }
 
     pub fn create_builder_allocation(&mut self, recipient: &Addr, amount: u128) {
