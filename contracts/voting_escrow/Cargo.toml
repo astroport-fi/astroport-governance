@@ -1,6 +1,6 @@
 [package]
 name = "astroport-voting-escrow"
-version = "1.0.0-rc.1"
+version = "1.0.0"
 authors = ["Astroport"]
 edition = "2021"
 description = "Astroport Vote Escrowed xASTRO (vxASTRO)"
@@ -24,7 +24,7 @@ cosmwasm-std.workspace = true
 cw-storage-plus.workspace = true
 thiserror.workspace = true
 cosmwasm-schema.workspace = true
-astroport-governance = { path = "../../packages/astroport-governance", version = "4.0.0-rc.1" }
+astroport-governance = { path = "../../packages/astroport-governance", version = "4.0.0" }
 astroport.workspace = true
 
 [dev-dependencies]
