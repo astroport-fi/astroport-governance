@@ -5,8 +5,6 @@ use std::str::FromStr;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Addr, CosmosMsg, Decimal, StdError, StdResult, Uint128, Uint64};
 
-use crate::assembly::helpers::is_safe_link;
-
 pub const MINIMUM_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE: u64 = 33;
 pub const MAX_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE: u64 = 100;
 pub const MAX_PROPOSAL_REQUIRED_QUORUM_PERCENTAGE: &str = "1";
@@ -30,22 +28,15 @@ const MAX_LINK_LENGTH: usize = 128;
 
 /// Special characters that are allowed in proposal text
 const SAFE_TEXT_CHARS: &str = "!&?#()*+'-./\"";
+const SAFE_LINK_CHARS: &str = "-_:/?#@!$&()*+,;=.~[]'%";
 
 /// This structure holds the parameters used for creating an Assembly contract.
 #[cw_serde]
 pub struct InstantiateMsg {
     /// Astroport xASTRO staking address. xASTRO denom and tracker contract address are queried on assembly instantiation.
     pub staking_addr: String,
-    /// Address of vxASTRO token
-    pub vxastro_token_addr: Option<String>,
-    /// Voting Escrow delegator address
-    pub voting_escrow_delegator_addr: Option<String>,
     /// Astroport IBC controller contract
     pub ibc_controller: Option<String>,
-    /// Generator controller contract capable of immediate proposals
-    pub generator_controller_addr: Option<String>,
-    /// Hub contract that handles voting from Outposts
-    pub hub_addr: Option<String>,
     /// Address of the builder unlock contract
     pub builder_unlock_addr: String,
     /// Proposal voting period
@@ -79,6 +70,18 @@ pub enum ExecuteMsg {
     },
     /// Cast a vote for an active proposal
     CastVote {
+        /// Proposal identifier
+        proposal_id: u64,
+        /// Vote option
+        vote: ProposalVoteOption,
+    },
+    /// Cast a vote for an active proposal.
+    /// Permissioned to emissions controller contract.
+    /// Called on an IBC packet receive.
+    CastVoteOutpost {
+        voter: String,
+        /// Voting power reported from outpost
+        voting_power: Uint128,
         /// Proposal identifier
         proposal_id: u64,
         /// Vote option
@@ -156,8 +159,12 @@ pub enum QueryMsg {
 pub struct Config {
     /// xASTRO token denom
     pub xastro_denom: String,
-    // xASTRO denom tracking contract
+    /// xASTRO denom tracking contract
     pub xastro_denom_tracking: String,
+    /// vxASTRO contract address. Optional
+    pub vxastro_contract: Option<Addr>,
+    /// Emissions controller contract. Optional
+    pub emissions_controller: Option<Addr>,
     /// Astroport IBC controller contract
     pub ibc_controller: Option<Addr>,
     /// Builder unlock contract address
@@ -251,15 +258,18 @@ pub struct UpdateConfig {
     /// Proposal expiration period
     pub proposal_expiration_period: Option<u64>,
     /// Proposal required deposit
-    pub proposal_required_deposit: Option<u128>,
+    pub proposal_required_deposit: Option<Uint128>,
     /// Proposal required quorum
-    pub proposal_required_quorum: Option<String>,
+    pub proposal_required_quorum: Option<Decimal>,
     /// Proposal required threshold
-    pub proposal_required_threshold: Option<String>,
+    pub proposal_required_threshold: Option<Decimal>,
     /// Links to remove from whitelist
     pub whitelist_remove: Option<Vec<String>>,
     /// Links to add to whitelist
     pub whitelist_add: Option<Vec<String>>,
+    /// Set vxASTRO and emissions controller contract at the same time.
+    /// Emissions controller is queried from the vxASTRO contract.
+    pub vxastro: Option<String>,
 }
 
 /// This structure stores data for a proposal.
@@ -273,12 +283,8 @@ pub struct Proposal {
     pub status: ProposalStatus,
     /// `For` power of proposal
     pub for_power: Uint128,
-    /// `For` power of proposal cast from all Outposts
-    pub outpost_for_power: Uint128,
     /// `Against` power of proposal
     pub against_power: Uint128,
-    /// `Against` power of proposal cast from all Outposts
-    pub outpost_against_power: Uint128,
     /// Start block of proposal
     pub start_block: u64,
     /// Start time of proposal
@@ -297,7 +303,7 @@ pub struct Proposal {
     pub link: Option<String>,
     /// Proposal messages
     pub messages: Vec<CosmosMsg>,
-    /// Amount of xASTRO deposited in order to post the proposal
+    /// Amount of xASTRO deposited to post the proposal
     pub deposit_amount: Uint128,
     /// IBC channel
     pub ibc_channel: Option<String>,
@@ -385,15 +391,6 @@ impl Display for ProposalStatus {
     }
 }
 
-/// This structure describes a proposal vote.
-#[cw_serde]
-pub struct ProposalVote {
-    /// Voted option for the proposal
-    pub option: ProposalVoteOption,
-    /// Vote power
-    pub power: Uint128,
-}
-
 /// This enum describes available options for voting on a proposal.
 #[cw_serde]
 pub enum ProposalVoteOption {
@@ -438,27 +435,21 @@ pub struct ProposalVoterResponse {
     pub vote_option: ProposalVoteOption,
 }
 
-pub mod helpers {
-    use cosmwasm_std::{StdError, StdResult};
+/// Checks if the link is valid. Returns a boolean value.
+pub fn is_safe_link(link: &str) -> bool {
+    link.chars()
+        .all(|c| c.is_ascii_alphanumeric() || SAFE_LINK_CHARS.contains(c))
+}
 
-    const SAFE_LINK_CHARS: &str = "-_:/?#@!$&()*+,;=.~[]'%";
-
-    /// Checks if the link is valid. Returns a boolean value.
-    pub fn is_safe_link(link: &str) -> bool {
-        link.chars()
-            .all(|c| c.is_ascii_alphanumeric() || SAFE_LINK_CHARS.contains(c))
-    }
-
-    /// Validating the list of links. Returns an error if a list has an invalid link.
-    pub fn validate_links(links: &[String]) -> StdResult<()> {
-        for link in links {
-            if !(is_safe_link(link) && link.contains('.') && link.ends_with('/')) {
-                return Err(StdError::generic_err(format!(
-                    "Link is not properly formatted or contains unsafe characters: {link}."
-                )));
-            }
+/// Validating the list of links. Returns an error if a list has an invalid link.
+pub fn validate_links(links: &[String]) -> StdResult<()> {
+    for link in links {
+        if !(is_safe_link(link) && link.contains('.') && link.ends_with('/')) {
+            return Err(StdError::generic_err(format!(
+                "Link is not properly formatted or contains unsafe characters: {link}."
+            )));
         }
-
-        Ok(())
     }
+
+    Ok(())
 }

@@ -5,18 +5,20 @@ use astroport::staking;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, coins, wasm_execute, Api, BankMsg, CosmosMsg, Decimal, DepsMut, Env, MessageInfo,
-    QuerierWrapper, Response, StdError, SubMsg, Uint128, Uint64, WasmMsg,
+    attr, coins, ensure, wasm_execute, Addr, Api, BankMsg, CosmosMsg, Decimal, DepsMut, Env,
+    MessageInfo, QuerierWrapper, Response, StdError, Storage, SubMsg, Uint128, Uint64, WasmMsg,
 };
 use cw2::set_contract_version;
 use cw_utils::must_pay;
 use ibc_controller_package::ExecuteMsg as ControllerExecuteMsg;
 
 use astroport_governance::assembly::{
-    helpers::validate_links, Config, ExecuteMsg, InstantiateMsg, Proposal, ProposalStatus,
+    validate_links, Config, ExecuteMsg, InstantiateMsg, Proposal, ProposalStatus,
     ProposalVoteOption, UpdateConfig,
 };
+use astroport_governance::emissions_controller::hub::HubMsg;
 use astroport_governance::utils::check_contract_supports_channel;
+use astroport_governance::{emissions_controller, voting_escrow};
 
 use crate::error::ContractError;
 use crate::state::{CONFIG, PROPOSALS, PROPOSAL_COUNT, PROPOSAL_VOTERS};
@@ -54,6 +56,8 @@ pub fn instantiate(
     let config = Config {
         xastro_denom: staking_config.xastro_denom,
         xastro_denom_tracking: tracker_config.tracker_addr,
+        vxastro_contract: None,
+        emissions_controller: None,
         ibc_controller: addr_opt_validate(deps.api, &msg.ibc_controller)?,
         builder_unlock_addr: deps.api.addr_validate(&msg.builder_unlock_addr)?,
         proposal_voting_period: msg.proposal_voting_period,
@@ -78,9 +82,6 @@ pub fn instantiate(
 /// Exposes all the execute functions available in the contract.
 ///
 /// ## Execute messages
-/// * **ExecuteMsg::Receive(cw20_msg)** Receives a message of type [`Cw20ReceiveMsg`] and processes
-/// it depending on the received template.
-///
 /// * **ExecuteMsg::SubmitProposal { title, description, link, messages, ibc_channel }** Submits a new proposal.
 ///
 /// * **ExecuteMsg::CheckMessages { messages }** Checks if the messages are correct.
@@ -89,6 +90,9 @@ pub fn instantiate(
 /// * **ExecuteMsg::CheckMessagesPassed {}** Closing message for the `CheckMessages` endpoint.
 ///
 /// * **ExecuteMsg::CastVote { proposal_id, vote }** Cast a vote on a specific proposal.
+///
+/// * **ExecuteMsg::CastVoteOutpost { voter, voting_power, proposal_id, vote }** Applies a vote on a specific proposal from outpost.
+/// Only emissions controller is allowed to call this endpoint.
 ///
 /// * **ExecuteMsg::EndProposal { proposal_id }** Sets the status of an expired/finalized proposal.
 ///
@@ -122,7 +126,56 @@ pub fn execute(
             messages,
             ibc_channel,
         ),
-        ExecuteMsg::CastVote { proposal_id, vote } => cast_vote(deps, env, info, proposal_id, vote),
+        ExecuteMsg::CastVote { proposal_id, vote } => {
+            let voter = info.sender.to_string();
+            let proposal = PROPOSALS.load(deps.storage, proposal_id)?;
+
+            let voting_power = calc_voting_power(deps.as_ref(), voter.clone(), &proposal)?;
+            ensure!(!voting_power.is_zero(), ContractError::NoVotingPower {});
+
+            cast_vote(
+                deps.storage,
+                env,
+                voter,
+                voting_power,
+                proposal_id,
+                proposal,
+                vote,
+            )
+        }
+        ExecuteMsg::CastVoteOutpost {
+            voter,
+            voting_power,
+            proposal_id,
+            vote,
+        } => {
+            let config = CONFIG.load(deps.storage)?;
+            ensure!(
+                Some(info.sender) == config.emissions_controller,
+                ContractError::Unauthorized {}
+            );
+
+            // This endpoint should never fail if called from the emissions controller.
+            // Otherwise, an IBC packet will never be acknowledged.
+            (|| {
+                let proposal = PROPOSALS.load(deps.storage, proposal_id)?;
+
+                cast_vote(
+                    deps.storage,
+                    env,
+                    voter,
+                    voting_power,
+                    proposal_id,
+                    proposal,
+                    vote,
+                )
+            })()
+            .or_else(|err| {
+                Ok(Response::new()
+                    .add_attribute("action", "cast_vote")
+                    .add_attribute("error", err.to_string()))
+            })
+        }
         ExecuteMsg::EndProposal { proposal_id } => end_proposal(deps, env, proposal_id),
         ExecuteMsg::ExecuteProposal { proposal_id } => execute_proposal(deps, env, proposal_id),
         ExecuteMsg::CheckMessages(messages) => check_messages(deps.api, env, messages),
@@ -189,9 +242,7 @@ pub fn submit_proposal(
         submitter: info.sender.clone(),
         status: ProposalStatus::Active,
         for_power: Uint128::zero(),
-        outpost_for_power: Uint128::zero(),
         against_power: Uint128::zero(),
-        outpost_against_power: Uint128::zero(),
         start_block: env.block.height,
         start_time: env.block.time.seconds(),
         end_block: env.block.height + config.proposal_voting_period,
@@ -221,7 +272,7 @@ pub fn submit_proposal(
 
     PROPOSALS.save(deps.storage, count.u64(), &proposal)?;
 
-    Ok(Response::new().add_attributes(vec![
+    let mut response = Response::new().add_attributes([
         attr("action", "submit_proposal"),
         attr("submitter", info.sender),
         attr("proposal_id", count),
@@ -229,23 +280,43 @@ pub fn submit_proposal(
             "proposal_end_height",
             (env.block.height + config.proposal_voting_period).to_string(),
         ),
-    ]))
+    ]);
+
+    if let Some(emissions_controller) = config.emissions_controller {
+        // Send IBC packets to all outposts to register this proposal.
+        let outposts_register_msg = wasm_execute(
+            emissions_controller,
+            &emissions_controller::msg::ExecuteMsg::Custom(HubMsg::RegisterProposal {
+                proposal_id: count.u64(),
+            }),
+            vec![],
+        )?;
+        response = response.add_message(outposts_register_msg);
+    }
+
+    Ok(response)
 }
 
 /// Cast a vote on a proposal.
 ///
+/// * **voter** is the bech32 address of the voter from any of the supported outposts.
+///
+/// * **voting_power** is the voting power of the voter.
+///
 /// * **proposal_id** is the identifier of the proposal.
+///
+/// * **proposal** is [`Proposal`] object.
 ///
 /// * **vote_option** contains the vote option.
 pub fn cast_vote(
-    deps: DepsMut,
+    storage: &mut dyn Storage,
     env: Env,
-    info: MessageInfo,
+    voter: String,
+    voting_power: Uint128,
     proposal_id: u64,
+    mut proposal: Proposal,
     vote_option: ProposalVoteOption,
 ) -> Result<Response, ContractError> {
-    let mut proposal = PROPOSALS.load(deps.storage, proposal_id)?;
-
     if proposal.status != ProposalStatus::Active {
         return Err(ContractError::ProposalNotActive {});
     }
@@ -254,14 +325,8 @@ pub fn cast_vote(
         return Err(ContractError::VotingPeriodEnded {});
     }
 
-    if PROPOSAL_VOTERS.has(deps.storage, (proposal_id, info.sender.to_string())) {
+    if PROPOSAL_VOTERS.has(storage, (proposal_id, voter.clone())) {
         return Err(ContractError::UserAlreadyVoted {});
-    }
-
-    let voting_power = calc_voting_power(deps.as_ref(), info.sender.to_string(), &proposal)?;
-
-    if voting_power.is_zero() {
-        return Err(ContractError::NoVotingPower {});
     }
 
     match vote_option {
@@ -272,18 +337,14 @@ pub fn cast_vote(
             proposal.against_power = proposal.against_power.checked_add(voting_power)?;
         }
     };
-    PROPOSAL_VOTERS.save(
-        deps.storage,
-        (proposal_id, info.sender.to_string()),
-        &vote_option,
-    )?;
+    PROPOSAL_VOTERS.save(storage, (proposal_id, voter.clone()), &vote_option)?;
 
-    PROPOSALS.save(deps.storage, proposal_id, &proposal)?;
+    PROPOSALS.save(storage, proposal_id, &proposal)?;
 
     Ok(Response::new().add_attributes(vec![
         attr("action", "cast_vote"),
         attr("proposal_id", proposal_id.to_string()),
-        attr("voter", &info.sender),
+        attr("voter", &voter),
         attr("vote", vote_option.to_string()),
         attr("voting_power", voting_power),
     ]))
@@ -479,7 +540,7 @@ pub fn update_config(
     }
 
     if let Some(proposal_required_deposit) = updated_config.proposal_required_deposit {
-        config.proposal_required_deposit = Uint128::from(proposal_required_deposit);
+        config.proposal_required_deposit = proposal_required_deposit;
         attrs.push(attr(
             "new_proposal_required_deposit",
             proposal_required_deposit.to_string(),
@@ -487,18 +548,18 @@ pub fn update_config(
     }
 
     if let Some(proposal_required_quorum) = updated_config.proposal_required_quorum {
-        config.proposal_required_quorum = Decimal::from_str(&proposal_required_quorum)?;
+        config.proposal_required_quorum = proposal_required_quorum;
         attrs.push(attr(
             "new_proposal_required_quorum",
-            proposal_required_quorum,
+            proposal_required_quorum.to_string(),
         ));
     }
 
     if let Some(proposal_required_threshold) = updated_config.proposal_required_threshold {
-        config.proposal_required_threshold = Decimal::from_str(&proposal_required_threshold)?;
+        config.proposal_required_threshold = proposal_required_threshold;
         attrs.push(attr(
             "new_proposal_required_threshold",
-            proposal_required_threshold,
+            proposal_required_threshold.to_string(),
         ));
     }
 
@@ -528,6 +589,22 @@ pub fn update_config(
         if config.whitelisted_links.is_empty() {
             return Err(ContractError::WhitelistEmpty {});
         }
+    }
+
+    if let Some(vxastro) = updated_config.vxastro {
+        let emissions_controller = deps
+            .querier
+            .query_wasm_smart::<voting_escrow::Config>(
+                &vxastro,
+                &voting_escrow::QueryMsg::Config {},
+            )?
+            .emissions_controller;
+
+        config.emissions_controller = Some(Addr::unchecked(&emissions_controller));
+        config.vxastro_contract = Some(Addr::unchecked(&vxastro));
+
+        attrs.push(attr("new_emissions_controller", emissions_controller));
+        attrs.push(attr("new_vxastro_contract", vxastro));
     }
 
     #[cfg(not(feature = "testnet"))]

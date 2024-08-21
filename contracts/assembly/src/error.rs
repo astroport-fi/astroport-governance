@@ -67,4 +67,7 @@ pub enum ContractError {
 
     #[error("{0}")]
     PaymentError(#[from] PaymentError),
+
+    #[error("Failed to migrate contract")]
+    MigrationError {},
 }

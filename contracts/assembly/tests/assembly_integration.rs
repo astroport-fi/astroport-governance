@@ -636,6 +636,7 @@ fn test_update_config() {
                 proposal_required_threshold: None,
                 whitelist_remove: None,
                 whitelist_add: None,
+                vxastro: None,
             })),
             &[],
         )
@@ -651,11 +652,12 @@ fn test_update_config() {
         proposal_voting_period: Some(*VOTING_PERIOD_INTERVAL.end()),
         proposal_effective_delay: Some(*DELAY_INTERVAL.end()),
         proposal_expiration_period: Some(*EXPIRATION_PERIOD_INTERVAL.end()),
-        proposal_required_deposit: Some(*DEPOSIT_INTERVAL.end()),
-        proposal_required_quorum: Some("0.5".to_string()),
-        proposal_required_threshold: Some("0.5".to_string()),
+        proposal_required_deposit: Some((*DEPOSIT_INTERVAL.end()).into()),
+        proposal_required_quorum: Some(Decimal::percent(50)),
+        proposal_required_threshold: Some(Decimal::percent(50)),
         whitelist_remove: Some(vec!["https://some.link/".to_string()]),
         whitelist_add: Some(vec!["https://another.link/".to_string()]),
+        vxastro: None,
     };
 
     helper
@@ -716,10 +718,12 @@ fn test_voting_power() {
     struct TestBalance {
         xastro: u128,
         builder_allocation: u128,
+        vxastro: u128,
     }
 
     let mut total_xastro = 0u128;
     let mut total_builder_allocation = 0u128;
+    let mut total_vxastro = 0u128;
 
     let users_num = 100;
     let balances: HashMap<Addr, TestBalance> = (1..=users_num)
@@ -728,14 +732,19 @@ fn test_voting_power() {
             let balances = TestBalance {
                 xastro: i * 1_000000,
                 builder_allocation: if i % 2 == 0 { i * 1_000000 } else { 0 },
+                vxastro: if i % 2 == 1 { i * 1_000000 } else { 0 },
             };
             helper.get_xastro(&user, balances.xastro);
             if balances.builder_allocation > 0 {
                 helper.create_builder_allocation(&user, balances.builder_allocation);
             }
+            if balances.vxastro > 0 {
+                helper.get_vxastro(&user, balances.vxastro);
+            }
 
             total_xastro += balances.xastro;
             total_builder_allocation += balances.builder_allocation;
+            total_vxastro += balances.vxastro;
 
             (user, balances)
         })
@@ -752,14 +761,14 @@ fn test_voting_power() {
     let proposal = helper.proposal(1);
     assert_eq!(
         proposal.total_voting_power.u128(),
-        total_xastro + total_builder_allocation + 1001
+        total_xastro + total_builder_allocation + total_vxastro + 1001
     );
 
     // First 40 users vote against the proposal
     let mut against_power = 0u128;
     balances.iter().take(40).for_each(|(addr, balances)| {
         helper.next_block(100);
-        against_power += balances.xastro + balances.builder_allocation;
+        against_power += balances.xastro + balances.builder_allocation + balances.vxastro;
         helper
             .cast_vote(1, addr, ProposalVoteOption::Against)
             .unwrap();
@@ -776,7 +785,7 @@ fn test_voting_power() {
         .take(40)
         .for_each(|(addr, balances)| {
             helper.next_block(100);
-            for_power += balances.xastro + balances.builder_allocation;
+            for_power += balances.xastro + balances.builder_allocation + balances.vxastro;
             helper.cast_vote(1, addr, ProposalVoteOption::For).unwrap();
         });
 
@@ -787,7 +796,7 @@ fn test_voting_power() {
     let proposal = helper.proposal(1);
     assert_eq!(
         proposal.total_voting_power.u128(),
-        total_xastro + total_builder_allocation + 1001
+        total_xastro + total_builder_allocation + total_vxastro + 1001
     );
 
     helper.next_block_height(PROPOSAL_VOTING_PERIOD);
@@ -798,7 +807,7 @@ fn test_voting_power() {
 
     assert_eq!(
         proposal.total_voting_power.u128(),
-        total_xastro + total_builder_allocation + 1001
+        total_xastro + total_builder_allocation + total_vxastro + 1001
     );
     assert_eq!(proposal.submitter, submitter.clone());
     assert_eq!(proposal.status, ProposalStatus::Passed);
@@ -935,7 +944,6 @@ fn test_execute_multisig() {
         .unwrap();
 
     let messages: Vec<_> = (0..5)
-        .into_iter()
         .map(|_| wasm_execute(&noop_addr, &Empty {}, vec![]).unwrap().into())
         .collect();
 

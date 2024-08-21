@@ -1,6 +1,6 @@
 [package]
 name = "astro-assembly"
-version = "2.0.0"
+version = "3.0.0"
 authors = ["Astroport"]
 edition = "2021"
 description = "Astroport DAO Contract"
@@ -23,16 +23,16 @@ cw-storage-plus.workspace = true
 thiserror.workspace = true
 cosmwasm-schema.workspace = true
 cw-utils.workspace = true
-astroport-governance = { path = "../../packages/astroport-governance", version = "3" }
-astroport = { git = "https://github.com/astroport-fi/astroport-core", version = "4", branch = "feat/astroport_v4" }
-astro-satellite = { git = "https://github.com/astroport-fi/astroport_ibc", features = ["library"], version = "1.2.0" }
+astroport-governance = { path = "../../packages/astroport-governance", version = "4.0.0" }
+astroport = "4"
 ibc-controller-package = "1.0.0"
 
 [dev-dependencies]
 cw-multi-test = { git = "https://github.com/astroport-fi/cw-multi-test", branch = "feat/bank_with_send_hooks", features = ["cosmwasm_1_1"] }
-osmosis-std = "0.21"
-astroport-staking = { git = "https://github.com/astroport-fi/astroport-core", version = "2", branch = "feat/astroport_v4" }
-astroport-tokenfactory-tracker = { git = "https://github.com/astroport-fi/astroport-core", version = "1", branch = "feat/astroport_v4" }
-builder-unlock = { path = "../builder_unlock", version = "3" }
+osmosis-std = "0.25.0"
+astroport-staking = "2.1"
+astroport-tokenfactory-tracker = { version = "1", features = ["library"] }
+astroport-voting-escrow = { path = "../voting_escrow", version = "1.0.0", features = ["library"] }
+builder-unlock = { version = "3", features = ["library"] }
 anyhow = "1"
 test-case = "3.3.1"
