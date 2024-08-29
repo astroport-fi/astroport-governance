@@ -3,8 +3,6 @@ use cw_utils::{ParseReplyError, PaymentError};
 use neutron_sdk::NeutronError;
 use thiserror::Error;
 
-use astroport_governance::emissions_controller::consts::MAX_POOLS_TO_VOTE;
-
 /// This enum describes contract errors
 #[derive(Error, Debug, PartialEq)]
 pub enum ContractError {
@@ -64,9 +62,6 @@ pub enum ContractError {
 
     #[error("Failed to determine outpost for pool {0}")]
     NoOutpostForPool(String),
-
-    #[error("You can vote maximum for {MAX_POOLS_TO_VOTE} pools")]
-    ExceededMaxPoolsToVote {},
 
     #[error("Message contains duplicated pools")]
     DuplicatedVotes {},

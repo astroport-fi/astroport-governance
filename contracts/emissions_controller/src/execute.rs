@@ -16,7 +16,7 @@ use neutron_sdk::bindings::msg::NeutronMsg;
 use neutron_sdk::bindings::query::NeutronQuery;
 
 use astroport_governance::emissions_controller::consts::{
-    EPOCH_LENGTH, IBC_TIMEOUT, MAX_POOLS_TO_VOTE, VOTE_COOLDOWN,
+    EPOCH_LENGTH, IBC_TIMEOUT, VOTE_COOLDOWN,
 };
 use astroport_governance::emissions_controller::hub::{
     AstroPoolConfig, HubMsg, OutpostInfo, OutpostParams, OutpostStatus, TuneInfo, UserInfo,
@@ -52,10 +52,6 @@ pub fn execute(
             ensure!(
                 votes.len() == votes_map.len(),
                 ContractError::DuplicatedVotes {}
-            );
-            ensure!(
-                votes_map.len() <= MAX_POOLS_TO_VOTE,
-                ContractError::ExceededMaxPoolsToVote {}
             );
             let deps = deps.into_empty();
             let config = CONFIG.load(deps.storage)?;

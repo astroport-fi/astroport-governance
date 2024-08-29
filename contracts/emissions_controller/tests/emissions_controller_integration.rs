@@ -87,24 +87,6 @@ pub fn voting_test() {
         ContractError::InvalidTotalWeight {}
     );
 
-    let err = helper
-        .vote(
-            &user,
-            &[
-                (lp_token1.to_string(), Decimal::raw(1)),
-                (lp_token2.to_string(), Decimal::raw(1)),
-                ("lp_token3".to_string(), Decimal::raw(1)),
-                ("lp_token4".to_string(), Decimal::raw(1)),
-                ("lp_token5".to_string(), Decimal::raw(1)),
-                ("lp_token6".to_string(), Decimal::raw(1)),
-            ],
-        )
-        .unwrap_err();
-    assert_eq!(
-        err.downcast::<ContractError>().unwrap(),
-        ContractError::ExceededMaxPoolsToVote {}
-    );
-
     helper
         .vote(&user, &[(lp_token1.to_string(), Decimal::one())])
         .unwrap();
