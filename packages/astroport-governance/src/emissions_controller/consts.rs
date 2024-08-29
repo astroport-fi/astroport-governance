@@ -17,8 +17,6 @@ pub const POOL_NUMBER_LIMIT: RangeInclusive<u64> = 1..=10;
 pub const MAX_POOLS_TO_VOTE: usize = 5;
 /// Max items per page in queries
 pub const MAX_PAGE_LIMIT: u8 = 50;
-/// User can vote once every 10 days
-pub const VOTE_COOLDOWN: u64 = DAY * 10;
 /// vxASTRO IBC version
 pub const IBC_APP_VERSION: &str = "vxastro-ibc-v1";
 /// IBC ordering

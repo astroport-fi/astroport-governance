@@ -386,7 +386,10 @@ mod unit_tests {
         POOLS_WHITELIST
             .save(deps.as_mut().storage, &vec!["osmo1pool1".to_string()])
             .unwrap();
-        let env = mock_env();
+
+        let mut env = mock_env();
+        env.block.time = Timestamp::from_seconds(1724922008);
+
         VOTED_POOLS
             .save(
                 deps.as_mut().storage,
@@ -404,12 +407,12 @@ mod unit_tests {
         let ack_err: IbcAckResult = from_json(resp.acknowledgement).unwrap();
         assert_eq!(ack_err, IbcAckResult::Ok(b"ok".into()));
 
-        // The same user has voting cooldown for 10 days
+        // The same user can only vote at the next epoch
         let resp = ibc_packet_receive(deps.as_mut().into_empty(), env.clone(), ibc_msg).unwrap();
         let ack_err: IbcAckResult = from_json(resp.acknowledgement).unwrap();
         assert_eq!(
             ack_err,
-            IbcAckResult::Error("Next time you can change your vote is at 1572661419".to_string())
+            IbcAckResult::Error("Next time you can change your vote is at 1725840000".to_string())
         );
 
         // Voting from random channel is not possible

@@ -1,18 +1,17 @@
-use astroport::asset::AssetInfo;
-use astroport::common::LP_SUBDENOM;
-use astroport::incentives::RewardType;
+use std::collections::HashMap;
+use std::str::FromStr;
+
+use astroport::{asset::AssetInfo, common::LP_SUBDENOM, incentives::RewardType};
 use cosmwasm_std::{coin, coins, Decimal, Decimal256, Empty, Event, Uint128};
 use cw_multi_test::Executor;
 use cw_utils::PaymentError;
 use itertools::Itertools;
 use neutron_sdk::sudo::msg::{RequestPacket, TransferSudoMsg};
-use std::collections::HashMap;
-use std::str::FromStr;
 
 use astroport_emissions_controller::error::ContractError;
 use astroport_emissions_controller::utils::get_epoch_start;
 use astroport_governance::assembly::{ProposalVoteOption, ProposalVoterResponse};
-use astroport_governance::emissions_controller::consts::{DAY, EPOCH_LENGTH, VOTE_COOLDOWN};
+use astroport_governance::emissions_controller::consts::{DAY, EPOCH_LENGTH};
 use astroport_governance::emissions_controller::hub::{
     AstroPoolConfig, EmissionsState, HubMsg, OutpostInfo, OutpostParams, OutpostStatus, TuneInfo,
     UserInfoResponse,
@@ -101,12 +100,13 @@ pub fn voting_test() {
 
     helper.timetravel(1);
     let block_time = helper.app.block_info().time.seconds();
+    let epoch_start = get_epoch_start(block_time);
     assert_eq!(
         err.downcast::<ContractError>().unwrap(),
-        ContractError::VoteCooldown(block_time + VOTE_COOLDOWN - 1)
+        ContractError::VoteCooldown(epoch_start + EPOCH_LENGTH)
     );
 
-    helper.timetravel(VOTE_COOLDOWN + 1);
+    helper.timetravel(epoch_start + EPOCH_LENGTH);
     helper
         .vote(
             &user,
@@ -376,7 +376,7 @@ fn test_outpost_management() {
         .unwrap();
 
     // Whitelist astro pool on Osmosis before marking it as ASTRO pool with flat emissions
-    let osmosis_astro_pool = format!("factory/osmo1pool/{LP_SUBDENOM}");
+    let osmosis_astro_pool = format!("factory/osmo1pool/{}", LP_SUBDENOM);
     helper
         .mint_tokens(&user, &[helper.whitelisting_fee.clone()])
         .unwrap();

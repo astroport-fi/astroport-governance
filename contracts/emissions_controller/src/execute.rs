@@ -15,9 +15,7 @@ use itertools::Itertools;
 use neutron_sdk::bindings::msg::NeutronMsg;
 use neutron_sdk::bindings::query::NeutronQuery;
 
-use astroport_governance::emissions_controller::consts::{
-    EPOCH_LENGTH, IBC_TIMEOUT, VOTE_COOLDOWN,
-};
+use astroport_governance::emissions_controller::consts::{EPOCH_LENGTH, IBC_TIMEOUT};
 use astroport_governance::emissions_controller::hub::{
     AstroPoolConfig, HubMsg, OutpostInfo, OutpostParams, OutpostStatus, TuneInfo, UserInfo,
     VotedPoolInfo,
@@ -411,7 +409,7 @@ pub fn retry_failed_outposts(
 }
 
 /// The function checks that:
-/// * user didn't vote for the last 10 days,
+/// * user didn't vote at the current epoch,
 /// * sum of all percentage values <= 1.
 /// User can direct his voting power partially.
 ///
@@ -430,10 +428,12 @@ pub fn handle_vote(
 ) -> Result<Response<NeutronMsg>, ContractError> {
     let user_info = USER_INFO.may_load(deps.storage, voter)?.unwrap_or_default();
     let block_ts = env.block.time.seconds();
-    // Is the user eligible to vote again?
+
+    let epoch_start = get_epoch_start(block_ts);
+    // User can vote once per epoch
     ensure!(
-        user_info.vote_ts + VOTE_COOLDOWN <= block_ts,
-        ContractError::VoteCooldown(user_info.vote_ts + VOTE_COOLDOWN)
+        user_info.vote_ts < epoch_start,
+        ContractError::VoteCooldown(epoch_start + EPOCH_LENGTH)
     );
 
     let mut total_weight = Decimal::zero();
