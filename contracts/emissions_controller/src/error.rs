@@ -74,4 +74,7 @@ pub enum ContractError {
 
     #[error("Can't set zero emissions for astro pool")]
     ZeroAstroEmissions {},
+
+    #[error("Failed to migrate contract")]
+    MigrationError {},
 }
