@@ -19,7 +19,8 @@ If the pool is located on the Hub contract also checks, this LP token correspond
 ## Voting
 
 Users are required to have vxASTRO to cast their votes.
-They can vote for up to five whitelisted pools at once every 10 days.
+They can vote for whitelisted pools at once every epoch.
+Vote changes are not allowed after votes are cast.
 After voting, they can't change their votes until the cooldown period ends.
 Executable message accepts an array of tuples with LP token and vote weight.
 Vote weight is a number between 0 and 1. Total vote weight can't exceed 1.
