@@ -142,6 +142,20 @@
         }
       },
       "additionalProperties": false
+    },
+    {
+      "description": "Return the list of addresses that are allowed to instantly unlock xASTRO",
+      "type": "object",
+      "required": [
+        "privileged_list"
+      ],
+      "properties": {
+        "privileged_list": {
+          "type": "object",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
     }
   ]
 }

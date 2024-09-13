@@ -380,6 +380,30 @@ impl ControllerHelper {
         )
     }
 
+    pub fn instant_unlock(&mut self, user: &Addr, amount: u128) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            user.clone(),
+            self.vxastro.clone(),
+            &voting_escrow::ExecuteMsg::InstantUnlock {
+                amount: amount.into(),
+            },
+            &[],
+        )
+    }
+
+    pub fn set_privileged_list(
+        &mut self,
+        sender: &Addr,
+        list: Vec<String>,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            sender.clone(),
+            self.vxastro.clone(),
+            &voting_escrow::ExecuteMsg::SetPrivilegedList { list },
+            &[],
+        )
+    }
+
     pub fn relock(&mut self, user: &Addr) -> AnyResult<AppResponse> {
         self.app.execute_contract(
             user.clone(),
@@ -408,6 +432,13 @@ impl ControllerHelper {
                 user: user.to_string(),
                 timestamp,
             },
+        )
+    }
+
+    pub fn total_vp(&self, timestamp: Option<u64>) -> StdResult<Uint128> {
+        self.app.wrap().query_wasm_smart(
+            &self.vxastro,
+            &voting_escrow::QueryMsg::TotalVotingPower { timestamp },
         )
     }
 

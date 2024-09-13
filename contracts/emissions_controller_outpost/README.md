@@ -3,7 +3,8 @@
 The Emissions Controller Outpost is a lightweight satellite for the main Emissions Controller located on the Hub.
 For the vxASTRO staker perspective, this contract has the same API as the main Emissions Controller.
 However, Outpost can't perform fine-grained sanity checks for voted LP tokens.
-Same restrictions as on the Hub are applied, like voting every 10 days for up to 5 pools at once.
+Users can vote up to five pools only once per epoch.
+Once votes are cast they can't be changed until the next epoch.
 The contract composes a special internal IBC message to the Hub with the user's vote.
 If sanity checks passed on the Hub, the vote is accepted.
 In case of IBC failure or timeouts, the user can try to vote again.

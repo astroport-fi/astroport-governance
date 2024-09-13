@@ -4,6 +4,7 @@ pub mod state;
 pub mod error;
 pub mod ibc;
 pub mod instantiate;
+pub mod migration;
 pub mod query;
 pub mod sudo;
 pub mod utils;

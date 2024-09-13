@@ -46,7 +46,6 @@ fn mock_emissions_controller() -> Box<dyn Contract<Empty>> {
 pub struct EscrowHelper {
     pub app: BasicApp,
     pub owner: Addr,
-    pub xastro_denom: String,
     pub vxastro_contract: Addr,
     pub emissions_controller: Addr,
 }
@@ -91,7 +90,6 @@ impl EscrowHelper {
         Self {
             app,
             owner,
-            xastro_denom: xastro_denom.to_string(),
             vxastro_contract,
             emissions_controller: mocked_emission_controller,
         }

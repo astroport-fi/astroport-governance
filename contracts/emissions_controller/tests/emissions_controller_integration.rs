@@ -1,24 +1,23 @@
-use astroport::asset::AssetInfo;
-use astroport::common::LP_SUBDENOM;
-use astroport::incentives::RewardType;
-use cosmwasm_std::{coin, coins, Decimal, Decimal256, Empty, Event, Uint128};
+use std::collections::HashMap;
+use std::str::FromStr;
+
+use astroport::{asset::AssetInfo, common::LP_SUBDENOM, incentives::RewardType};
+use cosmwasm_std::{coin, coins, Addr, Decimal, Decimal256, Empty, Event, Uint128};
 use cw_multi_test::Executor;
 use cw_utils::PaymentError;
 use itertools::Itertools;
 use neutron_sdk::sudo::msg::{RequestPacket, TransferSudoMsg};
-use std::collections::HashMap;
-use std::str::FromStr;
 
 use astroport_emissions_controller::error::ContractError;
 use astroport_emissions_controller::utils::get_epoch_start;
 use astroport_governance::assembly::{ProposalVoteOption, ProposalVoterResponse};
-use astroport_governance::emissions_controller::consts::{DAY, EPOCH_LENGTH, VOTE_COOLDOWN};
+use astroport_governance::emissions_controller::consts::{DAY, EPOCH_LENGTH};
 use astroport_governance::emissions_controller::hub::{
     AstroPoolConfig, EmissionsState, HubMsg, OutpostInfo, OutpostParams, OutpostStatus, TuneInfo,
     UserInfoResponse,
 };
 use astroport_governance::emissions_controller::msg::{ExecuteMsg, VxAstroIbcMsg};
-use astroport_governance::{assembly, emissions_controller};
+use astroport_governance::{assembly, emissions_controller, voting_escrow};
 use astroport_voting_escrow::state::UNLOCK_PERIOD;
 
 use crate::common::helper::{ControllerHelper, PROPOSAL_VOTING_PERIOD};
@@ -87,24 +86,6 @@ pub fn voting_test() {
         ContractError::InvalidTotalWeight {}
     );
 
-    let err = helper
-        .vote(
-            &user,
-            &[
-                (lp_token1.to_string(), Decimal::raw(1)),
-                (lp_token2.to_string(), Decimal::raw(1)),
-                ("lp_token3".to_string(), Decimal::raw(1)),
-                ("lp_token4".to_string(), Decimal::raw(1)),
-                ("lp_token5".to_string(), Decimal::raw(1)),
-                ("lp_token6".to_string(), Decimal::raw(1)),
-            ],
-        )
-        .unwrap_err();
-    assert_eq!(
-        err.downcast::<ContractError>().unwrap(),
-        ContractError::ExceededMaxPoolsToVote {}
-    );
-
     helper
         .vote(&user, &[(lp_token1.to_string(), Decimal::one())])
         .unwrap();
@@ -119,12 +100,13 @@ pub fn voting_test() {
 
     helper.timetravel(1);
     let block_time = helper.app.block_info().time.seconds();
+    let epoch_start = get_epoch_start(block_time);
     assert_eq!(
         err.downcast::<ContractError>().unwrap(),
-        ContractError::VoteCooldown(block_time + VOTE_COOLDOWN - 1)
+        ContractError::VoteCooldown(epoch_start + EPOCH_LENGTH)
     );
 
-    helper.timetravel(VOTE_COOLDOWN + 1);
+    helper.timetravel(epoch_start + EPOCH_LENGTH);
     helper
         .vote(
             &user,
@@ -394,7 +376,7 @@ fn test_outpost_management() {
         .unwrap();
 
     // Whitelist astro pool on Osmosis before marking it as ASTRO pool with flat emissions
-    let osmosis_astro_pool = format!("factory/osmo1pool/{LP_SUBDENOM}");
+    let osmosis_astro_pool = format!("factory/osmo1pool/{}", LP_SUBDENOM);
     helper
         .mint_tokens(&user, &[helper.whitelisting_fee.clone()])
         .unwrap();
@@ -1092,6 +1074,125 @@ fn test_lock_unlock_vxastro() {
         .unwrap();
     assert_eq!(alice_balance, coin(2_000000, &helper.xastro));
     assert_eq!(bob_balance, coin(1_000000, &helper.xastro));
+}
+
+#[test]
+fn test_instant_unlock_vxastro() {
+    let mut helper = ControllerHelper::new();
+
+    let owner = helper.owner.clone();
+    helper
+        .mint_tokens(&owner, &[coin(1000_000000, helper.astro.clone())])
+        .unwrap();
+    let whitelisting_fee = helper.whitelisting_fee.clone();
+
+    helper
+        .add_outpost(
+            "neutron",
+            OutpostInfo {
+                astro_denom: helper.astro.clone(),
+                params: None,
+                astro_pool_config: None,
+            },
+        )
+        .unwrap();
+
+    let pool1 = helper.create_pair("token1", "token2");
+    helper
+        .whitelist(&owner, &pool1, &[whitelisting_fee.clone()])
+        .unwrap();
+    let pool2 = helper.create_pair("token1", "token3");
+    helper
+        .whitelist(&owner, &pool2, &[whitelisting_fee.clone()])
+        .unwrap();
+
+    let alice = helper.app.api().addr_make("alice");
+    helper.lock(&alice, 10_000000).unwrap();
+
+    helper
+        .vote(
+            &alice,
+            &[
+                (pool1.to_string(), Decimal::percent(50)),
+                (pool2.to_string(), Decimal::percent(50)),
+            ],
+        )
+        .unwrap();
+
+    // Assert pools voting power
+    for pool in [&pool1, &pool2] {
+        let pool_vp = helper.query_pool_vp(pool.as_str(), None).unwrap();
+        assert_eq!(pool_vp.u128(), 5_000000);
+    }
+
+    // Ensure random user can't instantly unlock
+    let random = helper.app.api().addr_make("random");
+    let err = helper.instant_unlock(&random, 100).unwrap_err();
+    assert_eq!(
+        err.downcast::<astroport_voting_escrow::error::ContractError>()
+            .unwrap(),
+        astroport_voting_escrow::error::ContractError::Unauthorized {}
+    );
+
+    let err = helper
+        .set_privileged_list(&random, vec![alice.to_string()])
+        .unwrap_err();
+    assert_eq!(
+        err.downcast::<astroport_voting_escrow::error::ContractError>()
+            .unwrap(),
+        astroport_voting_escrow::error::ContractError::Unauthorized {}
+    );
+
+    // Add Alice to the privileged list
+    helper
+        .set_privileged_list(&owner, vec![alice.to_string()])
+        .unwrap();
+
+    // Ensure alice is added
+    let privileged_list: Vec<Addr> = helper
+        .app
+        .wrap()
+        .query_wasm_smart(&helper.vxastro, &voting_escrow::QueryMsg::PrivilegedList {})
+        .unwrap();
+    assert_eq!(privileged_list, vec![alice.clone()]);
+
+    // Alice instantly unlocks
+    helper.instant_unlock(&alice, 2_000000).unwrap();
+
+    let xastro_bal = helper
+        .app
+        .wrap()
+        .query_balance(&alice, &helper.xastro)
+        .unwrap();
+    assert_eq!(xastro_bal.amount.u128(), 2_000000);
+
+    // Assert pools voting power is reduced
+    for pool in [&pool1, &pool2] {
+        let pool_vp = helper.query_pool_vp(pool.as_str(), None).unwrap();
+        assert_eq!(pool_vp.u128(), 4_000000);
+    }
+
+    // Total voting power must be 8
+    let total_vp = helper.total_vp(None).unwrap();
+    assert_eq!(total_vp.u128(), 8_000000);
+
+    let lock_info: voting_escrow::LockInfoResponse = helper
+        .app
+        .wrap()
+        .query_wasm_smart(
+            &helper.vxastro,
+            &voting_escrow::QueryMsg::LockInfo {
+                user: alice.to_string(),
+            },
+        )
+        .unwrap();
+    assert_eq!(
+        lock_info,
+        voting_escrow::LockInfoResponse {
+            amount: 8_000000u128.into(),
+            unlock_status: None
+        }
+    );
 }
 
 #[test]

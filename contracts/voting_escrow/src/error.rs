@@ -1,4 +1,4 @@
-use cosmwasm_std::StdError;
+use cosmwasm_std::{OverflowError, StdError};
 use cw20_base::ContractError as CW20Error;
 use cw_utils::PaymentError;
 use thiserror::Error;
@@ -11,6 +11,9 @@ pub enum ContractError {
 
     #[error("{0}")]
     PaymentError(#[from] PaymentError),
+
+    #[error("{0}")]
+    OverflowError(#[from] OverflowError),
 
     #[error("{0}")]
     Cw20Base(#[from] CW20Error),
@@ -32,4 +35,7 @@ pub enum ContractError {
 
     #[error("Hub has not yet confirmed the unlock")]
     HubNotConfirmed {},
+
+    #[error("Failed to migrate contract")]
+    MigrationError {},
 }

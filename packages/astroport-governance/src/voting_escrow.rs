@@ -33,6 +33,10 @@ pub enum ExecuteMsg {
     Lock { receiver: Option<String> },
     /// Unlock xASTRO from the vxASTRO contract
     Unlock {},
+    /// Instantly unlock xASTRO from the vxASTRO contract without waiting period.
+    /// Only privileged addresses can call this.
+    /// NOTE: due to async nature of IBC this feature will be enabled only on the hub.
+    InstantUnlock { amount: Uint128 },
     /// Cancel unlocking
     Relock {},
     /// Permissioned to the Emissions Controller contract.
@@ -46,6 +50,10 @@ pub enum ExecuteMsg {
     ForceRelock { user: String },
     /// Withdraw xASTRO from the vxASTRO contract
     Withdraw {},
+    /// Set the list of addresses that allowed to instantly unlock xASTRO.
+    /// Only contract owner can call this.
+    /// NOTE: due to async nature of IBC this feature will be enabled only on the hub.
+    SetPrivilegedList { list: Vec<String> },
     /// Update the marketing info for the vxASTRO contract
     UpdateMarketing {
         /// A URL pointing to the project behind this token
@@ -85,6 +93,9 @@ pub enum QueryMsg {
     /// Return the vxASTRO contract configuration
     #[returns(Config)]
     Config {},
+    /// Return the list of addresses that are allowed to instantly unlock xASTRO
+    #[returns(Vec<Addr>)]
+    PrivilegedList {},
 }
 
 /// This structure stores the main parameters for the voting escrow contract.
