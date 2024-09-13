@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::str::FromStr;
 
 use astroport::{asset::AssetInfo, common::LP_SUBDENOM, incentives::RewardType};
-use cosmwasm_std::{coin, coins, Decimal, Decimal256, Empty, Event, Uint128};
+use cosmwasm_std::{coin, coins, Addr, Decimal, Decimal256, Empty, Event, Uint128};
 use cw_multi_test::Executor;
 use cw_utils::PaymentError;
 use itertools::Itertools;
@@ -17,7 +17,7 @@ use astroport_governance::emissions_controller::hub::{
     UserInfoResponse,
 };
 use astroport_governance::emissions_controller::msg::{ExecuteMsg, VxAstroIbcMsg};
-use astroport_governance::{assembly, emissions_controller};
+use astroport_governance::{assembly, emissions_controller, voting_escrow};
 use astroport_voting_escrow::state::UNLOCK_PERIOD;
 
 use crate::common::helper::{ControllerHelper, PROPOSAL_VOTING_PERIOD};
@@ -1074,6 +1074,121 @@ fn test_lock_unlock_vxastro() {
         .unwrap();
     assert_eq!(alice_balance, coin(2_000000, &helper.xastro));
     assert_eq!(bob_balance, coin(1_000000, &helper.xastro));
+}
+
+#[test]
+fn test_instant_unlock_vxastro() {
+    let mut helper = ControllerHelper::new();
+
+    let owner = helper.owner.clone();
+    helper
+        .mint_tokens(&owner, &[coin(1000_000000, helper.astro.clone())])
+        .unwrap();
+    let whitelisting_fee = helper.whitelisting_fee.clone();
+
+    helper
+        .add_outpost(
+            "neutron",
+            OutpostInfo {
+                astro_denom: helper.astro.clone(),
+                params: None,
+                astro_pool_config: None,
+            },
+        )
+        .unwrap();
+
+    let pool1 = helper.create_pair("token1", "token2");
+    helper
+        .whitelist(&owner, &pool1, &[whitelisting_fee.clone()])
+        .unwrap();
+    let pool2 = helper.create_pair("token1", "token3");
+    helper
+        .whitelist(&owner, &pool2, &[whitelisting_fee.clone()])
+        .unwrap();
+
+    let alice = helper.app.api().addr_make("alice");
+    helper.lock(&alice, 4_000000).unwrap();
+
+    helper
+        .vote(
+            &alice,
+            &[
+                (pool1.to_string(), Decimal::percent(50)),
+                (pool2.to_string(), Decimal::percent(50)),
+            ],
+        )
+        .unwrap();
+
+    // Assert pools voting power
+    for pool in [&pool1, &pool2] {
+        let pool_vp = helper.query_pool_vp(pool.as_str(), None).unwrap();
+        assert_eq!(pool_vp.u128(), 2_000000);
+    }
+
+    // Ensure random user can't instantly unlock
+    let random = helper.app.api().addr_make("random");
+    let err = helper.instant_unlock(&random, 100).unwrap_err();
+    assert_eq!(
+        err.downcast::<astroport_voting_escrow::error::ContractError>()
+            .unwrap(),
+        astroport_voting_escrow::error::ContractError::Unauthorized {}
+    );
+
+    let err = helper
+        .set_privileged_list(&random, vec![alice.to_string()])
+        .unwrap_err();
+    assert_eq!(
+        err.downcast::<astroport_voting_escrow::error::ContractError>()
+            .unwrap(),
+        astroport_voting_escrow::error::ContractError::Unauthorized {}
+    );
+
+    // Add Alice to the privileged list
+    helper
+        .set_privileged_list(&owner, vec![alice.to_string()])
+        .unwrap();
+
+    // Ensure alice is added
+    let privileged_list: Vec<Addr> = helper
+        .app
+        .wrap()
+        .query_wasm_smart(&helper.vxastro, &voting_escrow::QueryMsg::PrivilegedList {})
+        .unwrap();
+    assert_eq!(privileged_list, vec![alice.clone()]);
+
+    // Alice instantly unlocks
+    helper.instant_unlock(&alice, 2_000000).unwrap();
+
+    let xastro_bal = helper
+        .app
+        .wrap()
+        .query_balance(&alice, &helper.xastro)
+        .unwrap();
+    assert_eq!(xastro_bal.amount.u128(), 2_000000);
+
+    // Assert pools voting power is reduced
+    for pool in [&pool1, &pool2] {
+        let pool_vp = helper.query_pool_vp(pool.as_str(), None).unwrap();
+        assert_eq!(pool_vp.u128(), 1_000000);
+    }
+
+    let lock_info: voting_escrow::LockInfoResponse = helper
+        .app
+        .wrap()
+        .query_wasm_smart(
+            &helper.vxastro,
+            &voting_escrow::QueryMsg::LockInfo {
+                user: alice.to_string(),
+            },
+        )
+        .unwrap();
+    assert_eq!(
+        lock_info,
+        voting_escrow::LockInfoResponse {
+            amount: 2_000000u128.into(),
+            unlock_status: None
+        }
+    );
 }
 
 #[test]

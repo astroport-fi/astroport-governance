@@ -2,8 +2,8 @@ use astroport::asset::{addr_opt_validate, validate_native_denom};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, coins, ensure, to_json_binary, wasm_execute, BankMsg, Binary, Deps, DepsMut, Empty, Env,
-    MessageInfo, Response, StdError, StdResult, Uint128,
+    attr, coins, ensure, ensure_eq, to_json_binary, wasm_execute, BankMsg, Binary, CosmosMsg, Deps,
+    DepsMut, Empty, Env, MessageInfo, Response, StdError, StdResult, Uint128,
 };
 use cw2::set_contract_version;
 use cw20::{BalanceResponse, Logo, LogoInfo, MarketingInfoResponse, TokenInfoResponse};
@@ -17,7 +17,7 @@ use astroport_governance::voting_escrow::{
 };
 
 use crate::error::ContractError;
-use crate::state::{get_total_vp, Lock, CONFIG};
+use crate::state::{get_total_vp, Lock, CONFIG, PRIVILEGED};
 
 /// Contract name that is used for migration.
 pub const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
@@ -73,6 +73,8 @@ pub fn instantiate(
     };
 
     TOKEN_INFO.save(deps.storage, &data)?;
+
+    PRIVILEGED.save(deps.storage, &vec![])?;
 
     Ok(Response::default())
 }
@@ -138,6 +140,44 @@ pub fn execute(
                     attr("unlock_time", unlock_time.to_string()),
                 ]))
         }
+        ExecuteMsg::InstantUnlock { amount } => {
+            let privileged = PRIVILEGED.load(deps.storage)?;
+            ensure!(
+                privileged.contains(&info.sender),
+                ContractError::Unauthorized {}
+            );
+
+            let mut position = Lock::load(deps.storage, env.block.time.seconds(), &info.sender)?;
+            position.instant_unlock(deps.storage, amount)?;
+
+            // Update user votes in emissions controller
+            let config = CONFIG.load(deps.storage)?;
+            let update_votes_msg: CosmosMsg = wasm_execute(
+                config.emissions_controller,
+                &emissions_controller::msg::ExecuteMsg::<Empty>::UpdateUserVotes {
+                    user: info.sender.to_string(),
+                    // In this context, we don't need confirmation from emissions controller
+                    // as xASTRO is instantly withdrawn
+                    is_unlock: false,
+                },
+                vec![],
+            )?
+            .into();
+
+            let send_msg: CosmosMsg = BankMsg::Send {
+                to_address: info.sender.to_string(),
+                amount: coins(amount.u128(), config.deposit_denom),
+            }
+            .into();
+
+            Ok(Response::default()
+                .add_messages([update_votes_msg, send_msg])
+                .add_attributes([
+                    attr("action", "instant_unlock"),
+                    attr("receiver", info.sender),
+                    attr("unlocked_amount", amount),
+                ]))
+        }
         ExecuteMsg::Relock {} => {
             let mut position = Lock::load(deps.storage, env.block.time.seconds(), &info.sender)?;
             position.relock(deps.storage)?;
@@ -201,6 +241,29 @@ pub fn execute(
                 attr("withdrawn_amount", amount),
             ]))
         }
+        ExecuteMsg::SetPrivilegedList { list } => {
+            let config = CONFIG.load(deps.storage)?;
+
+            // Query result deserialization into hub::Config
+            // ensures we can call this endpoint only on the Hub
+            let emissions_owner = deps
+                .querier
+                .query_wasm_smart::<emissions_controller::hub::Config>(
+                    &config.emissions_controller,
+                    &emissions_controller::hub::QueryMsg::Config {},
+                )?
+                .owner;
+            ensure_eq!(info.sender, emissions_owner, ContractError::Unauthorized {});
+
+            let privileged = list
+                .iter()
+                .map(|addr| deps.api.addr_validate(addr))
+                .collect::<StdResult<Vec<_>>>()?;
+
+            PRIVILEGED.save(deps.storage, &privileged)?;
+
+            Ok(Response::default().add_attribute("action", "set_privileged_list"))
+        }
         ExecuteMsg::UpdateMarketing {
             project,
             description,
@@ -235,6 +298,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         }
         QueryMsg::TokenInfo {} => to_json_binary(&query_token_info(deps, env)?),
         QueryMsg::MarketingInfo {} => to_json_binary(&query_marketing_info(deps)?),
+        QueryMsg::PrivilegedList {} => to_json_binary(&PRIVILEGED.load(deps.storage)?),
     }
 }
 

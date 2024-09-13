@@ -10,6 +10,8 @@ pub const UNLOCK_PERIOD: u64 = 86400 * 14; // 2 weeks
 
 /// Stores the contract config at the given key
 pub const CONFIG: Item<Config> = Item::new("config");
+/// Keeps the list of addresses that are allowed to instantly unlock xASTRO
+pub const PRIVILEGED: Item<Vec<Addr>> = Item::new("privileged");
 
 fn default_addr() -> Addr {
     Addr::unchecked("")
@@ -103,6 +105,22 @@ impl Lock {
         })?;
 
         Ok(end)
+    }
+
+    pub fn instant_unlock(
+        &mut self,
+        storage: &mut dyn Storage,
+        amount: Uint128,
+    ) -> Result<(), ContractError> {
+        self.amount = self.amount.checked_sub(amount)?;
+        LOCKED.save(storage, &self.user, self, self.block_time)?;
+
+        // Remove user's voting power from the total
+        TOTAL_POWER.update(storage, self.block_time, |total| -> StdResult<_> {
+            Ok(total.unwrap_or_default().checked_sub(self.amount)?)
+        })?;
+
+        Ok(())
     }
 
     pub fn confirm_unlock(&mut self, storage: &mut dyn Storage) -> StdResult<()> {

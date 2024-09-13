@@ -6,11 +6,11 @@ use cw_utils::PaymentError;
 
 use astroport_emissions_controller_outpost::error::ContractError;
 use astroport_governance::assembly::ProposalVoteOption;
-use astroport_governance::emissions_controller;
 use astroport_governance::emissions_controller::consts::{EPOCH_LENGTH, IBC_TIMEOUT};
 use astroport_governance::emissions_controller::msg::{ExecuteMsg, VxAstroIbcMsg};
 use astroport_governance::emissions_controller::outpost::UserIbcError;
 use astroport_governance::voting_escrow::LockInfoResponse;
+use astroport_governance::{emissions_controller, voting_escrow};
 use astroport_voting_escrow::state::UNLOCK_PERIOD;
 
 use crate::common::helper::{get_epoch_start, ControllerHelper};
@@ -488,6 +488,26 @@ fn test_voting() {
         err.downcast::<ContractError>().unwrap(),
         ContractError::Unauthorized {}
     );
+}
+
+#[test]
+fn test_privileged_list_disabled() {
+    let mut helper = ControllerHelper::new();
+    let owner = helper.owner.clone();
+    let user = helper.app.api().addr_make("user");
+
+    // Must fail to deserialize outpost controller Config into Hub's controller Config
+    helper
+        .app
+        .execute_contract(
+            owner.clone(),
+            helper.vxastro.clone(),
+            &voting_escrow::ExecuteMsg::SetPrivilegedList {
+                list: vec![user.to_string()],
+            },
+            &[],
+        )
+        .unwrap_err();
 }
 
 #[test]

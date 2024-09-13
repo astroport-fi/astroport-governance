@@ -380,6 +380,30 @@ impl ControllerHelper {
         )
     }
 
+    pub fn instant_unlock(&mut self, user: &Addr, amount: u128) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            user.clone(),
+            self.vxastro.clone(),
+            &voting_escrow::ExecuteMsg::InstantUnlock {
+                amount: amount.into(),
+            },
+            &[],
+        )
+    }
+
+    pub fn set_privileged_list(
+        &mut self,
+        sender: &Addr,
+        list: Vec<String>,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            sender.clone(),
+            self.vxastro.clone(),
+            &voting_escrow::ExecuteMsg::SetPrivilegedList { list },
+            &[],
+        )
+    }
+
     pub fn relock(&mut self, user: &Addr) -> AnyResult<AppResponse> {
         self.app.execute_contract(
             user.clone(),
