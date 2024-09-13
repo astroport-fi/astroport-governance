@@ -1107,7 +1107,7 @@ fn test_instant_unlock_vxastro() {
         .unwrap();
 
     let alice = helper.app.api().addr_make("alice");
-    helper.lock(&alice, 4_000000).unwrap();
+    helper.lock(&alice, 10_000000).unwrap();
 
     helper
         .vote(
@@ -1122,7 +1122,7 @@ fn test_instant_unlock_vxastro() {
     // Assert pools voting power
     for pool in [&pool1, &pool2] {
         let pool_vp = helper.query_pool_vp(pool.as_str(), None).unwrap();
-        assert_eq!(pool_vp.u128(), 2_000000);
+        assert_eq!(pool_vp.u128(), 5_000000);
     }
 
     // Ensure random user can't instantly unlock
@@ -1169,8 +1169,12 @@ fn test_instant_unlock_vxastro() {
     // Assert pools voting power is reduced
     for pool in [&pool1, &pool2] {
         let pool_vp = helper.query_pool_vp(pool.as_str(), None).unwrap();
-        assert_eq!(pool_vp.u128(), 1_000000);
+        assert_eq!(pool_vp.u128(), 4_000000);
     }
+
+    // Total voting power must be 8
+    let total_vp = helper.total_vp(None).unwrap();
+    assert_eq!(total_vp.u128(), 8_000000);
 
     let lock_info: voting_escrow::LockInfoResponse = helper
         .app
@@ -1185,7 +1189,7 @@ fn test_instant_unlock_vxastro() {
     assert_eq!(
         lock_info,
         voting_escrow::LockInfoResponse {
-            amount: 2_000000u128.into(),
+            amount: 8_000000u128.into(),
             unlock_status: None
         }
     );

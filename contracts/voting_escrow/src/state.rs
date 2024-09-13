@@ -115,9 +115,9 @@ impl Lock {
         self.amount = self.amount.checked_sub(amount)?;
         LOCKED.save(storage, &self.user, self, self.block_time)?;
 
-        // Remove user's voting power from the total
+        // Remove unlocked voting power from the total
         TOTAL_POWER.update(storage, self.block_time, |total| -> StdResult<_> {
-            Ok(total.unwrap_or_default().checked_sub(self.amount)?)
+            Ok(total.unwrap_or_default().checked_sub(amount)?)
         })?;
 
         Ok(())

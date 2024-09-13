@@ -435,6 +435,13 @@ impl ControllerHelper {
         )
     }
 
+    pub fn total_vp(&self, timestamp: Option<u64>) -> StdResult<Uint128> {
+        self.app.wrap().query_wasm_smart(
+            &self.vxastro,
+            &voting_escrow::QueryMsg::TotalVotingPower { timestamp },
+        )
+    }
+
     pub fn user_info(&self, user: &Addr, timestamp: Option<u64>) -> StdResult<UserInfoResponse> {
         self.app.wrap().query_wasm_smart(
             &self.emission_controller,
