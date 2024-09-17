@@ -47,6 +47,7 @@ pub fn voting_test() {
         astro_denom: helper.astro.clone(),
         params: None,
         astro_pool_config: None,
+        jailed: false,
     };
     helper.add_outpost("neutron", neutron).unwrap();
 
@@ -173,6 +174,7 @@ fn test_whitelist() {
             astro_pool: astro_pool.clone(),
             constant_emissions: Uint128::one(),
         }),
+        jailed: false,
     };
     helper.add_outpost("neutron", neutron).unwrap();
 
@@ -235,6 +237,7 @@ fn test_outpost_management() {
             astro_pool: "wasm1pool".to_string(),
             constant_emissions: Uint128::one(),
         }),
+        jailed: false,
     };
 
     let err = helper
@@ -306,6 +309,7 @@ fn test_outpost_management() {
             ics20_channel: "channel-2".to_string(),
         }),
         astro_pool_config: None,
+        jailed: false,
     };
 
     let err = helper.add_outpost("osmo", osmosis.clone()).unwrap_err();
@@ -345,7 +349,7 @@ fn test_outpost_management() {
     osmosis.params.as_mut().unwrap().emissions_controller = "osmo1controller".to_string();
     helper.add_outpost("osmo", osmosis.clone()).unwrap();
 
-    let outposts = helper
+    let mut outposts = helper
         .app
         .wrap()
         .query_wasm_smart::<Vec<(String, OutpostInfo)>>(
@@ -353,10 +357,11 @@ fn test_outpost_management() {
             &emissions_controller::hub::QueryMsg::ListOutposts {},
         )
         .unwrap();
+    outposts.sort_by(|a, b| a.0.cmp(&b.0));
     assert_eq!(
         outposts,
         vec![
-            ("neutron".to_string(), neutron),
+            ("neutron".to_string(), neutron.clone()),
             ("osmo".to_string(), osmosis.clone())
         ]
     );
@@ -411,14 +416,14 @@ fn test_outpost_management() {
     let whitelist = helper.query_whitelist().unwrap();
     assert_eq!(whitelist, vec![lp_token.to_string()]);
 
-    // Remove neutron outpost
+    // Jail neutron outpost
     let rand_user = helper.app.api().addr_make("random");
     let err = helper
         .app
         .execute_contract(
             rand_user,
             helper.emission_controller.clone(),
-            &ExecuteMsg::Custom(HubMsg::RemoveOutpost {
+            &ExecuteMsg::Custom(HubMsg::JailOutpost {
                 prefix: "neutron".to_string(),
             }),
             &[],
@@ -434,7 +439,7 @@ fn test_outpost_management() {
         .execute_contract(
             helper.owner.clone(),
             helper.emission_controller.clone(),
-            &ExecuteMsg::Custom(HubMsg::RemoveOutpost {
+            &ExecuteMsg::Custom(HubMsg::JailOutpost {
                 prefix: "neutron".to_string(),
             }),
             &[],
@@ -452,9 +457,85 @@ fn test_outpost_management() {
         ContractError::PoolIsNotWhitelisted(lp_token.to_string())
     );
 
+    // Cant whitelist pool belonging to jailed outpost
+    helper
+        .mint_tokens(&user, &[helper.whitelisting_fee.clone()])
+        .unwrap();
+    let err = helper
+        .whitelist(&user, &lp_token, &[helper.whitelisting_fee.clone()])
+        .unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::NoOutpostForPool(lp_token.to_string())
+    );
+
     // Ensure neutron pool was removed from votable pools
     let voted_pools = helper.query_pools_vp(None).unwrap();
     assert_eq!(voted_pools, vec![]);
+
+    // Neutron outpost still exists in the state
+    let mut outposts = helper
+        .app
+        .wrap()
+        .query_wasm_smart::<Vec<(String, OutpostInfo)>>(
+            helper.emission_controller.clone(),
+            &emissions_controller::hub::QueryMsg::ListOutposts {},
+        )
+        .unwrap();
+    outposts.sort_by(|a, b| a.0.cmp(&b.0));
+    assert_eq!(
+        outposts,
+        [
+            (
+                "neutron".to_string(),
+                OutpostInfo {
+                    jailed: true,
+                    ..neutron.clone()
+                }
+            ),
+            ("osmo".to_string(), osmosis.clone()),
+        ]
+    );
+
+    // Unjail Neutron
+    helper
+        .app
+        .execute_contract(
+            helper.owner.clone(),
+            helper.emission_controller.clone(),
+            &ExecuteMsg::Custom(HubMsg::UnjailOutpost {
+                prefix: "neutron".to_string(),
+            }),
+            &[],
+        )
+        .unwrap();
+
+    let mut outposts = helper
+        .app
+        .wrap()
+        .query_wasm_smart::<Vec<(String, OutpostInfo)>>(
+            helper.emission_controller.clone(),
+            &emissions_controller::hub::QueryMsg::ListOutposts {},
+        )
+        .unwrap();
+    outposts.sort_by(|a, b| a.0.cmp(&b.0));
+    assert_eq!(
+        outposts,
+        [
+            ("neutron".to_string(), neutron),
+            ("osmo".to_string(), osmosis.clone()),
+        ]
+    );
+
+    // Confirm we can whitelist neutron pool
+    helper
+        .mint_tokens(&user, &[helper.whitelisting_fee.clone()])
+        .unwrap();
+    helper
+        .whitelist(&user, &lp_token, &[helper.whitelisting_fee.clone()])
+        .unwrap();
+    let whitelist = helper.query_whitelist().unwrap();
+    assert_eq!(whitelist, vec![lp_token.to_string()]);
 }
 
 #[test]
@@ -483,6 +564,7 @@ fn test_tune_only_hub() {
             astro_pool: astro_pool.clone(),
             constant_emissions: 1_000_000_000u128.into(),
         }),
+        jailed: false,
     };
     helper.add_outpost("neutron", neutron.clone()).unwrap();
 
@@ -705,6 +787,7 @@ fn test_tune_outpost() {
             astro_pool: astro_pool.to_string(),
             constant_emissions: 1_000_000_000u128.into(),
         }),
+        jailed: false,
     };
     helper.add_outpost("osmo", osmosis.clone()).unwrap();
 
@@ -932,6 +1015,7 @@ fn test_lock_unlock_vxastro() {
                 astro_denom: helper.astro.clone(),
                 params: None,
                 astro_pool_config: None,
+                jailed: false,
             },
         )
         .unwrap();
@@ -1093,6 +1177,7 @@ fn test_instant_unlock_vxastro() {
                 astro_denom: helper.astro.clone(),
                 params: None,
                 astro_pool_config: None,
+                jailed: false,
             },
         )
         .unwrap();
@@ -1213,6 +1298,7 @@ fn test_some_epochs() {
                     ics20_channel: "channel-2".to_string(),
                 }),
                 astro_pool_config: None,
+                jailed: false,
             },
         )
         .unwrap();
@@ -1380,6 +1466,7 @@ fn test_interchain_governance() {
                     ics20_channel: "channel-2".to_string(),
                 }),
                 astro_pool_config: None,
+                jailed: false,
             },
         )
         .unwrap();

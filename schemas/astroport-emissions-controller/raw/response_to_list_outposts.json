@@ -42,7 +42,8 @@
     "OutpostInfo": {
       "type": "object",
       "required": [
-        "astro_denom"
+        "astro_denom",
+        "jailed"
       ],
       "properties": {
         "astro_denom": {
@@ -59,6 +60,10 @@
               "type": "null"
             }
           ]
+        },
+        "jailed": {
+          "description": "Defines whether outpost is jailed. Jailed outposts can't participate in the voting process but they still allow remote users to unstake their vxASTRO.",
+          "type": "boolean"
         },
         "params": {
           "description": "Outpost params contain all necessary information to interact with the remote outpost. This field also serves as marker whether it is The hub (params: None) or remote outpost (Some(params))",
