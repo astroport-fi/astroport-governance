@@ -354,7 +354,7 @@ pub fn jail_outpost(
             })
         } else {
             Err(ContractError::OutpostNotFound {
-                outpost: prefix.clone(),
+                prefix: prefix.clone(),
             })
         }
     })?;
@@ -379,7 +379,7 @@ pub fn unjail_outpost(
             })
         } else {
             Err(ContractError::OutpostNotFound {
-                outpost: prefix.clone(),
+                prefix: prefix.clone(),
             })
         }
     })?;

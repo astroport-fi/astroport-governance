@@ -434,6 +434,24 @@ fn test_outpost_management() {
         ContractError::Unauthorized {}
     );
 
+    let err = helper
+        .app
+        .execute_contract(
+            helper.owner.clone(),
+            helper.emission_controller.clone(),
+            &ExecuteMsg::Custom(HubMsg::JailOutpost {
+                prefix: "ntrn".to_string(),
+            }),
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::OutpostNotFound {
+            prefix: "ntrn".to_string()
+        }
+    );
+
     helper
         .app
         .execute_contract(
@@ -498,6 +516,40 @@ fn test_outpost_management() {
     );
 
     // Unjail Neutron
+    let err = helper
+        .app
+        .execute_contract(
+            user.clone(),
+            helper.emission_controller.clone(),
+            &ExecuteMsg::Custom(HubMsg::UnjailOutpost {
+                prefix: "neutron".to_string(),
+            }),
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::Unauthorized {}
+    );
+
+    let err = helper
+        .app
+        .execute_contract(
+            helper.owner.clone(),
+            helper.emission_controller.clone(),
+            &ExecuteMsg::Custom(HubMsg::UnjailOutpost {
+                prefix: "ntrn".to_string(),
+            }),
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::OutpostNotFound {
+            prefix: "ntrn".to_string()
+        }
+    );
+
     helper
         .app
         .execute_contract(
