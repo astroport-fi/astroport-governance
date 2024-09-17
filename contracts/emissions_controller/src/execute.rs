@@ -304,16 +304,17 @@ pub fn update_outpost(
         );
     }
 
-    OUTPOSTS.save(
-        deps.storage,
-        &prefix,
-        &OutpostInfo {
+    OUTPOSTS.update(deps.storage, &prefix, |outpost| match outpost {
+        Some(OutpostInfo { jailed: true, .. }) => Err(ContractError::JailedOutpost {
+            prefix: prefix.clone(),
+        }),
+        _ => Ok(OutpostInfo {
             params: outpost_params,
             astro_denom,
             astro_pool_config,
             jailed: false,
-        },
-    )?;
+        }),
+    })?;
 
     Ok(Response::default().add_attributes([("action", "update_outpost"), ("prefix", &prefix)]))
 }

@@ -515,6 +515,28 @@ fn test_outpost_management() {
         ]
     );
 
+    // Cant update jailed outpost
+    let err = helper
+        .app
+        .execute_contract(
+            helper.owner.clone(),
+            helper.emission_controller.clone(),
+            &ExecuteMsg::Custom(HubMsg::UpdateOutpost {
+                prefix: "neutron".to_string(),
+                astro_denom: neutron.astro_denom.clone(),
+                outpost_params: None,
+                astro_pool_config: None,
+            }),
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::JailedOutpost {
+            prefix: "neutron".to_string()
+        }
+    );
+
     // Unjail Neutron
     let err = helper
         .app
