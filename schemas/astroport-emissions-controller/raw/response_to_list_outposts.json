@@ -62,7 +62,7 @@
           ]
         },
         "jailed": {
-          "description": "Defines whether outpost is jailed. Jailed outposts can't participate in the voting process but they still allow remote users to unstake their vxASTRO.",
+          "description": "Defines whether outpost is jailed. Jailed outposts can't participate in the voting process, but they still allow remote users to unstake their vxASTRO.",
           "type": "boolean"
         },
         "params": {

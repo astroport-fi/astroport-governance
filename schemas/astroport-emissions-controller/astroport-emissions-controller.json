@@ -1,6 +1,6 @@
 {
   "contract_name": "astroport-emissions-controller",
-  "contract_version": "1.0.1",
+  "contract_version": "1.1.0",
   "idl_version": "1.0.0",
   "instantiate": {
     "$schema": "http://json-schema.org/draft-07/schema#",
@@ -1121,7 +1121,7 @@
               ]
             },
             "jailed": {
-              "description": "Defines whether outpost is jailed. Jailed outposts can't participate in the voting process but they still allow remote users to unstake their vxASTRO.",
+              "description": "Defines whether outpost is jailed. Jailed outposts can't participate in the voting process, but they still allow remote users to unstake their vxASTRO.",
               "type": "boolean"
             },
             "params": {

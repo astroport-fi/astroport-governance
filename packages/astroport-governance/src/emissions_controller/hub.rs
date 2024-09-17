@@ -246,7 +246,7 @@ pub struct OutpostInfo {
     pub astro_denom: String,
     /// A pool that must receive flat ASTRO emissions. Optional.
     pub astro_pool_config: Option<AstroPoolConfig>,
-    /// Defines whether outpost is jailed. Jailed outposts can't participate in the voting process
+    /// Defines whether outpost is jailed. Jailed outposts can't participate in the voting process,
     /// but they still allow remote users to unstake their vxASTRO.
     pub jailed: bool,
 }
