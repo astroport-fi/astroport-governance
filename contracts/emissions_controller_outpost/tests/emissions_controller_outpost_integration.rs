@@ -365,6 +365,7 @@ fn test_voting() {
             VxAstroIbcMsg::UpdateUserVotes {
                 voter: user.to_string(),
                 voting_power: Default::default(),
+                total_voting_power: Default::default(),
                 is_unlock: false,
             },
             None,
@@ -398,6 +399,7 @@ fn test_voting() {
     let mock_packet = VxAstroIbcMsg::EmissionsVote {
         voter: user.to_string(),
         voting_power: Default::default(),
+        total_voting_power: Default::default(),
         votes: Default::default(),
     };
     helper.mock_ibc_timeout(mock_packet.clone()).unwrap();
@@ -429,6 +431,7 @@ fn test_voting() {
             VxAstroIbcMsg::EmissionsVote {
                 voter: user.to_string(),
                 voting_power: Default::default(),
+                total_voting_power: Default::default(),
                 votes: Default::default(),
             },
             None,
@@ -445,6 +448,7 @@ fn test_voting() {
     let mock_packet = VxAstroIbcMsg::UpdateUserVotes {
         voter: user.to_string(),
         voting_power: Default::default(),
+        total_voting_power: Default::default(),
         is_unlock: true,
     };
     helper
@@ -524,6 +528,7 @@ fn test_unlock_and_withdraw() {
             VxAstroIbcMsg::UpdateUserVotes {
                 voter: user.to_string(),
                 voting_power: Default::default(),
+                total_voting_power: Default::default(),
                 is_unlock: false,
             },
             None,
@@ -546,6 +551,7 @@ fn test_unlock_and_withdraw() {
             VxAstroIbcMsg::UpdateUserVotes {
                 voter: user.to_string(),
                 voting_power: Default::default(),
+                total_voting_power: Default::default(),
                 is_unlock: true,
             },
             None,
@@ -659,6 +665,7 @@ fn test_interchain_governance() {
             VxAstroIbcMsg::UpdateUserVotes {
                 voter: user.to_string(),
                 voting_power: Default::default(),
+                total_voting_power: Default::default(),
                 is_unlock: false,
             },
             None,
@@ -672,6 +679,7 @@ fn test_interchain_governance() {
         .mock_ibc_timeout(VxAstroIbcMsg::GovernanceVote {
             voter: user.to_string(),
             voting_power: Default::default(),
+            total_voting_power: Default::default(),
             proposal_id: 2,
             vote: ProposalVoteOption::For,
         })
@@ -685,6 +693,7 @@ fn test_interchain_governance() {
             VxAstroIbcMsg::GovernanceVote {
                 voter: user.to_string(),
                 voting_power: Default::default(),
+                total_voting_power: Default::default(),
                 proposal_id: 2,
                 vote: ProposalVoteOption::For,
             },

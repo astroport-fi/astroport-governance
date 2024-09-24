@@ -60,6 +60,8 @@ pub enum VxAstroIbcMsg {
         voter: String,
         /// Actual voting power reported from outpost
         voting_power: Uint128,
+        /// Current total voting power on this outpost
+        total_voting_power: Uint128,
         /// Voting power distribution
         votes: HashMap<String, Decimal>,
     },
@@ -68,6 +70,8 @@ pub enum VxAstroIbcMsg {
         voter: String,
         /// Actual voting power reported from outpost
         voting_power: Uint128,
+        /// Current total voting power on this outpost
+        total_voting_power: Uint128,
         /// Marker defines whether this packet was sent from vxASTRO unlock context
         is_unlock: bool,
     },
@@ -78,6 +82,8 @@ pub enum VxAstroIbcMsg {
         voter: String,
         /// Actual voting power reported from outpost
         voting_power: Uint128,
+        /// Current total voting power on this outpost
+        total_voting_power: Uint128,
         /// Proposal id
         proposal_id: u64,
         /// Vote option

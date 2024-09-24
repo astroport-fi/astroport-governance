@@ -48,4 +48,7 @@ pub enum ContractError {
 
     #[error("User already voted")]
     AlreadyVoted {},
+
+    #[error("Failed to migrate contract")]
+    MigrationError {},
 }

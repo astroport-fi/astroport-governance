@@ -75,7 +75,7 @@ pub enum HubMsg {
         /// Outpost params contain all necessary information to interact with the remote outpost.
         /// This field also serves as marker whether it is The hub (params: None) or
         /// remote outpost (Some(params))
-        outpost_params: Option<OutpostParams>,
+        outpost_params: Option<InputOutpostParams>,
         /// A pool that must receive flat ASTRO emissions. Optional.
         astro_pool_config: Option<AstroPoolConfig>,
     },
@@ -218,6 +218,18 @@ impl Config {
 
 #[cw_serde]
 pub struct OutpostParams {
+    /// Emissions controller on a given outpost
+    pub emissions_controller: String,
+    /// wasm<>wasm IBC channel for voting
+    pub voting_channel: String,
+    /// General IBC channel for fungible token transfers
+    pub ics20_channel: String,
+    /// ICS20 transfer escrow address on Neutron. Calculated automatically based on channel id
+    pub escrow_address: Addr,
+}
+
+#[cw_serde]
+pub struct InputOutpostParams {
     /// Emissions controller on a given outpost
     pub emissions_controller: String,
     /// wasm<>wasm IBC channel for voting
