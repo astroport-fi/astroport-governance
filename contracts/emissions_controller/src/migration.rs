@@ -5,7 +5,7 @@ use astroport_governance::emissions_controller::hub::{
 };
 use astroport_governance::utils::determine_ics20_escrow_address;
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{entry_point, Addr, DepsMut, Empty, Env, Order, Response, StdResult};
+use cosmwasm_std::{entry_point, DepsMut, Empty, Env, Order, Response, StdResult};
 use cw2::{get_contract_version, set_contract_version};
 use cw_storage_plus::Map;
 

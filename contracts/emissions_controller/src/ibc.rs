@@ -100,7 +100,7 @@ fn is_outpost_valid(
 
     let escrow_balance = deps
         .querier
-        .query_balance(&escrow_address, &xastro_denom)?
+        .query_balance(escrow_address, xastro_denom)?
         .amount;
 
     match ibc_msg {

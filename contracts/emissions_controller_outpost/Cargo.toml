@@ -23,7 +23,7 @@ cw-storage-plus.workspace = true
 cosmwasm-schema.workspace = true
 thiserror.workspace = true
 itertools.workspace = true
-astroport-governance = { path = "../../packages/astroport-governance", version = "4.0.0" }
+astroport-governance = { path = "../../packages/astroport-governance", version = "4.2" }
 astroport.workspace = true
 serde_json = "1"
 

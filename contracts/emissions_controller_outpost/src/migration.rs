@@ -1,10 +1,13 @@
-use cosmwasm_std::{entry_point, DepsMut, Empty, Env, Response};
+#![cfg(not(tarpaulin_include))]
+
+use cosmwasm_std::{DepsMut, Empty, Env, Response};
 use cw2::{get_contract_version, set_contract_version};
 
 use crate::error::ContractError;
 use crate::instantiate::{CONTRACT_NAME, CONTRACT_VERSION};
 
-#[cfg_attr(not(feature = "library"), entry_point)]
+#[allow(dead_code)]
+#[cfg_attr(not(feature = "library"), cosmwasm_std::entry_point)]
 pub fn migrate(deps: DepsMut, _env: Env, _msg: Empty) -> Result<Response, ContractError> {
     let contract_version = get_contract_version(deps.storage)?;
 
