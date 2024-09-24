@@ -79,8 +79,14 @@ pub enum HubMsg {
         /// A pool that must receive flat ASTRO emissions. Optional.
         astro_pool_config: Option<AstroPoolConfig>,
     },
-    /// Remove an outpost
-    RemoveOutpost { prefix: String },
+    /// Jail an outpost.
+    /// Jailed outposts can't participate in the voting process but still allow
+    /// outpost users to unlock their vxASTRO.
+    JailOutpost { prefix: String },
+    /// Unjail an outpost.
+    /// Unjailed outposts retain all previous configurations but will need to whitelist pools and
+    /// start a voting process from scratch.
+    UnjailOutpost { prefix: String },
     /// Permissionless endpoint to stream proposal info from the Hub to all outposts
     RegisterProposal { proposal_id: u64 },
 }
@@ -240,6 +246,9 @@ pub struct OutpostInfo {
     pub astro_denom: String,
     /// A pool that must receive flat ASTRO emissions. Optional.
     pub astro_pool_config: Option<AstroPoolConfig>,
+    /// Defines whether outpost is jailed. Jailed outposts can't participate in the voting process,
+    /// but they still allow remote users to unstake their vxASTRO.
+    pub jailed: bool,
 }
 
 #[cw_serde]

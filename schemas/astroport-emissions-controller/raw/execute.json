@@ -355,13 +355,35 @@
           "additionalProperties": false
         },
         {
-          "description": "Remove an outpost",
+          "description": "Jail an outpost. Jailed outposts can't participate in the voting process but still allow outpost users to unlock their vxASTRO.",
           "type": "object",
           "required": [
-            "remove_outpost"
+            "jail_outpost"
           ],
           "properties": {
-            "remove_outpost": {
+            "jail_outpost": {
+              "type": "object",
+              "required": [
+                "prefix"
+              ],
+              "properties": {
+                "prefix": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "description": "Unjail an outpost. Unjailed outposts retain all previous configurations but will need to whitelist pools and start a voting process from scratch.",
+          "type": "object",
+          "required": [
+            "unjail_outpost"
+          ],
+          "properties": {
+            "unjail_outpost": {
               "type": "object",
               "required": [
                 "prefix"

@@ -1,5 +1,7 @@
 use astroport::common::OwnershipProposal;
+use cosmwasm_std::{Order, StdResult, Storage};
 use cw_storage_plus::{Item, Map, SnapshotItem, SnapshotMap, Strategy};
+use std::collections::HashMap;
 
 use astroport_governance::emissions_controller::hub::{
     Config, OutpostInfo, TuneInfo, UserInfo, VotedPoolInfo,
@@ -34,3 +36,18 @@ pub const TUNE_INFO: SnapshotItem<TuneInfo> = SnapshotItem::new(
     "tune_info__changelog",
     Strategy::EveryBlock,
 );
+
+pub fn get_all_outposts(storage: &dyn Storage) -> StdResult<HashMap<String, OutpostInfo>> {
+    OUTPOSTS
+        .range(storage, None, None, Order::Ascending)
+        .collect()
+}
+
+pub fn get_active_outposts(storage: &dyn Storage) -> StdResult<HashMap<String, OutpostInfo>> {
+    get_all_outposts(storage).map(|outposts| {
+        outposts
+            .into_iter()
+            .filter(|(_, outpost)| !outpost.jailed)
+            .collect()
+    })
+}

@@ -6,7 +6,7 @@ use astroport::incentives::{IncentivesSchedule, InputSchedule};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_schema::serde::Serialize;
 use cosmwasm_std::{
-    coin, Coin, CosmosMsg, Decimal, Deps, Env, Order, QuerierWrapper, StdError, StdResult, Storage,
+    coin, Coin, CosmosMsg, Decimal, Deps, Env, QuerierWrapper, StdError, StdResult, Storage,
     Uint128,
 };
 use itertools::Itertools;
@@ -25,7 +25,7 @@ use astroport_governance::emissions_controller::outpost::OutpostMsg;
 use astroport_governance::emissions_controller::utils::check_lp_token;
 
 use crate::error::ContractError;
-use crate::state::{OUTPOSTS, TUNE_INFO, VOTED_POOLS};
+use crate::state::{get_active_outposts, TUNE_INFO, VOTED_POOLS};
 
 /// Determine outpost prefix from address or tokenfactory denom.
 pub fn determine_outpost_prefix(value: &str) -> Option<String> {
@@ -81,10 +81,9 @@ pub fn get_outpost_from_hub_channel(
     source_channel: String,
     get_channel_closure: impl Fn(&OutpostParams) -> &String,
 ) -> StdResult<String> {
-    OUTPOSTS
-        .range(store, None, None, Order::Ascending)
-        .find_map(|data| {
-            let (outpost_prefix, outpost) = data.ok()?;
+    get_active_outposts(store)?
+        .into_iter()
+        .find_map(|(outpost_prefix, outpost)| {
             outpost.params.as_ref().and_then(|params| {
                 if get_channel_closure(params).eq(&source_channel) {
                     Some(outpost_prefix.clone())

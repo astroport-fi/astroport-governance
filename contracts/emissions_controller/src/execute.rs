@@ -27,7 +27,8 @@ use astroport_governance::{assembly, voting_escrow};
 
 use crate::error::ContractError;
 use crate::state::{
-    CONFIG, OUTPOSTS, OWNERSHIP_PROPOSAL, POOLS_WHITELIST, TUNE_INFO, USER_INFO, VOTED_POOLS,
+    get_active_outposts, CONFIG, OUTPOSTS, OWNERSHIP_PROPOSAL, POOLS_WHITELIST, TUNE_INFO,
+    USER_INFO, VOTED_POOLS,
 };
 use crate::utils::{
     build_emission_ibc_msg, determine_outpost_prefix, get_epoch_start, get_outpost_prefix,
@@ -148,7 +149,8 @@ pub fn execute(
                 outpost_params,
                 astro_pool_config,
             ),
-            HubMsg::RemoveOutpost { prefix } => remove_outpost(deps, env, info, prefix),
+            HubMsg::JailOutpost { prefix } => jail_outpost(deps, env, info, prefix),
+            HubMsg::UnjailOutpost { prefix } => unjail_outpost(deps, info, prefix),
             HubMsg::TunePools {} => tune_pools(deps, env),
             HubMsg::RetryFailedOutposts {} => retry_failed_outposts(deps, info, env),
             HubMsg::UpdateConfig {
@@ -189,9 +191,7 @@ pub fn whitelist_pool(
     );
 
     // Perform basic LP token validation. Ensure the outpost exists.
-    let outposts = OUTPOSTS
-        .range(deps.storage, None, None, Order::Ascending)
-        .collect::<StdResult<HashMap<_, _>>>()?;
+    let outposts = get_active_outposts(deps.storage)?;
     if let Some(prefix) = get_outpost_prefix(&pool, &outposts) {
         if outposts.get(&prefix).unwrap().params.is_none() {
             // Validate LP token on the Hub
@@ -304,22 +304,24 @@ pub fn update_outpost(
         );
     }
 
-    OUTPOSTS.save(
-        deps.storage,
-        &prefix,
-        &OutpostInfo {
+    OUTPOSTS.update(deps.storage, &prefix, |outpost| match outpost {
+        Some(OutpostInfo { jailed: true, .. }) => Err(ContractError::JailedOutpost {
+            prefix: prefix.clone(),
+        }),
+        _ => Ok(OutpostInfo {
             params: outpost_params,
             astro_denom,
             astro_pool_config,
-        },
-    )?;
+            jailed: false,
+        }),
+    })?;
 
     Ok(Response::default().add_attributes([("action", "update_outpost"), ("prefix", &prefix)]))
 }
 
-/// Removes outpost from the contract as well as all whitelisted
+/// Jails outpost as well as removes all whitelisted
 /// and being voted pools related to this outpost.
-pub fn remove_outpost(
+pub fn jail_outpost(
     deps: DepsMut<NeutronQuery>,
     env: Env,
     info: MessageInfo,
@@ -345,9 +347,45 @@ pub fn remove_outpost(
         Ok(whitelist)
     })?;
 
-    OUTPOSTS.remove(deps.storage, &prefix);
+    OUTPOSTS.update(deps.storage, &prefix, |outpost| {
+        if let Some(outpost) = outpost {
+            Ok(OutpostInfo {
+                jailed: true,
+                ..outpost
+            })
+        } else {
+            Err(ContractError::OutpostNotFound {
+                prefix: prefix.clone(),
+            })
+        }
+    })?;
 
-    Ok(Response::default().add_attributes([("action", "remove_outpost"), ("prefix", &prefix)]))
+    Ok(Response::default().add_attributes([("action", "jail_outpost"), ("prefix", &prefix)]))
+}
+
+pub fn unjail_outpost(
+    deps: DepsMut<NeutronQuery>,
+    info: MessageInfo,
+    prefix: String,
+) -> Result<Response<NeutronMsg>, ContractError> {
+    nonpayable(&info)?;
+    let config = CONFIG.load(deps.storage)?;
+    ensure!(info.sender == config.owner, ContractError::Unauthorized {});
+
+    OUTPOSTS.update(deps.storage, &prefix, |outpost| {
+        if let Some(outpost) = outpost {
+            Ok(OutpostInfo {
+                jailed: false,
+                ..outpost
+            })
+        } else {
+            Err(ContractError::OutpostNotFound {
+                prefix: prefix.clone(),
+            })
+        }
+    })?;
+
+    Ok(Response::default().add_attributes([("action", "unjail_outpost"), ("prefix", &prefix)]))
 }
 
 /// This permissionless endpoint retries failed emission IBC messages.
@@ -358,9 +396,7 @@ pub fn retry_failed_outposts(
 ) -> Result<Response<NeutronMsg>, ContractError> {
     nonpayable(&info)?;
     let mut tune_info = TUNE_INFO.load(deps.storage)?;
-    let outposts = OUTPOSTS
-        .range(deps.storage, None, None, Order::Ascending)
-        .collect::<StdResult<HashMap<_, _>>>()?;
+    let outposts = get_active_outposts(deps.storage)?;
 
     let mut attrs = vec![attr("action", "retry_failed_outposts")];
     let ibc_fee = min_ntrn_ibc_fee(deps.as_ref())?;
@@ -593,9 +629,7 @@ pub fn tune_pools(
     let voted_pools = VOTED_POOLS
         .keys(deps.storage, None, None, Order::Ascending)
         .collect::<StdResult<HashSet<_>>>()?;
-    let outposts = OUTPOSTS
-        .range(deps.storage, None, None, Order::Ascending)
-        .collect::<StdResult<HashMap<_, _>>>()?;
+    let outposts = get_active_outposts(deps.storage)?;
     let epoch_start = get_epoch_start(block_ts);
 
     let TuneResult {
@@ -763,9 +797,7 @@ pub fn register_proposal(
             Ok(proposal)
         })?;
 
-    let outposts = OUTPOSTS
-        .range(deps.storage, None, None, Order::Ascending)
-        .collect::<StdResult<Vec<_>>>()?;
+    let outposts = get_active_outposts(deps.storage)?;
 
     let data = to_json_binary(&VxAstroIbcMsg::RegisterProposal {
         proposal_id,

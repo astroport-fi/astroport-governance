@@ -77,4 +77,10 @@ pub enum ContractError {
 
     #[error("Failed to migrate contract")]
     MigrationError {},
+
+    #[error("Outpost {prefix} not found")]
+    OutpostNotFound { prefix: String },
+
+    #[error("Outpost {prefix} is jailed. Only vxASTRO unlocks are available")]
+    JailedOutpost { prefix: String },
 }

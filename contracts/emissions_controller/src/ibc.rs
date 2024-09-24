@@ -3,8 +3,7 @@ use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     ensure, from_json, wasm_execute, DepsMut, Env, Ibc3ChannelOpenResponse, IbcBasicResponse,
     IbcChannelCloseMsg, IbcChannelConnectMsg, IbcChannelOpenMsg, IbcPacketAckMsg,
-    IbcPacketReceiveMsg, IbcPacketTimeoutMsg, IbcReceiveResponse, Never, Order, StdError,
-    StdResult,
+    IbcPacketReceiveMsg, IbcPacketTimeoutMsg, IbcReceiveResponse, Never, StdError, StdResult,
 };
 
 use astroport_governance::assembly;
@@ -15,7 +14,7 @@ use astroport_governance::emissions_controller::msg::{
 
 use crate::error::ContractError;
 use crate::execute::{handle_update_user, handle_vote};
-use crate::state::{CONFIG, OUTPOSTS};
+use crate::state::{get_all_outposts, CONFIG};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn ibc_channel_open(
@@ -85,14 +84,13 @@ pub fn do_packet_receive(
     env: Env,
     msg: IbcPacketReceiveMsg,
 ) -> Result<IbcReceiveResponse, ContractError> {
-    // Ensure this outpost is registered
-    OUTPOSTS
-        .range(deps.storage, None, None, Order::Ascending)
-        .find_map(|data| {
-            let (outpost_prefix, outpost) = data.ok()?;
+    // Ensure this outpost was ever registered
+    let (prefix, outpost) = get_all_outposts(deps.storage)?
+        .into_iter()
+        .find_map(|(prefix, outpost)| {
             outpost.params.as_ref().and_then(|params| {
                 if msg.packet.dest.channel_id == params.voting_channel {
-                    Some(outpost_prefix.clone())
+                    Some((prefix.clone(), outpost.clone()))
                 } else {
                     None
                 }
@@ -105,51 +103,70 @@ pub fn do_packet_receive(
             ))
         })?;
 
-    match from_json(&msg.packet.data)? {
-        VxAstroIbcMsg::EmissionsVote {
-            voter,
-            voting_power,
-            votes,
-        } => handle_vote(deps, env, &voter, voting_power, votes).map(|orig_response| {
-            IbcReceiveResponse::new()
-                .add_attributes(orig_response.attributes)
-                .set_ack(ack_ok())
-        }),
-        VxAstroIbcMsg::UpdateUserVotes {
-            voter,
-            voting_power,
-            ..
-        } => handle_update_user(deps.storage, env, voter.as_str(), voting_power).map(
-            |orig_response| {
+    let ibc_msg: VxAstroIbcMsg = from_json(&msg.packet.data)?;
+
+    if outpost.jailed {
+        match ibc_msg {
+            VxAstroIbcMsg::UpdateUserVotes {
+                voter,
+                voting_power,
+                is_unlock: true,
+            } => handle_update_user(deps.storage, env, voter.as_str(), voting_power).map(
+                |orig_response| {
+                    IbcReceiveResponse::new()
+                        .add_attributes(orig_response.attributes)
+                        .set_ack(ack_ok())
+                },
+            ),
+            _ => Err(ContractError::JailedOutpost { prefix }),
+        }
+    } else {
+        match ibc_msg {
+            VxAstroIbcMsg::EmissionsVote {
+                voter,
+                voting_power,
+                votes,
+            } => handle_vote(deps, env, &voter, voting_power, votes).map(|orig_response| {
                 IbcReceiveResponse::new()
                     .add_attributes(orig_response.attributes)
                     .set_ack(ack_ok())
-            },
-        ),
-        VxAstroIbcMsg::GovernanceVote {
-            voter,
-            voting_power,
-            proposal_id,
-            vote,
-        } => {
-            let config = CONFIG.load(deps.storage)?;
-            let cast_vote_msg = wasm_execute(
-                config.assembly,
-                &assembly::ExecuteMsg::CastVoteOutpost {
-                    voter,
-                    voting_power,
-                    proposal_id,
-                    vote,
+            }),
+            VxAstroIbcMsg::UpdateUserVotes {
+                voter,
+                voting_power,
+                ..
+            } => handle_update_user(deps.storage, env, voter.as_str(), voting_power).map(
+                |orig_response| {
+                    IbcReceiveResponse::new()
+                        .add_attributes(orig_response.attributes)
+                        .set_ack(ack_ok())
                 },
-                vec![],
-            )?;
+            ),
+            VxAstroIbcMsg::GovernanceVote {
+                voter,
+                voting_power,
+                proposal_id,
+                vote,
+            } => {
+                let config = CONFIG.load(deps.storage)?;
+                let cast_vote_msg = wasm_execute(
+                    config.assembly,
+                    &assembly::ExecuteMsg::CastVoteOutpost {
+                        voter,
+                        voting_power,
+                        proposal_id,
+                        vote,
+                    },
+                    vec![],
+                )?;
 
-            Ok(IbcReceiveResponse::new()
-                .add_message(cast_vote_msg)
-                .set_ack(ack_ok()))
-        }
-        VxAstroIbcMsg::RegisterProposal { .. } => {
-            unreachable!("Hub can't receive RegisterProposal message")
+                Ok(IbcReceiveResponse::new()
+                    .add_message(cast_vote_msg)
+                    .set_ack(ack_ok()))
+            }
+            VxAstroIbcMsg::RegisterProposal { .. } => {
+                unreachable!("Hub can't receive RegisterProposal message")
+            }
         }
     }
 }
@@ -201,12 +218,13 @@ mod unit_tests {
     };
     use neutron_sdk::bindings::query::NeutronQuery;
 
+    use astroport_governance::assembly::ProposalVoteOption;
     use astroport_governance::emissions_controller::hub::{
         OutpostInfo, OutpostParams, VotedPoolInfo,
     };
     use astroport_governance::emissions_controller::msg::IbcAckResult;
 
-    use crate::state::{POOLS_WHITELIST, VOTED_POOLS};
+    use crate::state::{OUTPOSTS, POOLS_WHITELIST, VOTED_POOLS};
 
     use super::*;
 
@@ -380,6 +398,7 @@ mod unit_tests {
                     }),
                     astro_denom: "".to_string(),
                     astro_pool_config: None,
+                    jailed: false,
                 },
             )
             .unwrap();
@@ -462,5 +481,96 @@ mod unit_tests {
         let resp = ibc_packet_receive(deps.as_mut().into_empty(), env.clone(), ibc_msg).unwrap();
         let ack_err: IbcAckResult = from_json(resp.acknowledgement).unwrap();
         assert_eq!(ack_err, IbcAckResult::Ok(b"ok".into()));
+    }
+
+    #[test]
+    fn test_jailed_outpost() {
+        let mut deps = mock_custom_dependencies();
+
+        // Mock jailed outpost
+        OUTPOSTS
+            .save(
+                deps.as_mut().storage,
+                "osmo",
+                &OutpostInfo {
+                    params: Some(OutpostParams {
+                        emissions_controller: "".to_string(),
+                        voting_channel: "channel-2".to_string(),
+                        ics20_channel: "".to_string(),
+                    }),
+                    astro_denom: "".to_string(),
+                    astro_pool_config: None,
+                    jailed: true,
+                },
+            )
+            .unwrap();
+
+        for (msg, is_error) in [
+            (
+                VxAstroIbcMsg::EmissionsVote {
+                    voter: "osmo1voter".to_string(),
+                    voting_power: 1000u128.into(),
+                    votes: HashMap::from([("osmo1pool1".to_string(), Decimal::one())]),
+                },
+                true,
+            ),
+            (
+                VxAstroIbcMsg::GovernanceVote {
+                    voter: "osmo1voter".to_string(),
+                    voting_power: 1000u128.into(),
+                    proposal_id: 1,
+                    vote: ProposalVoteOption::For,
+                },
+                true,
+            ),
+            (
+                VxAstroIbcMsg::UpdateUserVotes {
+                    voter: "osmo1voter".to_string(),
+                    voting_power: 2000u128.into(),
+                    is_unlock: false,
+                },
+                true,
+            ),
+            (
+                VxAstroIbcMsg::UpdateUserVotes {
+                    voter: "osmo1voter".to_string(),
+                    voting_power: 0u128.into(),
+                    is_unlock: true,
+                },
+                false,
+            ),
+        ] {
+            let packet = IbcPacket::new(
+                to_json_binary(&msg).unwrap(),
+                IbcEndpoint {
+                    port_id: "".to_string(),
+                    channel_id: "".to_string(),
+                },
+                IbcEndpoint {
+                    port_id: "".to_string(),
+                    channel_id: "channel-2".to_string(),
+                },
+                1,
+                IbcTimeout::with_timestamp(Timestamp::from_seconds(100)),
+            );
+            let ibc_msg = IbcPacketReceiveMsg::new(packet, Addr::unchecked("doesnt matter"));
+
+            let resp = ibc_packet_receive(deps.as_mut().into_empty(), mock_env(), ibc_msg).unwrap();
+            let ack_err: IbcAckResult = from_json(resp.acknowledgement).unwrap();
+
+            if is_error {
+                assert_eq!(
+                    ack_err,
+                    IbcAckResult::Error(
+                        ContractError::JailedOutpost {
+                            prefix: "osmo".to_string()
+                        }
+                        .to_string()
+                    )
+                );
+            } else {
+                assert_eq!(ack_err, IbcAckResult::Ok(b"ok".into()));
+            }
+        }
     }
 }

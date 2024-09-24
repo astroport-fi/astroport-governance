@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
@@ -13,7 +13,10 @@ use astroport_governance::emissions_controller::hub::{
 };
 
 use crate::error::ContractError;
-use crate::state::{CONFIG, OUTPOSTS, POOLS_WHITELIST, TUNE_INFO, USER_INFO, VOTED_POOLS};
+use crate::state::{
+    get_active_outposts, get_all_outposts, CONFIG, POOLS_WHITELIST, TUNE_INFO, USER_INFO,
+    VOTED_POOLS,
+};
 use crate::utils::simulate_tune;
 
 /// Expose available contract queries.
@@ -93,9 +96,7 @@ pub fn query(deps: Deps<NeutronQuery>, env: Env, msg: QueryMsg) -> Result<Binary
             Ok(to_json_binary(&voted_pools)?)
         }
         QueryMsg::ListOutposts {} => {
-            let outposts = OUTPOSTS
-                .range(deps.storage, None, None, Order::Ascending)
-                .collect::<StdResult<Vec<_>>>()?;
+            let outposts = get_all_outposts(deps.storage)?.into_iter().collect_vec();
             Ok(to_json_binary(&outposts)?)
         }
         QueryMsg::QueryWhitelist { limit, start_after } => {
@@ -127,9 +128,7 @@ pub fn query(deps: Deps<NeutronQuery>, env: Env, msg: QueryMsg) -> Result<Binary
             let voted_pools = VOTED_POOLS
                 .keys(deps.storage, None, None, Order::Ascending)
                 .collect::<StdResult<HashSet<_>>>()?;
-            let outposts = OUTPOSTS
-                .range(deps.storage, None, None, Order::Ascending)
-                .collect::<StdResult<HashMap<_, _>>>()?;
+            let outposts = get_active_outposts(deps.storage)?;
             let config = CONFIG.load(deps.storage)?;
 
             let tune_result = simulate_tune(
