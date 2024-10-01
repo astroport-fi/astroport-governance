@@ -1,23 +1,17 @@
 #![cfg(not(tarpaulin_include))]
 
 use cosmwasm_schema::cw_serde;
-#[cfg(not(feature = "library"))]
-use cosmwasm_std::entry_point;
-use cosmwasm_std::{Addr, CosmosMsg, DepsMut, Env, Order, Response, StdResult, Uint128, Uint64};
+use cosmwasm_std::{
+    Addr, CosmosMsg, DepsMut, Empty, Env, Order, Response, StdResult, Uint128, Uint64,
+};
 use cw2::{get_contract_version, set_contract_version};
 use cw_storage_plus::Map;
 
-use astroport_governance::assembly::{Config, Proposal, ProposalStatus};
-use astroport_governance::voting_escrow;
+use astroport_governance::assembly::{Proposal, ProposalStatus};
 
 use crate::contract::{CONTRACT_NAME, CONTRACT_VERSION};
 use crate::error::ContractError;
-use crate::state::{CONFIG, PROPOSALS};
-
-#[cw_serde]
-pub struct MigrateMsg {
-    pub vxastro_contract: String,
-}
+use crate::state::PROPOSALS;
 
 #[cw_serde]
 pub struct OldProposal {
@@ -44,34 +38,13 @@ pub struct OldProposal {
 
 const OLD_PROPOSALS: Map<u64, OldProposal> = Map::new("proposals");
 
-#[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
+#[cfg_attr(not(feature = "library"), cosmwasm_std::entry_point)]
+pub fn migrate(deps: DepsMut, _env: Env, _msg: Empty) -> Result<Response, ContractError> {
     let contract_version = get_contract_version(deps.storage)?;
 
     match contract_version.contract.as_ref() {
         CONTRACT_NAME => match contract_version.version.as_ref() {
-            "2.0.0" => {
-                // vxastro and emissions_controller are optional fields,
-                // thus old config can be deserialized to new config
-                let config = CONFIG.load(deps.storage)?;
-
-                let emissions_controller = deps
-                    .querier
-                    .query_wasm_smart::<voting_escrow::Config>(
-                        &msg.vxastro_contract,
-                        &voting_escrow::QueryMsg::Config {},
-                    )?
-                    .emissions_controller;
-
-                CONFIG.save(
-                    deps.storage,
-                    &Config {
-                        vxastro_contract: Some(Addr::unchecked(msg.vxastro_contract)),
-                        emissions_controller: Some(emissions_controller),
-                        ..config
-                    },
-                )?;
-
+            "2.0.1" => {
                 let proposals = OLD_PROPOSALS
                     .range(deps.storage, None, None, Order::Ascending)
                     .collect::<StdResult<Vec<_>>>()?;
