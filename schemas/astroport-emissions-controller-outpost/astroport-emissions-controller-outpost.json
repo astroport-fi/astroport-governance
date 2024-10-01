@@ -1,6 +1,6 @@
 {
   "contract_name": "astroport-emissions-controller-outpost",
-  "contract_version": "1.0.0",
+  "contract_version": "1.1.0",
   "idl_version": "1.0.0",
   "instantiate": {
     "$schema": "http://json-schema.org/draft-07/schema#",
@@ -881,11 +881,20 @@
                 "emissions_vote": {
                   "type": "object",
                   "required": [
+                    "total_voting_power",
                     "voter",
                     "votes",
                     "voting_power"
                   ],
                   "properties": {
+                    "total_voting_power": {
+                      "description": "Current total voting power on this outpost",
+                      "allOf": [
+                        {
+                          "$ref": "#/definitions/Uint128"
+                        }
+                      ]
+                    },
                     "voter": {
                       "type": "string"
                     },
@@ -921,6 +930,7 @@
                   "type": "object",
                   "required": [
                     "is_unlock",
+                    "total_voting_power",
                     "voter",
                     "voting_power"
                   ],
@@ -928,6 +938,14 @@
                     "is_unlock": {
                       "description": "Marker defines whether this packet was sent from vxASTRO unlock context",
                       "type": "boolean"
+                    },
+                    "total_voting_power": {
+                      "description": "Current total voting power on this outpost",
+                      "allOf": [
+                        {
+                          "$ref": "#/definitions/Uint128"
+                        }
+                      ]
                     },
                     "voter": {
                       "type": "string"
@@ -987,6 +1005,7 @@
                   "type": "object",
                   "required": [
                     "proposal_id",
+                    "total_voting_power",
                     "vote",
                     "voter",
                     "voting_power"
@@ -997,6 +1016,14 @@
                       "type": "integer",
                       "format": "uint64",
                       "minimum": 0.0
+                    },
+                    "total_voting_power": {
+                      "description": "Current total voting power on this outpost",
+                      "allOf": [
+                        {
+                          "$ref": "#/definitions/Uint128"
+                        }
+                      ]
                     },
                     "vote": {
                       "description": "Vote option",

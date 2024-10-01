@@ -75,6 +75,18 @@ pub fn get_voting_power(
 }
 
 #[inline]
+pub fn get_total_voting_power(
+    querier: QuerierWrapper,
+    vxastro: &Addr,
+    timestamp: Option<u64>,
+) -> StdResult<Uint128> {
+    querier.query_wasm_smart(
+        vxastro,
+        &voting_escrow::QueryMsg::TotalVotingPower { timestamp },
+    )
+}
+
+#[inline]
 pub fn query_incentives_addr(querier: QuerierWrapper, factory: &Addr) -> StdResult<Addr> {
     querier
         .query_wasm_smart::<factory::ConfigResponse>(factory, &factory::QueryMsg::Config {})?

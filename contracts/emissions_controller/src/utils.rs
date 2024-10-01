@@ -6,7 +6,7 @@ use astroport::incentives::{IncentivesSchedule, InputSchedule};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_schema::serde::Serialize;
 use cosmwasm_std::{
-    coin, Coin, CosmosMsg, Decimal, Deps, Env, QuerierWrapper, StdError, StdResult, Storage,
+    coin, Coin, CosmosMsg, Decimal, Deps, Env, Order, QuerierWrapper, StdError, StdResult, Storage,
     Uint128,
 };
 use itertools::Itertools;
@@ -25,7 +25,7 @@ use astroport_governance::emissions_controller::outpost::OutpostMsg;
 use astroport_governance::emissions_controller::utils::check_lp_token;
 
 use crate::error::ContractError;
-use crate::state::{get_active_outposts, TUNE_INFO, VOTED_POOLS};
+use crate::state::{get_active_outposts, OUTPOSTS, POOLS_WHITELIST, TUNE_INFO, VOTED_POOLS};
 
 /// Determine outpost prefix from address or tokenfactory denom.
 pub fn determine_outpost_prefix(value: &str) -> Option<String> {
@@ -362,6 +362,45 @@ pub fn simulate_tune(
         new_emissions_state,
         next_pools_grouped,
     })
+}
+
+/// Jails outpost as well as removes all whitelisted
+/// and being voted pools related to this outpost.
+pub fn jail_outpost(
+    storage: &mut dyn Storage,
+    prefix: &str,
+    env: Env,
+) -> Result<(), ContractError> {
+    // Remove all votable pools related to this outpost
+    let voted_pools = VOTED_POOLS
+        .keys(storage, None, None, Order::Ascending)
+        .collect::<StdResult<Vec<_>>>()?;
+    let prefix_some = Some(prefix.to_string());
+    voted_pools
+        .iter()
+        .filter(|pool| determine_outpost_prefix(pool) == prefix_some)
+        .try_for_each(|pool| VOTED_POOLS.remove(storage, pool, env.block.time.seconds()))?;
+
+    // And clear whitelist
+    POOLS_WHITELIST.update::<_, StdError>(storage, |mut whitelist| {
+        whitelist.retain(|pool| determine_outpost_prefix(pool) != prefix_some);
+        Ok(whitelist)
+    })?;
+
+    OUTPOSTS.update(storage, prefix, |outpost| {
+        if let Some(outpost) = outpost {
+            Ok(OutpostInfo {
+                jailed: true,
+                ..outpost
+            })
+        } else {
+            Err(ContractError::OutpostNotFound {
+                prefix: prefix.to_string(),
+            })
+        }
+    })?;
+
+    Ok(())
 }
 
 #[cfg(test)]

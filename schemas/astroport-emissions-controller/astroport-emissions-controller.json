@@ -589,7 +589,7 @@
                     "description": "Outpost params contain all necessary information to interact with the remote outpost. This field also serves as marker whether it is The hub (params: None) or remote outpost (Some(params))",
                     "anyOf": [
                       {
-                        "$ref": "#/definitions/OutpostParams"
+                        "$ref": "#/definitions/InputOutpostParams"
                       },
                       {
                         "type": "null"
@@ -676,7 +676,7 @@
           }
         ]
       },
-      "OutpostParams": {
+      "InputOutpostParams": {
         "type": "object",
         "required": [
           "emissions_controller",
@@ -1075,6 +1075,10 @@
         "minItems": 2
       },
       "definitions": {
+        "Addr": {
+          "description": "A human readable address.\n\nIn Cosmos, this is typically bech32 encoded. But for multi-chain smart contracts no assumptions should be made other than being UTF-8 encoded and of reasonable length.\n\nThis type represents a validated address. It can be created in the following ways 1. Use `Addr::unchecked(input)` 2. Use `let checked: Addr = deps.api.addr_validate(input)?` 3. Use `let checked: Addr = deps.api.addr_humanize(canonical_addr)?` 4. Deserialize from JSON. This must only be done from JSON that was validated before such as a contract's state. `Addr` must not be used in messages sent by the user because this would result in unvalidated instances.\n\nThis type is immutable. If you really need to mutate it (Really? Are you sure?), create a mutable copy using `let mut mutable = Addr::to_string()` and operate on that `String` instance.",
+          "type": "string"
+        },
         "AstroPoolConfig": {
           "description": "Each outpost may have one pool that receives flat ASTRO emissions. This pools doesn't participate in the voting process.",
           "type": "object",
@@ -1142,6 +1146,7 @@
           "type": "object",
           "required": [
             "emissions_controller",
+            "escrow_address",
             "ics20_channel",
             "voting_channel"
           ],
@@ -1149,6 +1154,14 @@
             "emissions_controller": {
               "description": "Emissions controller on a given outpost",
               "type": "string"
+            },
+            "escrow_address": {
+              "description": "ICS20 transfer escrow address on Neutron. Calculated automatically based on channel id",
+              "allOf": [
+                {
+                  "$ref": "#/definitions/Addr"
+                }
+              ]
             },
             "ics20_channel": {
               "description": "General IBC channel for fungible token transfers",

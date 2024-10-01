@@ -337,7 +337,7 @@
                   "description": "Outpost params contain all necessary information to interact with the remote outpost. This field also serves as marker whether it is The hub (params: None) or remote outpost (Some(params))",
                   "anyOf": [
                     {
-                      "$ref": "#/definitions/OutpostParams"
+                      "$ref": "#/definitions/InputOutpostParams"
                     },
                     {
                       "type": "null"
@@ -424,7 +424,7 @@
         }
       ]
     },
-    "OutpostParams": {
+    "InputOutpostParams": {
       "type": "object",
       "required": [
         "emissions_controller",
