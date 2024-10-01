@@ -1036,15 +1036,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ibc-escrow-tester"
-version = "0.1.0"
-dependencies = [
- "astroport-governance 4.2.0",
- "cosmwasm-schema",
- "cosmwasm-std",
-]
-
-[[package]]
 name = "integer-sqrt"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
