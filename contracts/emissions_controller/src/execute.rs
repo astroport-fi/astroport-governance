@@ -17,12 +17,14 @@ use neutron_sdk::bindings::query::NeutronQuery;
 
 use astroport_governance::emissions_controller::consts::{EPOCH_LENGTH, IBC_TIMEOUT};
 use astroport_governance::emissions_controller::hub::{
-    AstroPoolConfig, HubMsg, OutpostInfo, OutpostParams, OutpostStatus, TuneInfo, UserInfo,
-    VotedPoolInfo,
+    AstroPoolConfig, HubMsg, InputOutpostParams, OutpostInfo, OutpostParams, OutpostStatus,
+    TuneInfo, UserInfo, VotedPoolInfo,
 };
 use astroport_governance::emissions_controller::msg::{ExecuteMsg, VxAstroIbcMsg};
 use astroport_governance::emissions_controller::utils::{check_lp_token, get_voting_power};
-use astroport_governance::utils::check_contract_supports_channel;
+use astroport_governance::utils::{
+    check_contract_supports_channel, determine_ics20_escrow_address,
+};
 use astroport_governance::{assembly, voting_escrow};
 
 use crate::error::ContractError;
@@ -31,9 +33,8 @@ use crate::state::{
     USER_INFO, VOTED_POOLS,
 };
 use crate::utils::{
-    build_emission_ibc_msg, determine_outpost_prefix, get_epoch_start, get_outpost_prefix,
-    min_ntrn_ibc_fee, raw_emissions_to_schedules, simulate_tune, validate_outpost_prefix,
-    TuneResult,
+    build_emission_ibc_msg, get_epoch_start, get_outpost_prefix, jail_outpost, min_ntrn_ibc_fee,
+    raw_emissions_to_schedules, simulate_tune, validate_outpost_prefix, TuneResult,
 };
 
 /// Exposes all the execute functions available in the contract.
@@ -149,7 +150,7 @@ pub fn execute(
                 outpost_params,
                 astro_pool_config,
             ),
-            HubMsg::JailOutpost { prefix } => jail_outpost(deps, env, info, prefix),
+            HubMsg::JailOutpost { prefix } => jail_outpost_endpoint(deps, env, info, prefix),
             HubMsg::UnjailOutpost { prefix } => unjail_outpost(deps, info, prefix),
             HubMsg::TunePools {} => tune_pools(deps, env),
             HubMsg::RetryFailedOutposts {} => retry_failed_outposts(deps, info, env),
@@ -251,7 +252,7 @@ pub fn update_outpost(
     info: MessageInfo,
     prefix: String,
     astro_denom: String,
-    outpost_params: Option<OutpostParams>,
+    outpost_params: Option<InputOutpostParams>,
     astro_pool_config: Option<AstroPoolConfig>,
 ) -> Result<Response<NeutronMsg>, ContractError> {
     nonpayable(&info)?;
@@ -308,12 +309,29 @@ pub fn update_outpost(
         Some(OutpostInfo { jailed: true, .. }) => Err(ContractError::JailedOutpost {
             prefix: prefix.clone(),
         }),
-        _ => Ok(OutpostInfo {
-            params: outpost_params,
-            astro_denom,
-            astro_pool_config,
-            jailed: false,
-        }),
+        _ => {
+            let params = outpost_params
+                .map(|params| -> StdResult<_> {
+                    Ok(OutpostParams {
+                        emissions_controller: params.emissions_controller,
+                        voting_channel: params.voting_channel,
+                        escrow_address: determine_ics20_escrow_address(
+                            deps.api,
+                            "transfer",
+                            &params.ics20_channel,
+                        )?,
+                        ics20_channel: params.ics20_channel,
+                    })
+                })
+                .transpose()?;
+
+            Ok(OutpostInfo {
+                params,
+                astro_denom,
+                astro_pool_config,
+                jailed: false,
+            })
+        }
     })?;
 
     Ok(Response::default().add_attributes([("action", "update_outpost"), ("prefix", &prefix)]))
@@ -321,7 +339,7 @@ pub fn update_outpost(
 
 /// Jails outpost as well as removes all whitelisted
 /// and being voted pools related to this outpost.
-pub fn jail_outpost(
+pub fn jail_outpost_endpoint(
     deps: DepsMut<NeutronQuery>,
     env: Env,
     info: MessageInfo,
@@ -331,34 +349,7 @@ pub fn jail_outpost(
     let config = CONFIG.load(deps.storage)?;
     ensure!(info.sender == config.owner, ContractError::Unauthorized {});
 
-    // Remove all votable pools related to this outpost
-    let voted_pools = VOTED_POOLS
-        .keys(deps.storage, None, None, Order::Ascending)
-        .collect::<StdResult<Vec<_>>>()?;
-    let prefix_some = Some(prefix.clone());
-    voted_pools
-        .iter()
-        .filter(|pool| determine_outpost_prefix(pool) == prefix_some)
-        .try_for_each(|pool| VOTED_POOLS.remove(deps.storage, pool, env.block.time.seconds()))?;
-
-    // And clear whitelist
-    POOLS_WHITELIST.update::<_, StdError>(deps.storage, |mut whitelist| {
-        whitelist.retain(|pool| determine_outpost_prefix(pool) != prefix_some);
-        Ok(whitelist)
-    })?;
-
-    OUTPOSTS.update(deps.storage, &prefix, |outpost| {
-        if let Some(outpost) = outpost {
-            Ok(OutpostInfo {
-                jailed: true,
-                ..outpost
-            })
-        } else {
-            Err(ContractError::OutpostNotFound {
-                prefix: prefix.clone(),
-            })
-        }
-    })?;
+    jail_outpost(deps.storage, &prefix, env)?;
 
     Ok(Response::default().add_attributes([("action", "jail_outpost"), ("prefix", &prefix)]))
 }

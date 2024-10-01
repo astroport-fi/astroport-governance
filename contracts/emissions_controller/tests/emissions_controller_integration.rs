@@ -17,6 +17,7 @@ use astroport_governance::emissions_controller::hub::{
     UserInfoResponse,
 };
 use astroport_governance::emissions_controller::msg::{ExecuteMsg, VxAstroIbcMsg};
+use astroport_governance::utils::determine_ics20_escrow_address;
 use astroport_governance::{assembly, emissions_controller, voting_escrow};
 use astroport_voting_escrow::state::UNLOCK_PERIOD;
 
@@ -248,7 +249,7 @@ fn test_outpost_management() {
             &ExecuteMsg::Custom(HubMsg::UpdateOutpost {
                 prefix: "neutron".to_string(),
                 astro_denom: neutron.astro_denom.clone(),
-                outpost_params: neutron.params.clone(),
+                outpost_params: None,
                 astro_pool_config: neutron.astro_pool_config.clone(),
             }),
             &[],
@@ -301,12 +302,15 @@ fn test_outpost_management() {
         .constant_emissions = Uint128::one();
     helper.add_outpost("neutron", neutron.clone()).unwrap();
 
+    let osmo_escrow_address =
+        determine_ics20_escrow_address(helper.app.api(), "transfer", "channel-2").unwrap();
     let mut osmosis = OutpostInfo {
         astro_denom: "uastro".to_string(),
         params: Some(OutpostParams {
             emissions_controller: "osmo1controller".to_string(),
             voting_channel: "channel-1".to_string(),
             ics20_channel: "channel-2".to_string(),
+            escrow_address: osmo_escrow_address,
         }),
         astro_pool_config: None,
         jailed: false,
@@ -856,6 +860,7 @@ fn test_tune_outpost() {
             emissions_controller: "osmo1emissionscontroller".to_string(),
             voting_channel: "channel-1".to_string(),
             ics20_channel: "channel-2".to_string(),
+            escrow_address: Addr::unchecked(""),
         }),
         astro_pool_config: Some(AstroPoolConfig {
             astro_pool: astro_pool.to_string(),
@@ -1370,6 +1375,7 @@ fn test_some_epochs() {
                     emissions_controller: "osmo1controller".to_string(),
                     voting_channel: "channel-1".to_string(),
                     ics20_channel: "channel-2".to_string(),
+                    escrow_address: Addr::unchecked(""),
                 }),
                 astro_pool_config: None,
                 jailed: false,
@@ -1538,6 +1544,7 @@ fn test_interchain_governance() {
                     emissions_controller: "osmo1controller".to_string(),
                     voting_channel: "channel-1".to_string(),
                     ics20_channel: "channel-2".to_string(),
+                    escrow_address: Addr::unchecked(""),
                 }),
                 astro_pool_config: None,
                 jailed: false,
@@ -1572,6 +1579,7 @@ fn test_interchain_governance() {
         .mock_packet_receive(VxAstroIbcMsg::GovernanceVote {
             voter: "osmo1voter".to_string(),
             voting_power: Default::default(),
+            total_voting_power: Default::default(),
             proposal_id: 1,
             vote: ProposalVoteOption::For,
         })
@@ -1589,6 +1597,7 @@ fn test_interchain_governance() {
         .mock_packet_receive(VxAstroIbcMsg::GovernanceVote {
             voter: "osmo1voter".to_string(),
             voting_power: 1_000000u128.into(),
+            total_voting_power: Default::default(),
             proposal_id: 3,
             vote: ProposalVoteOption::For,
         })

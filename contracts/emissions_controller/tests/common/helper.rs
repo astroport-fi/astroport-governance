@@ -24,8 +24,8 @@ use astroport_governance::assembly::{
 };
 use astroport_governance::emissions_controller::consts::EPOCHS_START;
 use astroport_governance::emissions_controller::hub::{
-    EmissionsState, HubInstantiateMsg, HubMsg, OutpostInfo, SimulateTuneResponse, TuneInfo,
-    UserInfoResponse, VotedPoolInfo,
+    EmissionsState, HubInstantiateMsg, HubMsg, InputOutpostParams, OutpostInfo,
+    SimulateTuneResponse, TuneInfo, UserInfoResponse, VotedPoolInfo,
 };
 use astroport_governance::emissions_controller::msg::VxAstroIbcMsg;
 use astroport_governance::voting_escrow::UpdateMarketingInfo;
@@ -508,7 +508,11 @@ impl ControllerHelper {
             &emissions_controller::msg::ExecuteMsg::Custom(HubMsg::UpdateOutpost {
                 prefix: prefix.to_string(),
                 astro_denom: outpost.astro_denom,
-                outpost_params: outpost.params,
+                outpost_params: outpost.params.map(|info| InputOutpostParams {
+                    emissions_controller: info.emissions_controller,
+                    voting_channel: info.voting_channel,
+                    ics20_channel: info.ics20_channel,
+                }),
                 astro_pool_config: outpost.astro_pool_config,
             }),
             &[],

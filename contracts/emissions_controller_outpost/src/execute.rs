@@ -18,7 +18,9 @@ use astroport_governance::emissions_controller::consts::{IBC_TIMEOUT, MAX_POOLS_
 use astroport_governance::emissions_controller::msg::ExecuteMsg;
 use astroport_governance::emissions_controller::msg::VxAstroIbcMsg;
 use astroport_governance::emissions_controller::outpost::{Config, OutpostMsg};
-use astroport_governance::emissions_controller::utils::{check_lp_token, get_voting_power};
+use astroport_governance::emissions_controller::utils::{
+    check_lp_token, get_total_voting_power, get_voting_power,
+};
 use astroport_governance::utils::check_contract_supports_channel;
 
 use crate::error::ContractError;
@@ -271,6 +273,8 @@ pub fn handle_vote(
     let voting_power = get_voting_power(deps.querier, &config.vxastro, &info.sender, None)?;
     ensure!(!voting_power.is_zero(), ContractError::ZeroVotingPower {});
 
+    let total_voting_power = get_total_voting_power(deps.querier, &config.vxastro, None)?;
+
     let vote_ibc_msg = prepare_ibc_packet(
         deps.storage,
         &env,
@@ -278,6 +282,7 @@ pub fn handle_vote(
         VxAstroIbcMsg::EmissionsVote {
             voter: info.sender.to_string(),
             voting_power,
+            total_voting_power,
             votes: votes_map,
         },
         config.voting_ibc_channel,
@@ -304,6 +309,8 @@ pub fn handle_update_user(
         attr("new_voting_power", voting_power),
     ];
 
+    let total_voting_power = get_total_voting_power(deps.querier, &config.vxastro, None)?;
+
     let ibc_msg = prepare_ibc_packet(
         deps.storage,
         &env,
@@ -311,6 +318,7 @@ pub fn handle_update_user(
         VxAstroIbcMsg::UpdateUserVotes {
             voter: voter.to_string(),
             voting_power,
+            total_voting_power,
             is_unlock,
         },
         config.voting_ibc_channel,
@@ -387,6 +395,9 @@ pub fn governance_vote(
         get_voting_power(deps.querier, &config.vxastro, &voter, Some(start_time - 1))?;
     ensure!(!voting_power.is_zero(), ContractError::ZeroVotingPower {});
 
+    let total_voting_power =
+        get_total_voting_power(deps.querier, &config.vxastro, Some(start_time - 1))?;
+
     let attrs = vec![
         attr("action", "governance_vote"),
         attr("voter", &info.sender),
@@ -400,6 +411,7 @@ pub fn governance_vote(
         VxAstroIbcMsg::GovernanceVote {
             voter: voter.clone(),
             voting_power,
+            total_voting_power,
             proposal_id,
             vote,
         },
