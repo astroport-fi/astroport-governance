@@ -2,8 +2,8 @@ use std::ops::RangeInclusive;
 
 use cosmwasm_std::IbcOrder;
 
-/// vxASTRO voting epoch starts on Mon May 20 00:00:00 UTC 2024
-pub const EPOCHS_START: u64 = 1716163200;
+/// vxASTRO voting epoch starts on Mon May 27 00:00:00 UTC 2024
+pub const EPOCHS_START: u64 = 1716768000;
 pub const DAY: u64 = 86400;
 /// vxASTRO voting epoch lasts 14 days
 pub const EPOCH_LENGTH: u64 = DAY * 14;

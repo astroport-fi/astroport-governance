@@ -514,7 +514,7 @@ mod unit_tests {
         let ack_err: IbcAckResult = from_json(resp.acknowledgement).unwrap();
         assert_eq!(
             ack_err,
-            IbcAckResult::Error("Next time you can change your vote is at 1725840000".to_string())
+            IbcAckResult::Error("Next time you can change your vote is at 1725235200".to_string())
         );
 
         // Voting from random channel is not possible
