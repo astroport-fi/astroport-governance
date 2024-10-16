@@ -21,7 +21,7 @@ If the pool is located on the Hub contract also checks, this LP token correspond
 Users are required to have vxASTRO to cast their votes.
 They can vote for whitelisted pools at once every epoch.
 Vote changes are not allowed after votes are cast.
-After voting, they can't change their votes until the cooldown period ends.
+After voting, they can't change their votes until the next epoch.
 Executable message accepts an array of tuples with LP token and vote weight.
 Vote weight is a number between 0 and 1. Total vote weight can't exceed 1.
 If user doesn't vote during the next epochs, their contribution stays intact.
@@ -67,7 +67,7 @@ contract instantiation.
 We call the process of ASTRO emission distribution `tuning`.
 Tuning endpoint is permissionless and has 2-week cooldown.
 During tuning contract queries snapshotted votes per pool at the exact start of the epoch
-(Monday 00:00 UTC starting from Mon May 20 00:00:00 UTC 2024).
+(Monday 00:00 UTC starting from Mon May 27 00:00:00 UTC 2024).
 Then it filters out pools which are not part of any outpost, sorts pools by votes and
 takes top X pools, where X - 'config.pools_per_outpost' * number of outposts.
 At the time when this endpoint is executed, new dynamic ASTRO emissions are calculated.
@@ -99,8 +99,8 @@ Note that if those outposts haven't been retried during the epoch, their state w
 
 ## Maintaining Whitelist Presence
 
-Due to security reasons we introduced special parameter `config.whitelist_threshold` which is expected to be 0.01 (1% of
-all votes).
+Due to security reasons we introduced special parameter `config.whitelist_threshold` which is expected to be 0.001 (0.1%
+of all votes).
 Every epoch during tuning the contract removes all pools that have less than `config.whitelist_threshold` of total
 votes.
 Those pools will need to be whitelisted again, and their voting process starts from scratch.

@@ -428,15 +428,31 @@ mod unit_tests {
 
     #[test]
     fn test_epoch_start() {
-        assert_eq!(get_epoch_start(1716163200), 1716163200);
-        assert_eq!(get_epoch_start(1716163200 + 1), 1716163200);
+        assert_eq!(get_epoch_start(1716768000), 1716768000);
+        assert_eq!(get_epoch_start(1716768000 + 1), 1716768000);
         assert_eq!(
-            get_epoch_start(1716163200 + EPOCH_LENGTH),
-            1716163200 + EPOCH_LENGTH
+            get_epoch_start(1716768000 + EPOCH_LENGTH),
+            1716768000 + EPOCH_LENGTH
         );
         assert_eq!(
-            get_epoch_start(1716163200 + EPOCH_LENGTH + 1),
-            1716163200 + EPOCH_LENGTH
+            get_epoch_start(1716768000 + EPOCH_LENGTH + 1),
+            1716768000 + EPOCH_LENGTH
+        );
+
+        // Assert that epoch start date matches the official launch date (28 October 2024)
+        let official_launch_date = 1730073600;
+        assert_eq!(get_epoch_start(official_launch_date), official_launch_date);
+        assert_eq!(
+            get_epoch_start(official_launch_date + 1),
+            official_launch_date
+        );
+        assert_eq!(
+            get_epoch_start(official_launch_date + EPOCH_LENGTH),
+            official_launch_date + EPOCH_LENGTH
+        );
+        assert_eq!(
+            get_epoch_start(official_launch_date + EPOCH_LENGTH + 1),
+            official_launch_date + EPOCH_LENGTH
         );
     }
 }
