@@ -1,6 +1,6 @@
 [package]
 name = "astroport-governance"
-version = "4.2.1"
+version = "4.2.1-cw1.0"
 authors = ["Astroport"]
 edition = "2021"
 description = "Astroport Governance common types, queriers and other utils"
