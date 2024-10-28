@@ -66,7 +66,7 @@ jobs:
           fail-on-cache-miss: true
       - name: Install cosmwasm-check
         # Uses --debug for compilation speed
-        run: cargo install --debug --version 1.4.0 cosmwasm-check
+        run: cargo install --debug --version 1.5.8 cosmwasm-check
       - name: Cosmwasm check
         run: |
-          cosmwasm-check $GITHUB_WORKSPACE/artifacts/*.wasm --available-capabilities staking,iterator,stargate,cosmwasm_1_1,neutron
+          cosmwasm-check $GITHUB_WORKSPACE/artifacts/*.wasm --available-capabilities staking,iterator,stargate
