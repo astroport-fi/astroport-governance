@@ -1,6 +1,6 @@
 {
   "contract_name": "astroport-emissions-controller",
-  "contract_version": "1.1.1",
+  "contract_version": "1.1.2",
   "idl_version": "1.0.0",
   "instantiate": {
     "$schema": "http://json-schema.org/draft-07/schema#",
@@ -883,6 +883,31 @@
         "additionalProperties": false
       },
       {
+        "description": "CheckWhitelist checks all the pools in the list and returns whether they are whitelisted. Returns array of tuples (LP token, is_whitelisted).",
+        "type": "object",
+        "required": [
+          "check_whitelist"
+        ],
+        "properties": {
+          "check_whitelist": {
+            "type": "object",
+            "required": [
+              "lp_tokens"
+            ],
+            "properties": {
+              "lp_tokens": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      {
         "description": "SimulateTune simulates the ASTRO amount that will be emitted in the next epoch per pool considering if the next epoch starts right now. This query is useful for the UI to show the expected ASTRO emissions as well as might be useful for integrator estimations. It filters out pools which don't belong to any of outposts and invalid Hub-based LP tokens. Returns TuneResultResponse object which contains emissions state and next pools grouped by outpost prefix.",
         "type": "object",
         "required": [
@@ -901,6 +926,24 @@
   "migrate": null,
   "sudo": null,
   "responses": {
+    "check_whitelist": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Array_of_Tuple_of_String_and_Boolean",
+      "type": "array",
+      "items": {
+        "type": "array",
+        "items": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "boolean"
+          }
+        ],
+        "maxItems": 2,
+        "minItems": 2
+      }
+    },
     "config": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Config",

@@ -122,6 +122,17 @@ pub fn query(deps: Deps<NeutronQuery>, env: Env, msg: QueryMsg) -> Result<Binary
 
             Ok(to_json_binary(pools_whitelist)?)
         }
+        QueryMsg::CheckWhitelist { lp_tokens } => {
+            let whitelist = POOLS_WHITELIST.load(deps.storage)?;
+            let is_whitelisted = lp_tokens
+                .into_iter()
+                .map(|lp_token| {
+                    let is_whitelisted = whitelist.contains(&lp_token);
+                    (lp_token, is_whitelisted)
+                })
+                .collect_vec();
+            Ok(to_json_binary(&is_whitelisted)?)
+        }
         QueryMsg::SimulateTune {} => {
             let deps = deps.into_empty();
 

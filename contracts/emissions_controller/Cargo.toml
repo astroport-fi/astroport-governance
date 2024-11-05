@@ -1,6 +1,6 @@
 [package]
 name = "astroport-emissions-controller"
-version = "1.1.1"
+version = "1.1.2"
 authors = ["Astroport"]
 edition = "2021"
 description = "Astroport vxASTRO Emissions Voting Contract"
