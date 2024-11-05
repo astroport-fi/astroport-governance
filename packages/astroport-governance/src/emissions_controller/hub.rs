@@ -132,6 +132,10 @@ pub enum QueryMsg {
         limit: Option<u8>,
         start_after: Option<String>,
     },
+    /// CheckWhitelist checks all the pools in the list and returns whether they are whitelisted.
+    /// Returns array of tuples (LP token, is_whitelisted).
+    #[returns(Vec<(String, bool)>)]
+    CheckWhitelist { lp_tokens: Vec<String> },
     /// SimulateTune simulates the ASTRO amount that will be emitted in the next epoch per pool
     /// considering if the next epoch starts right now.
     /// This query is useful for the UI to show the expected ASTRO emissions

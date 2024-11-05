@@ -225,6 +225,25 @@ fn test_whitelist() {
 
     let whitelist = helper.query_whitelist().unwrap();
     assert_eq!(whitelist, vec![lp_token.to_string()]);
+
+    let check_result = helper
+        .check_whitelist(vec![
+            lp_token.to_string(),
+            "random_lp".to_string(),
+            "factory/neutron1invalidaddr/astroport/share".to_string(),
+        ])
+        .unwrap();
+    assert_eq!(
+        check_result,
+        vec![
+            (lp_token.to_string(), true),
+            ("random_lp".to_string(), false),
+            (
+                "factory/neutron1invalidaddr/astroport/share".to_string(),
+                false
+            )
+        ]
+    );
 }
 
 #[test]
