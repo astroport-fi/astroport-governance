@@ -14,7 +14,7 @@ use astroport_governance::assembly::{ProposalVoteOption, ProposalVoterResponse};
 use astroport_governance::emissions_controller::consts::{DAY, EPOCH_LENGTH};
 use astroport_governance::emissions_controller::hub::{
     AstroPoolConfig, EmissionsState, HubMsg, OutpostInfo, OutpostParams, OutpostStatus, TuneInfo,
-    UserInfoResponse,
+    UserInfoResponse, VotedPoolInfo,
 };
 use astroport_governance::emissions_controller::msg::{ExecuteMsg, VxAstroIbcMsg};
 use astroport_governance::utils::determine_ics20_escrow_address;
@@ -204,6 +204,12 @@ fn test_whitelist_blacklist() {
         .whitelist(&owner, &lp_token, &[whitelist_fee.clone()])
         .unwrap();
 
+    // Vote for this pool
+    helper.lock(&owner, 1000).unwrap();
+    helper
+        .vote(&owner, &[(lp_token.to_string(), Decimal::one())])
+        .unwrap();
+
     let fee_receiver = helper.query_config().unwrap().fee_receiver;
     let fee_balance = helper
         .app
@@ -284,6 +290,16 @@ fn test_whitelist_blacklist() {
         "Generic error: Duplicated LP tokens found"
     );
 
+    // Confirm that pool has voting info before blacklisting
+    let vote_info = helper.query_voted_pool(&lp_token, None).unwrap();
+    assert_eq!(
+        vote_info,
+        VotedPoolInfo {
+            init_ts: 1716768000,
+            voting_power: 1000u128.into()
+        }
+    );
+
     helper
         .update_blacklist(
             &owner,
@@ -291,6 +307,13 @@ fn test_whitelist_blacklist() {
             vec![],
         )
         .unwrap();
+
+    // Try to query voting info for blacklisted pool
+    let err = helper.query_voted_pool(&lp_token, None).unwrap_err();
+    assert_eq!(
+        err.to_string(),
+        "Generic error: Querier contract error: Generic error: Voted pool not found at 1716768000"
+    );
 
     // Try to blacklist same pool again
     let err = helper
@@ -314,13 +337,6 @@ fn test_whitelist_blacklist() {
 
     let whitelist = helper.query_whitelist().unwrap();
     assert_eq!(whitelist, vec![lp_token2.clone()]);
-
-    // Try to query voting info for blacklisted pool
-    let err = helper.query_voted_pool(&lp_token, None).unwrap_err();
-    assert_eq!(
-        err.to_string(),
-        "Generic error: Querier contract error: Generic error: Voted pool not found at 1716768000"
-    );
 
     // Try to whitelist blacklisted pool
     let err = helper
