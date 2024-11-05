@@ -6,9 +6,9 @@ use astroport::incentives;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, ensure, to_json_binary, wasm_execute, BankMsg, Coin, CosmosMsg, Decimal, DepsMut, Env,
-    Fraction, IbcMsg, IbcTimeout, MessageInfo, Order, Response, StdError, StdResult, Storage,
-    Uint128,
+    attr, ensure, ensure_eq, to_json_binary, wasm_execute, BankMsg, Coin, CosmosMsg, Decimal,
+    DepsMut, Env, Fraction, IbcMsg, IbcTimeout, MessageInfo, Order, Response, StdError, StdResult,
+    Storage, Uint128,
 };
 use cw_utils::{must_pay, nonpayable};
 use itertools::Itertools;
@@ -29,8 +29,8 @@ use astroport_governance::{assembly, voting_escrow};
 
 use crate::error::ContractError;
 use crate::state::{
-    get_active_outposts, CONFIG, OUTPOSTS, OWNERSHIP_PROPOSAL, POOLS_WHITELIST, TUNE_INFO,
-    USER_INFO, VOTED_POOLS,
+    get_active_outposts, CONFIG, OUTPOSTS, OWNERSHIP_PROPOSAL, POOLS_BLACKLIST, POOLS_WHITELIST,
+    TUNE_INFO, USER_INFO, VOTED_POOLS,
 };
 use crate::utils::{
     build_emission_ibc_msg, get_epoch_start, get_outpost_prefix, jail_outpost, min_ntrn_ibc_fee,
@@ -136,6 +136,9 @@ pub fn execute(
         }
         ExecuteMsg::Custom(hub_msg) => match hub_msg {
             HubMsg::WhitelistPool { lp_token: pool } => whitelist_pool(deps, env, info, pool),
+            HubMsg::UpdateBlacklist { add, remove } => {
+                update_blacklist(deps, info, env, add, remove)
+            }
             HubMsg::UpdateOutpost {
                 prefix,
                 astro_denom,
@@ -191,6 +194,12 @@ pub fn whitelist_pool(
         ContractError::IncorrectWhitelistFee(config.whitelisting_fee)
     );
 
+    // Ensure that LP token is not blacklisted
+    ensure!(
+        !POOLS_BLACKLIST.has(deps.storage, &pool),
+        ContractError::PoolIsBlacklisted(pool.clone())
+    );
+
     // Perform basic LP token validation. Ensure the outpost exists.
     let outposts = get_active_outposts(deps.storage)?;
     if let Some(prefix) = get_outpost_prefix(&pool, &outposts) {
@@ -242,6 +251,63 @@ pub fn whitelist_pool(
     Ok(Response::default()
         .add_message(send_fee_msg)
         .add_attributes([attr("action", "whitelist_pool"), attr("pool", &pool)]))
+}
+
+pub fn update_blacklist(
+    deps: DepsMut<NeutronQuery>,
+    info: MessageInfo,
+    env: Env,
+    add: Vec<String>,
+    remove: Vec<String>,
+) -> Result<Response<NeutronMsg>, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+
+    ensure_eq!(info.sender, config.owner, ContractError::Unauthorized {});
+
+    // Checking for duplicates
+    ensure!(
+        remove.iter().chain(add.iter()).all_unique(),
+        StdError::generic_err("Duplicated LP tokens found")
+    );
+
+    // Remove pools from blacklist
+    for lp_token in &remove {
+        ensure!(
+            POOLS_BLACKLIST.has(deps.storage, lp_token),
+            StdError::generic_err(format!("LP token {lp_token} wasn't found in the blacklist"))
+        );
+
+        POOLS_BLACKLIST.remove(deps.storage, lp_token);
+    }
+
+    // Add pools to blacklist
+    for lp_token in &add {
+        ensure!(
+            !POOLS_BLACKLIST.has(deps.storage, lp_token),
+            StdError::generic_err(format!("LP token {lp_token} is already blacklisted"))
+        );
+
+        // If key doesn't exist .remove() doesn't throw an error
+        VOTED_POOLS.remove(deps.storage, lp_token, env.block.time.seconds())?;
+        POOLS_BLACKLIST.save(deps.storage, lp_token, &())?;
+    }
+
+    // And clear whitelist
+    POOLS_WHITELIST.update::<_, StdError>(deps.storage, |mut whitelist| {
+        whitelist.retain(|pool| !add.contains(pool));
+        Ok(whitelist)
+    })?;
+
+    let mut attrs = vec![attr("action", "update_blacklist")];
+
+    if !add.is_empty() {
+        attrs.push(attr("add", add.into_iter().join(",")));
+    }
+    if !remove.is_empty() {
+        attrs.push(attr("remove", remove.into_iter().join(",")));
+    }
+
+    Ok(Response::default().add_attributes(attrs))
 }
 
 /// Permissioned endpoint to add or update outpost.

@@ -133,7 +133,7 @@ pub fn voting_test() {
 }
 
 #[test]
-fn test_whitelist() {
+fn test_whitelist_blacklist() {
     let mut helper = ControllerHelper::new();
     let owner = helper.owner.clone();
     let whitelist_fee = helper.whitelisting_fee.clone();
@@ -223,25 +223,134 @@ fn test_whitelist() {
         ContractError::PoolAlreadyWhitelisted(lp_token.to_string())
     );
 
-    let whitelist = helper.query_whitelist().unwrap();
-    assert_eq!(whitelist, vec![lp_token.to_string()]);
+    let lp_token2 = helper.create_pair("token1", "token3");
+    helper
+        .mint_tokens(&owner, &[whitelist_fee.clone()])
+        .unwrap();
+    helper
+        .whitelist(&owner, &lp_token2, &[whitelist_fee.clone()])
+        .unwrap();
+
+    let whitelist = helper
+        .query_whitelist()
+        .unwrap()
+        .into_iter()
+        .sorted()
+        .collect_vec();
+    assert_eq!(whitelist, vec![lp_token.clone(), lp_token2.clone()]);
 
     let check_result = helper
         .check_whitelist(vec![
-            lp_token.to_string(),
-            "random_lp".to_string(),
+            lp_token.clone(),
+            lp_token2.clone(),
             "factory/neutron1invalidaddr/astroport/share".to_string(),
         ])
         .unwrap();
     assert_eq!(
         check_result,
         vec![
-            (lp_token.to_string(), true),
-            ("random_lp".to_string(), false),
+            (lp_token.clone(), true),
+            (lp_token2.clone(), true),
             (
                 "factory/neutron1invalidaddr/astroport/share".to_string(),
                 false
             )
+        ]
+    );
+
+    let random_user = helper.app.api().addr_make("random");
+
+    let err = helper
+        .update_blacklist(&random_user, vec![lp_token.clone()], vec![])
+        .unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::Unauthorized {}
+    );
+
+    let err = helper
+        .update_blacklist(&owner, vec![], vec![lp_token.clone()])
+        .unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        format!("Generic error: LP token {lp_token} wasn't found in the blacklist")
+    );
+
+    let err = helper
+        .update_blacklist(&owner, vec![lp_token.clone()], vec![lp_token.clone()])
+        .unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Generic error: Duplicated LP tokens found"
+    );
+
+    helper
+        .update_blacklist(
+            &owner,
+            vec![lp_token.clone(), "neutron1future_lp_token".to_string()],
+            vec![],
+        )
+        .unwrap();
+
+    // Try to blacklist same pool again
+    let err = helper
+        .update_blacklist(&owner, vec!["neutron1future_lp_token".to_string()], vec![])
+        .unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Generic error: LP token neutron1future_lp_token is already blacklisted"
+    );
+
+    let blacklist = helper
+        .query_blacklist()
+        .unwrap()
+        .into_iter()
+        .sorted()
+        .collect_vec();
+    assert_eq!(
+        blacklist,
+        vec![lp_token.clone(), "neutron1future_lp_token".to_string()]
+    );
+
+    let whitelist = helper.query_whitelist().unwrap();
+    assert_eq!(whitelist, vec![lp_token2.clone()]);
+
+    // Try to query voting info for blacklisted pool
+    let err = helper.query_voted_pool(&lp_token, None).unwrap_err();
+    assert_eq!(
+        err.to_string(),
+        "Generic error: Querier contract error: Generic error: Voted pool not found at 1716768000"
+    );
+
+    // Try to whitelist blacklisted pool
+    let err = helper
+        .whitelist(&owner, &lp_token, &[whitelist_fee.clone()])
+        .unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::PoolIsBlacklisted(lp_token.to_string())
+    );
+
+    // Add and remove pools from the blacklist in one go
+    helper
+        .update_blacklist(
+            &owner,
+            vec!["neutron1one_more_blacklisted_pool".to_string()],
+            vec!["neutron1future_lp_token".to_string()],
+        )
+        .unwrap();
+
+    let blacklist = helper
+        .query_blacklist()
+        .unwrap()
+        .into_iter()
+        .sorted()
+        .collect_vec();
+    assert_eq!(
+        blacklist,
+        vec![
+            lp_token.clone(),
+            "neutron1one_more_blacklisted_pool".to_string()
         ]
     );
 }

@@ -501,6 +501,20 @@ impl ControllerHelper {
         )
     }
 
+    pub fn update_blacklist(
+        &mut self,
+        user: &Addr,
+        add: Vec<String>,
+        remove: Vec<String>,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            user.clone(),
+            self.emission_controller.clone(),
+            &emissions_controller::msg::ExecuteMsg::Custom(HubMsg::UpdateBlacklist { add, remove }),
+            &[],
+        )
+    }
+
     pub fn add_outpost(&mut self, prefix: &str, outpost: OutpostInfo) -> AnyResult<AppResponse> {
         self.app.execute_contract(
             self.owner.clone(),
@@ -567,6 +581,16 @@ impl ControllerHelper {
         self.app.wrap().query_wasm_smart(
             &self.emission_controller,
             &emissions_controller::hub::QueryMsg::QueryWhitelist {
+                limit: Some(100),
+                start_after: None,
+            },
+        )
+    }
+
+    pub fn query_blacklist(&self) -> StdResult<Vec<String>> {
+        self.app.wrap().query_wasm_smart(
+            &self.emission_controller,
+            &emissions_controller::hub::QueryMsg::QueryBlacklist {
                 limit: Some(100),
                 start_after: None,
             },

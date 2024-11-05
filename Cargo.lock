@@ -25,7 +25,7 @@ version = "3.0.0"
 dependencies = [
  "anyhow",
  "astroport 4.0.3",
- "astroport-governance 4.2.1",
+ "astroport-governance 4.3.0",
  "astroport-staking",
  "astroport-tokenfactory-tracker",
  "astroport-voting-escrow",
@@ -136,13 +136,13 @@ dependencies = [
 
 [[package]]
 name = "astroport-emissions-controller"
-version = "1.1.2"
+version = "1.2.0"
 dependencies = [
  "anyhow",
  "astro-assembly",
  "astroport 5.3.0 (git+https://github.com/astroport-fi/astroport-core)",
  "astroport-factory",
- "astroport-governance 4.2.1",
+ "astroport-governance 4.3.0",
  "astroport-incentives",
  "astroport-pair",
  "astroport-staking",
@@ -171,7 +171,7 @@ dependencies = [
  "anyhow",
  "astroport 5.3.0 (git+https://github.com/astroport-fi/astroport-core)",
  "astroport-factory",
- "astroport-governance 4.2.1",
+ "astroport-governance 4.3.0",
  "astroport-incentives",
  "astroport-pair",
  "astroport-voting-escrow",
@@ -233,7 +233,7 @@ dependencies = [
 
 [[package]]
 name = "astroport-governance"
-version = "4.2.1"
+version = "4.3.0"
 dependencies = [
  "astroport 5.3.0 (git+https://github.com/astroport-fi/astroport-core)",
  "cosmwasm-schema",
@@ -321,7 +321,7 @@ name = "astroport-voting-escrow"
 version = "1.1.0"
 dependencies = [
  "astroport 5.3.0 (git+https://github.com/astroport-fi/astroport-core)",
- "astroport-governance 4.2.1",
+ "astroport-governance 4.3.0",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-multi-test 1.2.0",

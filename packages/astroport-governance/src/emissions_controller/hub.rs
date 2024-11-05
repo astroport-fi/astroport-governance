@@ -66,6 +66,20 @@ pub enum HubMsg {
     },
     /// Whitelists a pool to receive ASTRO emissions. Requires fee payment
     WhitelistPool { lp_token: String },
+    /// Manages pool blacklist.
+    /// Blacklisting prevents voting for it.
+    /// If the pool is whitelisted, it will be removed from the whitelist.
+    /// All its votes will be forfeited immediately.
+    /// Users will be able to apply their votes to other pools at the next epoch (if they already voted).
+    /// Removing a pool from the blacklist will not restore the votes
+    /// and will not add it to the whitelist automatically.
+    /// Only contract owner can call this endpoint.
+    UpdateBlacklist {
+        #[serde(default)]
+        add: Vec<String>,
+        #[serde(default)]
+        remove: Vec<String>,
+    },
     /// Register or update an outpost
     UpdateOutpost {
         /// Bech32 prefix
@@ -129,6 +143,14 @@ pub enum QueryMsg {
     /// If 'start_after' is provided, it yields a list **excluding** 'start_after'.
     #[returns(Vec<String>)]
     QueryWhitelist {
+        limit: Option<u8>,
+        start_after: Option<String>,
+    },
+    /// QueryBlacklist returns the list of pools that are not allowed to be voted for.
+    /// The query is paginated.
+    /// If 'start_after' is provided, it yields a list **excluding** 'start_after'.
+    #[returns(Vec<String>)]
+    QueryBlacklist {
         limit: Option<u8>,
         start_after: Option<String>,
     },
