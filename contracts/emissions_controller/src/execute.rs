@@ -292,7 +292,7 @@ pub fn update_blacklist(
         POOLS_BLACKLIST.save(deps.storage, lp_token, &())?;
     }
 
-    // And clear whitelist
+    // And remove pools from the whitelist if they are there
     POOLS_WHITELIST.update::<_, StdError>(deps.storage, |mut whitelist| {
         whitelist.retain(|pool| !add.contains(pool));
         Ok(whitelist)
