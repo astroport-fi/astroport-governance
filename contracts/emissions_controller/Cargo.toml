@@ -1,6 +1,6 @@
 [package]
 name = "astroport-emissions-controller"
-version = "1.1.2"
+version = "1.2.0"
 authors = ["Astroport"]
 edition = "2021"
 description = "Astroport vxASTRO Emissions Voting Contract"
@@ -23,7 +23,7 @@ cw-storage-plus.workspace = true
 cosmwasm-schema.workspace = true
 thiserror.workspace = true
 itertools.workspace = true
-astroport-governance = { path = "../../packages/astroport-governance", version = "4.2" }
+astroport-governance = { path = "../../packages/astroport-governance", version = "4.3" }
 astroport.workspace = true
 neutron-sdk = "0.10.0"
 serde_json = "1"

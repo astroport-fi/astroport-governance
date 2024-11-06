@@ -14,8 +14,8 @@ use astroport_governance::emissions_controller::hub::{
 
 use crate::error::ContractError;
 use crate::state::{
-    get_active_outposts, get_all_outposts, CONFIG, POOLS_WHITELIST, TUNE_INFO, USER_INFO,
-    VOTED_POOLS,
+    get_active_outposts, get_all_outposts, CONFIG, POOLS_BLACKLIST, POOLS_WHITELIST, TUNE_INFO,
+    USER_INFO, VOTED_POOLS,
 };
 use crate::utils::simulate_tune;
 
@@ -121,6 +121,16 @@ pub fn query(deps: Deps<NeutronQuery>, env: Env, msg: QueryMsg) -> Result<Binary
             };
 
             Ok(to_json_binary(pools_whitelist)?)
+        }
+        QueryMsg::QueryBlacklist { limit, start_after } => {
+            let limit = limit.unwrap_or(MAX_PAGE_LIMIT) as usize;
+            let start_after = start_after.as_ref().map(|s| Bound::exclusive(s.as_str()));
+            let pools_blacklist = POOLS_BLACKLIST
+                .keys(deps.storage, start_after, None, Order::Ascending)
+                .take(limit)
+                .collect::<StdResult<Vec<_>>>()?;
+
+            Ok(to_json_binary(&pools_blacklist)?)
         }
         QueryMsg::CheckWhitelist { lp_tokens } => {
             let whitelist = POOLS_WHITELIST.load(deps.storage)?;
