@@ -156,6 +156,44 @@
         }
       },
       "additionalProperties": false
+    },
+    {
+      "description": "Returns paginated list of users with their respective LockInfo",
+      "type": "object",
+      "required": [
+        "users_lock_info"
+      ],
+      "properties": {
+        "users_lock_info": {
+          "type": "object",
+          "properties": {
+            "limit": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint8",
+              "minimum": 0.0
+            },
+            "start_after": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "timestamp": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint64",
+              "minimum": 0.0
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
     }
   ]
 }

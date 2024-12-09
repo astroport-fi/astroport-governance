@@ -3,21 +3,23 @@ use astroport::asset::{addr_opt_validate, validate_native_denom};
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     attr, coins, ensure, ensure_eq, to_json_binary, wasm_execute, BankMsg, Binary, CosmosMsg, Deps,
-    DepsMut, Empty, Env, MessageInfo, Response, StdError, StdResult, Uint128,
+    DepsMut, Empty, Env, MessageInfo, Order, Response, StdError, StdResult, Uint128,
 };
 use cw2::set_contract_version;
 use cw20::{BalanceResponse, Logo, LogoInfo, MarketingInfoResponse, TokenInfoResponse};
 use cw20_base::contract::{execute_update_marketing, query_marketing_info};
 use cw20_base::state::{MinterData, TokenInfo, LOGO, MARKETING_INFO, TOKEN_INFO};
+use cw_storage_plus::Bound;
 use cw_utils::must_pay;
 
 use astroport_governance::emissions_controller;
+use astroport_governance::emissions_controller::consts::MAX_PAGE_LIMIT;
 use astroport_governance::voting_escrow::{
     Config, ExecuteMsg, InstantiateMsg, LockInfoResponse, QueryMsg,
 };
 
 use crate::error::ContractError;
-use crate::state::{get_total_vp, Lock, CONFIG, PRIVILEGED};
+use crate::state::{get_total_vp, Lock, CONFIG, LOCKED, PRIVILEGED};
 
 /// Contract name that is used for migration.
 pub const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
@@ -299,6 +301,36 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::TokenInfo {} => to_json_binary(&query_token_info(deps, env)?),
         QueryMsg::MarketingInfo {} => to_json_binary(&query_marketing_info(deps)?),
         QueryMsg::PrivilegedList {} => to_json_binary(&PRIVILEGED.load(deps.storage)?),
+        QueryMsg::UsersLockInfo {
+            limit,
+            start_after,
+            timestamp,
+        } => {
+            let limit = limit.unwrap_or(MAX_PAGE_LIMIT) as usize;
+            let start_after = addr_opt_validate(deps.api, &start_after)?;
+            let user_infos = LOCKED
+                .keys(
+                    deps.storage,
+                    start_after.as_ref().map(Bound::exclusive),
+                    None,
+                    Order::Ascending,
+                )
+                .take(limit)
+                .map(|user| {
+                    user.and_then(|user| {
+                        let lock_info_resp: LockInfoResponse = Lock::load_at_ts(
+                            deps.storage,
+                            env.block.time.seconds(),
+                            &user,
+                            timestamp,
+                        )?
+                        .into();
+                        Ok((user, lock_info_resp))
+                    })
+                })
+                .collect::<StdResult<Vec<_>>>()?;
+            Ok(to_json_binary(&user_infos)?)
+        }
     }
 }
 
