@@ -284,7 +284,7 @@ fn test_general_queries() {
     let user_vp = helper.user_vp(&user1, None).unwrap();
     assert_eq!(user_vp, cw20_bal_resp.balance);
 
-    let lock_info = helper.lock_info(&user1).unwrap();
+    let lock_info = helper.lock_info(&user1, None).unwrap();
 
     let users_list: Vec<(Addr, LockInfoResponse)> = helper
         .app
