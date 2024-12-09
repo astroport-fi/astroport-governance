@@ -74,6 +74,7 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: Empty) -> Result<Response, Contra
                         .map_err(ContractError::Std)
                 })
             }
+            "3.0.0" => Ok(()),
             _ => Err(ContractError::MigrationError {}),
         },
         _ => Err(ContractError::MigrationError {}),

@@ -750,6 +750,10 @@ fn test_voting_power() {
         })
         .collect();
 
+    let test_user = Addr::unchecked("test_user");
+    let test_user_vp = 100_000000u128;
+    helper.get_vxastro(&test_user, test_user_vp);
+
     let submitter = balances.iter().last().unwrap().0;
     helper.get_xastro(submitter, PROPOSAL_REQUIRED_DEPOSIT.u128());
     total_xastro += PROPOSAL_REQUIRED_DEPOSIT.u128();
@@ -761,8 +765,14 @@ fn test_voting_power() {
     let proposal = helper.proposal(1);
     assert_eq!(
         proposal.total_voting_power.u128(),
-        total_xastro + total_builder_allocation + total_vxastro + 1001
+        total_xastro + total_builder_allocation + total_vxastro + 1001 + test_user_vp
     );
+
+    // test_user starts vxASTRO unlocking, but his governance voting power must not change
+    helper.unlock_vxastro(&test_user).unwrap();
+    assert_eq!(helper.user_vp(&test_user, 1).u128(), 100_000000);
+    // However, his VP in emissions voting has been nullified
+    assert_eq!(helper.vxastro_vp(&test_user, None).unwrap().u128(), 0);
 
     // First 40 users vote against the proposal
     let mut against_power = 0u128;
@@ -796,7 +806,7 @@ fn test_voting_power() {
     let proposal = helper.proposal(1);
     assert_eq!(
         proposal.total_voting_power.u128(),
-        total_xastro + total_builder_allocation + total_vxastro + 1001
+        total_xastro + total_builder_allocation + total_vxastro + 1001 + 100_000000u128
     );
 
     helper.next_block_height(PROPOSAL_VOTING_PERIOD);
@@ -807,7 +817,7 @@ fn test_voting_power() {
 
     assert_eq!(
         proposal.total_voting_power.u128(),
-        total_xastro + total_builder_allocation + total_vxastro + 1001
+        total_xastro + total_builder_allocation + total_vxastro + 1001 + 100_000000u128
     );
     assert_eq!(proposal.submitter, submitter.clone());
     assert_eq!(proposal.status, ProposalStatus::Passed);

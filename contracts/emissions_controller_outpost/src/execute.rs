@@ -22,6 +22,8 @@ use astroport_governance::emissions_controller::utils::{
     check_lp_token, get_total_voting_power, get_voting_power,
 };
 use astroport_governance::utils::check_contract_supports_channel;
+use astroport_governance::voting_escrow;
+use astroport_governance::voting_escrow::LockInfoResponse;
 
 use crate::error::ContractError;
 use crate::state::{CONFIG, OWNERSHIP_PROPOSAL, PROPOSAL_VOTERS, REGISTERED_PROPOSALS};
@@ -391,8 +393,16 @@ pub fn governance_vote(
 
     let start_time = REGISTERED_PROPOSALS.load(deps.storage, proposal_id)?;
 
-    let voting_power =
-        get_voting_power(deps.querier, &config.vxastro, &voter, Some(start_time - 1))?;
+    let voting_power = deps
+        .querier
+        .query_wasm_smart(
+            &config.vxastro,
+            &voting_escrow::QueryMsg::LockInfo {
+                user: voter.clone(),
+                timestamp: Some(start_time - 1),
+            },
+        )
+        .map(|resp: LockInfoResponse| resp.amount)?;
     ensure!(!voting_power.is_zero(), ContractError::ZeroVotingPower {});
 
     let total_voting_power =

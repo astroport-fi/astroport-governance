@@ -7,6 +7,7 @@ use astroport_governance::builder_unlock::{
     AllocationResponse, QueryMsg as BuilderUnlockQueryMsg, State,
 };
 use astroport_governance::voting_escrow;
+use astroport_governance::voting_escrow::LockInfoResponse;
 
 use crate::state::CONFIG;
 
@@ -36,13 +37,15 @@ pub fn calc_voting_power(deps: Deps, sender: String, proposal: &Proposal) -> Std
     )?;
 
     let vxastro_vp = if let Some(vxastro_contract) = &config.vxastro_contract {
-        deps.querier.query_wasm_smart(
-            vxastro_contract,
-            &voting_escrow::QueryMsg::UserVotingPower {
-                user: sender,
-                timestamp: Some(proposal.start_time - 1),
-            },
-        )?
+        deps.querier
+            .query_wasm_smart(
+                vxastro_contract,
+                &voting_escrow::QueryMsg::LockInfo {
+                    user: sender,
+                    timestamp: Some(proposal.start_time - 1),
+                },
+            )
+            .map(|resp: LockInfoResponse| resp.amount)?
     } else {
         Uint128::zero()
     };

@@ -285,10 +285,10 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::UserVotingPower { user, timestamp } => {
             to_json_binary(&query_user_voting_power(deps, env, user, timestamp)?)
         }
-        QueryMsg::LockInfo { user } => {
+        QueryMsg::LockInfo { user, timestamp } => {
             let user = deps.api.addr_validate(&user)?;
             let lock_info_resp: LockInfoResponse =
-                Lock::load(deps.storage, env.block.time.seconds(), &user)?.into();
+                Lock::load_at_ts(deps.storage, env.block.time.seconds(), &user, timestamp)?.into();
             to_json_binary(&lock_info_resp)
         }
         QueryMsg::Config {} => to_json_binary(&CONFIG.load(deps.storage)?),

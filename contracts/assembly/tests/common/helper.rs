@@ -456,6 +456,16 @@ impl Helper {
             .unwrap()
     }
 
+    pub fn vxastro_vp(&self, user: &Addr, timestamp: Option<u64>) -> StdResult<Uint128> {
+        self.app.wrap().query_wasm_smart(
+            &self.vxastro,
+            &voting_escrow::QueryMsg::UserVotingPower {
+                user: user.to_string(),
+                timestamp,
+            },
+        )
+    }
+
     pub fn proposal(&self, proposal_id: u64) -> Proposal {
         self.app
             .wrap()
@@ -553,5 +563,14 @@ impl Helper {
             block.time = block.time.plus_seconds(5 * height);
             block.height += height
         });
+    }
+
+    pub fn unlock_vxastro(&mut self, user: &Addr) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            user.clone(),
+            self.vxastro.clone(),
+            &voting_escrow::ExecuteMsg::Unlock {},
+            &[],
+        )
     }
 }

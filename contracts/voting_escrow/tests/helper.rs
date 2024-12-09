@@ -175,11 +175,12 @@ impl EscrowHelper {
         )
     }
 
-    pub fn lock_info(&self, user: &Addr) -> StdResult<LockInfoResponse> {
+    pub fn lock_info(&self, user: &Addr, timestamp: Option<u64>) -> StdResult<LockInfoResponse> {
         self.app.wrap().query_wasm_smart(
             &self.vxastro_contract,
             &QueryMsg::LockInfo {
                 user: user.to_string(),
+                timestamp,
             },
         )
     }
