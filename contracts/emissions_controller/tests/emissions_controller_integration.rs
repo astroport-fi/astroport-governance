@@ -1491,6 +1491,7 @@ fn test_instant_unlock_vxastro() {
             &helper.vxastro,
             &voting_escrow::QueryMsg::LockInfo {
                 user: alice.to_string(),
+                timestamp: None,
             },
         )
         .unwrap();

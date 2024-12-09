@@ -8,7 +8,7 @@ use astroport_emissions_controller_outpost::error::ContractError;
 use astroport_governance::assembly::ProposalVoteOption;
 use astroport_governance::emissions_controller::consts::{EPOCH_LENGTH, IBC_TIMEOUT};
 use astroport_governance::emissions_controller::msg::{ExecuteMsg, VxAstroIbcMsg};
-use astroport_governance::emissions_controller::outpost::UserIbcError;
+use astroport_governance::emissions_controller::outpost::{UserIbcError, UserIbcStatus};
 use astroport_governance::voting_escrow::LockInfoResponse;
 use astroport_governance::{emissions_controller, voting_escrow};
 use astroport_voting_escrow::state::UNLOCK_PERIOD;
@@ -463,7 +463,7 @@ fn test_voting() {
             err: "error".to_string()
         })
     );
-    let lock_info = helper.lock_info(&user).unwrap();
+    let lock_info = helper.lock_info(&user, None).unwrap();
     assert_eq!(
         lock_info,
         LockInfoResponse {
@@ -721,6 +721,60 @@ fn test_interchain_governance() {
         )
         .unwrap();
     assert_eq!(voters, vec![user.to_string()]);
+
+    // Confirm that unlocking user can vote on proposals
+
+    helper.unlock(&user).unwrap();
+    helper.timetravel(1000);
+    let now = helper.app.block_info().time.seconds();
+
+    helper
+        .mock_packet_receive(
+            VxAstroIbcMsg::RegisterProposal {
+                proposal_id: 3,
+                start_time: now,
+            },
+            "channel-1",
+        )
+        .unwrap();
+
+    // Mock ibc ack
+    helper
+        .mock_ibc_ack(
+            VxAstroIbcMsg::UpdateUserVotes {
+                voter: user.to_string(),
+                voting_power: Default::default(),
+                total_voting_power: Default::default(),
+                is_unlock: false,
+            },
+            None,
+        )
+        .unwrap();
+
+    helper.cast_vote(&user, 3).unwrap();
+
+    // Confirm that valid voting power has been used
+    assert_eq!(
+        helper.query_ibc_status(&user).unwrap(),
+        UserIbcStatus {
+            pending_msg: Some(VxAstroIbcMsg::GovernanceVote {
+                voter: user.to_string(),
+                voting_power: 1000u128.into(),
+                // Note!
+                // Even this looks counterintuitive, this field is exclusively used to prevent
+                // possible malicious activity like infinite IBC tokens minting.
+                // Anyway,
+                // attacker must get voting power via locking vxASTRO and waiting Hub confirmation.
+                // At this stage, Hub will jail this outpost and stop receiving any messages except unlocking.
+                // So,
+                // it is totally safe to allow here discrepancy between voting power and total voting power.
+                total_voting_power: 0u128.into(),
+                proposal_id: 3,
+                vote: ProposalVoteOption::For,
+            }),
+            error: None
+        }
+    )
 }
 
 #[test]

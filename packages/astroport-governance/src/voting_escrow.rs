@@ -89,7 +89,10 @@ pub enum QueryMsg {
     },
     /// Fetch a user's lock information
     #[returns(LockInfoResponse)]
-    LockInfo { user: String },
+    LockInfo {
+        user: String,
+        timestamp: Option<u64>,
+    },
     /// Return the vxASTRO contract configuration
     #[returns(Config)]
     Config {},
