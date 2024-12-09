@@ -284,6 +284,22 @@ fn test_general_queries() {
     let user_vp = helper.user_vp(&user1, None).unwrap();
     assert_eq!(user_vp, cw20_bal_resp.balance);
 
+    let lock_info = helper.lock_info(&user1).unwrap();
+
+    let users_list: Vec<(Addr, LockInfoResponse)> = helper
+        .app
+        .wrap()
+        .query_wasm_smart(
+            &helper.vxastro_contract,
+            &QueryMsg::UsersLockInfo {
+                limit: Some(10),
+                start_after: None,
+                timestamp: None,
+            },
+        )
+        .unwrap();
+    assert_eq!(users_list, vec![(user1.clone(), lock_info)]);
+
     let marketing_info: MarketingInfoResponse = helper
         .app
         .wrap()

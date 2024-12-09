@@ -99,6 +99,13 @@ pub enum QueryMsg {
     /// Return the list of addresses that are allowed to instantly unlock xASTRO
     #[returns(Vec<Addr>)]
     PrivilegedList {},
+    /// Returns paginated list of users with their respective LockInfo
+    #[returns(Vec<(Addr, LockInfoResponse)>)]
+    UsersLockInfo {
+        limit: Option<u8>,
+        start_after: Option<String>,
+        timestamp: Option<u64>,
+    },
 }
 
 /// This structure stores the main parameters for the voting escrow contract.
