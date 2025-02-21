@@ -195,18 +195,6 @@ pub fn raw_emissions_to_schedules(
     (schedules, astro_funds)
 }
 
-/// Normalize current timestamp to the beginning of the current epoch (Monday).
-pub fn get_epoch_start(timestamp: u64) -> u64 {
-    let rem = timestamp % EPOCHS_START;
-    if rem % EPOCH_LENGTH == 0 {
-        // Hit at the beginning of the current epoch
-        timestamp
-    } else {
-        // Hit somewhere in the middle
-        EPOCHS_START + rem / EPOCH_LENGTH * EPOCH_LENGTH
-    }
-}
-
 /// Query the staking contract ASTRO balance and xASTRO total supply and derive xASTRO staking rate.
 /// Return (staking rate, total xASTRO supply).
 pub fn get_xastro_rate_and_share(
@@ -406,6 +394,7 @@ pub fn jail_outpost(
 #[cfg(test)]
 mod unit_tests {
     use super::*;
+    use astroport_governance::emissions_controller::utils::get_epoch_start;
 
     #[test]
     fn test_determine_outpost_prefix() {

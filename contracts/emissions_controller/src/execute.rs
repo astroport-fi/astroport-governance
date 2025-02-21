@@ -21,7 +21,9 @@ use astroport_governance::emissions_controller::hub::{
     TuneInfo, UserInfo, VotedPoolInfo,
 };
 use astroport_governance::emissions_controller::msg::{ExecuteMsg, VxAstroIbcMsg};
-use astroport_governance::emissions_controller::utils::{check_lp_token, get_voting_power};
+use astroport_governance::emissions_controller::utils::{
+    check_lp_token, get_epoch_start, get_voting_power,
+};
 use astroport_governance::utils::{
     check_contract_supports_channel, determine_ics20_escrow_address,
 };
@@ -33,7 +35,7 @@ use crate::state::{
     TUNE_INFO, USER_INFO, VOTED_POOLS,
 };
 use crate::utils::{
-    build_emission_ibc_msg, get_epoch_start, get_outpost_prefix, jail_outpost, min_ntrn_ibc_fee,
+    build_emission_ibc_msg, get_outpost_prefix, jail_outpost, min_ntrn_ibc_fee,
     raw_emissions_to_schedules, simulate_tune, validate_outpost_prefix, TuneResult,
 };
 

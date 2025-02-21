@@ -1,0 +1,29 @@
+[package]
+name = "astroport-tributes"
+version = "1.0.0"
+authors = ["Astroport"]
+edition = "2021"
+description = "Astroport vxASTRO Tributes Contract"
+license = "GPL-3.0-only"
+repository = "https://github.com/astroport-fi/astroport-governance"
+homepage = "https://astroport.fi"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+# use library feature to disable all init/handle/query exports
+library = []
+
+[dependencies]
+cw-storage-plus.workspace = true
+cosmwasm-schema.workspace = true
+cw2.workspace = true
+thiserror.workspace = true
+cosmwasm-std.workspace = true
+cw-utils.workspace = true
+cw20 = "1.1"
+astroport-governance = { path = "../../packages/astroport-governance", version = "4.5" }
+astroport.workspace = true
+
+[dev-dependencies]

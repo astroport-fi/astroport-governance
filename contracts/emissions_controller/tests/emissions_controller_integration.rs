@@ -9,7 +9,6 @@ use itertools::Itertools;
 use neutron_sdk::sudo::msg::{RequestPacket, TransferSudoMsg};
 
 use astroport_emissions_controller::error::ContractError;
-use astroport_emissions_controller::utils::get_epoch_start;
 use astroport_governance::assembly::{ProposalVoteOption, ProposalVoterResponse};
 use astroport_governance::emissions_controller::consts::{DAY, EPOCH_LENGTH};
 use astroport_governance::emissions_controller::hub::{
@@ -17,6 +16,7 @@ use astroport_governance::emissions_controller::hub::{
     UserInfoResponse, VotedPoolInfo,
 };
 use astroport_governance::emissions_controller::msg::{ExecuteMsg, VxAstroIbcMsg};
+use astroport_governance::emissions_controller::utils::get_epoch_start;
 use astroport_governance::utils::determine_ics20_escrow_address;
 use astroport_governance::{assembly, emissions_controller, voting_escrow};
 use astroport_voting_escrow::state::UNLOCK_PERIOD;

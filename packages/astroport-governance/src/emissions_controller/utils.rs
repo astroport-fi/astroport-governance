@@ -1,3 +1,4 @@
+use crate::emissions_controller::consts::{EPOCHS_START, EPOCH_LENGTH};
 use astroport::asset::{pair_info_by_pool, AssetInfo, PairInfo};
 use astroport::common::LP_SUBDENOM;
 use astroport::{factory, pair};
@@ -92,4 +93,16 @@ pub fn query_incentives_addr(querier: QuerierWrapper, factory: &Addr) -> StdResu
         .query_wasm_smart::<factory::ConfigResponse>(factory, &factory::QueryMsg::Config {})?
         .generator_address
         .ok_or_else(|| StdError::generic_err("Generator address is not set"))
+}
+
+/// Normalize current timestamp to the beginning of the current epoch (Monday).
+pub fn get_epoch_start(timestamp: u64) -> u64 {
+    let rem = timestamp % EPOCHS_START;
+    if rem % EPOCH_LENGTH == 0 {
+        // Hit at the beginning of the current epoch
+        timestamp
+    } else {
+        // Hit somewhere in the middle
+        EPOCHS_START + rem / EPOCH_LENGTH * EPOCH_LENGTH
+    }
 }
