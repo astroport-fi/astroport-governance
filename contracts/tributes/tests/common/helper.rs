@@ -4,7 +4,6 @@ use astroport::factory::{PairConfig, PairType};
 use astroport::token::Logo;
 use cosmwasm_std::{
     coin, coins, Addr, BlockInfo, Coin, Decimal, Empty, MemoryStorage, StdResult, Timestamp,
-    Uint128,
 };
 use cw_multi_test::error::AnyResult;
 use cw_multi_test::{
@@ -12,14 +11,11 @@ use cw_multi_test::{
     FailingModule, GovFailingModule, IbcFailingModule, MockAddressGenerator, MockApiBech32,
     StakeKeeper, WasmKeeper,
 };
-use itertools::Itertools;
 use neutron_sdk::bindings::msg::NeutronMsg;
 use neutron_sdk::bindings::query::NeutronQuery;
 
 use astroport_governance::emissions_controller::consts::EPOCHS_START;
-use astroport_governance::emissions_controller::hub::{
-    HubInstantiateMsg, HubMsg, SimulateTuneResponse, UserInfoResponse, VotedPoolInfo,
-};
+use astroport_governance::emissions_controller::hub::{HubInstantiateMsg, HubMsg};
 use astroport_governance::tributes::TributeFeeInfo;
 use astroport_governance::voting_escrow::UpdateMarketingInfo;
 use astroport_governance::{emissions_controller, tributes, voting_escrow};
@@ -248,33 +244,6 @@ impl Helper {
         )
     }
 
-    pub fn user_vp(&self, user: &Addr, timestamp: Option<u64>) -> StdResult<Uint128> {
-        self.app.wrap().query_wasm_smart(
-            &self.vxastro,
-            &voting_escrow::QueryMsg::UserVotingPower {
-                user: user.to_string(),
-                timestamp,
-            },
-        )
-    }
-
-    pub fn total_vp(&self, timestamp: Option<u64>) -> StdResult<Uint128> {
-        self.app.wrap().query_wasm_smart(
-            &self.vxastro,
-            &voting_escrow::QueryMsg::TotalVotingPower { timestamp },
-        )
-    }
-
-    pub fn user_info(&self, user: &Addr, timestamp: Option<u64>) -> StdResult<UserInfoResponse> {
-        self.app.wrap().query_wasm_smart(
-            &self.emission_controller,
-            &emissions_controller::hub::QueryMsg::UserInfo {
-                user: user.to_string(),
-                timestamp,
-            },
-        )
-    }
-
     pub fn create_pair(&mut self, denom1: &str, denom2: &str) -> String {
         let asset_infos = vec![AssetInfo::native(denom1), AssetInfo::native(denom2)];
         self.app
@@ -321,77 +290,10 @@ impl Helper {
         )
     }
 
-    pub fn query_voted_pool(&self, pool: &str, timestamp: Option<u64>) -> StdResult<VotedPoolInfo> {
-        self.app.wrap().query_wasm_smart(
-            &self.emission_controller,
-            &emissions_controller::hub::QueryMsg::VotedPool {
-                pool: pool.to_string(),
-                timestamp,
-            },
-        )
-    }
-
-    pub fn query_simulate_tune(&self) -> StdResult<SimulateTuneResponse> {
-        self.app
-            .wrap()
-            .query_wasm_smart::<SimulateTuneResponse>(
-                &self.emission_controller,
-                &emissions_controller::hub::QueryMsg::SimulateTune {},
-            )
-            .map(|mut x| {
-                x.next_pools_grouped
-                    .iter_mut()
-                    .for_each(|(_, array)| array.sort());
-                x
-            })
-    }
-
-    pub fn query_pool_vp(&self, pool: &str, timestamp: Option<u64>) -> StdResult<Uint128> {
-        self.query_voted_pool(pool, timestamp)
-            .map(|x| x.voting_power)
-    }
-
-    pub fn query_voted_pools(&self, limit: Option<u8>) -> StdResult<Vec<(String, VotedPoolInfo)>> {
-        self.app.wrap().query_wasm_smart(
-            &self.emission_controller,
-            &emissions_controller::hub::QueryMsg::VotedPools {
-                limit,
-                start_after: None,
-            },
-        )
-    }
-
-    pub fn query_pools_vp(&self, limit: Option<u8>) -> StdResult<Vec<(String, Uint128)>> {
-        self.query_voted_pools(limit).map(|res| {
-            res.into_iter()
-                .sorted_by(|a, b| a.0.cmp(&b.0))
-                .map(|(pool, info)| (pool, info.voting_power))
-                .collect_vec()
-        })
-    }
-
     pub fn query_config(&self) -> StdResult<tributes::Config> {
         self.app.wrap().query_wasm_smart(
             &self.tributes,
             &emissions_controller::hub::QueryMsg::Config {},
-        )
-    }
-
-    pub fn tune(&mut self, sender: &Addr) -> AnyResult<AppResponse> {
-        self.app.execute_contract(
-            sender.clone(),
-            self.emission_controller.clone(),
-            &emissions_controller::msg::ExecuteMsg::Custom(HubMsg::TunePools {}),
-            &[],
-        )
-    }
-
-    pub fn refresh_user_votes(&mut self, sender: &Addr) -> AnyResult<AppResponse> {
-        self.app.execute_contract(
-            sender.clone(),
-            self.emission_controller.clone(),
-            &emissions_controller::msg::ExecuteMsg::<Empty>::RefreshUserVotes {},
-            &[],
         )
     }
 
@@ -430,12 +332,13 @@ impl Helper {
     pub fn query_all_epoch_tributes(
         &self,
         timestamp: Option<u64>,
+        start_after: Option<(String, AssetInfo)>,
     ) -> StdResult<Vec<(String, Asset)>> {
         self.app.wrap().query_wasm_smart(
             &self.tributes,
             &tributes::QueryMsg::QueryAllEpochTributes {
                 epoch_ts: timestamp,
-                start_after: None,
+                start_after,
                 limit: None,
             },
         )
@@ -455,6 +358,44 @@ impl Helper {
             sender.clone(),
             self.tributes.clone(),
             &tributes::ExecuteMsg::Claim { receiver },
+            &[],
+        )
+    }
+
+    pub fn update_config(
+        &mut self,
+        sender: &Addr,
+        tribute_fee_info: Option<TributeFeeInfo>,
+        rewards_limit: Option<u8>,
+        token_transfer_gas_limit: Option<u64>,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            sender.clone(),
+            self.tributes.clone(),
+            &tributes::ExecuteMsg::UpdateConfig {
+                tribute_fee_info,
+                rewards_limit,
+                token_transfer_gas_limit,
+            },
+            &[],
+        )
+    }
+
+    pub fn remove_tribute(
+        &mut self,
+        sender: &Addr,
+        lp_token: &str,
+        asset_info: &AssetInfo,
+        receiver: impl Into<String>,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            sender.clone(),
+            self.tributes.clone(),
+            &tributes::ExecuteMsg::RemoveTribute {
+                lp_token: lp_token.to_string(),
+                asset_info: asset_info.clone(),
+                receiver: receiver.into(),
+            },
             &[],
         )
     }

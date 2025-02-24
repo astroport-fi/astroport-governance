@@ -1,12 +1,14 @@
-use astroport::asset::{Asset, AssetInfoExt};
-use cosmwasm_std::{coin, coins, Decimal, Uint128};
+use astroport::asset::{Asset, AssetInfo, AssetInfoExt};
+use cosmwasm_std::{coin, coins, Addr, Decimal, Uint128};
 use cw20::Cw20Coin;
 use cw_multi_test::Executor;
 use itertools::Itertools;
 
 use crate::common::contracts::token_contract;
 use astroport_governance::emissions_controller::consts::EPOCH_LENGTH;
-use astroport_governance::tributes::{ExecuteMsg, QueryMsg};
+use astroport_governance::tributes::{
+    ExecuteMsg, QueryMsg, TributeFeeInfo, REWARDS_AMOUNT_LIMITS, TOKEN_TRANSFER_GAS_LIMIT,
+};
 use astroport_tributes::error::ContractError;
 
 use crate::common::helper::Helper;
@@ -358,7 +360,7 @@ fn test_multiple_rewards() {
 
     let now = helper.app.block_info().time.seconds();
     let tributes = helper
-        .query_all_epoch_tributes(Some(now))
+        .query_all_epoch_tributes(Some(now), None)
         .unwrap()
         .into_iter()
         .sorted_by(|a, b| a.1.info.to_string().cmp(&b.1.info.to_string()))
@@ -379,16 +381,27 @@ fn test_multiple_rewards() {
         ]
     );
 
+    let tributes = helper
+        .query_all_epoch_tributes(
+            Some(now),
+            Some((lp_token.clone(), AssetInfo::native("reward8"))),
+        )
+        .unwrap();
+    assert_eq!(
+        tributes,
+        [(lp_token.clone(), Asset::native("reward9", 100_000000u128)),]
+    );
+
     // Prev epoch tributes
     assert_eq!(
         helper
-            .query_all_epoch_tributes(Some(now - EPOCH_LENGTH))
+            .query_all_epoch_tributes(Some(now - EPOCH_LENGTH), None)
             .unwrap(),
         []
     );
 
     // Next epoch tributes
-    assert_eq!(helper.query_all_epoch_tributes(None).unwrap(), []);
+    assert_eq!(helper.query_all_epoch_tributes(None, None).unwrap(), []);
 }
 
 #[test]
@@ -595,4 +608,192 @@ fn test_claim() {
     helper.claim(&voter2, None).unwrap();
     let voter2_bal = helper.app.wrap().query_balance(&voter2, "reward").unwrap();
     assert_eq!(voter2_bal.amount.u128(), 150_000000);
+}
+
+#[test]
+fn test_update_config() {
+    let mut helper = Helper::new();
+    let owner = helper.owner.clone();
+
+    let random = helper.app.api().addr_make("random");
+
+    let err = helper.update_config(&random, None, None, None).unwrap_err();
+    assert_eq!(ContractError::Unauthorized {}, err.downcast().unwrap());
+
+    let err = helper
+        .update_config(
+            &owner,
+            Some(TributeFeeInfo {
+                fee: coin(0, "astro"),
+                fee_collector: owner.clone(),
+            }),
+            None,
+            None,
+        )
+        .unwrap_err();
+    assert_eq!(
+        ContractError::InvalidTributeFeeAmount {},
+        err.downcast().unwrap()
+    );
+
+    let err = helper
+        .update_config(
+            &owner,
+            Some(TributeFeeInfo {
+                fee: coin(1, "astro"),
+                fee_collector: Addr::unchecked(""),
+            }),
+            None,
+            None,
+        )
+        .unwrap_err();
+    assert_eq!(err.root_cause().to_string(), "Generic error: Invalid input");
+
+    let err = helper
+        .update_config(
+            &owner,
+            Some(TributeFeeInfo {
+                fee: coin(1, "a"),
+                fee_collector: owner.clone(),
+            }),
+            None,
+            None,
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Generic error: Invalid denom length [3,128]: a"
+    );
+
+    helper
+        .update_config(
+            &owner,
+            Some(TributeFeeInfo {
+                fee: coin(1, "astro"),
+                fee_collector: owner.clone(),
+            }),
+            None,
+            None,
+        )
+        .unwrap();
+
+    let config = helper.query_config().unwrap();
+    assert_eq!(config.tribute_fee_info.fee, coin(1, "astro"));
+
+    let err = helper
+        .update_config(&owner, None, Some(REWARDS_AMOUNT_LIMITS.end() + 1), None)
+        .unwrap_err();
+    assert_eq!(
+        ContractError::InvalidRewardsLimit {},
+        err.downcast().unwrap()
+    );
+
+    helper
+        .update_config(&owner, None, Some(*REWARDS_AMOUNT_LIMITS.end()), None)
+        .unwrap();
+
+    let config = helper.query_config().unwrap();
+    assert_eq!(config.rewards_limit, *REWARDS_AMOUNT_LIMITS.end());
+
+    let err = helper
+        .update_config(&owner, None, None, Some(TOKEN_TRANSFER_GAS_LIMIT.end() + 1))
+        .unwrap_err();
+    assert_eq!(
+        ContractError::InvalidTokenTransferGasLimit {},
+        err.downcast().unwrap()
+    );
+
+    helper
+        .update_config(&owner, None, None, Some(*TOKEN_TRANSFER_GAS_LIMIT.end()))
+        .unwrap();
+
+    let config = helper.query_config().unwrap();
+    assert_eq!(
+        config.token_transfer_gas_limit,
+        *TOKEN_TRANSFER_GAS_LIMIT.end()
+    );
+}
+
+#[test]
+fn test_remove_tribute() {
+    let mut helper = Helper::new();
+    let owner = helper.owner.clone();
+
+    let lp_token = helper.create_pair("token1", "token2");
+    helper.whitelist(&lp_token).unwrap();
+
+    let user = helper.app.api().addr_make("user");
+
+    let tribute = Asset::native("reward", 100_000000u128);
+    let funds = [tribute.as_coin().unwrap(), helper.fee.clone()];
+    helper.mint_tokens(&user, &funds).unwrap();
+    helper
+        .add_tribute(&user, &lp_token, &tribute, &funds)
+        .unwrap();
+
+    helper.lock(&user, 1_000000).unwrap();
+    helper
+        .vote(&user, &[(lp_token.clone(), Decimal::one())])
+        .unwrap();
+
+    let random = helper.app.api().addr_make("random");
+    let err = helper
+        .remove_tribute(&random, &lp_token, &tribute.info, &random)
+        .unwrap_err();
+    assert_eq!(ContractError::Unauthorized {}, err.downcast().unwrap());
+
+    let dereg_receiver = helper.app.api().addr_make("dereg_receiver");
+
+    let err = helper
+        .remove_tribute(
+            &owner,
+            &lp_token,
+            &AssetInfo::native("rnd"),
+            &dereg_receiver,
+        )
+        .unwrap_err();
+    assert_eq!(
+        ContractError::TributeNotFound {
+            lp_token: lp_token.clone(),
+            asset_info: "rnd".to_string()
+        },
+        err.downcast().unwrap()
+    );
+
+    let err = helper
+        .remove_tribute(&owner, "cosmwasm1lptoken", &tribute.info, &dereg_receiver)
+        .unwrap_err();
+    assert_eq!(
+        ContractError::TributeNotFound {
+            lp_token: "cosmwasm1lptoken".to_string(),
+            asset_info: tribute.info.to_string()
+        },
+        err.downcast().unwrap()
+    );
+
+    helper
+        .remove_tribute(&owner, &lp_token, &tribute.info, &dereg_receiver)
+        .unwrap();
+
+    let dereg_bal = helper
+        .app
+        .wrap()
+        .query_balance(&dereg_receiver, "reward")
+        .unwrap();
+    assert_eq!(dereg_bal.amount, tribute.amount);
+
+    helper.timetravel(EPOCH_LENGTH);
+
+    assert_eq!(helper.simulate_claim(&user).unwrap(), []);
+
+    let err = helper
+        .remove_tribute(&owner, &lp_token, &tribute.info, &dereg_receiver)
+        .unwrap_err();
+    assert_eq!(
+        ContractError::TributeNotFound {
+            lp_token: lp_token.clone(),
+            asset_info: tribute.info.to_string()
+        },
+        err.downcast().unwrap()
+    );
 }
