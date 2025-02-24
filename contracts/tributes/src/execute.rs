@@ -280,7 +280,7 @@ pub fn remove_tribute(
         let send_msg = asset_info
             .with_balance(tribute_info.allocated)
             .into_submsg(
-                &receiver,
+                receiver,
                 Some((ReplyOn::Error, POST_TRANSFER_REPLY_ID)),
                 Some(config.token_transfer_gas_limit),
             )?;
