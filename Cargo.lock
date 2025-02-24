@@ -320,14 +320,23 @@ dependencies = [
 name = "astroport-tributes"
 version = "1.0.0"
 dependencies = [
+ "anyhow",
  "astroport 5.8.0",
+ "astroport-emissions-controller",
+ "astroport-factory",
  "astroport-governance 4.5.0",
+ "astroport-pair",
+ "astroport-voting-escrow",
  "cosmwasm-schema",
  "cosmwasm-std",
+ "cw-multi-test 1.2.0",
  "cw-storage-plus 1.2.0",
  "cw-utils 1.0.3",
  "cw2 1.1.2",
  "cw20 1.1.2",
+ "itertools 0.12.1",
+ "neutron-sdk",
+ "osmosis-std 0.25.0",
  "thiserror",
 ]
 

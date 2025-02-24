@@ -27,10 +27,12 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             let asset_key = asset_info_key(&asset_info);
             let tribute_key = (next_epoch_start, lp_token.as_str(), asset_key.as_slice());
 
-            to_json_binary(&TRIBUTES.has(deps.storage, tribute_key))
+            to_json_binary(&!TRIBUTES.has(deps.storage, tribute_key))
         }
         QueryMsg::QueryPoolTributes { epoch_ts, lp_token } => {
-            let epoch_start = get_epoch_start(epoch_ts.unwrap_or_else(|| env.block.time.seconds()));
+            let epoch_start = get_epoch_start(
+                epoch_ts.unwrap_or_else(|| env.block.time.seconds() + EPOCH_LENGTH),
+            );
 
             let tribute_tokens = TRIBUTES
                 .prefix((epoch_start, &lp_token))
@@ -50,7 +52,9 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             start_after,
             limit,
         } => {
-            let epoch_start = get_epoch_start(epoch_ts.unwrap_or_else(|| env.block.time.seconds()));
+            let epoch_start = get_epoch_start(
+                epoch_ts.unwrap_or_else(|| env.block.time.seconds() + EPOCH_LENGTH),
+            );
 
             let limit = limit.unwrap_or(DEFAULT_LIMIT);
 

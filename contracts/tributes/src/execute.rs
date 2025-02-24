@@ -3,8 +3,8 @@ use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_ow
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, ensure, ensure_eq, wasm_execute, BankMsg, CosmosMsg, DepsMut, Env, MessageInfo, ReplyOn,
-    Response, StdError, StdResult,
+    attr, ensure, ensure_eq, wasm_execute, BankMsg, CosmosMsg, DepsMut, Env, MessageInfo, Order,
+    ReplyOn, Response, StdError, StdResult,
 };
 use cw_utils::nonpayable;
 
@@ -119,8 +119,7 @@ pub fn add_tribute(
                     Some(())
                 })
                 .ok_or_else(|| ContractError::InsuffiicientTributeToken {
-                    reward: asset.info.to_string(),
-                    lp_token: lp_token.clone(),
+                    reward: asset.to_string(),
                 })?;
             vec![]
         }
@@ -138,6 +137,20 @@ pub fn add_tribute(
     ensure!(is_whitelisted[0].1, ContractError::LpTokenNotWhitelisted {});
 
     let next_epoch_start = get_epoch_start(env.block.time.seconds()) + EPOCH_LENGTH;
+
+    // Ensure the number of rewards is within limits
+    let rewards_num = TRIBUTES
+        .prefix((next_epoch_start, &lp_token))
+        .range_raw(deps.storage, None, None, Order::Ascending)
+        .count();
+
+    ensure!(
+        rewards_num < config.rewards_limit as usize,
+        ContractError::RewardsLimitExceeded {
+            limit: config.rewards_limit
+        }
+    );
+
     let asset_key = asset_info_key(&asset.info);
     let tribute_key = (next_epoch_start, lp_token.as_str(), asset_key.as_slice());
 
@@ -188,7 +201,10 @@ pub fn add_tribute(
     for coin in funds {
         ensure!(
             coin.amount.is_zero(),
-            StdError::generic_err(format!("Supplied coins contain unexpected {}", &coin.denom))
+            StdError::generic_err(format!(
+                "Supplied coins contain unexpected {}",
+                coin.to_string()
+            ))
         );
     }
 

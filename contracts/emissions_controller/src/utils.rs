@@ -15,9 +15,7 @@ use neutron_sdk::bindings::query::NeutronQuery;
 use neutron_sdk::query::min_ibc_fee::query_min_ibc_fee;
 use neutron_sdk::sudo::msg::RequestPacketTimeoutHeight;
 
-use astroport_governance::emissions_controller::consts::{
-    EPOCHS_START, EPOCH_LENGTH, FEE_DENOM, IBC_TIMEOUT,
-};
+use astroport_governance::emissions_controller::consts::{FEE_DENOM, IBC_TIMEOUT};
 use astroport_governance::emissions_controller::hub::{
     Config, EmissionsState, OutpostInfo, OutpostParams,
 };
@@ -393,8 +391,9 @@ pub fn jail_outpost(
 
 #[cfg(test)]
 mod unit_tests {
-    use super::*;
     use astroport_governance::emissions_controller::utils::get_epoch_start;
+
+    use super::*;
 
     #[test]
     fn test_determine_outpost_prefix() {

@@ -20,8 +20,8 @@ pub enum ContractError {
     #[error("Invalid tribute fee amount")]
     InvalidTributeFeeAmount {},
 
-    #[error("Insufficient tribute token: {reward} on {lp_token}")]
-    InsuffiicientTributeToken { reward: String, lp_token: String },
+    #[error("Sent insufficient tribute token: {reward}")]
+    InsuffiicientTributeToken { reward: String },
 
     #[error("Tribute fee expected: {fee}")]
     TributeFeeExpected { fee: String },
@@ -37,4 +37,7 @@ pub enum ContractError {
         lp_token: String,
         asset_info: String,
     },
+
+    #[error("Rewards limit exceeded: {limit}")]
+    RewardsLimitExceeded { limit: u8 },
 }

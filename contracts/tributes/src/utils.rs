@@ -100,7 +100,9 @@ pub fn calculate_user_rewards(
             deps.querier,
             &config.emissions_controller,
             user,
-            epoch_start_ts,
+            // Query voting power 1 second before epoch started.
+            // Because tributes are paid in the next epoch.
+            epoch_start_ts - 1,
         )?;
 
         let mut attrs = vec![];
