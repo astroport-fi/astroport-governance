@@ -427,6 +427,20 @@ impl Helper {
         )
     }
 
+    pub fn query_all_epoch_tributes(
+        &self,
+        timestamp: Option<u64>,
+    ) -> StdResult<Vec<(String, Asset)>> {
+        self.app.wrap().query_wasm_smart(
+            &self.tributes,
+            &tributes::QueryMsg::QueryAllEpochTributes {
+                epoch_ts: timestamp,
+                start_after: None,
+                limit: None,
+            },
+        )
+    }
+
     pub fn simulate_claim(&self, address: impl Into<String>) -> StdResult<Vec<Asset>> {
         self.app.wrap().query_wasm_smart(
             &self.tributes,

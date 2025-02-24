@@ -75,7 +75,10 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
                 .map(|item| {
                     item.and_then(|((lp_token, asset_info_key), tribute_info)| {
                         let asset_info = from_key_to_asset_info(asset_info_key)?;
-                        Ok((lp_token.to_string(), asset_info, tribute_info.allocated))
+                        Ok((
+                            lp_token.to_string(),
+                            asset_info.with_balance(tribute_info.allocated),
+                        ))
                     })
                 })
                 .take(limit as usize)

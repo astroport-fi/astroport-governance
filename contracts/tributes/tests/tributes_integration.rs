@@ -1,8 +1,10 @@
 use astroport::asset::{Asset, AssetInfoExt};
-use cosmwasm_std::{coin, coins, Decimal};
+use cosmwasm_std::{coin, coins, Decimal, Uint128};
+use cw20::Cw20Coin;
 use cw_multi_test::Executor;
 use itertools::Itertools;
 
+use crate::common::contracts::token_contract;
 use astroport_governance::emissions_controller::consts::EPOCH_LENGTH;
 use astroport_governance::tributes::{ExecuteMsg, QueryMsg};
 use astroport_tributes::error::ContractError;
@@ -353,16 +355,125 @@ fn test_multiple_rewards() {
             Asset::native("reward9", 100_000000u128),
         ]
     );
+
+    let now = helper.app.block_info().time.seconds();
+    let tributes = helper
+        .query_all_epoch_tributes(Some(now))
+        .unwrap()
+        .into_iter()
+        .sorted_by(|a, b| a.1.info.to_string().cmp(&b.1.info.to_string()))
+        .collect_vec();
+    assert_eq!(
+        tributes,
+        [
+            (lp_token.clone(), Asset::native("reward0", 100_000000u128)),
+            (lp_token.clone(), Asset::native("reward1", 100_000000u128)),
+            (lp_token.clone(), Asset::native("reward2", 100_000000u128)),
+            (lp_token.clone(), Asset::native("reward3", 100_000000u128)),
+            (lp_token.clone(), Asset::native("reward4", 100_000000u128)),
+            (lp_token.clone(), Asset::native("reward5", 100_000000u128)),
+            (lp_token.clone(), Asset::native("reward6", 100_000000u128)),
+            (lp_token.clone(), Asset::native("reward7", 100_000000u128)),
+            (lp_token.clone(), Asset::native("reward8", 100_000000u128)),
+            (lp_token.clone(), Asset::native("reward9", 100_000000u128)),
+        ]
+    );
+
+    // Prev epoch tributes
+    assert_eq!(
+        helper
+            .query_all_epoch_tributes(Some(now - EPOCH_LENGTH))
+            .unwrap(),
+        []
+    );
+
+    // Next epoch tributes
+    assert_eq!(helper.query_all_epoch_tributes(None).unwrap(), []);
 }
 
-#[ignore]
 #[test]
 fn test_cw20_tributes() {
-    // TODO: Implement cw20 tribute tests
+    let mut helper = Helper::new();
+
+    let lp_token = helper.create_pair("token1", "token2");
+    helper.whitelist(&lp_token).unwrap();
+
+    let user = helper.app.api().addr_make("user");
+
+    let token_code_id = helper.app.store_code(token_contract());
+    let token_addr = helper
+        .app
+        .instantiate_contract(
+            token_code_id,
+            user.clone(),
+            &cw20_base::msg::InstantiateMsg {
+                name: "Token".to_string(),
+                symbol: "TKN".to_string(),
+                decimals: 6,
+                initial_balances: vec![Cw20Coin {
+                    address: user.to_string(),
+                    amount: Uint128::MAX,
+                }],
+                mint: None,
+                marketing: None,
+            },
+            &[],
+            "label",
+            None,
+        )
+        .unwrap();
+
+    let tribute = Asset::cw20_unchecked(&token_addr, 100_000000u128);
+
+    let funds = [helper.fee.clone()];
+    helper.mint_tokens(&user, &funds).unwrap();
+
+    // Try to add cw20 tribute without allowance
+    let err = helper
+        .add_tribute(&user, &lp_token, &tribute, &funds)
+        .unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        "No allowance for this account"
+    );
+
+    helper
+        .app
+        .execute_contract(
+            user.clone(),
+            token_addr.clone(),
+            &cw20_base::msg::ExecuteMsg::IncreaseAllowance {
+                spender: helper.tributes.to_string(),
+                amount: 100_000000u128.into(),
+                expires: None,
+            },
+            &[],
+        )
+        .unwrap();
+
+    helper
+        .add_tribute(&user, &lp_token, &tribute, &funds)
+        .unwrap();
+
+    let voter = helper.app.api().addr_make("voter");
+    // Vote for pool
+    helper.lock(&voter, 1_000000).unwrap();
+    helper
+        .vote(&voter, &[(lp_token.clone(), Decimal::one())])
+        .unwrap();
+
+    helper.timetravel(EPOCH_LENGTH);
+
+    assert_eq!(helper.simulate_claim(&voter).unwrap(), [tribute.clone()]);
+
+    helper.claim(&voter, None).unwrap();
+
+    let cw20_bal = tribute.info.query_pool(&helper.app.wrap(), &voter).unwrap();
+    assert_eq!(cw20_bal, tribute.amount);
 }
 
 #[test]
-fn test_basic_claim() {
+fn test_claim() {
     let mut helper = Helper::new();
 
     let lp_token1 = helper.create_pair("token1", "token2");

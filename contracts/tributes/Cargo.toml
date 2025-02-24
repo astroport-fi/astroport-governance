@@ -32,6 +32,7 @@ astroport-pair = { version = "2", features = ["library"] }
 astroport-emissions-controller = { path = "../emissions_controller", version = "1.0.0", features = ["library"] }
 astroport-voting-escrow = { path = "../voting_escrow", version = "1.2.0", features = ["library"] }
 cw-multi-test = { version = "1.2.0", features = ["cosmwasm_1_1"] }
+cw20-base = { version = "1", features = ["library"] }
 anyhow = "1"
 osmosis-std = "0.25.0"
 neutron-sdk = "0.10.0"

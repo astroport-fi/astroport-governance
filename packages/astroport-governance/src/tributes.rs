@@ -75,7 +75,7 @@ pub enum ExecuteMsg {
     /// Optional receiver address to send claimed tributes.
     Claim { receiver: Option<String> },
     /// Permissioned to a contract owner. Allows removing tribute from a given LP token only for upcoming epoch.
-    DeregisterTribute {
+    RemoveTribute {
         /// LP token to remove tribute from.
         lp_token: String,
         /// Asset to remove from tributes.

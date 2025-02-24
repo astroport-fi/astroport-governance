@@ -87,3 +87,15 @@ where
         .with_reply_empty(astroport_tributes::reply::reply),
     )
 }
+
+pub fn token_contract<T, C>() -> Box<dyn Contract<T, C>>
+where
+    T: CustomMsg + Clone + Debug + PartialEq + JsonSchema + 'static,
+    C: CustomQuery + for<'de> cosmwasm_schema::serde::Deserialize<'de> + 'static,
+{
+    Box::new(ContractWrapper::new_with_empty(
+        cw20_base::contract::execute,
+        cw20_base::contract::instantiate,
+        cw20_base::contract::query,
+    ))
+}

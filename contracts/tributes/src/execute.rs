@@ -30,11 +30,11 @@ pub fn execute(
     match msg {
         ExecuteMsg::AddTribute { lp_token, asset } => add_tribute(deps, env, info, lp_token, asset),
         ExecuteMsg::Claim { receiver } => claim_tributes(deps, env, info, receiver),
-        ExecuteMsg::DeregisterTribute {
+        ExecuteMsg::RemoveTribute {
             lp_token,
             asset_info,
             receiver,
-        } => deregister_tribute(deps, env, info, lp_token, asset_info, receiver),
+        } => remove_tribute(deps, env, info, lp_token, asset_info, receiver),
         ExecuteMsg::UpdateConfig {
             tribute_fee_info,
             rewards_limit,
@@ -201,10 +201,7 @@ pub fn add_tribute(
     for coin in funds {
         ensure!(
             coin.amount.is_zero(),
-            StdError::generic_err(format!(
-                "Supplied coins contain unexpected {}",
-                coin.to_string()
-            ))
+            StdError::generic_err(format!("Supplied coins contain unexpected {coin}"))
         );
     }
 
@@ -261,7 +258,7 @@ pub fn claim_tributes(
     }
 }
 
-pub fn deregister_tribute(
+pub fn remove_tribute(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,

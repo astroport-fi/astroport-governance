@@ -391,6 +391,7 @@ pub fn jail_outpost(
 
 #[cfg(test)]
 mod unit_tests {
+    use astroport_governance::emissions_controller::consts::EPOCH_LENGTH;
     use astroport_governance::emissions_controller::utils::get_epoch_start;
 
     use super::*;

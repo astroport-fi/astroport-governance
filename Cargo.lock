@@ -334,6 +334,7 @@ dependencies = [
  "cw-utils 1.0.3",
  "cw2 1.1.2",
  "cw20 1.1.2",
+ "cw20-base",
  "itertools 0.12.1",
  "neutron-sdk",
  "osmosis-std 0.25.0",
