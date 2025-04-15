@@ -25,6 +25,7 @@ cw-utils.workspace = true
 cw20 = "1.1"
 astroport-governance = { path = "../../packages/astroport-governance", version = "4.5" }
 astroport.workspace = true
+itertools.workspace = true
 
 [dev-dependencies]
 astroport-factory = { version = "1.8", features = ["library"] }

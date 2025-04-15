@@ -4,6 +4,7 @@ use astroport::asset::{Asset, AssetInfo, AssetInfoExt};
 use cosmwasm_std::{
     attr, Addr, Decimal, Deps, Event, Order, QuerierWrapper, StdError, StdResult, Uint128,
 };
+use itertools::Itertools;
 
 use astroport_governance::emissions_controller;
 use astroport_governance::emissions_controller::consts::EPOCH_LENGTH;
@@ -144,6 +145,16 @@ pub fn calculate_user_rewards(
             } else {
                 None
             }
+        })
+        .into_group_map_by(|asset| asset.info.clone())
+        .into_iter()
+        .map(|(asset, amounts)| {
+            let total_amount = amounts
+                .iter()
+                .map(|a| a.amount)
+                .reduce(|a, b| a + b)
+                .unwrap();
+            asset.with_balance(total_amount)
         })
         .collect();
 
