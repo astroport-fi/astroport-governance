@@ -218,44 +218,42 @@ pub fn claim_tributes(
     info: MessageInfo,
     receiver: Option<String>,
 ) -> Result<Response, ContractError> {
-    {
-        let config = CONFIG.load(deps.storage)?;
+    let config = CONFIG.load(deps.storage)?;
 
-        let (rewards, events) = calculate_user_rewards(
-            deps.as_ref(),
-            &config,
-            info.sender.as_str(),
-            env.block.time.seconds(),
-        )?;
+    let (rewards, events) = calculate_user_rewards(
+        deps.as_ref(),
+        &config,
+        info.sender.as_str(),
+        env.block.time.seconds(),
+    )?;
 
-        USER_LAST_CLAIM_EPOCH.save(
-            deps.storage,
-            info.sender.as_str(),
-            &get_epoch_start(env.block.time.seconds()),
-        )?;
+    USER_LAST_CLAIM_EPOCH.save(
+        deps.storage,
+        info.sender.as_str(),
+        &get_epoch_start(env.block.time.seconds()),
+    )?;
 
-        let receiver = receiver.unwrap_or_else(|| info.sender.to_string());
+    let receiver = receiver.unwrap_or_else(|| info.sender.to_string());
 
-        let rewards_msgs = rewards
-            .into_iter()
-            .map(|asset| {
-                asset.into_submsg(
-                    &receiver,
-                    Some((ReplyOn::Error, POST_TRANSFER_REPLY_ID)),
-                    Some(config.token_transfer_gas_limit),
-                )
-            })
-            .collect::<StdResult<Vec<_>>>()?;
+    let rewards_msgs = rewards
+        .into_iter()
+        .map(|asset| {
+            asset.into_submsg(
+                &receiver,
+                Some((ReplyOn::Error, POST_TRANSFER_REPLY_ID)),
+                Some(config.token_transfer_gas_limit),
+            )
+        })
+        .collect::<StdResult<Vec<_>>>()?;
 
-        Ok(Response::new()
-            .add_submessages(rewards_msgs)
-            .add_events(events)
-            .add_attributes([
-                ("action", "claim_tributes"),
-                ("voter", info.sender.as_str()),
-                ("receiver", &receiver),
-            ]))
-    }
+    Ok(Response::new()
+        .add_submessages(rewards_msgs)
+        .add_events(events)
+        .add_attributes([
+            ("action", "claim_tributes"),
+            ("voter", info.sender.as_str()),
+            ("receiver", &receiver),
+        ]))
 }
 
 pub fn remove_tribute(
