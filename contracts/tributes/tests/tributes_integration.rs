@@ -4,13 +4,13 @@ use cw20::Cw20Coin;
 use cw_multi_test::Executor;
 use itertools::Itertools;
 
-use crate::common::contracts::token_contract;
 use astroport_governance::emissions_controller::consts::EPOCH_LENGTH;
 use astroport_governance::tributes::{
     ExecuteMsg, QueryMsg, TributeFeeInfo, REWARDS_AMOUNT_LIMITS, TOKEN_TRANSFER_GAS_LIMIT,
 };
 use astroport_tributes::error::ContractError;
 
+use crate::common::contracts::token_contract;
 use crate::common::helper::Helper;
 
 mod common;
@@ -795,5 +795,123 @@ fn test_remove_tribute() {
             asset_info: tribute.info.to_string()
         },
         err.downcast().unwrap()
+    );
+}
+
+#[test]
+fn test_orphaned_tributes() {
+    let mut helper = Helper::new();
+
+    let lp_token_1 = helper.create_pair("token1", "token2");
+    helper.whitelist(&lp_token_1).unwrap();
+    let lp_token_2 = helper.create_pair("token1", "token3");
+    helper.whitelist(&lp_token_2).unwrap();
+
+    let user = helper.app.api().addr_make("user");
+
+    let tribute = Asset::native("reward", 100_000000u128);
+
+    let funds = [tribute.as_coin().unwrap(), helper.fee.clone()];
+    helper.mint_tokens(&user, &funds).unwrap();
+    helper
+        .add_tribute(&user, &lp_token_1, &tribute, &funds)
+        .unwrap();
+
+    let funds = [tribute.as_coin().unwrap(), helper.fee.clone()];
+    helper.mint_tokens(&user, &funds).unwrap();
+    helper
+        .add_tribute(&user, &lp_token_2, &tribute, &funds)
+        .unwrap();
+
+    // Vote only for the 1st pool
+    helper.lock(&user, 1_000000).unwrap();
+    helper
+        .vote(&user, &[(lp_token_1.clone(), Decimal::one())])
+        .unwrap();
+
+    helper.timetravel(EPOCH_LENGTH);
+
+    // Simulate claim
+    assert_eq!(
+        helper.simulate_claim(&user).unwrap(),
+        [Asset::native("reward", 100_000000u128)]
+    );
+
+    // Query pools with orphaned rewards from the past epoch
+    let orphaned_pools: Vec<String> = helper
+        .app
+        .wrap()
+        .query_wasm_smart(
+            &helper.tributes,
+            &QueryMsg::QueryOrphanedPools {
+                epoch_ts: helper.app.block_info().time.seconds(),
+            },
+        )
+        .unwrap();
+
+    assert_eq!(orphaned_pools, [lp_token_2.clone()]);
+
+    // Try to claim from unauthorized address
+    let err = helper
+        .claim_orphaned(
+            &user,
+            &lp_token_2,
+            helper.app.block_info().time.seconds(),
+            user.clone(),
+        )
+        .unwrap_err();
+    assert_eq!(ContractError::Unauthorized {}, err.downcast().unwrap());
+
+    // Try to claim non-existing pool
+    let err = helper
+        .claim_orphaned(
+            &helper.owner.clone(),
+            "cosmwasm1lptoken",
+            helper.app.block_info().time.seconds(),
+            user.clone(),
+        )
+        .unwrap_err();
+    assert_eq!(
+        ContractError::FailedToClaimOrphaned {
+            lp_token: "cosmwasm1lptoken".to_string(),
+            epoch_ts: helper.app.block_info().time.seconds()
+        },
+        err.downcast().unwrap()
+    );
+
+    // Try to claim not orphaned tributes
+    let err = helper
+        .claim_orphaned(
+            &helper.owner.clone(),
+            &lp_token_1,
+            helper.app.block_info().time.seconds(),
+            user.clone(),
+        )
+        .unwrap_err();
+    assert_eq!(
+        ContractError::FailedToClaimOrphaned {
+            lp_token: lp_token_1.clone(),
+            epoch_ts: helper.app.block_info().time.seconds()
+        },
+        err.downcast().unwrap()
+    );
+
+    helper
+        .claim_orphaned(
+            &helper.owner.clone(),
+            &lp_token_2,
+            helper.app.block_info().time.seconds(),
+            user.clone(),
+        )
+        .unwrap();
+
+    assert_eq!(
+        helper
+            .app
+            .wrap()
+            .query_balance(&user, "reward")
+            .unwrap()
+            .amount,
+        tribute.amount
     );
 }

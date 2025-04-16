@@ -9,6 +9,7 @@ use itertools::Itertools;
 use astroport_governance::emissions_controller;
 use astroport_governance::emissions_controller::consts::EPOCH_LENGTH;
 use astroport_governance::emissions_controller::hub::{UserInfoResponse, VotedPoolInfo};
+use astroport_governance::emissions_controller::utils::get_epoch_start;
 use astroport_governance::tributes::Config;
 
 use crate::state::{TRIBUTES, USER_LAST_CLAIM_EPOCH};
@@ -159,6 +160,50 @@ pub fn calculate_user_rewards(
         .collect();
 
     Ok((rewards, events))
+}
+
+pub fn get_orphaned_tributes(
+    deps: Deps,
+    em_controller: &Addr,
+    epoch_ts: u64,
+) -> StdResult<HashMap<String, Vec<Asset>>> {
+    let epoch_start = get_epoch_start(epoch_ts);
+
+    let orphaned: HashMap<_, Vec<_>> = TRIBUTES
+        .sub_prefix(epoch_start)
+        .range(deps.storage, None, None, Order::Ascending)
+        .map(|item| {
+            item.and_then(|((lp_token, asset_info_key), tribute_info)| {
+                let total_vp = deps
+                    .querier
+                    .query_wasm_smart::<VotedPoolInfo>(
+                        em_controller,
+                        &emissions_controller::hub::QueryMsg::VotedPool {
+                            pool: lp_token.clone(),
+                            timestamp: Some(epoch_start - 1),
+                        },
+                    )?
+                    .voting_power;
+
+                if total_vp.is_zero() {
+                    let asset_info = from_key_to_asset_info(asset_info_key)?;
+                    Ok(Some((
+                        lp_token.to_string(),
+                        asset_info.with_balance(tribute_info.allocated),
+                    )))
+                } else {
+                    Ok(None)
+                }
+            })
+        })
+        .collect::<StdResult<Vec<_>>>()?
+        .into_iter()
+        .flatten()
+        .into_group_map()
+        .into_iter()
+        .collect();
+
+    Ok(orphaned)
 }
 
 #[cfg(test)]

@@ -18,7 +18,7 @@ use astroport_governance::tributes::{
 use crate::error::ContractError;
 use crate::reply::POST_TRANSFER_REPLY_ID;
 use crate::state::{CONFIG, OWNERSHIP_PROPOSAL, TRIBUTES, USER_LAST_CLAIM_EPOCH};
-use crate::utils::{asset_info_key, calculate_user_rewards};
+use crate::utils::{asset_info_key, calculate_user_rewards, get_orphaned_tributes};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
@@ -35,6 +35,11 @@ pub fn execute(
             asset_info,
             receiver,
         } => remove_tribute(deps, env, info, lp_token, asset_info, receiver),
+        ExecuteMsg::ClaimOrphaned {
+            epoch_ts,
+            lp_token,
+            receiver,
+        } => claim_orphaned(deps, info, epoch_ts, lp_token, receiver),
         ExecuteMsg::UpdateConfig {
             tribute_fee_info,
             rewards_limit,
@@ -293,6 +298,37 @@ pub fn remove_tribute(
             lp_token,
             asset_info: asset_info.to_string(),
         })
+    }
+}
+
+pub fn claim_orphaned(
+    deps: DepsMut,
+    info: MessageInfo,
+    epoch_ts: u64,
+    lp_token: String,
+    receiver: String,
+) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+
+    ensure_eq!(info.sender, config.owner, ContractError::Unauthorized {});
+
+    let epoch_start = get_epoch_start(epoch_ts);
+    let tributes = get_orphaned_tributes(deps.as_ref(), &config.emissions_controller, epoch_start)?;
+
+    if let Some(orphaned) = tributes.get(&lp_token) {
+        let msgs = orphaned
+            .iter()
+            .map(|asset| {
+                asset.clone().into_submsg(
+                    receiver.clone(),
+                    Some((ReplyOn::Error, POST_TRANSFER_REPLY_ID)),
+                    Some(config.token_transfer_gas_limit),
+                )
+            })
+            .collect::<StdResult<Vec<_>>>()?;
+        Ok(Response::new().add_submessages(msgs))
+    } else {
+        Err(ContractError::FailedToClaimOrphaned { lp_token, epoch_ts })
     }
 }
 

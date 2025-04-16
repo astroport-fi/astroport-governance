@@ -16,7 +16,7 @@ use neutron_sdk::bindings::query::NeutronQuery;
 
 use astroport_governance::emissions_controller::consts::EPOCHS_START;
 use astroport_governance::emissions_controller::hub::{HubInstantiateMsg, HubMsg};
-use astroport_governance::tributes::TributeFeeInfo;
+use astroport_governance::tributes::{ExecuteMsg, TributeFeeInfo};
 use astroport_governance::voting_escrow::UpdateMarketingInfo;
 use astroport_governance::{emissions_controller, tributes, voting_escrow};
 
@@ -394,6 +394,25 @@ impl Helper {
             &tributes::ExecuteMsg::RemoveTribute {
                 lp_token: lp_token.to_string(),
                 asset_info: asset_info.clone(),
+                receiver: receiver.into(),
+            },
+            &[],
+        )
+    }
+
+    pub fn claim_orphaned(
+        &mut self,
+        sender: &Addr,
+        lp_token: &str,
+        epoch_ts: u64,
+        receiver: impl Into<String>,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            sender.clone(),
+            self.tributes.clone(),
+            &ExecuteMsg::ClaimOrphaned {
+                lp_token: lp_token.to_string(),
+                epoch_ts,
                 receiver: receiver.into(),
             },
             &[],

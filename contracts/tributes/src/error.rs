@@ -40,4 +40,7 @@ pub enum ContractError {
 
     #[error("Rewards limit exceeded: {limit}")]
     RewardsLimitExceeded { limit: u8 },
+
+    #[error("{lp_token} isn't among orphaned in epoch {epoch_ts}")]
+    FailedToClaimOrphaned { lp_token: String, epoch_ts: u64 },
 }

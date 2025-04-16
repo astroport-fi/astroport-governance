@@ -3,6 +3,7 @@ use astroport::asset::AssetInfoExt;
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{to_json_binary, Binary, Deps, Env, Order, StdResult};
 use cw_storage_plus::Bound;
+use itertools::Itertools;
 
 use astroport_governance::emissions_controller::consts::EPOCH_LENGTH;
 use astroport_governance::emissions_controller::utils::get_epoch_start;
@@ -10,7 +11,9 @@ use astroport_governance::tributes::QueryMsg;
 use astroport_governance::DEFAULT_LIMIT;
 
 use crate::state::{CONFIG, TRIBUTES};
-use crate::utils::{asset_info_key, calculate_user_rewards, from_key_to_asset_info};
+use crate::utils::{
+    asset_info_key, calculate_user_rewards, from_key_to_asset_info, get_orphaned_tributes,
+};
 
 /// Expose available contract queries.
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -90,6 +93,13 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             let config = CONFIG.load(deps.storage)?;
             calculate_user_rewards(deps, &config, &address, env.block.time.seconds())
                 .and_then(|(rewards, _)| to_json_binary(&rewards))
+        }
+        QueryMsg::QueryOrphanedPools { epoch_ts } => {
+            let config = CONFIG.load(deps.storage)?;
+            let epoch_start = get_epoch_start(epoch_ts);
+            let tributes = get_orphaned_tributes(deps, &config.emissions_controller, epoch_start)?;
+
+            to_json_binary(&tributes.keys().collect_vec())
         }
     }
 }

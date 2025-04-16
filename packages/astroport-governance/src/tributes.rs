@@ -83,6 +83,15 @@ pub enum ExecuteMsg {
         /// Receiver address to send removed tributes.
         receiver: String,
     },
+    /// Permissioned to a contract owner. Allows claiming all orphaned tributes for a given LP token.
+    ClaimOrphaned {
+        /// Epoch timestamp. Enough to provide any timestamp within the epoch.
+        epoch_ts: u64,
+        /// LP token to claim orphaned tributes from.
+        lp_token: String,
+        /// Receiver address to send claimed tributes.
+        receiver: String,
+    },
     /// Permissioned to a contract owner. Allows updating tribute contract configuration.
     UpdateConfig {
         /// Anti-spam fee for adding tributes
@@ -103,7 +112,6 @@ pub enum ExecuteMsg {
     DropOwnershipProposal {},
     /// ClaimOwnership allows the newly proposed owner to claim contract ownership
     ClaimOwnership {},
-    // TODO: handle possible orphaned tributes
 }
 
 #[cw_serde]
@@ -147,5 +155,11 @@ pub enum QueryMsg {
     SimulateClaim {
         /// Address to simulate claim for.
         address: String,
+    },
+    /// Returns all pools at specific epoch which didn't receive any votes but had tributes allocated.
+    #[returns(Vec<String>)]
+    QueryOrphanedPools {
+        /// Epoch timestamp. Enough to provide any timestamp within the epoch.
+        epoch_ts: u64,
     },
 }
