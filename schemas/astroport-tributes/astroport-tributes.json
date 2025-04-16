@@ -176,6 +176,41 @@
         "additionalProperties": false
       },
       {
+        "description": "Permissioned to a contract owner. Allows claiming all orphaned tributes for a given LP token.",
+        "type": "object",
+        "required": [
+          "claim_orphaned"
+        ],
+        "properties": {
+          "claim_orphaned": {
+            "type": "object",
+            "required": [
+              "epoch_ts",
+              "lp_token",
+              "receiver"
+            ],
+            "properties": {
+              "epoch_ts": {
+                "description": "Epoch timestamp. Enough to provide any timestamp within the epoch.",
+                "type": "integer",
+                "format": "uint64",
+                "minimum": 0.0
+              },
+              "lp_token": {
+                "description": "LP token to claim orphaned tributes from.",
+                "type": "string"
+              },
+              "receiver": {
+                "description": "Receiver address to send claimed tributes.",
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      {
         "description": "Permissioned to a contract owner. Allows updating tribute contract configuration.",
         "type": "object",
         "required": [
@@ -546,6 +581,31 @@
           }
         },
         "additionalProperties": false
+      },
+      {
+        "description": "Returns all pools at specific epoch which didn't receive any votes but had tributes allocated.",
+        "type": "object",
+        "required": [
+          "query_orphaned_pools"
+        ],
+        "properties": {
+          "query_orphaned_pools": {
+            "type": "object",
+            "required": [
+              "epoch_ts"
+            ],
+            "properties": {
+              "epoch_ts": {
+                "description": "Epoch timestamp. Enough to provide any timestamp within the epoch.",
+                "type": "integer",
+                "format": "uint64",
+                "minimum": 0.0
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
       }
     ],
     "definitions": {
@@ -813,6 +873,14 @@
           "description": "A thin wrapper around u128 that is using strings for JSON encoding/decoding, such that the full u128 range can be used for clients that convert JSON numbers to floats, like JavaScript and jq.\n\n# Examples\n\nUse `from` to create instances of this and `u128` to get the value out:\n\n``` # use cosmwasm_std::Uint128; let a = Uint128::from(123u128); assert_eq!(a.u128(), 123);\n\nlet b = Uint128::from(42u64); assert_eq!(b.u128(), 42);\n\nlet c = Uint128::from(70u32); assert_eq!(c.u128(), 70); ```",
           "type": "string"
         }
+      }
+    },
+    "query_orphaned_pools": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Array_of_String",
+      "type": "array",
+      "items": {
+        "type": "string"
       }
     },
     "query_pool_tributes": {

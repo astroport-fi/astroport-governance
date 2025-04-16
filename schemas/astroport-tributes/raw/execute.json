@@ -88,6 +88,41 @@
       "additionalProperties": false
     },
     {
+      "description": "Permissioned to a contract owner. Allows claiming all orphaned tributes for a given LP token.",
+      "type": "object",
+      "required": [
+        "claim_orphaned"
+      ],
+      "properties": {
+        "claim_orphaned": {
+          "type": "object",
+          "required": [
+            "epoch_ts",
+            "lp_token",
+            "receiver"
+          ],
+          "properties": {
+            "epoch_ts": {
+              "description": "Epoch timestamp. Enough to provide any timestamp within the epoch.",
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            },
+            "lp_token": {
+              "description": "LP token to claim orphaned tributes from.",
+              "type": "string"
+            },
+            "receiver": {
+              "description": "Receiver address to send claimed tributes.",
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    {
       "description": "Permissioned to a contract owner. Allows updating tribute contract configuration.",
       "type": "object",
       "required": [

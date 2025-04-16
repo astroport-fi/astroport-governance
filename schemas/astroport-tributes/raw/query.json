@@ -147,6 +147,31 @@
         }
       },
       "additionalProperties": false
+    },
+    {
+      "description": "Returns all pools at specific epoch which didn't receive any votes but had tributes allocated.",
+      "type": "object",
+      "required": [
+        "query_orphaned_pools"
+      ],
+      "properties": {
+        "query_orphaned_pools": {
+          "type": "object",
+          "required": [
+            "epoch_ts"
+          ],
+          "properties": {
+            "epoch_ts": {
+              "description": "Epoch timestamp. Enough to provide any timestamp within the epoch.",
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
     }
   ],
   "definitions": {
