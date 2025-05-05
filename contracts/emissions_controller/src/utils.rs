@@ -15,9 +15,7 @@ use neutron_sdk::bindings::query::NeutronQuery;
 use neutron_sdk::query::min_ibc_fee::query_min_ibc_fee;
 use neutron_sdk::sudo::msg::RequestPacketTimeoutHeight;
 
-use astroport_governance::emissions_controller::consts::{
-    EPOCHS_START, EPOCH_LENGTH, FEE_DENOM, IBC_TIMEOUT,
-};
+use astroport_governance::emissions_controller::consts::{FEE_DENOM, IBC_TIMEOUT};
 use astroport_governance::emissions_controller::hub::{
     Config, EmissionsState, OutpostInfo, OutpostParams,
 };
@@ -193,18 +191,6 @@ pub fn raw_emissions_to_schedules(
     let astro_funds = coin(total_astro.u128(), hub_denom);
 
     (schedules, astro_funds)
-}
-
-/// Normalize current timestamp to the beginning of the current epoch (Monday).
-pub fn get_epoch_start(timestamp: u64) -> u64 {
-    let rem = timestamp % EPOCHS_START;
-    if rem % EPOCH_LENGTH == 0 {
-        // Hit at the beginning of the current epoch
-        timestamp
-    } else {
-        // Hit somewhere in the middle
-        EPOCHS_START + rem / EPOCH_LENGTH * EPOCH_LENGTH
-    }
 }
 
 /// Query the staking contract ASTRO balance and xASTRO total supply and derive xASTRO staking rate.
@@ -405,6 +391,9 @@ pub fn jail_outpost(
 
 #[cfg(test)]
 mod unit_tests {
+    use astroport_governance::emissions_controller::consts::EPOCH_LENGTH;
+    use astroport_governance::emissions_controller::utils::get_epoch_start;
+
     use super::*;
 
     #[test]
