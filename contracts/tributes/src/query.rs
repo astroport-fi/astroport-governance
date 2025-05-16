@@ -8,7 +8,7 @@ use std::collections::HashMap;
 
 use astroport_governance::emissions_controller::consts::EPOCH_LENGTH;
 use astroport_governance::emissions_controller::utils::get_epoch_start;
-use astroport_governance::tributes::{ClaimResponse, QueryMsg};
+use astroport_governance::tributes::QueryMsg;
 use astroport_governance::DEFAULT_LIMIT;
 
 use crate::state::{CONFIG, TRIBUTES};
@@ -135,7 +135,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 
                     (lp_token, rewards)
                 })
-                .collect::<ClaimResponse>();
+                .collect::<HashMap<_, Vec<_>>>();
 
             to_json_binary(&resp)
         }

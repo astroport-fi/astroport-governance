@@ -49,11 +49,6 @@ pub struct Config {
     pub token_transfer_gas_limit: u64,
 }
 
-/// Claim response object contains claimable tributes for a given address.
-/// Key is an LP token, value is a vector of tribute assets.
-/// This response accumulates all tributes per LP token from passed epochs.
-pub type ClaimResponse = HashMap<String, Vec<Asset>>;
-
 #[cw_serde]
 pub struct InstantiateMsg {
     /// Contract owner can update config and deregister tributes
@@ -169,8 +164,10 @@ pub enum QueryMsg {
         /// Limits the number of returned results.
         limit: Option<u32>,
     },
-    /// Returns vector of claimable tributes for a given address.
-    #[returns(ClaimResponse)]
+    /// Returns claimable tributes for a given address.
+    /// Key is an LP token, value is a vector of tribute assets.
+    /// This response accumulates all tributes per LP token from passed epochs.
+    #[returns(HashMap<String, Vec<Asset>>)]
     SimulateClaim {
         /// Address to simulate claim for.
         address: String,

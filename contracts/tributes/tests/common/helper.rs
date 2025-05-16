@@ -19,7 +19,7 @@ use std::collections::HashMap;
 
 use astroport_governance::emissions_controller::consts::EPOCHS_START;
 use astroport_governance::emissions_controller::hub::{HubInstantiateMsg, HubMsg};
-use astroport_governance::tributes::{ClaimResponse, ExecuteMsg, TributeFeeInfo, TributeInfo};
+use astroport_governance::tributes::{ExecuteMsg, TributeFeeInfo, TributeInfo};
 use astroport_governance::voting_escrow::UpdateMarketingInfo;
 use astroport_governance::{emissions_controller, tributes, voting_escrow};
 
@@ -350,7 +350,7 @@ impl Helper {
     pub fn simulate_claim(&self, address: impl Into<String>) -> StdResult<Vec<Asset>> {
         self.app
             .wrap()
-            .query_wasm_smart::<ClaimResponse>(
+            .query_wasm_smart::<HashMap<String, Vec<Asset>>>(
                 &self.tributes,
                 &tributes::QueryMsg::SimulateClaim {
                     address: address.into(),
