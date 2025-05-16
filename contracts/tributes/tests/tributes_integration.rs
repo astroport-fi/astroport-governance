@@ -6,7 +6,8 @@ use itertools::Itertools;
 
 use astroport_governance::emissions_controller::consts::EPOCH_LENGTH;
 use astroport_governance::tributes::{
-    ExecuteMsg, QueryMsg, TributeFeeInfo, REWARDS_AMOUNT_LIMITS, TOKEN_TRANSFER_GAS_LIMIT,
+    ExecuteMsg, QueryMsg, TributeFeeInfo, TributeInfo, REWARDS_AMOUNT_LIMITS,
+    TOKEN_TRANSFER_GAS_LIMIT,
 };
 use astroport_tributes::error::ContractError;
 
@@ -550,6 +551,19 @@ fn test_claim() {
     helper.claim(&voter1, None).unwrap();
     let voter1_bal = helper.app.wrap().query_balance(&voter1, "reward").unwrap();
     assert_eq!(voter1_bal.amount, tribute.amount);
+
+    let block_time = helper.app.block_info().time.seconds();
+    let tribute_info = helper
+        .query_tribute_info(Some(block_time), &lp_token1, &tribute.info)
+        .unwrap();
+
+    assert_eq!(
+        tribute_info,
+        TributeInfo {
+            allocated: tribute.amount,
+            available: Uint128::zero(), // claimed full
+        }
+    );
 
     // Another voter with 1 vxASTRO
     let voter2 = helper.app.api().addr_make("voter2");

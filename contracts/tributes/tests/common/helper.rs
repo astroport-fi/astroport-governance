@@ -1,9 +1,10 @@
-use astroport::asset::{Asset, AssetInfo, PairInfo};
+use astroport::asset::{Asset, AssetInfo, AssetInfoExt, PairInfo};
 use astroport::factory;
 use astroport::factory::{PairConfig, PairType};
 use astroport::token::Logo;
 use cosmwasm_std::{
     coin, coins, Addr, BlockInfo, Coin, Decimal, Empty, MemoryStorage, StdResult, Timestamp,
+    Uint128,
 };
 use cw_multi_test::error::AnyResult;
 use cw_multi_test::{
@@ -11,12 +12,14 @@ use cw_multi_test::{
     FailingModule, GovFailingModule, IbcFailingModule, MockAddressGenerator, MockApiBech32,
     StakeKeeper, WasmKeeper,
 };
+use itertools::Itertools;
 use neutron_sdk::bindings::msg::NeutronMsg;
 use neutron_sdk::bindings::query::NeutronQuery;
+use std::collections::HashMap;
 
 use astroport_governance::emissions_controller::consts::EPOCHS_START;
 use astroport_governance::emissions_controller::hub::{HubInstantiateMsg, HubMsg};
-use astroport_governance::tributes::{ExecuteMsg, TributeFeeInfo};
+use astroport_governance::tributes::{ClaimResponse, ExecuteMsg, TributeFeeInfo, TributeInfo};
 use astroport_governance::voting_escrow::UpdateMarketingInfo;
 use astroport_governance::{emissions_controller, tributes, voting_escrow};
 
@@ -307,7 +310,7 @@ impl Helper {
         self.app.execute_contract(
             sender.clone(),
             self.tributes.clone(),
-            &tributes::ExecuteMsg::AddTribute {
+            &ExecuteMsg::AddTribute {
                 lp_token: lp_token.to_string(),
                 asset: tribute.clone(),
             },
@@ -345,19 +348,32 @@ impl Helper {
     }
 
     pub fn simulate_claim(&self, address: impl Into<String>) -> StdResult<Vec<Asset>> {
-        self.app.wrap().query_wasm_smart(
-            &self.tributes,
-            &tributes::QueryMsg::SimulateClaim {
-                address: address.into(),
-            },
-        )
+        self.app
+            .wrap()
+            .query_wasm_smart::<ClaimResponse>(
+                &self.tributes,
+                &tributes::QueryMsg::SimulateClaim {
+                    address: address.into(),
+                },
+            )
+            .map(|resp| {
+                let mut map: HashMap<AssetInfo, Uint128> = HashMap::new();
+                for asset in resp.into_values().flatten() {
+                    let entry = map.entry(asset.info).or_default();
+                    *entry += asset.amount;
+                }
+
+                map.into_iter()
+                    .map(|(info, amount)| info.with_balance(amount))
+                    .collect_vec()
+            })
     }
 
     pub fn claim(&mut self, sender: &Addr, receiver: Option<String>) -> AnyResult<AppResponse> {
         self.app.execute_contract(
             sender.clone(),
             self.tributes.clone(),
-            &tributes::ExecuteMsg::Claim { receiver },
+            &ExecuteMsg::Claim { receiver },
             &[],
         )
     }
@@ -372,7 +388,7 @@ impl Helper {
         self.app.execute_contract(
             sender.clone(),
             self.tributes.clone(),
-            &tributes::ExecuteMsg::UpdateConfig {
+            &ExecuteMsg::UpdateConfig {
                 tribute_fee_info,
                 rewards_limit,
                 token_transfer_gas_limit,
@@ -391,7 +407,7 @@ impl Helper {
         self.app.execute_contract(
             sender.clone(),
             self.tributes.clone(),
-            &tributes::ExecuteMsg::RemoveTribute {
+            &ExecuteMsg::RemoveTribute {
                 lp_token: lp_token.to_string(),
                 asset_info: asset_info.clone(),
                 receiver: receiver.into(),
@@ -416,6 +432,22 @@ impl Helper {
                 receiver: receiver.into(),
             },
             &[],
+        )
+    }
+
+    pub fn query_tribute_info(
+        &self,
+        epoch_ts: Option<u64>,
+        lp_token: &str,
+        asset_info: &AssetInfo,
+    ) -> StdResult<TributeInfo> {
+        self.app.wrap().query_wasm_smart(
+            &self.tributes,
+            &tributes::QueryMsg::QueryPoolTributeInfo {
+                epoch_ts,
+                lp_token: lp_token.to_string(),
+                asset_info: asset_info.clone(),
+            },
         )
     }
 }

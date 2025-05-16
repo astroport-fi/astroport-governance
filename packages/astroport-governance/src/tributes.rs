@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::ops::RangeInclusive;
 
 use astroport::asset::{Asset, AssetInfo};
@@ -47,6 +48,11 @@ pub struct Config {
     /// it will be stuck in the contract.
     pub token_transfer_gas_limit: u64,
 }
+
+/// Claim response object contains claimable tributes for a given address.
+/// Key is an LP token, value is a vector of tribute assets.
+/// This response accumulates all tributes per LP token from passed epochs.
+pub type ClaimResponse = HashMap<String, Vec<Asset>>;
 
 #[cw_serde]
 pub struct InstantiateMsg {
@@ -137,6 +143,19 @@ pub enum QueryMsg {
         /// LP token to query tributes for.
         lp_token: String,
     },
+    /// Returns vector of tribute infos for a given LP token.
+    #[returns(TributeInfo)]
+    QueryPoolTributeInfo {
+        /// Epoch timestamp. Enough to provide any timestamp within the epoch.
+        /// If None, it will return the current epoch tributes.
+        /// NOTE: Tribute epoch matches epoch when rewards started being distributed.
+        /// It doesn't match the preceding epoch when rewards were added!.
+        epoch_ts: Option<u64>,
+        /// LP token to query tributes for.
+        lp_token: String,
+        /// Tribute asset info.
+        asset_info: AssetInfo,
+    },
     /// Returns vector of all tributes for a given epoch. Item value (lp token, tribute asset).
     #[returns(Vec<(String, Asset)>)]
     QueryAllEpochTributes {
@@ -151,7 +170,7 @@ pub enum QueryMsg {
         limit: Option<u32>,
     },
     /// Returns vector of claimable tributes for a given address.
-    #[returns(Vec<Asset>)]
+    #[returns(ClaimResponse)]
     SimulateClaim {
         /// Address to simulate claim for.
         address: String,

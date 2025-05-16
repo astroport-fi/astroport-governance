@@ -1,9 +1,12 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "Array_of_Asset",
-  "type": "array",
-  "items": {
-    "$ref": "#/definitions/Asset"
+  "title": "Map_of_Array_of_Asset",
+  "type": "object",
+  "additionalProperties": {
+    "type": "array",
+    "items": {
+      "$ref": "#/definitions/Asset"
+    }
   },
   "definitions": {
     "Addr": {
