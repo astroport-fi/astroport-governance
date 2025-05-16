@@ -1,42 +1,10 @@
 #![cfg(not(tarpaulin_include))]
 
-use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{
-    Addr, CosmosMsg, DepsMut, Empty, Env, Order, Response, StdResult, Uint128, Uint64,
-};
+use cosmwasm_std::{DepsMut, Empty, Env, Response};
 use cw2::{get_contract_version, set_contract_version};
-use cw_storage_plus::Map;
-
-use astroport_governance::assembly::{Proposal, ProposalStatus};
 
 use crate::contract::{CONTRACT_NAME, CONTRACT_VERSION};
 use crate::error::ContractError;
-use crate::state::PROPOSALS;
-
-#[cw_serde]
-pub struct OldProposal {
-    pub proposal_id: Uint64,
-    pub submitter: Addr,
-    pub status: ProposalStatus,
-    pub for_power: Uint128,
-    pub outpost_for_power: Uint128,
-    pub against_power: Uint128,
-    pub outpost_against_power: Uint128,
-    pub start_block: u64,
-    pub start_time: u64,
-    pub end_block: u64,
-    pub delayed_end_block: u64,
-    pub expiration_block: u64,
-    pub title: String,
-    pub description: String,
-    pub link: Option<String>,
-    pub messages: Vec<CosmosMsg>,
-    pub deposit_amount: Uint128,
-    pub ibc_channel: Option<String>,
-    pub total_voting_power: Uint128,
-}
-
-const OLD_PROPOSALS: Map<u64, OldProposal> = Map::new("proposals");
 
 #[cfg_attr(not(feature = "library"), cosmwasm_std::entry_point)]
 pub fn migrate(deps: DepsMut, _env: Env, _msg: Empty) -> Result<Response, ContractError> {
@@ -44,37 +12,7 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: Empty) -> Result<Response, Contra
 
     match contract_version.contract.as_ref() {
         CONTRACT_NAME => match contract_version.version.as_ref() {
-            "2.0.1" => {
-                let proposals = OLD_PROPOSALS
-                    .range(deps.storage, None, None, Order::Ascending)
-                    .collect::<StdResult<Vec<_>>>()?;
-
-                proposals.into_iter().try_for_each(|(id, old_proposal)| {
-                    let proposal = Proposal {
-                        proposal_id: old_proposal.proposal_id,
-                        submitter: old_proposal.submitter,
-                        status: old_proposal.status,
-                        for_power: old_proposal.for_power,
-                        against_power: old_proposal.against_power,
-                        start_block: old_proposal.start_block,
-                        start_time: old_proposal.start_time,
-                        end_block: old_proposal.end_block,
-                        delayed_end_block: old_proposal.delayed_end_block,
-                        expiration_block: old_proposal.expiration_block,
-                        title: old_proposal.title,
-                        description: old_proposal.description,
-                        link: old_proposal.link,
-                        messages: old_proposal.messages,
-                        deposit_amount: old_proposal.deposit_amount,
-                        ibc_channel: old_proposal.ibc_channel,
-                        total_voting_power: old_proposal.total_voting_power,
-                    };
-                    PROPOSALS
-                        .save(deps.storage, id, &proposal)
-                        .map_err(ContractError::Std)
-                })
-            }
-            "3.0.0" => Ok(()),
+            "3.0.1" => Ok(()),
             _ => Err(ContractError::MigrationError {}),
         },
         _ => Err(ContractError::MigrationError {}),
