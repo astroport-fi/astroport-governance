@@ -5,8 +5,9 @@ use astroport::staking;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, coins, ensure, wasm_execute, Addr, Api, BankMsg, CosmosMsg, Decimal, DepsMut, Env,
-    MessageInfo, QuerierWrapper, Response, StdError, Storage, SubMsg, Uint128, Uint64, WasmMsg,
+    attr, coins, ensure, ensure_eq, wasm_execute, Addr, Api, BankMsg, CosmosMsg, Decimal, DepsMut,
+    Env, MessageInfo, QuerierWrapper, Response, StdError, Storage, SubMsg, Uint128, Uint64,
+    WasmMsg,
 };
 use cw2::set_contract_version;
 use cw_utils::must_pay;
@@ -178,7 +179,7 @@ pub fn execute(
         }
         ExecuteMsg::EndProposal { proposal_id } => end_proposal(deps, env, proposal_id),
         ExecuteMsg::ExecuteProposal { proposal_id } => execute_proposal(deps, env, proposal_id),
-        ExecuteMsg::CheckMessages(messages) => check_messages(deps.api, env, messages),
+        ExecuteMsg::CheckMessages(messages) => check_messages(info, deps.api, env, messages),
         ExecuteMsg::CheckMessagesPassed {} => Err(ContractError::MessagesCheckPassed {}),
         ExecuteMsg::UpdateConfig(config) => update_config(deps, env, info, config),
         ExecuteMsg::IBCProposalCompleted {
@@ -455,10 +456,17 @@ pub fn execute_proposal(
 
 /// Checks that proposal messages are correct.
 pub fn check_messages(
+    info: MessageInfo,
     api: &dyn Api,
     env: Env,
     mut messages: Vec<CosmosMsg>,
 ) -> Result<Response, ContractError> {
+    ensure_eq!(
+        info.sender,
+        env.contract.address,
+        ContractError::Unauthorized {}
+    );
+
     messages.iter().try_for_each(|msg| match msg {
         CosmosMsg::Wasm(
             WasmMsg::Migrate { contract_addr, .. } | WasmMsg::UpdateAdmin { contract_addr, .. },

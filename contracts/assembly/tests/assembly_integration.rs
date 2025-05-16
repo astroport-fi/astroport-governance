@@ -482,7 +482,7 @@ fn test_check_messages() {
     let err = helper
         .app
         .execute_contract(
-            Addr::unchecked("permissionless"),
+            assembly.clone(),
             assembly.clone(),
             &ExecuteMsg::CheckMessages(vec![BankMsg::Send {
                 to_address: "receiver".to_string(),
@@ -501,7 +501,7 @@ fn test_check_messages() {
     let err = helper
         .app
         .execute_contract(
-            Addr::unchecked("permissionless"),
+            assembly.clone(),
             assembly.clone(),
             &ExecuteMsg::CheckMessages(vec![BankMsg::Send {
                 to_address: "receiver".to_string(),
@@ -521,7 +521,7 @@ fn test_check_messages() {
     let err = helper
         .app
         .execute_contract(
-            Addr::unchecked("permissionless"),
+            assembly.clone(),
             assembly.clone(),
             &ExecuteMsg::CheckMessages(vec![WasmMsg::UpdateAdmin {
                 contract_addr: assembly.to_string(),
@@ -540,7 +540,7 @@ fn test_check_messages() {
     let err = helper
         .app
         .execute_contract(
-            Addr::unchecked("permissionless"),
+            assembly.clone(),
             assembly.clone(),
             &ExecuteMsg::CheckMessages(vec![WasmMsg::ClearAdmin {
                 contract_addr: assembly.to_string(),
@@ -558,7 +558,7 @@ fn test_check_messages() {
     let err = helper
         .app
         .execute_contract(
-            Addr::unchecked("permissionless"),
+            assembly.clone(),
             assembly.clone(),
             &ExecuteMsg::CheckMessages(vec![WasmMsg::Migrate {
                 contract_addr: assembly.to_string(),
@@ -578,7 +578,7 @@ fn test_check_messages() {
     let err = helper
         .app
         .execute_contract(
-            Addr::unchecked("permissionless"),
+            assembly.clone(),
             assembly.clone(),
             &ExecuteMsg::CheckMessages(vec![CosmosMsg::Stargate {
                 type_url: "/cosmos.authz.v1beta1.MsgGrant".to_string(),
@@ -590,6 +590,25 @@ fn test_check_messages() {
     assert_eq!(
         err.root_cause().to_string(),
         "Generic error: Can't check messages with a MsgGrant message"
+    );
+
+    // Nobody but assembly can be a message sender
+    let err = helper
+        .app
+        .execute_contract(
+            Addr::unchecked("random"),
+            assembly.clone(),
+            &ExecuteMsg::CheckMessages(vec![BankMsg::Send {
+                to_address: "receiver".to_string(),
+                amount: coins(1, "some_coin"),
+            }
+            .into()]),
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::Unauthorized {}
     );
 
     // Check execute from multisig message
