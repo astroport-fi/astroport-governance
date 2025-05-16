@@ -1,19 +1,20 @@
 use astroport::asset::{validate_native_denom, Asset, AssetInfo, AssetInfoExt};
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
-#[cfg(not(feature = "library"))]
-use cosmwasm_std::entry_point;
-use cosmwasm_std::{
-    attr, ensure, ensure_eq, wasm_execute, BankMsg, CosmosMsg, DepsMut, Env, MessageInfo, Order,
-    ReplyOn, Response, StdError, StdResult,
-};
-use cw_utils::nonpayable;
-
 use astroport_governance::emissions_controller;
 use astroport_governance::emissions_controller::consts::EPOCH_LENGTH;
 use astroport_governance::emissions_controller::utils::get_epoch_start;
 use astroport_governance::tributes::{
     ExecuteMsg, TributeFeeInfo, TributeInfo, REWARDS_AMOUNT_LIMITS, TOKEN_TRANSFER_GAS_LIMIT,
 };
+#[cfg(not(feature = "library"))]
+use cosmwasm_std::entry_point;
+use cosmwasm_std::{
+    attr, ensure, ensure_eq, wasm_execute, BankMsg, CosmosMsg, DepsMut, Env, Event, MessageInfo,
+    Order, ReplyOn, Response, StdError, StdResult, Uint128,
+};
+use cw_utils::nonpayable;
+use itertools::Itertools;
+use std::collections::HashMap;
 
 use crate::error::ContractError;
 use crate::reply::POST_TRANSFER_REPLY_ID;
@@ -225,12 +226,46 @@ pub fn claim_tributes(
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
 
-    let (rewards, events) = calculate_user_rewards(
+    let all_rewards = calculate_user_rewards(
         deps.as_ref(),
         &config,
         info.sender.as_str(),
         env.block.time.seconds(),
     )?;
+
+    let mut rewards: HashMap<AssetInfo, Uint128> = HashMap::new();
+    let mut events = vec![];
+    for (epoch_start_ts, rewards_per_pool) in all_rewards {
+        let mut attrs = vec![];
+        for (lp_token, rewards_per_asset) in rewards_per_pool {
+            attrs.push(attr("lp_token", &lp_token));
+
+            for (asset_info, user_amount) in rewards_per_asset {
+                let asset_reward = rewards
+                    .entry(asset_info.clone())
+                    .or_insert_with(Uint128::zero);
+                *asset_reward += user_amount;
+
+                let asset_key = asset_info_key(&asset_info);
+                TRIBUTES.update::<_, StdError>(
+                    deps.storage,
+                    (epoch_start_ts, &lp_token, &asset_key),
+                    |tribute| {
+                        let mut tribute = tribute.unwrap();
+                        tribute.available = tribute.available.checked_sub(user_amount)?;
+                        Ok(tribute)
+                    },
+                )?;
+
+                attrs.push(attr(
+                    "tribute",
+                    asset_info.with_balance(user_amount).to_string(),
+                ));
+            }
+        }
+
+        events.push(Event::new(format!("epoch_{epoch_start_ts}")).add_attributes(attrs));
+    }
 
     USER_LAST_CLAIM_EPOCH.save(
         deps.storage,
@@ -242,8 +277,12 @@ pub fn claim_tributes(
 
     let rewards_msgs = rewards
         .into_iter()
-        .map(|asset| {
-            asset.into_submsg(
+        .into_group_map()
+        .into_iter()
+        .map(|(asset, amounts)| {
+            let total_amount: Uint128 = amounts.iter().sum();
+
+            asset.with_balance(total_amount).into_submsg(
                 &receiver,
                 Some((ReplyOn::Error, POST_TRANSFER_REPLY_ID)),
                 Some(config.token_transfer_gas_limit),
@@ -252,13 +291,13 @@ pub fn claim_tributes(
         .collect::<StdResult<Vec<_>>>()?;
 
     Ok(Response::new()
-        .add_submessages(rewards_msgs)
-        .add_events(events)
         .add_attributes([
             ("action", "claim_tributes"),
             ("voter", info.sender.as_str()),
             ("receiver", &receiver),
-        ]))
+        ])
+        .add_submessages(rewards_msgs)
+        .add_events(events))
 }
 
 pub fn remove_tribute(
