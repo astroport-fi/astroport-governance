@@ -1,9 +1,7 @@
 use std::collections::HashMap;
 
 use astroport::asset::{Asset, AssetInfo, AssetInfoExt};
-use cosmwasm_std::{
-    attr, Addr, Decimal, Deps, Event, Order, QuerierWrapper, StdError, StdResult, Uint128,
-};
+use cosmwasm_std::{Addr, Decimal, Deps, Order, QuerierWrapper, StdError, StdResult, Uint128};
 use itertools::Itertools;
 
 use astroport_governance::emissions_controller;
@@ -81,12 +79,14 @@ pub fn query_voting_power_per_pool(
         })
 }
 
+pub type RawClaimResponse = HashMap<u64, HashMap<String, HashMap<AssetInfo, Uint128>>>;
+
 pub fn calculate_user_rewards(
     deps: Deps,
     config: &Config,
     user: &str,
     block_ts: u64,
-) -> StdResult<(Vec<Asset>, Vec<Event>)> {
+) -> StdResult<RawClaimResponse> {
     // If a user has never interacted with the tributes contract
     // they iterate over all passed epochs
     let last_claim_ts = USER_LAST_CLAIM_EPOCH
@@ -94,10 +94,11 @@ pub fn calculate_user_rewards(
         .unwrap_or(config.initial_epoch)
         + EPOCH_LENGTH;
 
-    let mut rewards: HashMap<AssetInfo, Uint128> = HashMap::new();
+    let mut rewards: HashMap<u64, HashMap<String, HashMap<AssetInfo, Uint128>>> = HashMap::new();
 
-    let mut events = vec![];
     for epoch_start_ts in (last_claim_ts..=block_ts).step_by(EPOCH_LENGTH as usize) {
+        let mut epoch: HashMap<String, HashMap<AssetInfo, Uint128>> = HashMap::new();
+
         let user_share_per_pool = query_voting_power_per_pool(
             deps.querier,
             &config.emissions_controller,
@@ -107,59 +108,35 @@ pub fn calculate_user_rewards(
             epoch_start_ts - 1,
         )?;
 
-        let mut attrs = vec![];
-
         for (lp_token, user_share) in user_share_per_pool {
-            attrs.push(attr("lp_token", &lp_token));
+            let mut pool: HashMap<AssetInfo, Uint128> = HashMap::new();
 
             let tributes = TRIBUTES
                 .prefix((epoch_start_ts, &lp_token))
                 .range(deps.storage, None, None, Order::Ascending)
                 .collect::<StdResult<Vec<_>>>()?;
 
-            for (asset_info_key, mut tribute_info) in tributes {
+            for (asset_info_key, tribute_info) in tributes {
                 let asset_info = from_key_to_asset_info(asset_info_key)?;
-                let asset_reward = rewards
-                    .entry(asset_info.clone())
-                    .or_insert_with(Uint128::zero);
 
                 let user_amount = tribute_info.allocated * user_share;
 
-                *asset_reward += user_amount;
-                tribute_info.available = tribute_info.available.checked_sub(user_amount)?;
+                if !user_amount.is_zero() {
+                    pool.insert(asset_info.clone(), user_amount);
+                }
+            }
 
-                attrs.push(attr(
-                    "tribute",
-                    asset_info.with_balance(user_amount).to_string(),
-                ));
+            if !pool.is_empty() {
+                epoch.insert(lp_token.clone(), pool);
             }
         }
 
-        events.push(Event::new(format!("epoch_{epoch_start_ts}")).add_attributes(attrs));
+        if !epoch.is_empty() {
+            rewards.insert(epoch_start_ts, epoch);
+        }
     }
 
-    let rewards = rewards
-        .into_iter()
-        .filter_map(|(asset_info, amount)| {
-            if !amount.is_zero() {
-                Some(asset_info.with_balance(amount))
-            } else {
-                None
-            }
-        })
-        .into_group_map_by(|asset| asset.info.clone())
-        .into_iter()
-        .map(|(asset, amounts)| {
-            let total_amount = amounts
-                .iter()
-                .map(|a| a.amount)
-                .reduce(|a, b| a + b)
-                .unwrap();
-            asset.with_balance(total_amount)
-        })
-        .collect();
-
-    Ok((rewards, events))
+    Ok(rewards)
 }
 
 pub fn get_orphaned_tributes(

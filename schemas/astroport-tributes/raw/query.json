@@ -75,6 +75,47 @@
       "additionalProperties": false
     },
     {
+      "description": "Returns vector of tribute infos for a given LP token.",
+      "type": "object",
+      "required": [
+        "query_pool_tribute_info"
+      ],
+      "properties": {
+        "query_pool_tribute_info": {
+          "type": "object",
+          "required": [
+            "asset_info",
+            "lp_token"
+          ],
+          "properties": {
+            "asset_info": {
+              "description": "Tribute asset info.",
+              "allOf": [
+                {
+                  "$ref": "#/definitions/AssetInfo"
+                }
+              ]
+            },
+            "epoch_ts": {
+              "description": "Epoch timestamp. Enough to provide any timestamp within the epoch. If None, it will return the current epoch tributes. NOTE: Tribute epoch matches epoch when rewards started being distributed. It doesn't match the preceding epoch when rewards were added!.",
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint64",
+              "minimum": 0.0
+            },
+            "lp_token": {
+              "description": "LP token to query tributes for.",
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    {
       "description": "Returns vector of all tributes for a given epoch. Item value (lp token, tribute asset).",
       "type": "object",
       "required": [
@@ -126,7 +167,7 @@
       "additionalProperties": false
     },
     {
-      "description": "Returns vector of claimable tributes for a given address.",
+      "description": "Returns claimable tributes for a given address. Key is an LP token, value is a vector of tribute assets. This response accumulates all tributes per LP token from passed epochs.",
       "type": "object",
       "required": [
         "simulate_claim"
