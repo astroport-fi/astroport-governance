@@ -27,36 +27,42 @@ pub fn query_pair_info(querier: QuerierWrapper, lp_asset: &AssetInfo) -> StdResu
     }
 }
 
-/// Checks if the given LP token is registered in the factory.
+/// Checks if the pool with the following asset infos is registered in the factory contract and
+/// LP tokens address/denom matches the one registered in the factory.
 pub fn check_lp_token(
     querier: QuerierWrapper,
     factory: &Addr,
     maybe_lp: &AssetInfo,
 ) -> StdResult<()> {
-    let pair_info = query_pair_info(querier, maybe_lp)?;
-    querier
-        .query_wasm_smart::<PairInfo>(
-            factory,
-            &factory::QueryMsg::Pair {
-                asset_infos: pair_info.asset_infos.to_vec(),
-            },
-        )
-        .map_err(|_| {
-            StdError::generic_err(format!(
-                "The pair is not registered: {}-{}",
-                pair_info.asset_infos[0], pair_info.asset_infos[1]
-            ))
-        })
-        .and_then(|resp| {
-            if resp.liquidity_token.as_str() == maybe_lp.to_string() {
-                Ok(())
-            } else {
-                Err(StdError::generic_err(format!(
-                    "LP token {maybe_lp} doesn't match LP token registered in factory {}",
-                    resp.liquidity_token
-                )))
-            }
-        })
+    // Checking only possible malicious cw20 LP tokens as they might result in state bloat
+    if maybe_lp.is_native_token() {
+        Ok(())
+    } else {
+        let pair_info = query_pair_info(querier, maybe_lp)?;
+        querier
+            .query_wasm_smart::<PairInfo>(
+                factory,
+                &factory::QueryMsg::Pair {
+                    asset_infos: pair_info.asset_infos.to_vec(),
+                },
+            )
+            .map_err(|_| {
+                StdError::generic_err(format!(
+                    "The pair is not registered: {}-{}",
+                    pair_info.asset_infos[0], pair_info.asset_infos[1]
+                ))
+            })
+            .and_then(|resp| {
+                if resp.liquidity_token == maybe_lp.to_string() {
+                    Ok(())
+                } else {
+                    Err(StdError::generic_err(format!(
+                        "LP token {maybe_lp} doesn't match LP token registered in factory {}",
+                        resp.liquidity_token
+                    )))
+                }
+            })
+    }
 }
 
 #[inline]

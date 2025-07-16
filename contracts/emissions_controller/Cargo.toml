@@ -33,10 +33,10 @@ cw-multi-test = { git = "https://github.com/astroport-fi/cw-multi-test", branch 
 astroport-voting-escrow = { path = "../voting_escrow", version = "1.0.0", features = ["library"] }
 astro-assembly = { path = "../assembly", version = "3.0.0", features = ["library"] }
 builder-unlock = { version = "3", features = ["library"] }
-astroport-factory = { version = "1.8", features = ["library"] }
+astroport-factory = { version = "1.9", features = ["library"] }
 astroport-pair = { version = "2", features = ["library"] }
 cw20-base = { version = "1", features = ["library"] }
-astroport-incentives = { git = "https://github.com/astroport-fi/astroport-core", version = "1.2.0", features = ["library"] }
+astroport-incentives = { version = "1.3.0", features = ["library"] }
 astroport-staking = "2.1"
 astroport-tokenfactory-tracker = { version = "1", features = ["library"] }
 osmosis-std = "0.25.0"
