@@ -13,8 +13,7 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: Empty) -> Result<Response, Contra
 
     match contract_version.contract.as_ref() {
         CONTRACT_NAME => match contract_version.version.as_ref() {
-            "1.0.0" => Ok(()),
-            "1.1.0" => Ok(()),
+            "1.0.0" | "1.1.0" | "1.2.0" => Ok(()),
             _ => Err(ContractError::MigrationError {}),
         },
         _ => Err(ContractError::MigrationError {}),

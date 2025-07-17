@@ -307,15 +307,22 @@ impl ControllerHelper {
         self.app.execute_contract(
             user.clone(),
             self.emission_controller.clone(),
-            &emissions_controller::msg::ExecuteMsg::<OutpostMsg>::Custom(
-                OutpostMsg::PermissionedSetEmissions {
-                    schedules: schedules
-                        .iter()
-                        .map(|(pool, schedule)| (pool.to_string(), schedule.clone()))
-                        .collect(),
-                },
-            ),
+            &ExecuteMsg::<OutpostMsg>::Custom(OutpostMsg::PermissionedSetEmissions {
+                schedules: schedules
+                    .iter()
+                    .map(|(pool, schedule)| (pool.to_string(), schedule.clone()))
+                    .collect(),
+            }),
             funds,
+        )
+    }
+
+    pub fn clawback(&mut self, user: &Addr) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            user.clone(),
+            self.emission_controller.clone(),
+            &ExecuteMsg::<OutpostMsg>::Custom(OutpostMsg::ClawbackAstro {}),
+            &[],
         )
     }
 
