@@ -283,6 +283,62 @@ fn permissioned_set_emissions_test() {
 }
 
 #[test]
+fn test_clawback() {
+    let mut helper = ControllerHelper::new();
+    let astro = helper.astro.clone();
+    let owner = helper.owner.clone();
+
+    // Unauthorized check
+    let random = helper.app.api().addr_make("random");
+    let err = helper.clawback(&random).unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::Unauthorized {}
+    );
+
+    // No ASTRO to clawback
+    let err = helper.clawback(&owner).unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Cannot transfer empty coins amount"
+    );
+
+    helper
+        .mint_tokens(
+            &helper.emission_controller.clone(),
+            &coins(100_000000, &astro),
+        )
+        .unwrap();
+
+    let resp = helper.clawback(&owner).unwrap();
+
+    // Assert mocked ibc event
+    let has_event = resp.has_event(
+        &Event::new("transfer").add_attributes([
+            attr(
+                "packet_timeout_timestamp",
+                helper
+                    .app
+                    .block_info()
+                    .time
+                    .plus_seconds(IBC_TIMEOUT)
+                    .seconds()
+                    .to_string(),
+            ),
+            attr("packet_src_port", "transfer"),
+            attr("packet_src_channel", "channel-2"),
+            attr("to_address", "emissions_controller"),
+            attr("amount", coin(100_000000, &astro).to_string()),
+        ]),
+    );
+    assert!(
+        has_event,
+        "Expected IBC transfer event. Actual {:?}",
+        resp.events
+    );
+}
+
+#[test]
 fn test_voting() {
     let mut helper = ControllerHelper::new();
 

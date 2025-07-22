@@ -40,6 +40,10 @@ pub enum OutpostMsg {
     PermissionedSetEmissions {
         schedules: Vec<(String, InputSchedule)>,
     },
+    /// Permissioned to the contract owner.
+    /// Allows to clawback ASTRO tokens bridged but not yet used in schedules.
+    /// ASTRO tokens are sent back to the Hub emissions controller.
+    ClawbackAstro {},
     /// Allows using vxASTRO voting power to vote on general DAO proposals.
     /// The contract requires a proposal with specific id to be registered via
     /// a special permissionless IBC message.
