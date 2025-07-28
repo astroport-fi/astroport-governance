@@ -63,7 +63,7 @@ version = "4.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b5ec8dd4298b362361b0e118107a060e5e58501a68273b3257059c96b723b57c"
 dependencies = [
- "astroport-circular-buffer",
+ "astroport-circular-buffer 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-asset",
@@ -80,7 +80,25 @@ version = "5.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6b60dc379b6b163dbd49be58fd34f07dd8caab057e400664d2c8443356f2c44c"
 dependencies = [
- "astroport-circular-buffer",
+ "astroport-circular-buffer 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "cosmos-sdk-proto 0.19.0",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-asset",
+ "cw-storage-plus 1.2.0",
+ "cw-utils 1.0.3",
+ "cw20 1.1.2",
+ "itertools 0.12.1",
+ "prost 0.11.9",
+ "uint",
+]
+
+[[package]]
+name = "astroport"
+version = "5.10.1"
+source = "git+https://github.com/astroport-fi/astroport-core#996294d81b08d3bd8ed43a0e3a1fdb37c5fc656e"
+dependencies = [
+ "astroport-circular-buffer 0.2.0 (git+https://github.com/astroport-fi/astroport-core)",
  "cosmos-sdk-proto 0.19.0",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -106,15 +124,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "astroport-circular-buffer"
+version = "0.2.0"
+source = "git+https://github.com/astroport-fi/astroport-core#996294d81b08d3bd8ed43a0e3a1fdb37c5fc656e"
+dependencies = [
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-storage-plus 1.2.0",
+ "thiserror",
+]
+
+[[package]]
 name = "astroport-emissions-controller"
 version = "1.2.1"
 dependencies = [
  "anyhow",
  "astro-assembly",
- "astroport 5.9.0",
+ "astroport 5.10.1",
  "astroport-factory",
  "astroport-governance 4.6.0",
- "astroport-incentives",
+ "astroport-incentives 1.3.0",
  "astroport-pair",
  "astroport-staking",
  "astroport-tokenfactory-tracker",
@@ -140,10 +169,10 @@ name = "astroport-emissions-controller-outpost"
 version = "1.2.0"
 dependencies = [
  "anyhow",
- "astroport 5.9.0",
+ "astroport 5.10.1",
  "astroport-factory",
  "astroport-governance 4.6.0",
- "astroport-incentives",
+ "astroport-incentives 1.4.0",
  "astroport-pair",
  "astroport-voting-escrow",
  "cosmwasm-schema",
@@ -161,11 +190,10 @@ dependencies = [
 
 [[package]]
 name = "astroport-factory"
-version = "1.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5cda6d63cef9d4caff77f634e103f52eed69a26e01aa7249f1e7afe09fd38b1e"
+version = "1.10.0"
+source = "git+https://github.com/astroport-fi/astroport-core#996294d81b08d3bd8ed43a0e3a1fdb37c5fc656e"
 dependencies = [
- "astroport 5.9.0",
+ "astroport 5.10.1",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 1.2.0",
@@ -205,7 +233,7 @@ dependencies = [
 name = "astroport-governance"
 version = "4.6.0"
 dependencies = [
- "astroport 5.9.0",
+ "astroport 5.10.1",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw20 1.1.2",
@@ -228,6 +256,22 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "565393d18f30f24304cb4682aa164b9281c3f461360d7988e0792835f80c92f3"
 dependencies = [
  "astroport 5.9.0",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-storage-plus 1.2.0",
+ "cw-utils 1.0.3",
+ "cw2 1.1.2",
+ "cw20 1.1.2",
+ "itertools 0.12.1",
+ "thiserror",
+]
+
+[[package]]
+name = "astroport-incentives"
+version = "1.4.0"
+source = "git+https://github.com/astroport-fi/astroport-core#996294d81b08d3bd8ed43a0e3a1fdb37c5fc656e"
+dependencies = [
+ "astroport 5.10.1",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 1.2.0",
@@ -289,7 +333,7 @@ name = "astroport-tributes"
 version = "1.1.0"
 dependencies = [
  "anyhow",
- "astroport 5.9.0",
+ "astroport 5.10.1",
  "astroport-emissions-controller",
  "astroport-factory",
  "astroport-governance 4.6.0",
@@ -313,7 +357,7 @@ dependencies = [
 name = "astroport-voting-escrow"
 version = "1.2.0"
 dependencies = [
- "astroport 5.9.0",
+ "astroport 5.10.1",
  "astroport-governance 4.6.0",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -390,7 +434,7 @@ checksum = "56953345e39537a3e18bdaeba4cb0c58a78c1f61f361dc0fa7c5c7340ae87c5f"
 name = "builder-unlock"
 version = "3.0.0"
 dependencies = [
- "astroport 5.9.0",
+ "astroport 5.10.1",
  "astroport-governance 3.0.0",
  "cosmwasm-schema",
  "cosmwasm-std",

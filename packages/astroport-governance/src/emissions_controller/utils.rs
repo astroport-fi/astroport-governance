@@ -35,6 +35,7 @@ pub fn check_lp_token(
     maybe_lp: &AssetInfo,
 ) -> StdResult<()> {
     // Checking only possible malicious cw20 LP tokens as they might result in state bloat
+    dbg!(maybe_lp);
     if maybe_lp.is_native_token() {
         Ok(())
     } else {
