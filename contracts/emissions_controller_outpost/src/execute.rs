@@ -202,7 +202,7 @@ pub fn execute_emissions(
         .into_iter()
         .filter(|(pool, schedule)| {
             determine_asset_info(pool, deps.api)
-                .and_then(|maybe_lp| check_lp_token(deps.querier, &config.factory, &maybe_lp))
+                .and_then(|maybe_lp| check_lp_token(deps.as_ref(), &config.factory, &maybe_lp))
                 .and_then(|_| IncentivesSchedule::from_input(&env, schedule))
                 .map(|_| {
                     expected_amount += schedule.reward.amount.u128();

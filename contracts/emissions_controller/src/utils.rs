@@ -326,9 +326,7 @@ pub fn simulate_tune(
                     .into_iter()
                     .filter(|(pool, _)| {
                         determine_asset_info(pool, deps.api)
-                            .and_then(|maybe_lp| {
-                                check_lp_token(deps.querier, &config.factory, &maybe_lp)
-                            })
+                            .and_then(|maybe_lp| check_lp_token(deps, &config.factory, &maybe_lp))
                             .is_ok()
                     })
                     .collect_vec();

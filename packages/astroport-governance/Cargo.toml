@@ -19,5 +19,6 @@ backtraces = ["cosmwasm-std/backtraces"]
 cw20 = "1.1"
 cosmwasm-std = { workspace = true, features = ["ibc3"] }
 cosmwasm-schema.workspace = true
+itertools.workspace = true
 astroport.workspace = true
 sha2 = "0.10.8"
