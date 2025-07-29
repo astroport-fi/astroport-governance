@@ -83,4 +83,7 @@ pub enum ContractError {
 
     #[error("Outpost {prefix} is jailed. Only vxASTRO unlocks are available")]
     JailedOutpost { prefix: String },
+
+    #[error("Pool {0} is blacklisted")]
+    PoolIsBlacklisted(String),
 }

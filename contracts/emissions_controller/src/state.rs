@@ -13,6 +13,7 @@ pub const CONFIG: Item<Config> = Item::new("config");
 pub const OWNERSHIP_PROPOSAL: Item<OwnershipProposal> = Item::new("ownership_proposal");
 /// Array of pools eligible for voting.
 pub const POOLS_WHITELIST: Item<Vec<String>> = Item::new("pools_whitelist");
+pub const POOLS_BLACKLIST: Map<&str, ()> = Map::new("pools_blacklist");
 /// Registered Astroport outposts with respective parameters.
 pub const OUTPOSTS: Map<&str, OutpostInfo> = Map::new("outposts");
 /// Historical user's voting information.

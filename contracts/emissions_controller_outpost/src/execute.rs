@@ -22,6 +22,8 @@ use astroport_governance::emissions_controller::utils::{
     check_lp_token, get_total_voting_power, get_voting_power,
 };
 use astroport_governance::utils::check_contract_supports_channel;
+use astroport_governance::voting_escrow;
+use astroport_governance::voting_escrow::LockInfoResponse;
 
 use crate::error::ContractError;
 use crate::state::{CONFIG, OWNERSHIP_PROPOSAL, PROPOSAL_VOTERS, REGISTERED_PROPOSALS};
@@ -105,6 +107,7 @@ pub fn execute(
             OutpostMsg::PermissionedSetEmissions { schedules } => {
                 permissioned_set_emissions(deps, env, info, schedules)
             }
+            OutpostMsg::ClawbackAstro {} => clawback_astro(deps, env, info),
             OutpostMsg::UpdateConfig {
                 voting_ibc_channel,
                 hub_emissions_controller,
@@ -200,7 +203,7 @@ pub fn execute_emissions(
         .into_iter()
         .filter(|(pool, schedule)| {
             determine_asset_info(pool, deps.api)
-                .and_then(|maybe_lp| check_lp_token(deps.querier, &config.factory, &maybe_lp))
+                .and_then(|maybe_lp| check_lp_token(deps.as_ref(), &config.factory, &maybe_lp))
                 .and_then(|_| IncentivesSchedule::from_input(&env, schedule))
                 .map(|_| {
                     expected_amount += schedule.reward.amount.u128();
@@ -236,6 +239,32 @@ pub fn execute_emissions(
     }
 
     Ok(response)
+}
+
+/// Permissioned endpoint to clawback ASTRO tokens from the contract.
+/// Can be useful in case a chain doesn't support IBC hooks, and governance decides to deprecate the outpost.
+pub fn clawback_astro(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+    ensure!(info.sender == config.owner, ContractError::Unauthorized {});
+
+    let amount = deps
+        .querier
+        .query_balance(&env.contract.address, &config.astro_denom)?;
+
+    let ibc_transfer_msg = IbcMsg::Transfer {
+        channel_id: config.ics20_channel,
+        to_address: config.hub_emissions_controller,
+        amount,
+        timeout: env.block.time.plus_seconds(IBC_TIMEOUT).into(),
+    };
+
+    Ok(Response::default()
+        .add_attribute("action", "clawback_astro")
+        .add_message(ibc_transfer_msg))
 }
 
 /// This function performs vote basic validation and sends an IBC packet to the Hub.
@@ -391,8 +420,16 @@ pub fn governance_vote(
 
     let start_time = REGISTERED_PROPOSALS.load(deps.storage, proposal_id)?;
 
-    let voting_power =
-        get_voting_power(deps.querier, &config.vxastro, &voter, Some(start_time - 1))?;
+    let voting_power = deps
+        .querier
+        .query_wasm_smart(
+            &config.vxastro,
+            &voting_escrow::QueryMsg::LockInfo {
+                user: voter.clone(),
+                timestamp: Some(start_time - 1),
+            },
+        )
+        .map(|resp: LockInfoResponse| resp.amount)?;
     ensure!(!voting_power.is_zero(), ContractError::ZeroVotingPower {});
 
     let total_voting_power =

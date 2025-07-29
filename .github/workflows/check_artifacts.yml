@@ -22,7 +22,7 @@ jobs:
       - name: Checkout sources
         uses: actions/checkout@v3
 
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/bin
@@ -41,7 +41,7 @@ jobs:
             cosmwasm/workspace-optimizer:0.15.1
 
       - name: Save artifacts cache
-        uses: actions/cache/save@v3
+        uses: actions/cache/save@v4
         with:
           path: artifacts
           key: ${{ runner.os }}-artifacts-${{ hashFiles('**/Cargo.lock') }}
@@ -59,7 +59,7 @@ jobs:
       - name: Checkout sources
         uses: actions/checkout@v3
       - name: Restore cached artifacts
-        uses: actions/cache/restore@v3
+        uses: actions/cache/restore@v4
         with:
           path: artifacts
           key: ${{ runner.os }}-artifacts-${{ hashFiles('**/Cargo.lock') }}

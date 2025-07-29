@@ -12,12 +12,12 @@ use neutron_sdk::bindings::query::NeutronQuery;
 
 use astroport_governance::emissions_controller::hub::{Config, TuneInfo};
 use astroport_governance::emissions_controller::hub::{EmissionsState, HubInstantiateMsg};
-use astroport_governance::emissions_controller::utils::query_incentives_addr;
+use astroport_governance::emissions_controller::utils::{get_epoch_start, query_incentives_addr};
 use astroport_governance::voting_escrow;
 
 use crate::error::ContractError;
 use crate::state::{CONFIG, POOLS_WHITELIST, TUNE_INFO};
-use crate::utils::{get_epoch_start, get_xastro_rate_and_share};
+use crate::utils::get_xastro_rate_and_share;
 
 /// Contract name that is used for migration.
 pub const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");

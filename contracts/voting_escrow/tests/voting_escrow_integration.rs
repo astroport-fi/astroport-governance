@@ -133,7 +133,7 @@ fn test_unlock() {
     let err = helper.unlock(&user1).unwrap_err();
     assert_eq!(ContractError::PositionUnlocking {}, err.downcast().unwrap());
 
-    let lock = helper.lock_info(&user1).unwrap();
+    let lock = helper.lock_info(&user1, None).unwrap();
     assert_eq!(
         lock,
         LockInfoResponse {
@@ -163,7 +163,7 @@ fn test_unlock() {
     assert_eq!(100, helper.user_vp(&user1, None).unwrap().u128());
     assert_eq!(100, helper.total_vp(None).unwrap().u128());
 
-    let lock = helper.lock_info(&user1).unwrap();
+    let lock = helper.lock_info(&user1, None).unwrap();
     assert_eq!(
         lock,
         LockInfoResponse {
@@ -202,7 +202,7 @@ fn test_unlock() {
     helper.timetravel(10000);
 
     // Relocks before hub confirmation doesn't harm
-    helper.lock(&user1, &[xastro_coin]).unwrap();
+    helper.lock(&user1, &[xastro_coin.clone()]).unwrap();
     helper.unlock(&user1).unwrap();
     helper.timetravel(UNLOCK_PERIOD);
     // Confirm cant withdraw
@@ -214,6 +214,27 @@ fn test_unlock() {
     helper.relock(&user1).unwrap();
     // No error
     helper.confirm_unlock(&user1).unwrap();
+
+    let start_ts = helper.app.block_info().time.seconds();
+    helper.unlock(&user1).unwrap();
+    helper.timetravel(UNLOCK_PERIOD);
+    helper.confirm_unlock(&user1).unwrap();
+
+    // Can withdraw now
+    helper.withdraw(&user1).unwrap();
+
+    // Confirm historical query of locked xASTRO during the unlocking period
+    let lock = helper.lock_info(&user1, Some(start_ts + 86400)).unwrap();
+    assert_eq!(
+        lock,
+        LockInfoResponse {
+            amount: xastro_coin.amount,
+            unlock_status: Some(UnlockStatus {
+                end: start_ts + UNLOCK_PERIOD,
+                hub_confirmed: false
+            }),
+        }
+    );
 }
 
 #[test]
@@ -262,6 +283,22 @@ fn test_general_queries() {
         .unwrap();
     let user_vp = helper.user_vp(&user1, None).unwrap();
     assert_eq!(user_vp, cw20_bal_resp.balance);
+
+    let lock_info = helper.lock_info(&user1, None).unwrap();
+
+    let users_list: Vec<(Addr, LockInfoResponse)> = helper
+        .app
+        .wrap()
+        .query_wasm_smart(
+            &helper.vxastro_contract,
+            &QueryMsg::UsersLockInfo {
+                limit: Some(10),
+                start_after: None,
+                timestamp: None,
+            },
+        )
+        .unwrap();
+    assert_eq!(users_list, vec![(user1.clone(), lock_info)]);
 
     let marketing_info: MarketingInfoResponse = helper
         .app

@@ -1,6 +1,7 @@
 pub mod assembly;
 pub mod builder_unlock;
 pub mod emissions_controller;
+pub mod tributes;
 pub mod utils;
 pub mod voting_escrow;
 

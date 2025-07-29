@@ -1,6 +1,6 @@
 [package]
 name = "astroport-voting-escrow"
-version = "1.1.0"
+version = "1.2.0"
 authors = ["Astroport"]
 edition = "2021"
 description = "Astroport Vote Escrowed xASTRO (vxASTRO)"

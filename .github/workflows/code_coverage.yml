@@ -8,6 +8,10 @@ on:
     branches:
       - main
 
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_NET_GIT_FETCH_WITH_CLI: true
+
 jobs:
   code-coverage:
     name: Code coverage
@@ -21,7 +25,7 @@ jobs:
 
       - name: Checkout repository
         uses: actions/checkout@v2
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/bin
@@ -36,14 +40,14 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: 1.75.0
+          toolchain: 1.81.0
           override: true
 
+      - name: Install cargo-tarpaulin
+        run: cargo install --locked cargo-tarpaulin@0.32.0 || true
+
       - name: Run cargo-tarpaulin
-        uses: actions-rs/tarpaulin@v0.1
-        with:
-          version: '0.22.0'
-          args: '--timeout 300'
+        run: cargo tarpaulin --out Xml
 
       - name: Upload to codecov.io
         if: github.ref == 'refs/heads/main'

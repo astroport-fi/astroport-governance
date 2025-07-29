@@ -9,13 +9,14 @@ pub const MINIMUM_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE: u64 = 33;
 pub const MAX_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE: u64 = 100;
 pub const MAX_PROPOSAL_REQUIRED_QUORUM_PERCENTAGE: &str = "1";
 pub const MINIMUM_PROPOSAL_REQUIRED_QUORUM_PERCENTAGE: &str = "0.01";
-/// Voting period must be between 1 and 7 days (Neutron: 2.6s per block)
-pub const VOTING_PERIOD_INTERVAL: RangeInclusive<u64> = 33230..=7 * 33230;
+/// The voting period must be between 1 and 7 days
+/// Neutron avg block time is volatile currently is 1.05 sec with a possible reduction to 0.1 sec
+pub const VOTING_PERIOD_INTERVAL: RangeInclusive<u64> = 80000..=7 * 80000;
 /// From 0.5 to 2 days in blocks
-pub const DELAY_INTERVAL: RangeInclusive<u64> = 16615..=66460;
+pub const DELAY_INTERVAL: RangeInclusive<u64> = 40000..=2 * 80000;
 /// From 1 to 14 days in blocks
-pub const EXPIRATION_PERIOD_INTERVAL: RangeInclusive<u64> = 33230..=14 * 33230;
-// from 10k to 60k $xASTRO
+pub const EXPIRATION_PERIOD_INTERVAL: RangeInclusive<u64> = 80000..=14 * 80000;
+/// From 10k to 60k $xASTRO
 pub const DEPOSIT_INTERVAL: RangeInclusive<u128> = 10000000000..=60000000000;
 
 /// Proposal validation attributes
