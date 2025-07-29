@@ -187,6 +187,16 @@ fn test_whitelist_blacklist() {
         ContractError::IsAstroPool {}
     );
 
+    // Try to whitelist non-existent pool
+    let err = helper
+        .whitelist(
+            &owner,
+            "factory/neutron1invalidaddr/astroport/share",
+            &[whitelist_fee.clone()],
+        )
+        .unwrap_err();
+    assert_eq!(err.root_cause().to_string(), "Generic error: Invalid input"); // cosmwasm tried to query invalid 'neutron1invalidaddr' address
+
     helper
         .whitelist(&owner, &lp_token, &[whitelist_fee.clone()])
         .unwrap();
