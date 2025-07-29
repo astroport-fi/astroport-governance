@@ -208,7 +208,7 @@ pub fn whitelist_pool(
         if outposts.get(&prefix).unwrap().params.is_none() {
             // Validate LP token on the Hub
             determine_asset_info(&pool, deps.api)
-                .and_then(|maybe_lp| check_lp_token(deps.querier, &config.factory, &maybe_lp))?
+                .and_then(|maybe_lp| check_lp_token(deps.as_ref(), &config.factory, &maybe_lp))?
         }
     } else {
         return Err(ContractError::NoOutpostForPool(pool));
@@ -365,7 +365,7 @@ pub fn update_outpost(
     } else {
         if let Some(conf) = &astro_pool_config {
             let maybe_lp_token = determine_asset_info(&conf.astro_pool, deps.api)?;
-            check_lp_token(deps.querier, &config.factory, &maybe_lp_token)?;
+            check_lp_token(deps.as_ref(), &config.factory, &maybe_lp_token)?;
         }
         ensure!(
             astro_denom == config.astro_denom,
