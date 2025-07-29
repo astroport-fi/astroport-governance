@@ -107,6 +107,7 @@ pub fn execute(
             OutpostMsg::PermissionedSetEmissions { schedules } => {
                 permissioned_set_emissions(deps, env, info, schedules)
             }
+            OutpostMsg::ClawbackAstro {} => clawback_astro(deps, env, info),
             OutpostMsg::UpdateConfig {
                 voting_ibc_channel,
                 hub_emissions_controller,
@@ -238,6 +239,32 @@ pub fn execute_emissions(
     }
 
     Ok(response)
+}
+
+/// Permissioned endpoint to clawback ASTRO tokens from the contract.
+/// Can be useful in case a chain doesn't support IBC hooks, and governance decides to deprecate the outpost.
+pub fn clawback_astro(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+    ensure!(info.sender == config.owner, ContractError::Unauthorized {});
+
+    let amount = deps
+        .querier
+        .query_balance(&env.contract.address, &config.astro_denom)?;
+
+    let ibc_transfer_msg = IbcMsg::Transfer {
+        channel_id: config.ics20_channel,
+        to_address: config.hub_emissions_controller,
+        amount,
+        timeout: env.block.time.plus_seconds(IBC_TIMEOUT).into(),
+    };
+
+    Ok(Response::default()
+        .add_attribute("action", "clawback_astro")
+        .add_message(ibc_transfer_msg))
 }
 
 /// This function performs vote basic validation and sends an IBC packet to the Hub.
