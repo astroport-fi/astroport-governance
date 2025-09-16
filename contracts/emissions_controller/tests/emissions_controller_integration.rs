@@ -56,7 +56,7 @@ pub fn voting_test() {
     for pool in &[lp_token1.clone(), lp_token2.clone()] {
         helper.mint_tokens(&user, &[whitelist_fee.clone()]).unwrap();
         helper
-            .whitelist(&user, pool, &[whitelist_fee.clone()])
+            .whitelist(&user, pool, vec![], &[whitelist_fee.clone()])
             .unwrap();
     }
 
@@ -140,7 +140,9 @@ fn test_whitelist_blacklist() {
 
     let lp_token = helper.create_pair("token1", "token2");
 
-    let err = helper.whitelist(&owner, &lp_token, &[]).unwrap_err();
+    let err = helper
+        .whitelist(&owner, &lp_token, vec![], &[])
+        .unwrap_err();
     assert_eq!(
         err.downcast::<ContractError>().unwrap(),
         ContractError::PaymentError(PaymentError::NoFunds {})
@@ -150,7 +152,7 @@ fn test_whitelist_blacklist() {
         .mint_tokens(&owner, &[whitelist_fee.clone()])
         .unwrap();
     let err = helper
-        .whitelist(&owner, &lp_token, &coins(1, &whitelist_fee.denom))
+        .whitelist(&owner, &lp_token, vec![], &coins(1, &whitelist_fee.denom))
         .unwrap_err();
     assert_eq!(
         err.downcast::<ContractError>().unwrap(),
@@ -158,7 +160,7 @@ fn test_whitelist_blacklist() {
     );
 
     let err = helper
-        .whitelist(&owner, &lp_token, &[whitelist_fee.clone()])
+        .whitelist(&owner, &lp_token, vec![], &[whitelist_fee.clone()])
         .unwrap_err();
     assert_eq!(
         err.downcast::<ContractError>().unwrap(),
@@ -180,7 +182,7 @@ fn test_whitelist_blacklist() {
     helper.add_outpost("neutron", neutron).unwrap();
 
     let err = helper
-        .whitelist(&owner, &astro_pool, &[whitelist_fee.clone()])
+        .whitelist(&owner, &astro_pool, vec![], &[whitelist_fee.clone()])
         .unwrap_err();
     assert_eq!(
         err.downcast::<ContractError>().unwrap(),
@@ -192,13 +194,14 @@ fn test_whitelist_blacklist() {
         .whitelist(
             &owner,
             "factory/neutron1invalidaddr/astroport/share",
+            vec![],
             &[whitelist_fee.clone()],
         )
         .unwrap_err();
     assert_eq!(err.root_cause().to_string(), "Generic error: Invalid input"); // cosmwasm tried to query invalid 'neutron1invalidaddr' address
 
     helper
-        .whitelist(&owner, &lp_token, &[whitelist_fee.clone()])
+        .whitelist(&owner, &lp_token, vec![], &[whitelist_fee.clone()])
         .unwrap();
 
     // Vote for this pool
@@ -219,7 +222,7 @@ fn test_whitelist_blacklist() {
         .mint_tokens(&owner, &[whitelist_fee.clone()])
         .unwrap();
     let err = helper
-        .whitelist(&owner, &lp_token, &[whitelist_fee.clone()])
+        .whitelist(&owner, &lp_token, vec![], &[whitelist_fee.clone()])
         .unwrap_err();
     assert_eq!(
         err.downcast::<ContractError>().unwrap(),
@@ -231,7 +234,7 @@ fn test_whitelist_blacklist() {
         .mint_tokens(&owner, &[whitelist_fee.clone()])
         .unwrap();
     helper
-        .whitelist(&owner, &lp_token2, &[whitelist_fee.clone()])
+        .whitelist(&owner, &lp_token2, vec![], &[whitelist_fee.clone()])
         .unwrap();
 
     let whitelist = helper
@@ -337,7 +340,7 @@ fn test_whitelist_blacklist() {
 
     // Try to whitelist blacklisted pool
     let err = helper
-        .whitelist(&owner, &lp_token, &[whitelist_fee.clone()])
+        .whitelist(&owner, &lp_token, vec![], &[whitelist_fee.clone()])
         .unwrap_err();
     assert_eq!(
         err.downcast::<ContractError>().unwrap(),
@@ -518,7 +521,7 @@ fn test_outpost_management() {
         .unwrap();
     let lp_token = helper.create_pair("token1", "token3");
     helper
-        .whitelist(&user, &lp_token, &[helper.whitelisting_fee.clone()])
+        .whitelist(&user, &lp_token, vec![], &[helper.whitelisting_fee.clone()])
         .unwrap();
     helper.lock(&user, 1000).unwrap();
     helper
@@ -534,6 +537,7 @@ fn test_outpost_management() {
         .whitelist(
             &user,
             &osmosis_astro_pool,
+            vec![],
             &[helper.whitelisting_fee.clone()],
         )
         .unwrap();
@@ -625,7 +629,7 @@ fn test_outpost_management() {
         .mint_tokens(&user, &[helper.whitelisting_fee.clone()])
         .unwrap();
     let err = helper
-        .whitelist(&user, &lp_token, &[helper.whitelisting_fee.clone()])
+        .whitelist(&user, &lp_token, vec![], &[helper.whitelisting_fee.clone()])
         .unwrap_err();
     assert_eq!(
         err.downcast::<ContractError>().unwrap(),
@@ -751,7 +755,7 @@ fn test_outpost_management() {
         .mint_tokens(&user, &[helper.whitelisting_fee.clone()])
         .unwrap();
     helper
-        .whitelist(&user, &lp_token, &[helper.whitelisting_fee.clone()])
+        .whitelist(&user, &lp_token, vec![], &[helper.whitelisting_fee.clone()])
         .unwrap();
     let whitelist = helper.query_whitelist().unwrap();
     assert_eq!(whitelist, vec![lp_token.to_string()]);
@@ -793,7 +797,7 @@ fn test_tune_only_hub() {
     for pool in &[lp_token1.clone(), lp_token2.clone()] {
         helper.mint_tokens(&user, &[whitelist_fee.clone()]).unwrap();
         helper
-            .whitelist(&user, pool, &[whitelist_fee.clone()])
+            .whitelist(&user, pool, vec![], &[whitelist_fee.clone()])
             .unwrap();
     }
 
@@ -1017,7 +1021,7 @@ fn test_tune_outpost() {
             .mint_tokens(&owner, &[whitelist_fee.clone()])
             .unwrap();
         helper
-            .whitelist(&owner, pool, &[whitelist_fee.clone()])
+            .whitelist(&owner, pool, vec![], &[whitelist_fee.clone()])
             .unwrap();
     }
 
@@ -1242,11 +1246,11 @@ fn test_lock_unlock_vxastro() {
 
     let pool1 = helper.create_pair("token1", "token2");
     helper
-        .whitelist(&owner, &pool1, &[whitelisting_fee.clone()])
+        .whitelist(&owner, &pool1, vec![], &[whitelisting_fee.clone()])
         .unwrap();
     let pool2 = helper.create_pair("token1", "token3");
     helper
-        .whitelist(&owner, &pool2, &[whitelisting_fee.clone()])
+        .whitelist(&owner, &pool2, vec![], &[whitelisting_fee.clone()])
         .unwrap();
 
     let alice = helper.app.api().addr_make("alice");
@@ -1404,11 +1408,11 @@ fn test_instant_unlock_vxastro() {
 
     let pool1 = helper.create_pair("token1", "token2");
     helper
-        .whitelist(&owner, &pool1, &[whitelisting_fee.clone()])
+        .whitelist(&owner, &pool1, vec![], &[whitelisting_fee.clone()])
         .unwrap();
     let pool2 = helper.create_pair("token1", "token3");
     helper
-        .whitelist(&owner, &pool2, &[whitelisting_fee.clone()])
+        .whitelist(&owner, &pool2, vec![], &[whitelisting_fee.clone()])
         .unwrap();
 
     let alice = helper.app.api().addr_make("alice");
@@ -1530,10 +1534,10 @@ fn test_some_epochs() {
         .mint_tokens(&owner, &coins(100000000, helper.astro.clone()))
         .unwrap();
     helper
-        .whitelist(&owner, pool1, &[whitelisting_fee.clone()])
+        .whitelist(&owner, pool1, vec![], &[whitelisting_fee.clone()])
         .unwrap();
     helper
-        .whitelist(&owner, pool2, &[whitelisting_fee.clone()])
+        .whitelist(&owner, pool2, vec![], &[whitelisting_fee.clone()])
         .unwrap();
 
     let user1 = helper.app.api().addr_make("user1");
@@ -1632,7 +1636,7 @@ fn test_some_epochs() {
 
     // Whitelist pool2 again
     helper
-        .whitelist(&owner, pool2, &[whitelisting_fee.clone()])
+        .whitelist(&owner, pool2, vec![], &[whitelisting_fee.clone()])
         .unwrap();
 
     // Ensure that user2 votes are not applied

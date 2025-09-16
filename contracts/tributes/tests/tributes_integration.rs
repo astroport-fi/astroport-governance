@@ -150,7 +150,7 @@ fn test_add_tributes_flow() {
     );
 
     let lp_token = helper.create_pair("token1", "token2");
-    helper.whitelist(&lp_token).unwrap();
+    helper.whitelist(&lp_token, vec![]).unwrap();
 
     let err = helper
         .add_tribute(
@@ -281,7 +281,7 @@ fn test_multiple_rewards() {
     let user = helper.app.api().addr_make("user");
 
     let lp_token = helper.create_pair("token1", "token2");
-    helper.whitelist(&lp_token).unwrap();
+    helper.whitelist(&lp_token, vec![]).unwrap();
 
     let voter = helper.app.api().addr_make("voter1");
     helper.lock(&voter, 1_000000).unwrap();
@@ -410,7 +410,7 @@ fn test_cw20_tributes() {
     let mut helper = Helper::new();
 
     let lp_token = helper.create_pair("token1", "token2");
-    helper.whitelist(&lp_token).unwrap();
+    helper.whitelist(&lp_token, vec![]).unwrap();
 
     let user = helper.app.api().addr_make("user");
 
@@ -495,7 +495,7 @@ fn test_claim() {
     let lp_token3 = helper.create_pair("token2", "token3");
 
     for lp_token in [&lp_token1, &lp_token2, &lp_token3] {
-        helper.whitelist(lp_token).unwrap();
+        helper.whitelist(lp_token, vec![]).unwrap();
     }
 
     let user = helper.app.api().addr_make("user");
@@ -734,7 +734,7 @@ fn test_remove_tribute() {
     let owner = helper.owner.clone();
 
     let lp_token = helper.create_pair("token1", "token2");
-    helper.whitelist(&lp_token).unwrap();
+    helper.whitelist(&lp_token, vec![]).unwrap();
 
     let user = helper.app.api().addr_make("user");
 
@@ -817,9 +817,9 @@ fn test_orphaned_tributes() {
     let mut helper = Helper::new();
 
     let lp_token_1 = helper.create_pair("token1", "token2");
-    helper.whitelist(&lp_token_1).unwrap();
+    helper.whitelist(&lp_token_1, vec![]).unwrap();
     let lp_token_2 = helper.create_pair("token1", "token3");
-    helper.whitelist(&lp_token_2).unwrap();
+    helper.whitelist(&lp_token_2, vec![]).unwrap();
 
     let user = helper.app.api().addr_make("user");
 

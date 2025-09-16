@@ -15,10 +15,12 @@ use itertools::Itertools;
 use neutron_sdk::bindings::msg::NeutronMsg;
 use neutron_sdk::bindings::query::NeutronQuery;
 
-use astroport_governance::emissions_controller::consts::{EPOCH_LENGTH, IBC_TIMEOUT};
+use astroport_governance::emissions_controller::consts::{
+    EPOCH_LENGTH, IBC_TIMEOUT, WHITELIST_VALIDATION_MAX_ROUTE_LENGTH,
+};
 use astroport_governance::emissions_controller::hub::{
     AstroPoolConfig, HubMsg, InputOutpostParams, OutpostInfo, OutpostParams, OutpostStatus,
-    TuneInfo, UserInfo, VotedPoolInfo,
+    RouteStep, TuneInfo, UserInfo, VotedPoolInfo, WhitelistValidationInfo,
 };
 use astroport_governance::emissions_controller::msg::{ExecuteMsg, VxAstroIbcMsg};
 use astroport_governance::emissions_controller::utils::{
@@ -137,7 +139,13 @@ pub fn execute(
             .map_err(Into::into)
         }
         ExecuteMsg::Custom(hub_msg) => match hub_msg {
-            HubMsg::WhitelistPool { lp_token: pool } => whitelist_pool(deps, env, info, pool),
+            HubMsg::WhitelistPool {
+                lp_token,
+                validation_route,
+            } => whitelist_pool(deps, env, info, lp_token, validation_route),
+            HubMsg::UnwhitelistIneligiblePools { lp_tokens } => {
+                todo!()
+            }
             HubMsg::UpdateBlacklist { add, remove } => {
                 update_blacklist(deps, info, env, add, remove)
             }
@@ -187,6 +195,7 @@ pub fn whitelist_pool(
     env: Env,
     info: MessageInfo,
     pool: String,
+    validation_route: Vec<RouteStep>,
 ) -> Result<Response<NeutronMsg>, ContractError> {
     let deps = deps.into_empty();
     let config = CONFIG.load(deps.storage)?;
@@ -226,13 +235,21 @@ pub fn whitelist_pool(
         ContractError::IsAstroPool {}
     );
 
-    POOLS_WHITELIST.update(deps.storage, |v| {
-        let mut pools: HashSet<_> = v.into_iter().collect();
-        if !pools.insert(pool.clone()) {
-            return Err(ContractError::PoolAlreadyWhitelisted(pool.clone()));
-        };
-        Ok(pools.into_iter().collect())
+    POOLS_WHITELIST.update(deps.storage, &pool, |v| {
+        if v.is_some() {
+            Err(ContractError::PoolAlreadyWhitelisted(pool.clone()))
+        } else {
+            Ok(WhitelistValidationInfo {
+                route: validation_route.clone(),
+            })
+        }
     })?;
+
+    ensure!(
+        validation_route.len() <= WHITELIST_VALIDATION_MAX_ROUTE_LENGTH,
+        ContractError::ValidationRouteTooLong {}
+    );
+    // TODO: Simulate the route to ensure it leads to ASTRO
 
     // Starting the voting process from scratch for this pool
     VOTED_POOLS.save(
@@ -295,10 +312,9 @@ pub fn update_blacklist(
     }
 
     // And remove pools from the whitelist if they are there
-    POOLS_WHITELIST.update::<_, StdError>(deps.storage, |mut whitelist| {
-        whitelist.retain(|pool| !add.contains(pool));
-        Ok(whitelist)
-    })?;
+    add.iter().for_each(|lp_token| {
+        POOLS_WHITELIST.remove(deps.storage, lp_token);
+    });
 
     let mut attrs = vec![attr("action", "update_blacklist")];
 
@@ -337,11 +353,8 @@ pub fn update_outpost(
             ContractError::ZeroAstroEmissions {}
         );
 
-        // Remove this pool from whitelist
-        POOLS_WHITELIST.update::<_, StdError>(deps.storage, |mut pools| {
-            pools.retain(|pool| pool != &conf.astro_pool);
-            Ok(pools)
-        })?;
+        // Remove this pool from the whitelist
+        POOLS_WHITELIST.remove(deps.storage, &conf.astro_pool);
 
         // And remove from votable pools
         VOTED_POOLS.remove(deps.storage, &conf.astro_pool, env.block.time.seconds())?;
@@ -532,10 +545,9 @@ pub fn handle_vote(
     );
 
     let mut total_weight = Decimal::zero();
-    let whitelist: HashSet<_> = POOLS_WHITELIST.load(deps.storage)?.into_iter().collect();
     for (pool, weight) in &votes {
         ensure!(
-            whitelist.contains(pool),
+            POOLS_WHITELIST.has(deps.storage, pool),
             ContractError::PoolIsNotWhitelisted(pool.clone())
         );
 
@@ -551,7 +563,7 @@ pub fn handle_vote(
     let mut cache = user_info
         .votes
         .into_iter()
-        .filter(|(pool, _)| whitelist.contains(pool))
+        .filter(|(pool, _)| POOLS_WHITELIST.has(deps.storage, pool))
         .map(|(pool, weight)| {
             let pool_info = VOTED_POOLS.load(deps.storage, &pool)?;
             // Subtract old vote from pool voting power if pool wasn't reset to 0
@@ -618,11 +630,12 @@ pub fn handle_update_user(
     if let Some(user_info) = USER_INFO.may_load(store, voter)? {
         let block_ts = env.block.time.seconds();
 
-        let whitelist: HashSet<_> = POOLS_WHITELIST.load(store)?.into_iter().collect();
         user_info
             .votes
             .iter()
-            .filter(|(pool, _)| whitelist.contains(pool.as_str()))
+            .filter(|(pool, _)| POOLS_WHITELIST.has(store, pool))
+            .collect::<HashMap<_, _>>()
+            .into_iter()
             .try_for_each(|(pool, weight)| {
                 let pool_info = VOTED_POOLS.load(store, pool)?;
                 // Subtract old vote from pool voting power if pool wasn't reset to 0
@@ -725,9 +738,10 @@ pub fn tune_pools(
         // Remove all non-whitelisted pools
         voted_pools
             .difference(&new_whitelist)
-            .try_for_each(|pool| VOTED_POOLS.remove(deps.storage, pool, block_ts))?;
-
-        POOLS_WHITELIST.save(deps.storage, &new_whitelist.into_iter().collect())?;
+            .try_for_each(|pool| {
+                POOLS_WHITELIST.remove(deps.storage, pool);
+                VOTED_POOLS.remove(deps.storage, pool, block_ts)
+            })?;
     }
 
     let mut attrs = vec![attr("action", "tune_pools")];

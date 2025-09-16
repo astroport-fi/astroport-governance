@@ -51,5 +51,8 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
                 let voters = voters.into_iter().map(|(voter, _)| voter).collect_vec();
                 to_json_binary(&voters)
             }),
+        QueryMsg::CheckWhitelistEligibility { lp_tokens } => {
+            todo!()
+        }
     }
 }

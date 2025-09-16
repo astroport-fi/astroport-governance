@@ -87,6 +87,15 @@ pub enum QueryMsg {
         limit: Option<u8>,
         start_after: Option<String>,
     },
+    /// Checks all the pools in the list and returns whether they are eligible for whitelisting.
+    /// This query can only check pools belonging to an outpost.
+    /// Hub pools can be checked on the Hub directly.
+    /// A pool is eligible if:
+    /// 1. It is a valid Astroport pool
+    /// 2. It has a valid swap route to ASTRO
+    /// Returns array of tuples (LP token, is_eligible).
+    #[returns(Vec<(String, bool)>)]
+    CheckWhitelistEligibility { lp_tokens: Vec<String> },
 }
 
 /// Contains failed IBC along with the error message

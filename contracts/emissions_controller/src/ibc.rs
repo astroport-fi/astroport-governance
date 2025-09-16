@@ -273,7 +273,7 @@ mod unit_tests {
 
     use astroport_governance::assembly::ProposalVoteOption;
     use astroport_governance::emissions_controller::hub::{
-        Config, OutpostInfo, OutpostParams, VotedPoolInfo,
+        Config, OutpostInfo, OutpostParams, VotedPoolInfo, WhitelistValidationInfo,
     };
     use astroport_governance::emissions_controller::msg::IbcAckResult;
     use astroport_governance::utils::determine_ics20_escrow_address;
@@ -486,7 +486,11 @@ mod unit_tests {
             )
             .unwrap();
         POOLS_WHITELIST
-            .save(deps.as_mut().storage, &vec!["osmo1pool1".to_string()])
+            .save(
+                deps.as_mut().storage,
+                "osmo1pool1",
+                &WhitelistValidationInfo { route: vec![] },
+            )
             .unwrap();
 
         let mut env = mock_env();

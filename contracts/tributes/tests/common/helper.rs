@@ -18,7 +18,7 @@ use neutron_sdk::bindings::query::NeutronQuery;
 use std::collections::HashMap;
 
 use astroport_governance::emissions_controller::consts::EPOCHS_START;
-use astroport_governance::emissions_controller::hub::{HubInstantiateMsg, HubMsg};
+use astroport_governance::emissions_controller::hub::{HubInstantiateMsg, HubMsg, RouteStep};
 use astroport_governance::tributes::{ExecuteMsg, TributeFeeInfo, TributeInfo};
 use astroport_governance::voting_escrow::UpdateMarketingInfo;
 use astroport_governance::{emissions_controller, tributes, voting_escrow};
@@ -281,7 +281,11 @@ impl Helper {
         )
     }
 
-    pub fn whitelist(&mut self, pool: impl Into<String>) -> AnyResult<AppResponse> {
+    pub fn whitelist(
+        &mut self,
+        pool: impl Into<String>,
+        validation_route: Vec<RouteStep>,
+    ) -> AnyResult<AppResponse> {
         let fee = [self.fee.clone()];
         self.mint_tokens(&self.owner.clone(), &fee)?;
         self.app.execute_contract(
@@ -289,6 +293,7 @@ impl Helper {
             self.emission_controller.clone(),
             &emissions_controller::msg::ExecuteMsg::Custom(HubMsg::WhitelistPool {
                 lp_token: pool.into(),
+                validation_route,
             }),
             &fee,
         )

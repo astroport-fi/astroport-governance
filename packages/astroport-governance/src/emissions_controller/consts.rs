@@ -21,3 +21,5 @@ pub const MAX_PAGE_LIMIT: u8 = 50;
 pub const IBC_APP_VERSION: &str = "vxastro-ibc-v1";
 /// IBC ordering
 pub const IBC_ORDERING: IbcOrder = IbcOrder::Unordered;
+/// Maximum length of a swap route for whitelist validation
+pub const WHITELIST_VALIDATION_MAX_ROUTE_LENGTH: usize = 5;

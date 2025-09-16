@@ -365,11 +365,16 @@ pub fn jail_outpost(
         .filter(|pool| determine_outpost_prefix(pool) == prefix_some)
         .try_for_each(|pool| VOTED_POOLS.remove(storage, pool, env.block.time.seconds()))?;
 
-    // And clear whitelist
-    POOLS_WHITELIST.update::<_, StdError>(storage, |mut whitelist| {
-        whitelist.retain(|pool| determine_outpost_prefix(pool) != prefix_some);
-        Ok(whitelist)
-    })?;
+    // And clear the whitelist
+    POOLS_WHITELIST
+        .range(storage, None, None, Order::Ascending)
+        .collect::<StdResult<Vec<_>>>()?
+        .into_iter()
+        .for_each(|(lp_token, _)| {
+            if determine_outpost_prefix(&lp_token) == prefix_some {
+                POOLS_WHITELIST.remove(storage, &lp_token);
+            }
+        });
 
     OUTPOSTS.update(storage, prefix, |outpost| {
         if let Some(outpost) = outpost {

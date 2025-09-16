@@ -24,7 +24,7 @@ use astroport_governance::assembly::{
 };
 use astroport_governance::emissions_controller::consts::EPOCHS_START;
 use astroport_governance::emissions_controller::hub::{
-    EmissionsState, HubInstantiateMsg, HubMsg, InputOutpostParams, OutpostInfo,
+    EmissionsState, HubInstantiateMsg, HubMsg, InputOutpostParams, OutpostInfo, RouteStep,
     SimulateTuneResponse, TuneInfo, UserInfoResponse, VotedPoolInfo,
 };
 use astroport_governance::emissions_controller::msg::VxAstroIbcMsg;
@@ -490,6 +490,7 @@ impl ControllerHelper {
         &mut self,
         user: &Addr,
         pool: impl Into<String>,
+        validation_route: Vec<RouteStep>,
         fees: &[Coin],
     ) -> AnyResult<AppResponse> {
         self.app.execute_contract(
@@ -497,6 +498,7 @@ impl ControllerHelper {
             self.emission_controller.clone(),
             &emissions_controller::msg::ExecuteMsg::Custom(HubMsg::WhitelistPool {
                 lp_token: pool.into(),
+                validation_route,
             }),
             fees,
         )

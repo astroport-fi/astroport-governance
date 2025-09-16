@@ -101,26 +101,13 @@ pub fn query(deps: Deps<NeutronQuery>, env: Env, msg: QueryMsg) -> Result<Binary
         }
         QueryMsg::QueryWhitelist { limit, start_after } => {
             let limit = limit.unwrap_or(MAX_PAGE_LIMIT) as usize;
+            let start_after = start_after.as_ref().map(|s| Bound::exclusive(s.as_str()));
             let pools_whitelist = POOLS_WHITELIST
-                .load(deps.storage)?
-                .into_iter()
-                .skip_while(|pool| {
-                    if let Some(start_after) = &start_after {
-                        pool != start_after
-                    } else {
-                        false
-                    }
-                })
+                .keys(deps.storage, start_after, None, Order::Ascending)
                 .take(limit)
-                .collect_vec();
+                .collect::<StdResult<Vec<_>>>()?;
 
-            let pools_whitelist = if start_after.is_some() {
-                &pools_whitelist[1..]
-            } else {
-                &pools_whitelist
-            };
-
-            Ok(to_json_binary(pools_whitelist)?)
+            Ok(to_json_binary(&pools_whitelist)?)
         }
         QueryMsg::QueryBlacklist { limit, start_after } => {
             let limit = limit.unwrap_or(MAX_PAGE_LIMIT) as usize;
@@ -133,11 +120,10 @@ pub fn query(deps: Deps<NeutronQuery>, env: Env, msg: QueryMsg) -> Result<Binary
             Ok(to_json_binary(&pools_blacklist)?)
         }
         QueryMsg::CheckWhitelist { lp_tokens } => {
-            let whitelist = POOLS_WHITELIST.load(deps.storage)?;
             let is_whitelisted = lp_tokens
-                .into_iter()
+                .iter()
                 .map(|lp_token| {
-                    let is_whitelisted = whitelist.contains(&lp_token);
+                    let is_whitelisted = POOLS_WHITELIST.has(deps.storage, lp_token);
                     (lp_token, is_whitelisted)
                 })
                 .collect_vec();
@@ -163,6 +149,9 @@ pub fn query(deps: Deps<NeutronQuery>, env: Env, msg: QueryMsg) -> Result<Binary
                 new_emissions_state: tune_result.new_emissions_state,
                 next_pools_grouped: tune_result.next_pools_grouped,
             })?)
+        }
+        QueryMsg::CheckWhitelistEligibility { lp_tokens } => {
+            todo!()
         }
     }
 }
