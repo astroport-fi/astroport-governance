@@ -16,7 +16,7 @@ use astroport_governance::emissions_controller::msg::{
 
 use crate::error::ContractError;
 use crate::execute::{handle_update_user, handle_vote};
-use crate::state::{get_all_outposts, CONFIG};
+use crate::state::{get_all_outposts, CONFIG, PENDING_WHITELIST, POOLS_WHITELIST};
 use crate::utils::jail_outpost;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -113,8 +113,9 @@ fn is_outpost_valid(
         | VxAstroIbcMsg::GovernanceVote {
             total_voting_power, ..
         } => Ok(*total_voting_power <= escrow_balance),
-        VxAstroIbcMsg::RegisterProposal { .. } => {
-            unreachable!("Hub can't receive RegisterProposal message")
+        VxAstroIbcMsg::RegisterProposal { .. }
+        | VxAstroIbcMsg::CheckWhitelistEligibility { .. } => {
+            unreachable!("Hub can't receive these messages")
         }
     }
 }
@@ -216,36 +217,72 @@ pub fn do_packet_receive(
                     .add_message(cast_vote_msg)
                     .set_ack(ack_ok()))
             }
-            VxAstroIbcMsg::RegisterProposal { .. } => {
-                unreachable!("Hub can't receive RegisterProposal message")
+            VxAstroIbcMsg::RegisterProposal { .. }
+            | VxAstroIbcMsg::CheckWhitelistEligibility { .. } => {
+                unreachable!("Hub can't receive these messages")
             }
         }
     }
 }
 
-#[cfg(not(tarpaulin_include))]
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn ibc_packet_ack(
-    _deps: DepsMut,
+    deps: DepsMut,
     _env: Env,
     msg: IbcPacketAckMsg,
 ) -> StdResult<IbcBasicResponse> {
-    match from_json(msg.acknowledgement.data)? {
+    let orig_msg: VxAstroIbcMsg = from_json(&msg.original_packet.data)?;
+    match from_json(&msg.acknowledgement.data)? {
         IbcAckResult::Ok(_) => {
-            Ok(IbcBasicResponse::default().add_attribute("action", "ibc_packet_ack"))
+            let response = IbcBasicResponse::new().add_attribute("action", "ibc_packet_ack");
+            match orig_msg {
+                VxAstroIbcMsg::RegisterProposal { .. } => {}
+                VxAstroIbcMsg::CheckWhitelistEligibility { lp_token, .. } => {
+                    // Move the pool from pending to the actual whitelist if it was approved
+                    if let Some(validation_info) =
+                        PENDING_WHITELIST.may_load(deps.storage, &lp_token)?
+                    {
+                        PENDING_WHITELIST.remove(deps.storage, &lp_token);
+                        POOLS_WHITELIST.save(deps.storage, &lp_token, &validation_info)?;
+                    }
+                }
+                _ => unreachable!("Hub can't receive these messages"),
+            }
+
+            Ok(response)
         }
-        IbcAckResult::Error(err) => Ok(IbcBasicResponse::default().add_attribute("error", err)),
+        IbcAckResult::Error(err) => {
+            match orig_msg {
+                VxAstroIbcMsg::RegisterProposal { .. } => {}
+                VxAstroIbcMsg::CheckWhitelistEligibility { lp_token, .. } => {
+                    PENDING_WHITELIST.remove(deps.storage, &lp_token);
+                    POOLS_WHITELIST.remove(deps.storage, &lp_token);
+                }
+                _ => unreachable!("Hub can't receive these messages"),
+            }
+
+            Ok(IbcBasicResponse::default().add_attribute("error", err))
+        }
     }
 }
 
 #[cfg(not(tarpaulin_include))]
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn ibc_packet_timeout(
-    _deps: DepsMut,
+    deps: DepsMut,
     _env: Env,
-    _msg: IbcPacketTimeoutMsg,
+    msg: IbcPacketTimeoutMsg,
 ) -> StdResult<IbcBasicResponse> {
-    Ok(IbcBasicResponse::default().add_attribute("action", "ibc_packet_timeout"))
+    let orig_msg: VxAstroIbcMsg = from_json(&msg.packet.data)?;
+    match orig_msg {
+        VxAstroIbcMsg::RegisterProposal { .. } => {}
+        VxAstroIbcMsg::CheckWhitelistEligibility { lp_token, .. } => {
+            PENDING_WHITELIST.remove(deps.storage, &lp_token);
+        }
+        _ => unreachable!("Hub can't receive these messages"),
+    }
+
+    Ok(IbcBasicResponse::default().add_attribute("error", "ibc_timeout"))
 }
 
 #[cfg(not(tarpaulin_include))]
@@ -429,6 +466,8 @@ mod unit_tests {
                     whitelist_threshold: Default::default(),
                     emissions_multiple: Default::default(),
                     max_astro: Default::default(),
+                    liquidity_percent: Default::default(),
+                    allowed_spread_per_step: Default::default(),
                 },
             )
             .unwrap();

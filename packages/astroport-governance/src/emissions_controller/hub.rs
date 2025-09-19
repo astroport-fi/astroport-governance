@@ -47,6 +47,17 @@ pub struct HubInstantiateMsg {
     pub collected_astro: Uint128,
     /// EMA of the collected ASTRO from the previous epoch
     pub ema: Uint128,
+    /// Whitelist eligibility check requires a pool to have a valid swap route to ASTRO.
+    /// This parameter defines what percentage of the whitelisted pool's total liquidity to be
+    /// used in swap simulations.
+    pub liquidity_percent: Decimal,
+    /// When adding a new pool to the whitelist, the contract checks that the spread
+    /// is within acceptable limits by simulating a swap along the provided route.
+    /// This parameter defines the maximum allowed spread per swap step in the route.
+    /// For example, if the route has 3 steps, and the allowed_spread_per_step is 1%,
+    /// then the total allowed spread for the entire route is approximately 3%.
+    /// This parameter protects against whitelisting pools which don't generate fees for protocol.
+    pub allowed_spread_per_step: Decimal,
 }
 
 #[cw_serde]
@@ -62,6 +73,8 @@ pub enum HubMsg {
         fee_receiver: Option<String>,
         emissions_multiple: Option<Decimal>,
         max_astro: Option<Uint128>,
+        liquidity_percent: Option<Decimal>,
+        allowed_spread_per_step: Option<Decimal>,
     },
     /// Whitelists a pool to receive ASTRO emissions.
     /// Requires fee payment.
@@ -76,13 +89,13 @@ pub enum HubMsg {
         lp_token: String,
         validation_route: Vec<RouteStep>,
     },
-    /// Checks all pools in the list that they are still eligible for whitelisting.
+    /// Checks that a pool is still eligible for whitelisting.
     /// If a pool doesn't meet the criteria, it will be removed from the whitelist.
     /// If a pool still meets the criteria, nothing happens.
     /// Outpost pools are bundled into a single IBC message to each outpost.
     /// Note that unwhitelisting a pool doesn't mean blacklisting.
     /// A pool can be whitelisted again by calling WhitelistPool endpoint.
-    UnwhitelistIneligiblePools { lp_tokens: Vec<String> },
+    UnwhitelistIneligiblePool { lp_token: String },
     /// Manages pool blacklist.
     /// Blacklisting prevents voting for it.
     /// If the pool is whitelisted, it will be removed from the whitelist.
@@ -234,6 +247,17 @@ pub struct Config {
     pub emissions_multiple: Decimal,
     /// Max ASTRO allowed per epoch. Parameter of the dynamic emissions curve.
     pub max_astro: Uint128,
+    /// Whitelist eligibility check requires a pool to have a valid swap route to ASTRO.
+    /// This parameter defines what percentage of the whitelisted pool's total liquidity to be
+    /// used in swap simulations.
+    pub liquidity_percent: Decimal,
+    /// When adding a new pool to the whitelist, the contract checks that the spread
+    /// is within acceptable limits by simulating a swap along the provided route.
+    /// This parameter defines the maximum allowed spread per swap step in the route.
+    /// For example, if the route has 3 steps, and the allowed_spread_per_step is 1%,
+    /// then the total allowed spread for the entire route is approximately 3%.
+    /// This parameter protects against whitelisting pools which don't generate fees for protocol.
+    pub allowed_spread_per_step: Decimal,
 }
 
 impl Config {
@@ -263,6 +287,8 @@ impl Config {
             !self.max_astro.is_zero(),
             StdError::generic_err("max_astro must be greater than 0")
         );
+
+        // TODO: add liquidity_percent and allowed_spread_per_step validations
 
         Ok(())
     }
@@ -416,7 +442,7 @@ pub struct RouteStep {
 
 #[cw_serde]
 pub struct WhitelistValidationInfo {
-    /// Contains the swap route which must end up in ASTRO.
+    /// Contains the swap route which must lead to ASTRO.
     /// The route length is capped by [`consts::WHITELIST_VALIDATION_MAX_ROUTE_LENGTH`].
     /// `offer_asset_info` of the first step must match either of pool's assets.
     /// `ask_asset_info` of the last step must be ASTRO.
@@ -447,6 +473,8 @@ mod unit_tests {
             whitelist_threshold: Decimal::percent(10),
             emissions_multiple: Decimal::percent(80),
             max_astro: 1_400_000_000_000u128.into(),
+            liquidity_percent: Default::default(),
+            allowed_spread_per_step: Default::default(),
         };
         assert_eq!(
             config.validate().unwrap_err(),

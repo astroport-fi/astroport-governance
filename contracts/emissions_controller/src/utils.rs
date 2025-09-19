@@ -1,13 +1,13 @@
 use std::collections::{HashMap, HashSet};
 
-use astroport::asset::{determine_asset_info, Asset};
+use astroport::asset::Asset;
 use astroport::common::LP_SUBDENOM;
 use astroport::incentives::{IncentivesSchedule, InputSchedule};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_schema::serde::Serialize;
 use cosmwasm_std::{
-    coin, Coin, CosmosMsg, Decimal, Deps, Env, Order, QuerierWrapper, StdError, StdResult, Storage,
-    Uint128,
+    coin, to_json_binary, Coin, CosmosMsg, Decimal, Deps, Env, IbcMsg, Order, QuerierWrapper,
+    StdError, StdResult, Storage, Uint128,
 };
 use itertools::Itertools;
 use neutron_sdk::bindings::msg::{IbcFee, NeutronMsg};
@@ -17,10 +17,11 @@ use neutron_sdk::sudo::msg::RequestPacketTimeoutHeight;
 
 use astroport_governance::emissions_controller::consts::{FEE_DENOM, IBC_TIMEOUT};
 use astroport_governance::emissions_controller::hub::{
-    Config, EmissionsState, OutpostInfo, OutpostParams,
+    Config, EmissionsState, OutpostInfo, OutpostParams, RouteStep,
 };
+use astroport_governance::emissions_controller::msg::VxAstroIbcMsg;
 use astroport_governance::emissions_controller::outpost::OutpostMsg;
-use astroport_governance::emissions_controller::utils::check_lp_token;
+use astroport_governance::emissions_controller::utils::get_pair_info;
 
 use crate::error::ContractError;
 use crate::state::{get_active_outposts, OUTPOSTS, POOLS_WHITELIST, TUNE_INFO, VOTED_POOLS};
@@ -324,11 +325,7 @@ pub fn simulate_tune(
                 // Otherwise, keep ASTRO directed to invalid pools on the emissions controller.
                 let pools = pools
                     .into_iter()
-                    .filter(|(pool, _)| {
-                        determine_asset_info(pool, deps.api)
-                            .and_then(|maybe_lp| check_lp_token(deps, &config.factory, &maybe_lp))
-                            .is_ok()
-                    })
+                    .filter(|(pool, _)| get_pair_info(deps, &config.factory, pool).is_ok())
                     .collect_vec();
                 if !pools.is_empty() {
                     Some((prefix, pools))
@@ -345,6 +342,26 @@ pub fn simulate_tune(
         candidates,
         new_emissions_state,
         next_pools_grouped,
+    })
+}
+
+pub fn prepare_ibc_packet(
+    env: &Env,
+    lp_token: &str,
+    route: Vec<RouteStep>,
+    liq_percent: Decimal,
+    allowed_spread: Decimal,
+    channel_id: String,
+) -> Result<IbcMsg, ContractError> {
+    Ok(IbcMsg::SendPacket {
+        channel_id,
+        data: to_json_binary(&VxAstroIbcMsg::CheckWhitelistEligibility {
+            lp_token: lp_token.to_string(),
+            route,
+            liq_percent,
+            allowed_spread,
+        })?,
+        timeout: env.block.time.plus_seconds(IBC_TIMEOUT).into(),
     })
 }
 

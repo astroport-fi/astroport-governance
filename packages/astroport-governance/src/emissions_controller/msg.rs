@@ -5,6 +5,7 @@ use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{to_json_binary, Binary, Decimal, Uint128};
 
 use crate::assembly::ProposalVoteOption;
+use crate::emissions_controller::hub::RouteStep;
 
 #[cw_serde]
 pub enum ExecuteMsg<T> {
@@ -77,6 +78,13 @@ pub enum VxAstroIbcMsg {
     },
     /// Sender: Hub
     RegisterProposal { proposal_id: u64, start_time: u64 },
+    /// Sender: Hub
+    CheckWhitelistEligibility {
+        lp_token: String,
+        route: Vec<RouteStep>,
+        liq_percent: Decimal,
+        allowed_spread: Decimal,
+    },
     /// Sender: Outpost
     GovernanceVote {
         voter: String,

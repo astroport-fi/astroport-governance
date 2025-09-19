@@ -12,8 +12,8 @@ use astroport_emissions_controller::error::ContractError;
 use astroport_governance::assembly::{ProposalVoteOption, ProposalVoterResponse};
 use astroport_governance::emissions_controller::consts::{DAY, EPOCH_LENGTH};
 use astroport_governance::emissions_controller::hub::{
-    AstroPoolConfig, EmissionsState, HubMsg, OutpostInfo, OutpostParams, OutpostStatus, TuneInfo,
-    UserInfoResponse, VotedPoolInfo,
+    AstroPoolConfig, EmissionsState, HubMsg, OutpostInfo, OutpostParams, OutpostStatus, RouteStep,
+    TuneInfo, UserInfoResponse, VotedPoolInfo,
 };
 use astroport_governance::emissions_controller::msg::{ExecuteMsg, VxAstroIbcMsg};
 use astroport_governance::emissions_controller::utils::get_epoch_start;
@@ -1393,6 +1393,7 @@ fn test_instant_unlock_vxastro() {
         .mint_tokens(&owner, &[coin(1000_000000, helper.astro.clone())])
         .unwrap();
     let whitelisting_fee = helper.whitelisting_fee.clone();
+    let astro = helper.astro.clone();
 
     helper
         .add_outpost(
@@ -1406,11 +1407,20 @@ fn test_instant_unlock_vxastro() {
         )
         .unwrap();
 
-    let pool1 = helper.create_pair("token1", "token2");
+    let pool1 = helper.create_pair("token1", &astro);
     helper
-        .whitelist(&owner, &pool1, vec![], &[whitelisting_fee.clone()])
+        .whitelist(
+            &owner,
+            &pool1,
+            vec![RouteStep {
+                pair_address: pool1.clone(),
+                offer_asset_info: AssetInfo::native("token1"),
+                ask_asset_info: AssetInfo::native(&astro),
+            }],
+            &[whitelisting_fee.clone()],
+        )
         .unwrap();
-    let pool2 = helper.create_pair("token1", "token3");
+    let pool2 = helper.create_pair(&astro, "token3");
     helper
         .whitelist(&owner, &pool2, vec![], &[whitelisting_fee.clone()])
         .unwrap();
@@ -1613,6 +1623,8 @@ fn test_some_epochs() {
                 fee_receiver: None,
                 emissions_multiple: None,
                 max_astro: None,
+                liquidity_percent: None,
+                allowed_spread_per_step: None,
             }),
             &[],
         )
@@ -1911,6 +1923,8 @@ fn test_update_config() {
         fee_receiver: Some(fee_receiver.to_string()),
         emissions_multiple: Some(Decimal::percent(90)),
         max_astro: Some(1_000_000u128.into()),
+        liquidity_percent: None,
+        allowed_spread_per_step: None,
     });
 
     let err = helper
@@ -1956,6 +1970,8 @@ fn test_update_config() {
             whitelist_threshold: Decimal::percent(1),
             emissions_multiple: Decimal::percent(90),
             max_astro: 1_000_000u128.into(),
+            liquidity_percent: Default::default(),
+            allowed_spread_per_step: Default::default(),
         }
     );
 }

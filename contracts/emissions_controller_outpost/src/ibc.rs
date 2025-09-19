@@ -12,6 +12,9 @@ use astroport_governance::emissions_controller::msg::{
     ack_fail, ack_ok, IbcAckResult, VxAstroIbcMsg,
 };
 use astroport_governance::emissions_controller::outpost::UserIbcError;
+use astroport_governance::emissions_controller::utils::{
+    get_pair_info, validate_whitelist_eligibility,
+};
 use astroport_governance::voting_escrow;
 
 use crate::state::{
@@ -93,6 +96,10 @@ pub fn do_packet_receive(
         StdError::generic_err("Invalid channel")
     );
 
+    let mut response = IbcReceiveResponse::new()
+        .set_ack(ack_ok())
+        .add_attribute("action", "register_proposal");
+
     match from_json(msg.packet.data)? {
         VxAstroIbcMsg::RegisterProposal {
             proposal_id,
@@ -106,15 +113,31 @@ pub fn do_packet_receive(
             // Save proposal in state
             REGISTERED_PROPOSALS.save(deps.storage, proposal_id, &start_time)?;
 
-            let response = IbcReceiveResponse::new()
-                .set_ack(ack_ok())
-                .add_attribute("action", "register_proposal")
-                .add_attribute("proposal_id", proposal_id.to_string())
-                .add_attribute("start_time", start_time.to_string());
-            Ok(response)
+            response = response.add_attributes([
+                ("proposal_id", proposal_id.to_string()),
+                ("start_time", start_time.to_string()),
+            ]);
         }
-        _ => Err(StdError::generic_err("Invalid IBC message type")),
+        VxAstroIbcMsg::CheckWhitelistEligibility {
+            lp_token,
+            route,
+            liq_percent,
+            allowed_spread,
+        } => {
+            let pair_info = get_pair_info(deps.as_ref(), &config.factory, &lp_token)?;
+            validate_whitelist_eligibility(
+                deps.querier,
+                &config.factory,
+                liq_percent,
+                allowed_spread,
+                &pair_info,
+                &route,
+            )?;
+        }
+        _ => unreachable!("Outpost can't receive these messages"),
     }
+
+    Ok(response)
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -149,8 +172,9 @@ pub fn ibc_packet_ack(
                 }
                 VxAstroIbcMsg::UpdateUserVotes { voter, .. }
                 | VxAstroIbcMsg::EmissionsVote { voter, .. } => voter,
-                VxAstroIbcMsg::RegisterProposal { .. } => {
-                    unreachable!("Outpost can't send RegisterProposal ibc msg")
+                VxAstroIbcMsg::RegisterProposal { .. }
+                | VxAstroIbcMsg::CheckWhitelistEligibility { .. } => {
+                    unreachable!("Outpost can't send these messages")
                 }
                 VxAstroIbcMsg::GovernanceVote {
                     voter, proposal_id, ..
@@ -221,8 +245,9 @@ pub fn process_ibc_error(
         VxAstroIbcMsg::EmissionsVote { voter, .. }
         | VxAstroIbcMsg::UpdateUserVotes { voter, .. }
         | VxAstroIbcMsg::GovernanceVote { voter, .. } => voter.clone(),
-        VxAstroIbcMsg::RegisterProposal { .. } => {
-            unreachable!("Outpost can't send RegisterProposal ibc msg")
+        VxAstroIbcMsg::RegisterProposal { .. }
+        | VxAstroIbcMsg::CheckWhitelistEligibility { .. } => {
+            unreachable!("Outpost can't send these messages")
         }
     };
 

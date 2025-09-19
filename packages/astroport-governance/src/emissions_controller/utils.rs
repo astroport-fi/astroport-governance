@@ -1,11 +1,14 @@
-use crate::emissions_controller::consts::{EPOCHS_START, EPOCH_LENGTH};
-use astroport::asset::{pair_info_by_pool, AssetInfo, PairInfo};
-use astroport::common::LP_SUBDENOM;
-use astroport::{factory, pair};
-use cosmwasm_std::{Addr, Deps, QuerierWrapper, StdError, StdResult, Uint128};
-use itertools::Itertools;
-
+use crate::emissions_controller::consts::{
+    EPOCHS_START, EPOCH_LENGTH, WHITELIST_VALIDATION_MAX_ROUTE_LENGTH,
+};
+use crate::emissions_controller::hub::RouteStep;
 use crate::voting_escrow;
+use astroport::asset::{pair_info_by_pool, AssetInfo, AssetInfoExt, PairInfo};
+use astroport::common::LP_SUBDENOM;
+use astroport::pair::SimulationResponse;
+use astroport::{factory, pair};
+use cosmwasm_std::{ensure, Addr, Decimal, Deps, QuerierWrapper, StdError, StdResult, Uint128};
+use itertools::Itertools;
 
 /// Queries pair info corresponding to given LP token.
 /// Handles both native and cw20 tokens.
@@ -37,37 +40,88 @@ pub fn get_pair_from_denom(deps: Deps, denom: &str) -> StdResult<Addr> {
 
 /// Checks if the pool with the following asset infos is registered in the factory contract and
 /// LP tokens address/denom matches the one registered in the factory.
-pub fn check_lp_token(deps: Deps, factory: &Addr, maybe_lp: &AssetInfo) -> StdResult<()> {
-    if let AssetInfo::NativeToken { denom } = maybe_lp {
-        // Check if the native token at least follows Astroport LP token format
-        get_pair_from_denom(deps, denom).map(|_| ())
-    } else {
-        // Full check that cw20 LP token is registered in the factory
-        let pair_info = query_pair_info(deps, maybe_lp)?;
-        deps.querier
-            .query_wasm_smart::<PairInfo>(
-                factory,
-                &factory::QueryMsg::Pair {
-                    asset_infos: pair_info.asset_infos.to_vec(),
-                },
-            )
-            .map_err(|_| {
-                StdError::generic_err(format!(
-                    "The pair is not registered: {}-{}",
-                    pair_info.asset_infos[0], pair_info.asset_infos[1]
-                ))
-            })
-            .and_then(|resp| {
-                if resp.liquidity_token == maybe_lp.to_string() {
-                    Ok(())
-                } else {
-                    Err(StdError::generic_err(format!(
-                        "LP token {maybe_lp} doesn't match LP token registered in factory {}",
-                        resp.liquidity_token
-                    )))
-                }
-            })
+pub fn get_pair_info(deps: Deps, factory: &Addr, maybe_lp: &str) -> StdResult<PairInfo> {
+    deps.querier.query_wasm_smart(
+        factory,
+        &factory::QueryMsg::PairByLpToken {
+            lp_token: maybe_lp.to_string(),
+        },
+    )
+}
+
+/// Validates if the given pool with validation swap route is eligible for whitelist.
+/// - liq_percent - percentage of whitelisted pool's liquidity
+///   to be used as the offer amount in the first step.
+/// - allowed_spread_per_step - maximum allowed spread per step.
+/// - pair_info - the pair info of the pool to be whitelisted.
+/// - route - the swap route to validate.
+///   Must start with one of the pool's assets and lead to ASTRO.
+///   The route length must be between 0 and WHITELIST_VALIDATION_MAX_ROUTE_LENGTH.
+pub fn validate_whitelist_eligibility(
+    querier: QuerierWrapper,
+    factory: &Addr,
+    liq_percent: Decimal,
+    allowed_spread_per_step: Decimal,
+    pair_info: &PairInfo,
+    route: &[RouteStep],
+) -> StdResult<()> {
+    let route_len = route.len();
+    ensure!(
+        route_len > 0 && route_len <= WHITELIST_VALIDATION_MAX_ROUTE_LENGTH,
+        StdError::generic_err(format!(
+            "Route length must be between 0 and {WHITELIST_VALIDATION_MAX_ROUTE_LENGTH}, got {route_len}",
+        ))
+    );
+
+    ensure!(
+        route[0].offer_asset_info == pair_info.asset_infos[0]
+            || route[0].offer_asset_info == pair_info.asset_infos[1],
+        StdError::generic_err("The first step of the route must offer one of the pool's assets")
+    );
+
+    let mut step_amount = liq_percent
+        * route[0]
+            .offer_asset_info
+            .query_pool(&querier, &pair_info.contract_addr)?;
+
+    for step in route {
+        let step_pair_info: PairInfo =
+            querier.query_wasm_smart(&step.pair_address, &pair::QueryMsg::Pair {})?;
+
+        // Verify that the pair is registered in the factory
+        let step_pair_info_factory: PairInfo = querier.query_wasm_smart(
+            factory,
+            &factory::QueryMsg::PairByLpToken {
+                lp_token: step_pair_info.liquidity_token,
+            },
+        )?;
+
+        ensure!(
+            step.pair_address == step_pair_info_factory.contract_addr,
+            StdError::generic_err(format!(
+                "Step pair address {} does not match the one in the factory {}",
+                step.pair_address, step_pair_info.contract_addr
+            ))
+        );
+
+        let res: SimulationResponse = querier.query_wasm_smart(
+            &step.pair_address,
+            &pair::QueryMsg::Simulation {
+                offer_asset: step.offer_asset_info.with_balance(step_amount),
+                ask_asset_info: Some(step.ask_asset_info.clone()),
+            },
+        )?;
+
+        let spread = Decimal::from_ratio(res.spread_amount, res.return_amount);
+        ensure!(
+            spread <= allowed_spread_per_step,
+            StdError::generic_err(format!("Spread {spread} is too high for step with pair {}. Max allowed is {allowed_spread_per_step}", step.pair_address))
+        );
+
+        step_amount = res.return_amount;
     }
+
+    Ok(())
 }
 
 #[inline]

@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-use astroport::asset::determine_asset_info;
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::incentives;
 use astroport::incentives::{IncentivesSchedule, InputSchedule};
@@ -19,7 +18,7 @@ use astroport_governance::emissions_controller::msg::ExecuteMsg;
 use astroport_governance::emissions_controller::msg::VxAstroIbcMsg;
 use astroport_governance::emissions_controller::outpost::{Config, OutpostMsg};
 use astroport_governance::emissions_controller::utils::{
-    check_lp_token, get_total_voting_power, get_voting_power,
+    get_pair_info, get_total_voting_power, get_voting_power,
 };
 use astroport_governance::utils::check_contract_supports_channel;
 use astroport_governance::voting_escrow;
@@ -202,8 +201,7 @@ pub fn execute_emissions(
     let schedules = schedules
         .into_iter()
         .filter(|(pool, schedule)| {
-            determine_asset_info(pool, deps.api)
-                .and_then(|maybe_lp| check_lp_token(deps.as_ref(), &config.factory, &maybe_lp))
+            get_pair_info(deps.as_ref(), &config.factory, pool)
                 .and_then(|_| IncentivesSchedule::from_input(&env, schedule))
                 .map(|_| {
                     expected_amount += schedule.reward.amount.u128();

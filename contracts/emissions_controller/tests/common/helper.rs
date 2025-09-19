@@ -1,4 +1,4 @@
-use astroport::asset::{AssetInfo, PairInfo};
+use astroport::asset::{Asset, AssetInfo, PairInfo};
 use astroport::factory::{PairConfig, PairType};
 use astroport::incentives::RewardInfo;
 use astroport::token::Logo;
@@ -70,6 +70,11 @@ fn mock_ntrn_app() -> NeutronApp {
         .build(no_init)
 }
 
+pub struct PairData {
+    pub pair_addr: String,
+    pub lp_token: String,
+}
+
 #[derive(Derivative)]
 #[derivative(Debug)]
 pub struct ControllerHelper {
@@ -123,9 +128,8 @@ impl ControllerHelper {
                     fee_address: None,
                     generator_address: None,
                     owner: owner.to_string(),
-                    whitelist_code_id: 0,
                     coin_registry_address: app.api().addr_make("coin_registry").to_string(),
-                    tracker_config: None,
+                    creation_fee: None,
                 },
                 &[],
                 "label",
@@ -158,8 +162,8 @@ impl ControllerHelper {
                 token_code_id: None,
                 fee_address: None,
                 generator_address: Some(incentives.to_string()),
-                whitelist_code_id: None,
                 coin_registry_address: None,
+                creation_fee: None,
             },
             &[],
         )
@@ -275,6 +279,8 @@ impl ControllerHelper {
                     max_astro: 1_400_000_000_000u128.into(),
                     collected_astro: 334_000_000_000u128.into(),
                     ema: 300_000_000_000u128.into(),
+                    liquidity_percent: Decimal::percent(20),
+                    allowed_spread_per_step: Decimal::percent(5),
                 },
                 &[],
                 "label",

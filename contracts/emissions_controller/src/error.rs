@@ -1,4 +1,3 @@
-use astroport_governance::emissions_controller::consts::WHITELIST_VALIDATION_MAX_ROUTE_LENGTH;
 use cosmwasm_std::{CheckedFromRatioError, Coin, StdError};
 use cw_utils::{ParseReplyError, PaymentError};
 use neutron_sdk::NeutronError;
@@ -88,9 +87,6 @@ pub enum ContractError {
     #[error("Pool {0} is blacklisted")]
     PoolIsBlacklisted(String),
 
-    #[error(
-        "Validation route has too many hops. Max allowed is {0}",
-        WHITELIST_VALIDATION_MAX_ROUTE_LENGTH
-    )]
-    ValidationRouteTooLong {},
+    #[error("Pool {0} is pending whitelisting. Wait until relayer acknowledges the IBC packet")]
+    PendingWhitelisting(String),
 }

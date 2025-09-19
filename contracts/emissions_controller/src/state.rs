@@ -11,8 +11,10 @@ use astroport_governance::emissions_controller::hub::{
 pub const CONFIG: Item<Config> = Item::new("config");
 /// Contains a proposal to change contract ownership
 pub const OWNERSHIP_PROPOSAL: Item<OwnershipProposal> = Item::new("ownership_proposal");
-/// Array of pools eligible for voting.
+/// Map of pools eligible for voting. Key lp token, value - validation parameters.
 pub const POOLS_WHITELIST: Map<&str, WhitelistValidationInfo> = Map::new("pools_whitelist");
+/// Set of outpost pools pending IBC acknowledgement.
+pub const PENDING_WHITELIST: Map<&str, WhitelistValidationInfo> = Map::new("pending_whitelist");
 pub const POOLS_BLACKLIST: Map<&str, ()> = Map::new("pools_blacklist");
 /// Registered Astroport outposts with respective parameters.
 pub const OUTPOSTS: Map<&str, OutpostInfo> = Map::new("outposts");

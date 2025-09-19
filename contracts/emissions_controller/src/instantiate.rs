@@ -66,8 +66,10 @@ pub fn instantiate(
         whitelist_threshold: msg.whitelist_threshold,
         emissions_multiple: msg.emissions_multiple,
         max_astro: msg.max_astro,
+        liquidity_percent: msg.liquidity_percent,
         staking,
         xastro_denom: msg.xastro_denom.clone(),
+        allowed_spread_per_step: msg.allowed_spread_per_step,
     };
     config.validate()?;
 
