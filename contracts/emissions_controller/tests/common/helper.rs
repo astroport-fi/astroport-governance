@@ -1,22 +1,9 @@
-use astroport::asset::{Asset, AssetInfo, PairInfo};
+use astroport::asset::AssetInfo;
+use astroport::common::LP_SUBDENOM;
 use astroport::factory::{PairConfig, PairType};
 use astroport::incentives::RewardInfo;
 use astroport::token::Logo;
 use astroport::{factory, incentives, staking};
-use cosmwasm_std::{
-    coin, coins, from_json, to_json_binary, Addr, BlockInfo, Coin, Decimal, Empty, IbcEndpoint,
-    IbcPacket, IbcPacketReceiveMsg, MemoryStorage, StdResult, Timestamp, Uint128,
-};
-use cw_multi_test::error::AnyResult;
-use cw_multi_test::{
-    no_init, App, AppBuilder, AppResponse, BankKeeper, BankSudo, DistributionKeeper, Executor,
-    GovFailingModule, MockAddressGenerator, MockApiBech32, StakeKeeper, WasmKeeper,
-};
-use derivative::Derivative;
-use itertools::Itertools;
-use neutron_sdk::bindings::msg::NeutronMsg;
-use neutron_sdk::bindings::query::NeutronQuery;
-
 use astroport_governance::assembly::{
     ExecuteMsg, UpdateConfig, DELAY_INTERVAL, DEPOSIT_INTERVAL, EXPIRATION_PERIOD_INTERVAL,
     MINIMUM_PROPOSAL_REQUIRED_QUORUM_PERCENTAGE, MINIMUM_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE,
@@ -27,9 +14,23 @@ use astroport_governance::emissions_controller::hub::{
     EmissionsState, HubInstantiateMsg, HubMsg, InputOutpostParams, OutpostInfo, RouteStep,
     SimulateTuneResponse, TuneInfo, UserInfoResponse, VotedPoolInfo,
 };
-use astroport_governance::emissions_controller::msg::VxAstroIbcMsg;
+use astroport_governance::emissions_controller::msg::{IbcAckResult, VxAstroIbcMsg};
 use astroport_governance::voting_escrow::UpdateMarketingInfo;
 use astroport_governance::{assembly, emissions_controller, voting_escrow};
+use cosmwasm_std::{
+    coin, coins, from_json, to_json_binary, Addr, BlockInfo, Coin, Decimal, Empty,
+    IbcAcknowledgement, IbcEndpoint, IbcPacket, IbcPacketAckMsg, IbcPacketReceiveMsg,
+    IbcPacketTimeoutMsg, MemoryStorage, StdResult, Timestamp, Uint128,
+};
+use cw_multi_test::error::AnyResult;
+use cw_multi_test::{
+    no_init, App, AppBuilder, AppResponse, BankKeeper, BankSudo, DistributionKeeper, Executor,
+    GovFailingModule, MockAddressGenerator, MockApiBech32, StakeKeeper, WasmKeeper,
+};
+use derivative::Derivative;
+use itertools::Itertools;
+use neutron_sdk::bindings::msg::NeutronMsg;
+use neutron_sdk::bindings::query::NeutronQuery;
 
 use crate::common::contracts::*;
 use crate::common::ibc_module::IbcMockModule;
@@ -70,9 +71,11 @@ fn mock_ntrn_app() -> NeutronApp {
         .build(no_init)
 }
 
+#[derive(Clone)]
 pub struct PairData {
     pub pair_addr: String,
     pub lp_token: String,
+    pub asset_infos: Vec<AssetInfo>,
 }
 
 #[derive(Derivative)]
@@ -330,7 +333,6 @@ impl ControllerHelper {
             incentives,
             assembly,
         };
-        dbg!(&helper);
 
         helper
     }
@@ -459,26 +461,40 @@ impl ControllerHelper {
         )
     }
 
-    pub fn create_pair(&mut self, denom1: &str, denom2: &str) -> String {
-        let asset_infos = vec![AssetInfo::native(denom1), AssetInfo::native(denom2)];
+    pub fn create_and_seed_pair(&mut self, initial_liquidity: [Coin; 2]) -> PairData {
+        let owner = self.owner.clone();
+
+        self.mint_tokens(&owner, &initial_liquidity).unwrap();
+
+        let asset_infos = initial_liquidity
+            .iter()
+            .map(|c| AssetInfo::native(&c.denom))
+            .collect_vec();
+
         self.app
             .execute_contract(
-                self.owner.clone(),
+                owner.clone(),
                 self.factory.clone(),
                 &factory::ExecuteMsg::CreatePair {
                     pair_type: PairType::Xyk {},
                     asset_infos: asset_infos.clone(),
                     init_params: None,
                 },
-                &[],
+                &initial_liquidity,
             )
-            .unwrap();
-
-        self.app
-            .wrap()
-            .query_wasm_smart::<PairInfo>(&self.factory, &factory::QueryMsg::Pair { asset_infos })
+            .and_then(|resp| {
+                let pair_addr = &resp.custom_attrs(7)[1].value;
+                Ok(PairData {
+                    pair_addr: pair_addr.clone(),
+                    lp_token: format!("factory/{pair_addr}/{LP_SUBDENOM}"),
+                    asset_infos,
+                })
+            })
             .unwrap()
-            .liquidity_token
+    }
+
+    pub fn create_pair(&mut self, denom1: &str, denom2: &str) -> PairData {
+        self.create_and_seed_pair([coin(1_000000, denom1), coin(1_000000, denom2)])
     }
 
     pub fn vote(&mut self, user: &Addr, votes: &[(String, Decimal)]) -> AnyResult<AppResponse> {
@@ -493,6 +509,27 @@ impl ControllerHelper {
     }
 
     pub fn whitelist(
+        &mut self,
+        user: &Addr,
+        pool_data: &PairData,
+        fees: &[Coin],
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            user.clone(),
+            self.emission_controller.clone(),
+            &emissions_controller::msg::ExecuteMsg::Custom(HubMsg::WhitelistPool {
+                lp_token: pool_data.lp_token.clone(),
+                validation_route: vec![RouteStep {
+                    pair_address: pool_data.pair_addr.clone(),
+                    offer_asset_info: pool_data.asset_infos[0].clone(),
+                    ask_asset_info: pool_data.asset_infos[1].clone(),
+                }],
+            }),
+            fees,
+        )
+    }
+
+    pub fn whitelist_full(
         &mut self,
         user: &Addr,
         pool: impl Into<String>,
@@ -587,13 +624,16 @@ impl ControllerHelper {
     }
 
     pub fn query_whitelist(&self) -> StdResult<Vec<String>> {
-        self.app.wrap().query_wasm_smart(
-            &self.emission_controller,
-            &emissions_controller::hub::QueryMsg::QueryWhitelist {
-                limit: Some(100),
-                start_after: None,
-            },
-        )
+        self.app
+            .wrap()
+            .query_wasm_smart(
+                &self.emission_controller,
+                &emissions_controller::hub::QueryMsg::QueryWhitelist {
+                    limit: Some(100),
+                    start_after: None,
+                },
+            )
+            .map(|list: Vec<String>| list.into_iter().sorted().collect_vec())
     }
 
     pub fn query_blacklist(&self) -> StdResult<Vec<String>> {
@@ -747,5 +787,59 @@ impl ControllerHelper {
                 },
             )
             .map(|x| x.rewards)
+    }
+
+    pub fn mock_ibc_ack(
+        &mut self,
+        ibc_msg: VxAstroIbcMsg,
+        error: Option<&str>,
+    ) -> AnyResult<AppResponse> {
+        let ack_result = if let Some(err) = error {
+            IbcAckResult::Error(err.to_string())
+        } else {
+            IbcAckResult::Ok(b"null".into())
+        };
+        let packet = IbcPacketAckMsg::new(
+            IbcAcknowledgement::encode_json(&ack_result).unwrap(),
+            IbcPacket::new(
+                to_json_binary(&ibc_msg).unwrap(),
+                IbcEndpoint {
+                    port_id: "".to_string(),
+                    channel_id: "".to_string(),
+                },
+                IbcEndpoint {
+                    port_id: "".to_string(),
+                    channel_id: "".to_string(),
+                },
+                0,
+                Timestamp::from_seconds(0).into(),
+            ),
+            Addr::unchecked("relayer"),
+        );
+        self.app
+            .wasm_sudo(self.emission_controller.clone(), &TestSudoMsg::Ack(packet))
+    }
+
+    pub fn mock_ibc_timeout(&mut self, ibc_msg: VxAstroIbcMsg) -> AnyResult<AppResponse> {
+        let packet = IbcPacketTimeoutMsg::new(
+            IbcPacket::new(
+                to_json_binary(&ibc_msg).unwrap(),
+                IbcEndpoint {
+                    port_id: "".to_string(),
+                    channel_id: "".to_string(),
+                },
+                IbcEndpoint {
+                    port_id: "".to_string(),
+                    channel_id: "".to_string(),
+                },
+                0,
+                Timestamp::from_seconds(0).into(),
+            ),
+            Addr::unchecked("relayer"),
+        );
+        self.app.wasm_sudo(
+            self.emission_controller.clone(),
+            &TestSudoMsg::BasicTimeout(packet),
+        )
     }
 }

@@ -3,15 +3,15 @@ use std::fmt::Debug;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_schema::schemars::JsonSchema;
 use cosmwasm_std::{
-    Binary, CustomMsg, CustomQuery, DepsMut, Empty, Env, IbcPacketReceiveMsg, MessageInfo,
-    Response, StdResult,
+    Binary, CustomMsg, CustomQuery, DepsMut, Empty, Env, IbcBasicResponse, IbcPacketAckMsg,
+    IbcPacketReceiveMsg, IbcPacketTimeoutMsg, MessageInfo, Response, StdError, StdResult,
 };
 use cw_multi_test::{Contract, ContractWrapper};
 use neutron_sdk::bindings::msg::NeutronMsg;
 use neutron_sdk::bindings::query::NeutronQuery;
 use neutron_sdk::sudo::msg::RequestPacket;
 
-use astroport_emissions_controller::ibc::ibc_packet_receive;
+use astroport_emissions_controller::ibc::{do_packet_receive, ibc_packet_ack, ibc_packet_timeout};
 use astroport_emissions_controller::sudo::process_ibc_reply;
 
 pub fn token_contract<T, C>() -> Box<dyn Contract<T, C>>
@@ -83,6 +83,7 @@ where
 /// Extended version of [`TransferSudoMsg`] with additional variants to test IBC endpoints.
 #[cw_serde]
 pub enum TestSudoMsg {
+    // The variants below are from TransferSudoMsg from neutron-sdk
     Response {
         request: RequestPacket,
         data: Binary,
@@ -94,23 +95,38 @@ pub enum TestSudoMsg {
     Timeout {
         request: RequestPacket,
     },
+    // ----------------------------------
+    // The variants below are added to test general cosmwasm IBC endpoints
+    Ack(IbcPacketAckMsg),
     IbcRecv(IbcPacketReceiveMsg),
+    BasicTimeout(IbcPacketTimeoutMsg),
 }
 
 fn emissions_controller_sudo(deps: DepsMut, env: Env, msg: TestSudoMsg) -> StdResult<Response> {
-    match msg {
+    match &msg {
         TestSudoMsg::Response { request, .. } => {
-            process_ibc_reply(deps.storage, env, request, false)
+            process_ibc_reply(deps.storage, env, request.clone(), false)
         }
         TestSudoMsg::Error { request, .. } | TestSudoMsg::Timeout { request } => {
-            process_ibc_reply(deps.storage, env, request, true)
+            process_ibc_reply(deps.storage, env, request.clone(), true)
         }
-        TestSudoMsg::IbcRecv(packet) => {
-            let ibc_response = ibc_packet_receive(deps, env, packet).unwrap();
-            Ok(Response::default()
+        _ => match msg {
+            TestSudoMsg::Ack(packet) => ibc_packet_ack(deps, env, packet),
+            TestSudoMsg::BasicTimeout(packet) => ibc_packet_timeout(deps, env, packet),
+            TestSudoMsg::IbcRecv(packet) => do_packet_receive(deps, env, packet)
+                .map_err(|err| StdError::generic_err(err.to_string()))
+                .map(|ibc_response| {
+                    IbcBasicResponse::default()
+                        .add_attributes(ibc_response.attributes)
+                        .add_submessages(ibc_response.messages)
+                }),
+            _ => unreachable!(),
+        }
+        .map(|ibc_response| {
+            Response::default()
                 .add_attributes(ibc_response.attributes)
-                .add_submessages(ibc_response.messages))
-        }
+                .add_submessages(ibc_response.messages)
+        }),
     }
 }
 

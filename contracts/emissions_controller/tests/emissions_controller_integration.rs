@@ -12,8 +12,8 @@ use astroport_emissions_controller::error::ContractError;
 use astroport_governance::assembly::{ProposalVoteOption, ProposalVoterResponse};
 use astroport_governance::emissions_controller::consts::{DAY, EPOCH_LENGTH};
 use astroport_governance::emissions_controller::hub::{
-    AstroPoolConfig, EmissionsState, HubMsg, OutpostInfo, OutpostParams, OutpostStatus, RouteStep,
-    TuneInfo, UserInfoResponse, VotedPoolInfo,
+    AstroPoolConfig, EmissionsState, HubMsg, OutpostInfo, OutpostParams, OutpostStatus, TuneInfo,
+    UserInfoResponse, VotedPoolInfo,
 };
 use astroport_governance::emissions_controller::msg::{ExecuteMsg, VxAstroIbcMsg};
 use astroport_governance::emissions_controller::utils::get_epoch_start;
@@ -21,7 +21,7 @@ use astroport_governance::utils::determine_ics20_escrow_address;
 use astroport_governance::{assembly, emissions_controller, voting_escrow};
 use astroport_voting_escrow::state::UNLOCK_PERIOD;
 
-use crate::common::helper::{ControllerHelper, PROPOSAL_VOTING_PERIOD};
+use crate::common::helper::{ControllerHelper, PairData, PROPOSAL_VOTING_PERIOD};
 
 mod common;
 
@@ -41,8 +41,10 @@ pub fn voting_test() {
 
     helper.lock(&user, 1000).unwrap();
 
-    let lp_token1 = helper.create_pair("token1", "token2");
-    let lp_token2 = helper.create_pair("token1", "token3");
+    let pool1 = helper.create_pair("token1", "token2");
+    let pool2 = helper.create_pair("token1", "token3");
+    let lp_token1 = pool1.lp_token.clone();
+    let lp_token2 = pool2.lp_token.clone();
 
     let neutron = OutpostInfo {
         astro_denom: helper.astro.clone(),
@@ -53,10 +55,10 @@ pub fn voting_test() {
     helper.add_outpost("neutron", neutron).unwrap();
 
     let whitelist_fee = helper.whitelisting_fee.clone();
-    for pool in &[lp_token1.clone(), lp_token2.clone()] {
+    for pool in [&pool1, &pool2] {
         helper.mint_tokens(&user, &[whitelist_fee.clone()]).unwrap();
         helper
-            .whitelist(&user, pool, vec![], &[whitelist_fee.clone()])
+            .whitelist(&user, pool, &[whitelist_fee.clone()])
             .unwrap();
     }
 
@@ -138,11 +140,10 @@ fn test_whitelist_blacklist() {
     let owner = helper.owner.clone();
     let whitelist_fee = helper.whitelisting_fee.clone();
 
-    let lp_token = helper.create_pair("token1", "token2");
+    let pool = helper.create_pair("token1", "token2");
+    let lp_token = pool.lp_token.clone();
 
-    let err = helper
-        .whitelist(&owner, &lp_token, vec![], &[])
-        .unwrap_err();
+    let err = helper.whitelist(&owner, &pool, &[]).unwrap_err();
     assert_eq!(
         err.downcast::<ContractError>().unwrap(),
         ContractError::PaymentError(PaymentError::NoFunds {})
@@ -152,7 +153,7 @@ fn test_whitelist_blacklist() {
         .mint_tokens(&owner, &[whitelist_fee.clone()])
         .unwrap();
     let err = helper
-        .whitelist(&owner, &lp_token, vec![], &coins(1, &whitelist_fee.denom))
+        .whitelist(&owner, &pool, &coins(1, &whitelist_fee.denom))
         .unwrap_err();
     assert_eq!(
         err.downcast::<ContractError>().unwrap(),
@@ -160,21 +161,19 @@ fn test_whitelist_blacklist() {
     );
 
     let err = helper
-        .whitelist(&owner, &lp_token, vec![], &[whitelist_fee.clone()])
+        .whitelist(&owner, &pool, &[whitelist_fee.clone()])
         .unwrap_err();
     assert_eq!(
         err.downcast::<ContractError>().unwrap(),
         ContractError::NoOutpostForPool(lp_token.to_string())
     );
 
-    let astro_pool = helper
-        .create_pair(helper.astro.clone().as_str(), "uusd")
-        .to_string();
+    let astro_pool = helper.create_pair(helper.astro.clone().as_str(), "uusd");
     let neutron = OutpostInfo {
         astro_denom: helper.astro.clone(),
         params: None,
         astro_pool_config: Some(AstroPoolConfig {
-            astro_pool: astro_pool.clone(),
+            astro_pool: astro_pool.lp_token.clone(),
             constant_emissions: Uint128::one(),
         }),
         jailed: false,
@@ -182,7 +181,7 @@ fn test_whitelist_blacklist() {
     helper.add_outpost("neutron", neutron).unwrap();
 
     let err = helper
-        .whitelist(&owner, &astro_pool, vec![], &[whitelist_fee.clone()])
+        .whitelist(&owner, &astro_pool, &[whitelist_fee.clone()])
         .unwrap_err();
     assert_eq!(
         err.downcast::<ContractError>().unwrap(),
@@ -193,15 +192,21 @@ fn test_whitelist_blacklist() {
     let err = helper
         .whitelist(
             &owner,
-            "factory/neutron1invalidaddr/astroport/share",
-            vec![],
+            &PairData {
+                pair_addr: "neutron1invalidaddr".to_string(),
+                lp_token: "factory/neutron1invalidaddr/astroport/share".to_string(),
+                asset_infos: vec![AssetInfo::native("untrn"), AssetInfo::native("uusd")],
+            },
             &[whitelist_fee.clone()],
         )
         .unwrap_err();
-    assert_eq!(err.root_cause().to_string(), "Generic error: Invalid input"); // cosmwasm tried to query invalid 'neutron1invalidaddr' address
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Generic error: Querier contract error: Generic error: Pair not found"
+    ); // cosmwasm tried to find an invalid LP token in the factory
 
     helper
-        .whitelist(&owner, &lp_token, vec![], &[whitelist_fee.clone()])
+        .whitelist(&owner, &pool, &[whitelist_fee.clone()])
         .unwrap();
 
     // Vote for this pool
@@ -222,19 +227,19 @@ fn test_whitelist_blacklist() {
         .mint_tokens(&owner, &[whitelist_fee.clone()])
         .unwrap();
     let err = helper
-        .whitelist(&owner, &lp_token, vec![], &[whitelist_fee.clone()])
+        .whitelist(&owner, &pool, &[whitelist_fee.clone()])
         .unwrap_err();
     assert_eq!(
         err.downcast::<ContractError>().unwrap(),
         ContractError::PoolAlreadyWhitelisted(lp_token.to_string())
     );
 
-    let lp_token2 = helper.create_pair("token1", "token3");
+    let pool2 = helper.create_pair("token1", "token3");
     helper
         .mint_tokens(&owner, &[whitelist_fee.clone()])
         .unwrap();
     helper
-        .whitelist(&owner, &lp_token2, vec![], &[whitelist_fee.clone()])
+        .whitelist(&owner, &pool2, &[whitelist_fee.clone()])
         .unwrap();
 
     let whitelist = helper
@@ -243,12 +248,12 @@ fn test_whitelist_blacklist() {
         .into_iter()
         .sorted()
         .collect_vec();
-    assert_eq!(whitelist, vec![lp_token.clone(), lp_token2.clone()]);
+    assert_eq!(whitelist, vec![lp_token.clone(), pool2.lp_token.clone()]);
 
     let check_result = helper
         .check_whitelist(vec![
             lp_token.clone(),
-            lp_token2.clone(),
+            pool2.lp_token.clone(),
             "factory/neutron1invalidaddr/astroport/share".to_string(),
         ])
         .unwrap();
@@ -256,7 +261,7 @@ fn test_whitelist_blacklist() {
         check_result,
         vec![
             (lp_token.clone(), true),
-            (lp_token2.clone(), true),
+            (pool2.lp_token.clone(), true),
             (
                 "factory/neutron1invalidaddr/astroport/share".to_string(),
                 false
@@ -336,11 +341,11 @@ fn test_whitelist_blacklist() {
     );
 
     let whitelist = helper.query_whitelist().unwrap();
-    assert_eq!(whitelist, vec![lp_token2.clone()]);
+    assert_eq!(whitelist, vec![pool2.lp_token.clone()]);
 
     // Try to whitelist blacklisted pool
     let err = helper
-        .whitelist(&owner, &lp_token, vec![], &[whitelist_fee.clone()])
+        .whitelist(&owner, &pool, &[whitelist_fee.clone()])
         .unwrap_err();
     assert_eq!(
         err.downcast::<ContractError>().unwrap(),
@@ -411,7 +416,7 @@ fn test_outpost_management() {
     );
 
     neutron.astro_pool_config.as_mut().unwrap().astro_pool =
-        helper.create_pair("token1", "token2").to_string();
+        helper.create_pair("token1", "token2").lp_token;
     neutron.astro_denom = "aa".to_string();
 
     let err = helper.add_outpost("neutron", neutron.clone()).unwrap_err();
@@ -519,17 +524,21 @@ fn test_outpost_management() {
     helper
         .mint_tokens(&user, &[helper.whitelisting_fee.clone()])
         .unwrap();
-    let lp_token = helper.create_pair("token1", "token3");
+    let pool = helper.create_pair("token1", "token3");
     helper
-        .whitelist(&user, &lp_token, vec![], &[helper.whitelisting_fee.clone()])
+        .whitelist(&user, &pool, &[helper.whitelisting_fee.clone()])
         .unwrap();
     helper.lock(&user, 1000).unwrap();
     helper
-        .vote(&user, &[(lp_token.to_string(), Decimal::one())])
+        .vote(&user, &[(pool.lp_token.clone(), Decimal::one())])
         .unwrap();
 
     // Whitelist astro pool on Osmosis before marking it as ASTRO pool with flat emissions
-    let osmosis_astro_pool = format!("factory/osmo1pool/{}", LP_SUBDENOM);
+    let osmosis_astro_pool = PairData {
+        pair_addr: "osmo1pool".to_string(),
+        lp_token: format!("factory/osmo1pool/{LP_SUBDENOM}"),
+        asset_infos: vec![AssetInfo::native("uosmo"), AssetInfo::native("uusd")],
+    };
     helper
         .mint_tokens(&user, &[helper.whitelisting_fee.clone()])
         .unwrap();
@@ -537,8 +546,78 @@ fn test_outpost_management() {
         .whitelist(
             &user,
             &osmosis_astro_pool,
-            vec![],
             &[helper.whitelisting_fee.clone()],
+        )
+        .unwrap();
+
+    // Check that before IBC ack, remote pools aren't whitelisted
+    let whitelist = helper.query_whitelist().unwrap();
+    assert_eq!(whitelist, [pool.lp_token.clone()]);
+
+    // Mocking failed validation from Osmosis
+    helper
+        .mock_ibc_ack(
+            VxAstroIbcMsg::CheckWhitelistEligibility {
+                lp_token: osmosis_astro_pool.lp_token.clone(),
+                route: vec![],
+                liq_percent: Default::default(),
+                allowed_spread: Default::default(),
+            },
+            Some("failed"),
+        )
+        .unwrap();
+
+    // Check that the pool indeed wasn't whitelisted
+    let whitelist = helper.query_whitelist().unwrap();
+    assert_eq!(whitelist, [pool.lp_token.clone()]);
+
+    // Try to whitelist again
+    helper
+        .mint_tokens(&user, &[helper.whitelisting_fee.clone()])
+        .unwrap();
+    helper
+        .whitelist(
+            &user,
+            &osmosis_astro_pool,
+            &[helper.whitelisting_fee.clone()],
+        )
+        .unwrap();
+
+    // Mocking timeout
+    helper
+        .mock_ibc_timeout(VxAstroIbcMsg::CheckWhitelistEligibility {
+            lp_token: osmosis_astro_pool.lp_token.clone(),
+            route: vec![],
+            liq_percent: Default::default(),
+            allowed_spread: Default::default(),
+        })
+        .unwrap();
+
+    let whitelist = helper.query_whitelist().unwrap();
+    assert_eq!(whitelist, [pool.lp_token.clone()]);
+
+    // Try to whitelist again
+    helper
+        .mint_tokens(&user, &[helper.whitelisting_fee.clone()])
+        .unwrap();
+    helper
+        .whitelist(
+            &user,
+            &osmosis_astro_pool,
+            &[helper.whitelisting_fee.clone()],
+        )
+        .unwrap();
+
+    // Mocking successful validation from Osmosis
+    helper
+        .mock_ibc_ack(
+            VxAstroIbcMsg::CheckWhitelistEligibility {
+                lp_token: osmosis_astro_pool.lp_token.clone(),
+                route: vec![],
+                liq_percent: Default::default(),
+                allowed_spread: Default::default(),
+            },
+            None,
         )
         .unwrap();
 
@@ -551,19 +630,19 @@ fn test_outpost_management() {
         .collect_vec();
     assert_eq!(
         whitelist,
-        vec![lp_token.to_string(), osmosis_astro_pool.clone()]
+        [pool.lp_token.clone(), osmosis_astro_pool.lp_token.clone()]
     );
 
     // Mark 'osmosis_astro_pool' as ASTRO pool
     osmosis.astro_pool_config = Some(AstroPoolConfig {
-        astro_pool: osmosis_astro_pool,
+        astro_pool: osmosis_astro_pool.lp_token.clone(),
         constant_emissions: Uint128::from(100000u128),
     });
     helper.add_outpost("osmo", osmosis.clone()).unwrap();
 
     // Confirm it has been excluded from whitelist
     let whitelist = helper.query_whitelist().unwrap();
-    assert_eq!(whitelist, vec![lp_token.to_string()]);
+    assert_eq!(whitelist, vec![pool.lp_token.clone()]);
 
     // Jail neutron outpost
     let rand_user = helper.app.api().addr_make("random");
@@ -617,11 +696,11 @@ fn test_outpost_management() {
     let user = helper.app.api().addr_make("user2");
     helper.lock(&user, 1000).unwrap();
     let err = helper
-        .vote(&user, &[(lp_token.to_string(), Decimal::one())])
+        .vote(&user, &[(pool.lp_token.clone(), Decimal::one())])
         .unwrap_err();
     assert_eq!(
         err.downcast::<ContractError>().unwrap(),
-        ContractError::PoolIsNotWhitelisted(lp_token.to_string())
+        ContractError::PoolIsNotWhitelisted(pool.lp_token.clone())
     );
 
     // Cant whitelist pool belonging to jailed outpost
@@ -629,11 +708,11 @@ fn test_outpost_management() {
         .mint_tokens(&user, &[helper.whitelisting_fee.clone()])
         .unwrap();
     let err = helper
-        .whitelist(&user, &lp_token, vec![], &[helper.whitelisting_fee.clone()])
+        .whitelist(&user, &pool, &[helper.whitelisting_fee.clone()])
         .unwrap_err();
     assert_eq!(
         err.downcast::<ContractError>().unwrap(),
-        ContractError::NoOutpostForPool(lp_token.to_string())
+        ContractError::NoOutpostForPool(pool.lp_token.clone())
     );
 
     // Ensure neutron pool was removed from votable pools
@@ -755,10 +834,10 @@ fn test_outpost_management() {
         .mint_tokens(&user, &[helper.whitelisting_fee.clone()])
         .unwrap();
     helper
-        .whitelist(&user, &lp_token, vec![], &[helper.whitelisting_fee.clone()])
+        .whitelist(&user, &pool, &[helper.whitelisting_fee.clone()])
         .unwrap();
     let whitelist = helper.query_whitelist().unwrap();
-    assert_eq!(whitelist, vec![lp_token.to_string()]);
+    assert_eq!(whitelist, vec![pool.lp_token.clone()]);
 }
 
 #[test]
@@ -774,17 +853,17 @@ fn test_tune_only_hub() {
         ContractError::TuneCooldown(epoch_start + EPOCH_LENGTH)
     );
 
-    let lp_token1 = helper.create_pair("token1", "token2");
-    let lp_token2 = helper.create_pair("token1", "token3");
-    let astro_pool = helper
-        .create_pair(helper.astro.clone().as_str(), "uusd")
-        .to_string();
+    let pool1 = helper.create_pair("token1", "token2");
+    let pool2 = helper.create_pair("token1", "token3");
+    let lp_token1 = pool1.lp_token.clone();
+    let lp_token2 = pool2.lp_token.clone();
+    let astro_pool = helper.create_pair(helper.astro.clone().as_str(), "uusd");
 
     let neutron = OutpostInfo {
         astro_denom: helper.astro.clone(),
         params: None,
         astro_pool_config: Some(AstroPoolConfig {
-            astro_pool: astro_pool.clone(),
+            astro_pool: astro_pool.lp_token.clone(),
             constant_emissions: 1_000_000_000u128.into(),
         }),
         jailed: false,
@@ -794,10 +873,10 @@ fn test_tune_only_hub() {
     let user = helper.app.api().addr_make("user");
 
     let whitelist_fee = helper.whitelisting_fee.clone();
-    for pool in &[lp_token1.clone(), lp_token2.clone()] {
+    for pool in [&pool1, &pool2] {
         helper.mint_tokens(&user, &[whitelist_fee.clone()]).unwrap();
         helper
-            .whitelist(&user, pool, vec![], &[whitelist_fee.clone()])
+            .whitelist(&user, pool, &[whitelist_fee.clone()])
             .unwrap();
     }
 
@@ -845,7 +924,7 @@ fn test_tune_only_hub() {
         }
     );
     // Check astro pool
-    let rewards = helper.query_rewards(&astro_pool).unwrap();
+    let rewards = helper.query_rewards(&astro_pool.lp_token).unwrap();
     let expected_rps = Decimal256::from_ratio(
         neutron
             .astro_pool_config
@@ -912,7 +991,7 @@ fn test_tune_only_hub() {
         }
     );
     // Check astro pool
-    let rewards = helper.query_rewards(&astro_pool).unwrap();
+    let rewards = helper.query_rewards(&astro_pool.lp_token).unwrap();
     let expected_rps = Decimal256::from_ratio(
         neutron
             .astro_pool_config
@@ -941,9 +1020,9 @@ fn test_tune_only_hub() {
         pools_grouped: HashMap::from([(
             "neutron".to_string(),
             vec![
-                (lp_token1.to_string(), Uint128::new(146666666665)),
-                (lp_token2.to_string(), Uint128::new(146666666665)),
-                (astro_pool.to_string(), Uint128::new(1000000000)),
+                (lp_token1.clone(), Uint128::new(146666666665)),
+                (lp_token2.clone(), Uint128::new(146666666665)),
+                (astro_pool.lp_token.clone(), Uint128::new(1000000000)),
             ]
             .into_iter()
             .sorted()
@@ -970,9 +1049,9 @@ fn test_tune_only_hub() {
         pools_grouped: HashMap::from([(
             "neutron".to_string(),
             vec![
-                (lp_token1.to_string(), Uint128::new(133600000000)),
-                (lp_token2.to_string(), Uint128::new(133600000000)),
-                (astro_pool.to_string(), Uint128::new(1000000000)),
+                (lp_token1.clone(), Uint128::new(133600000000)),
+                (lp_token2.clone(), Uint128::new(133600000000)),
+                (astro_pool.lp_token.clone(), Uint128::new(1000000000)),
             ]
             .into_iter()
             .sorted()
@@ -994,9 +1073,21 @@ fn test_tune_outpost() {
     let mut helper = ControllerHelper::new();
     let owner = helper.owner.clone();
 
-    let lp_token1 = "factory/osmo1pool1/astroport/share";
-    let lp_token2 = "factory/osmo1pool2/astroport/share";
-    let astro_pool = "factory/osmo1astropool/astroport/share";
+    let pool1 = PairData {
+        pair_addr: "osmo1pool1".to_string(),
+        lp_token: "factory/osmo1pool1/astroport/share".to_string(),
+        asset_infos: vec![AssetInfo::native("uosmo"), AssetInfo::native("uusd")],
+    };
+    let pool2 = PairData {
+        pair_addr: "osmo1pool2".to_string(),
+        lp_token: "factory/osmo1pool2/astroport/share".to_string(),
+        asset_infos: vec![AssetInfo::native("uosmo"), AssetInfo::native("uusd")],
+    };
+    let astro_pool = PairData {
+        pair_addr: "osmo1astropool".to_string(),
+        lp_token: "factory/osmo1astropool/astroport/share".to_string(),
+        asset_infos: vec![AssetInfo::native("uosmo"), AssetInfo::native("uusd")],
+    };
 
     let osmosis = OutpostInfo {
         astro_denom: "ibc/6569E05DEE32B339D9286A52BE33DFCEFC97267F23EF9CFDE0C055140967A9A5"
@@ -1008,7 +1099,7 @@ fn test_tune_outpost() {
             escrow_address: Addr::unchecked(""),
         }),
         astro_pool_config: Some(AstroPoolConfig {
-            astro_pool: astro_pool.to_string(),
+            astro_pool: astro_pool.lp_token.clone(),
             constant_emissions: 1_000_000_000u128.into(),
         }),
         jailed: false,
@@ -1016,12 +1107,24 @@ fn test_tune_outpost() {
     helper.add_outpost("osmo", osmosis.clone()).unwrap();
 
     let whitelist_fee = helper.whitelisting_fee.clone();
-    for pool in [lp_token1, lp_token2] {
+    for pool in [&pool1, &pool2] {
         helper
             .mint_tokens(&owner, &[whitelist_fee.clone()])
             .unwrap();
         helper
-            .whitelist(&owner, pool, vec![], &[whitelist_fee.clone()])
+            .whitelist(&owner, pool, &[whitelist_fee.clone()])
+            .unwrap();
+        // Confirm from the outpost
+        helper
+            .mock_ibc_ack(
+                VxAstroIbcMsg::CheckWhitelistEligibility {
+                    lp_token: pool.lp_token.clone(),
+                    route: vec![],
+                    liq_percent: Default::default(),
+                    allowed_spread: Default::default(),
+                },
+                None,
+            )
             .unwrap();
     }
 
@@ -1032,8 +1135,8 @@ fn test_tune_outpost() {
         .vote(
             &user,
             &[
-                (lp_token1.to_string(), Decimal::percent(50)),
-                (lp_token2.to_string(), Decimal::percent(50)),
+                (pool1.lp_token.clone(), Decimal::percent(50)),
+                (pool2.lp_token.clone(), Decimal::percent(50)),
             ],
         )
         .unwrap();
@@ -1059,9 +1162,9 @@ fn test_tune_outpost() {
         pools_grouped: HashMap::from([(
             "osmo".to_string(),
             vec![
-                (lp_token1.to_string(), Uint128::new(133600000000)),
-                (lp_token2.to_string(), Uint128::new(133600000000)),
-                (astro_pool.to_string(), Uint128::new(1000000000)),
+                (pool1.lp_token.clone(), Uint128::new(133600000000)),
+                (pool2.lp_token.clone(), Uint128::new(133600000000)),
+                (astro_pool.lp_token.clone(), Uint128::new(1000000000)),
             ]
             .into_iter()
             .sorted()
@@ -1166,9 +1269,9 @@ fn test_tune_outpost() {
         pools_grouped: HashMap::from([(
             "osmo".to_string(),
             vec![
-                (lp_token1.to_string(), Uint128::new(133600000000)),
-                (lp_token2.to_string(), Uint128::new(133600000000)),
-                (astro_pool.to_string(), Uint128::new(1000000000)),
+                (pool1.lp_token.clone(), Uint128::new(133600000000)),
+                (pool2.lp_token.clone(), Uint128::new(133600000000)),
+                (astro_pool.lp_token.clone(), Uint128::new(1000000000)),
             ]
             .into_iter()
             .sorted()
@@ -1246,11 +1349,11 @@ fn test_lock_unlock_vxastro() {
 
     let pool1 = helper.create_pair("token1", "token2");
     helper
-        .whitelist(&owner, &pool1, vec![], &[whitelisting_fee.clone()])
+        .whitelist(&owner, &pool1, &[whitelisting_fee.clone()])
         .unwrap();
     let pool2 = helper.create_pair("token1", "token3");
     helper
-        .whitelist(&owner, &pool2, vec![], &[whitelisting_fee.clone()])
+        .whitelist(&owner, &pool2, &[whitelisting_fee.clone()])
         .unwrap();
 
     let alice = helper.app.api().addr_make("alice");
@@ -1266,8 +1369,8 @@ fn test_lock_unlock_vxastro() {
             .vote(
                 user,
                 &[
-                    (pool1.to_string(), Decimal::percent(50)),
-                    (pool2.to_string(), Decimal::percent(50)),
+                    (pool1.lp_token.clone(), Decimal::percent(50)),
+                    (pool2.lp_token.clone(), Decimal::percent(50)),
                 ],
             )
             .unwrap();
@@ -1282,12 +1385,12 @@ fn test_lock_unlock_vxastro() {
                 vote_ts: voting_block_ts,
                 voting_power: 1_000000u128.into(),
                 votes: HashMap::from([
-                    (pool1.to_string(), Decimal::percent(50)),
-                    (pool2.to_string(), Decimal::percent(50)),
+                    (pool1.lp_token.clone(), Decimal::percent(50)),
+                    (pool2.lp_token.clone(), Decimal::percent(50)),
                 ]),
                 applied_votes: HashMap::from([
-                    (pool1.to_string(), Decimal::percent(50)),
-                    (pool2.to_string(), Decimal::percent(50)),
+                    (pool1.lp_token.clone(), Decimal::percent(50)),
+                    (pool2.lp_token.clone(), Decimal::percent(50)),
                 ])
             }
         );
@@ -1295,7 +1398,7 @@ fn test_lock_unlock_vxastro() {
 
     // Assert pools voting power
     for pool in [&pool1, &pool2] {
-        let pool_vp = helper.query_pool_vp(pool.as_str(), None).unwrap();
+        let pool_vp = helper.query_pool_vp(&pool.lp_token, None).unwrap();
         assert_eq!(pool_vp.u128(), 1_000000);
     }
 
@@ -1306,7 +1409,7 @@ fn test_lock_unlock_vxastro() {
 
     // Ensure pool voting power is updated
     for pool in [&pool1, &pool2] {
-        let pool_vp = helper.query_pool_vp(pool.as_str(), None).unwrap();
+        let pool_vp = helper.query_pool_vp(&pool.lp_token, None).unwrap();
         assert_eq!(pool_vp.u128(), 1_500000);
     }
 
@@ -1315,7 +1418,7 @@ fn test_lock_unlock_vxastro() {
 
     // Ensure pool voting power is updated
     for pool in [&pool1, &pool2] {
-        let pool_vp = helper.query_pool_vp(pool.as_str(), None).unwrap();
+        let pool_vp = helper.query_pool_vp(&pool.lp_token, None).unwrap();
         assert_eq!(pool_vp.u128(), 1_000000);
     }
 
@@ -1326,7 +1429,7 @@ fn test_lock_unlock_vxastro() {
 
     // Ensure pool voting power is updated
     for pool in [&pool1, &pool2] {
-        let pool_vp = helper.query_pool_vp(pool.as_str(), None).unwrap();
+        let pool_vp = helper.query_pool_vp(&pool.lp_token, None).unwrap();
         assert_eq!(pool_vp.u128(), 1_500000);
     }
 
@@ -1342,12 +1445,12 @@ fn test_lock_unlock_vxastro() {
                 vote_ts: voting_block_ts,
                 voting_power: 1_000000u128.into(),
                 votes: HashMap::from([
-                    (pool1.to_string(), Decimal::percent(50)),
-                    (pool2.to_string(), Decimal::percent(50)),
+                    (pool1.lp_token.clone(), Decimal::percent(50)),
+                    (pool2.lp_token.clone(), Decimal::percent(50)),
                 ]),
                 applied_votes: HashMap::from([
-                    (pool1.to_string(), Decimal::percent(50)),
-                    (pool2.to_string(), Decimal::percent(50)),
+                    (pool1.lp_token.clone(), Decimal::percent(50)),
+                    (pool2.lp_token.clone(), Decimal::percent(50)),
                 ])
             }
         );
@@ -1355,8 +1458,8 @@ fn test_lock_unlock_vxastro() {
 
     let voted_pools = helper.query_pools_vp(Some(5)).unwrap();
     let mut expected_pools = vec![
-        (pool1.to_string(), 1_500000u128.into()),
-        (pool2.to_string(), 1_500000u128.into()),
+        (pool1.lp_token.clone(), 1_500000u128.into()),
+        (pool2.lp_token.clone(), 1_500000u128.into()),
     ];
     expected_pools.sort();
     assert_eq!(voted_pools, expected_pools);
@@ -1409,20 +1512,11 @@ fn test_instant_unlock_vxastro() {
 
     let pool1 = helper.create_pair("token1", &astro);
     helper
-        .whitelist(
-            &owner,
-            &pool1,
-            vec![RouteStep {
-                pair_address: pool1.clone(),
-                offer_asset_info: AssetInfo::native("token1"),
-                ask_asset_info: AssetInfo::native(&astro),
-            }],
-            &[whitelisting_fee.clone()],
-        )
+        .whitelist(&owner, &pool1, &[whitelisting_fee.clone()])
         .unwrap();
-    let pool2 = helper.create_pair(&astro, "token3");
+    let pool2 = helper.create_pair("token2", &astro);
     helper
-        .whitelist(&owner, &pool2, vec![], &[whitelisting_fee.clone()])
+        .whitelist(&owner, &pool2, &[whitelisting_fee.clone()])
         .unwrap();
 
     let alice = helper.app.api().addr_make("alice");
@@ -1432,15 +1526,15 @@ fn test_instant_unlock_vxastro() {
         .vote(
             &alice,
             &[
-                (pool1.to_string(), Decimal::percent(50)),
-                (pool2.to_string(), Decimal::percent(50)),
+                (pool1.lp_token.clone(), Decimal::percent(50)),
+                (pool2.lp_token.clone(), Decimal::percent(50)),
             ],
         )
         .unwrap();
 
     // Assert pools voting power
     for pool in [&pool1, &pool2] {
-        let pool_vp = helper.query_pool_vp(pool.as_str(), None).unwrap();
+        let pool_vp = helper.query_pool_vp(&pool.lp_token, None).unwrap();
         assert_eq!(pool_vp.u128(), 5_000000);
     }
 
@@ -1487,7 +1581,7 @@ fn test_instant_unlock_vxastro() {
 
     // Assert pools voting power is reduced
     for pool in [&pool1, &pool2] {
-        let pool_vp = helper.query_pool_vp(pool.as_str(), None).unwrap();
+        let pool_vp = helper.query_pool_vp(&pool.lp_token, None).unwrap();
         assert_eq!(pool_vp.u128(), 4_000000);
     }
 
@@ -1538,16 +1632,24 @@ fn test_some_epochs() {
             },
         )
         .unwrap();
-    let pool1 = "osmo1pool1";
-    let pool2 = "osmo1pool2";
+    let pool1 = PairData {
+        pair_addr: "osmo1pool1".to_string(),
+        lp_token: "osmo1pool1".to_string(),
+        asset_infos: vec![AssetInfo::native("uosmo"), AssetInfo::native("uion")],
+    };
+    let pool2 = PairData {
+        pair_addr: "osmo1pool2".to_string(),
+        lp_token: "osmo1pool2".to_string(),
+        asset_infos: vec![AssetInfo::native("uosmo"), AssetInfo::native("uion")],
+    };
     helper
         .mint_tokens(&owner, &coins(100000000, helper.astro.clone()))
         .unwrap();
     helper
-        .whitelist(&owner, pool1, vec![], &[whitelisting_fee.clone()])
+        .whitelist(&owner, &pool1, &[whitelisting_fee.clone()])
         .unwrap();
     helper
-        .whitelist(&owner, pool2, vec![], &[whitelisting_fee.clone()])
+        .whitelist(&owner, &pool2, &[whitelisting_fee.clone()])
         .unwrap();
 
     let user1 = helper.app.api().addr_make("user1");
@@ -1555,11 +1657,35 @@ fn test_some_epochs() {
     let user2 = helper.app.api().addr_make("user2");
     helper.lock(&user2, 1_000000).unwrap();
 
+    // Mocking outpost confirmations
     helper
-        .vote(&user1, &[(pool1.to_string(), Decimal::one())])
+        .mock_ibc_ack(
+            VxAstroIbcMsg::CheckWhitelistEligibility {
+                lp_token: pool1.lp_token.clone(),
+                route: vec![],
+                liq_percent: Default::default(),
+                allowed_spread: Default::default(),
+            },
+            None,
+        )
         .unwrap();
     helper
-        .vote(&user2, &[(pool2.to_string(), Decimal::one())])
+        .mock_ibc_ack(
+            VxAstroIbcMsg::CheckWhitelistEligibility {
+                lp_token: pool2.lp_token.clone(),
+                route: vec![],
+                liq_percent: Default::default(),
+                allowed_spread: Default::default(),
+            },
+            None,
+        )
+        .unwrap();
+
+    helper
+        .vote(&user1, &[(pool1.lp_token.clone(), Decimal::one())])
+        .unwrap();
+    helper
+        .vote(&user2, &[(pool2.lp_token.clone(), Decimal::one())])
         .unwrap();
 
     // Preparing controller balance for tuning
@@ -1577,8 +1703,8 @@ fn test_some_epochs() {
     assert_eq!(
         voted_pools,
         [
-            (pool1.to_string(), 1_000000u128.into()),
-            (pool2.to_string(), 1_000000u128.into()),
+            (pool1.lp_token.clone(), 1_000000u128.into()),
+            (pool2.lp_token.clone(), 1_000000u128.into()),
         ]
     );
 
@@ -1590,8 +1716,8 @@ fn test_some_epochs() {
     // User1 unlocked, user2 still keeps his votes
     let voted_pools = helper.query_pools_vp(None).unwrap();
     let expected_pools = vec![
-        (pool1.to_string(), 0u128.into()),
-        (pool2.to_string(), 1_000000u128.into()),
+        (pool1.lp_token.clone(), 0u128.into()),
+        (pool2.lp_token.clone(), 1_000000u128.into()),
     ];
     assert_eq!(voted_pools, expected_pools);
 
@@ -1606,8 +1732,8 @@ fn test_some_epochs() {
     assert_eq!(
         voted_pools,
         [
-            (pool1.to_string(), 1_000000u128.into()),
-            (pool2.to_string(), 0u128.into()),
+            (pool1.lp_token.clone(), 1_000000u128.into()),
+            (pool2.lp_token.clone(), 0u128.into()),
         ]
     );
 
@@ -1635,20 +1761,32 @@ fn test_some_epochs() {
 
     // pool2 was removed from votable pools
     let voted_pools = helper.query_pools_vp(None).unwrap();
-    assert_eq!(voted_pools, [(pool1.to_string(), 1_000000u128.into())]);
+    assert_eq!(voted_pools, [(pool1.lp_token.clone(), 1_000000u128.into())]);
 
     // And from whitelist
     let whitelist = helper.query_whitelist().unwrap();
-    assert_eq!(whitelist, vec![pool1.to_string()]);
+    assert_eq!(whitelist, vec![pool1.lp_token.clone()]);
 
     // If user2 relocks his votes won't be restored as pool2 must be whitelisted again
     helper.relock(&user2).unwrap();
     let voted_pools = helper.query_pools_vp(None).unwrap();
-    assert_eq!(voted_pools, [(pool1.to_string(), 1_000000u128.into())]);
+    assert_eq!(voted_pools, [(pool1.lp_token.clone(), 1_000000u128.into())]);
 
     // Whitelist pool2 again
     helper
-        .whitelist(&owner, pool2, vec![], &[whitelisting_fee.clone()])
+        .whitelist(&owner, &pool2, &[whitelisting_fee.clone()])
+        .unwrap();
+    // And confirm from the outpost again
+    helper
+        .mock_ibc_ack(
+            VxAstroIbcMsg::CheckWhitelistEligibility {
+                lp_token: pool2.lp_token.clone(),
+                route: vec![],
+                liq_percent: Default::default(),
+                allowed_spread: Default::default(),
+            },
+            None,
+        )
         .unwrap();
 
     // Ensure that user2 votes are not applied
@@ -1663,8 +1801,8 @@ fn test_some_epochs() {
     assert_eq!(
         voted_pools,
         [
-            (pool1.to_string(), 1_000000u128.into()),
-            (pool2.to_string(), 1_000000u128.into()),
+            (pool1.lp_token.clone(), 1_000000u128.into()),
+            (pool2.lp_token.clone(), 1_000000u128.into()),
         ]
     );
 }
@@ -1970,8 +2108,8 @@ fn test_update_config() {
             whitelist_threshold: Decimal::percent(1),
             emissions_multiple: Decimal::percent(90),
             max_astro: 1_000_000u128.into(),
-            liquidity_percent: Default::default(),
-            allowed_spread_per_step: Default::default(),
+            liquidity_percent: Decimal::percent(20),
+            allowed_spread_per_step: Decimal::percent(5),
         }
     );
 }

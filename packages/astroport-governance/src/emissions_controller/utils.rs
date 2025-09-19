@@ -84,7 +84,7 @@ pub fn validate_whitelist_eligibility(
             .offer_asset_info
             .query_pool(&querier, &pair_info.contract_addr)?;
 
-    for step in route {
+    for (i, step) in route.iter().enumerate() {
         let step_pair_info: PairInfo =
             querier.query_wasm_smart(&step.pair_address, &pair::QueryMsg::Pair {})?;
 
@@ -112,10 +112,18 @@ pub fn validate_whitelist_eligibility(
             },
         )?;
 
+        let allowed_spread = if i == 0 && step.pair_address == pair_info.contract_addr {
+            // If the first step is the pool to be whitelisted, we allow a spread liq_percent + allowed_spread_per_step,
+            // since we are simulating with a fraction of the pool's liquidity.
+            liq_percent + allowed_spread_per_step
+        } else {
+            allowed_spread_per_step
+        };
+
         let spread = Decimal::from_ratio(res.spread_amount, res.return_amount);
         ensure!(
-            spread <= allowed_spread_per_step,
-            StdError::generic_err(format!("Spread {spread} is too high for step with pair {}. Max allowed is {allowed_spread_per_step}", step.pair_address))
+            spread <= allowed_spread,
+            StdError::generic_err(format!("Spread {spread} is too high for step with pair {}. Max allowed is {allowed_spread}", step.pair_address))
         );
 
         step_amount = res.return_amount;
