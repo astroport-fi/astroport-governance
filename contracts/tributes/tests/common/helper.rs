@@ -1,7 +1,13 @@
 use astroport::asset::{Asset, AssetInfo, AssetInfoExt, PairInfo};
+use astroport::common::LP_SUBDENOM;
 use astroport::factory;
 use astroport::factory::{PairConfig, PairType};
 use astroport::token::Logo;
+use astroport_governance::emissions_controller::consts::EPOCHS_START;
+use astroport_governance::emissions_controller::hub::{HubInstantiateMsg, HubMsg, RouteStep};
+use astroport_governance::tributes::{ExecuteMsg, TributeFeeInfo, TributeInfo};
+use astroport_governance::voting_escrow::UpdateMarketingInfo;
+use astroport_governance::{emissions_controller, tributes, voting_escrow};
 use cosmwasm_std::{
     coin, coins, Addr, BlockInfo, Coin, Decimal, Empty, MemoryStorage, StdResult, Timestamp,
     Uint128,
@@ -16,12 +22,6 @@ use itertools::Itertools;
 use neutron_sdk::bindings::msg::NeutronMsg;
 use neutron_sdk::bindings::query::NeutronQuery;
 use std::collections::HashMap;
-
-use astroport_governance::emissions_controller::consts::EPOCHS_START;
-use astroport_governance::emissions_controller::hub::{HubInstantiateMsg, HubMsg, RouteStep};
-use astroport_governance::tributes::{ExecuteMsg, TributeFeeInfo, TributeInfo};
-use astroport_governance::voting_escrow::UpdateMarketingInfo;
-use astroport_governance::{emissions_controller, tributes, voting_escrow};
 
 use crate::common::contracts::*;
 use crate::common::stargate::StargateModule;
@@ -249,26 +249,33 @@ impl Helper {
         )
     }
 
-    pub fn create_pair(&mut self, denom1: &str, denom2: &str) -> String {
-        let asset_infos = vec![AssetInfo::native(denom1), AssetInfo::native(denom2)];
+    pub fn create_pair(&mut self, denom1: &str) -> String {
+        let owner = self.owner.clone();
+        let initial_liquidity = [coin(1_000000, denom1), coin(1_000000, &self.astro)];
+
+        self.mint_tokens(&owner, &initial_liquidity).unwrap();
+
+        let asset_infos = initial_liquidity
+            .iter()
+            .map(|c| AssetInfo::native(&c.denom))
+            .collect_vec();
+
         self.app
             .execute_contract(
-                self.owner.clone(),
+                owner.clone(),
                 self.factory.clone(),
                 &factory::ExecuteMsg::CreatePair {
                     pair_type: PairType::Xyk {},
                     asset_infos: asset_infos.clone(),
                     init_params: None,
                 },
-                &[],
+                &initial_liquidity,
             )
-            .unwrap();
-
-        self.app
-            .wrap()
-            .query_wasm_smart::<PairInfo>(&self.factory, &factory::QueryMsg::Pair { asset_infos })
+            .map(|resp| {
+                let pair_addr = &resp.custom_attrs(7)[1].value;
+                format!("factory/{pair_addr}/{LP_SUBDENOM}")
+            })
             .unwrap()
-            .liquidity_token
     }
 
     pub fn vote(&mut self, user: &Addr, votes: &[(String, Decimal)]) -> AnyResult<AppResponse> {
@@ -282,19 +289,31 @@ impl Helper {
         )
     }
 
-    pub fn whitelist(
-        &mut self,
-        pool: impl Into<String>,
-        validation_route: Vec<RouteStep>,
-    ) -> AnyResult<AppResponse> {
+    pub fn whitelist(&mut self, lp_token: impl Into<String>) -> AnyResult<AppResponse> {
+        let lp_token = lp_token.into();
+        let pair_info: PairInfo = self
+            .app
+            .wrap()
+            .query_wasm_smart(
+                self.factory.clone(),
+                &factory::QueryMsg::PairByLpToken {
+                    lp_token: lp_token.clone(),
+                },
+            )
+            .unwrap();
+
         let fee = [self.fee.clone()];
         self.mint_tokens(&self.owner.clone(), &fee)?;
         self.app.execute_contract(
             self.owner.clone(),
             self.emission_controller.clone(),
             &emissions_controller::msg::ExecuteMsg::Custom(HubMsg::WhitelistPool {
-                lp_token: pool.into(),
-                validation_route,
+                lp_token,
+                validation_route: vec![RouteStep {
+                    pair_address: pair_info.contract_addr.to_string(),
+                    offer_asset_info: pair_info.asset_infos[0].clone(),
+                    ask_asset_info: pair_info.asset_infos[1].clone(),
+                }],
             }),
             &fee,
         )
