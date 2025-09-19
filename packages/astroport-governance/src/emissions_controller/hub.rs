@@ -1,6 +1,9 @@
 use std::collections::HashMap;
 
-use crate::emissions_controller::consts::POOL_NUMBER_LIMIT;
+use crate::emissions_controller::consts::{
+    LIQUIDITY_PERCENT_MAX, LIQUIDITY_PERCENT_MIN, POOL_NUMBER_LIMIT, SPREAD_PER_STEP_MAX,
+    SPREAD_PER_STEP_MIN,
+};
 use crate::voting_escrow::UpdateMarketingInfo;
 use astroport::asset::{validate_native_denom, AssetInfo};
 use cosmwasm_schema::{cw_serde, QueryResponses};
@@ -288,7 +291,21 @@ impl Config {
             StdError::generic_err("max_astro must be greater than 0")
         );
 
-        // TODO: add liquidity_percent and allowed_spread_per_step validations
+        ensure!(
+            self.liquidity_percent >= LIQUIDITY_PERCENT_MIN
+                && self.liquidity_percent <= LIQUIDITY_PERCENT_MAX,
+            StdError::generic_err(format!(
+                "liquidity_percent must be within [{LIQUIDITY_PERCENT_MIN}, {LIQUIDITY_PERCENT_MAX}] range"
+            ))
+        );
+
+        ensure!(
+            self.allowed_spread_per_step >= SPREAD_PER_STEP_MIN
+                && self.allowed_spread_per_step <= SPREAD_PER_STEP_MAX,
+            StdError::generic_err(format!(
+                "allowed_spread_per_step must be within [{SPREAD_PER_STEP_MIN}, {SPREAD_PER_STEP_MAX}] range"
+            ))
+        );
 
         Ok(())
     }
@@ -473,8 +490,8 @@ mod unit_tests {
             whitelist_threshold: Decimal::percent(10),
             emissions_multiple: Decimal::percent(80),
             max_astro: 1_400_000_000_000u128.into(),
-            liquidity_percent: Default::default(),
-            allowed_spread_per_step: Default::default(),
+            liquidity_percent: Decimal::percent(10),
+            allowed_spread_per_step: Decimal::percent(5),
         };
         assert_eq!(
             config.validate().unwrap_err(),
@@ -522,6 +539,22 @@ mod unit_tests {
         );
 
         config.max_astro = 1_400_000_000_000u128.into();
+
+        config.liquidity_percent = Decimal::zero();
+        assert_eq!(
+            config.validate().unwrap_err(),
+            StdError::generic_err("liquidity_percent must be within [0.01, 0.5] range")
+        );
+
+        config.liquidity_percent = Decimal::percent(10);
+        config.allowed_spread_per_step = Decimal::zero();
+
+        assert_eq!(
+            config.validate().unwrap_err(),
+            StdError::generic_err("allowed_spread_per_step must be within [0.01, 0.5] range")
+        );
+
+        config.allowed_spread_per_step = Decimal::percent(5);
 
         config.validate().unwrap();
     }

@@ -1,6 +1,6 @@
 use std::ops::RangeInclusive;
 
-use cosmwasm_std::IbcOrder;
+use cosmwasm_std::{Decimal, IbcOrder};
 
 /// vxASTRO voting epoch starts on Mon May 27 00:00:00 UTC 2024
 pub const EPOCHS_START: u64 = 1716768000;
@@ -23,3 +23,11 @@ pub const IBC_APP_VERSION: &str = "vxastro-ibc-v1";
 pub const IBC_ORDERING: IbcOrder = IbcOrder::Unordered;
 /// Maximum length of a swap route for whitelist validation
 pub const WHITELIST_VALIDATION_MAX_ROUTE_LENGTH: usize = 5;
+/// Minimum liquidity percent to be used in pool whitelist validation
+pub const LIQUIDITY_PERCENT_MIN: Decimal = Decimal::percent(1);
+/// Maximum liquidity percent to be used in pool whitelist validation
+pub const LIQUIDITY_PERCENT_MAX: Decimal = Decimal::percent(50);
+/// Minimum spread per step to be used in pool whitelist validation
+pub const SPREAD_PER_STEP_MIN: Decimal = Decimal::percent(1);
+/// Maximum spread per step to be used in pool whitelist validation
+pub const SPREAD_PER_STEP_MAX: Decimal = Decimal::percent(50);
