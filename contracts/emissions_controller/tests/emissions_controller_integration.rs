@@ -550,6 +550,22 @@ fn test_outpost_management() {
         )
         .unwrap();
 
+    // Check that while there is pending validation, a pool can't be re-tried for whitelisting
+    helper
+        .mint_tokens(&user, &[helper.whitelisting_fee.clone()])
+        .unwrap();
+    let err = helper
+        .whitelist(
+            &user,
+            &osmosis_astro_pool,
+            &[helper.whitelisting_fee.clone()],
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::PendingWhitelisting(osmosis_astro_pool.lp_token.clone())
+    );
+
     // Check that before IBC ack, remote pools aren't whitelisted
     let whitelist = helper.query_whitelist().unwrap();
     assert_eq!(whitelist, [pool.lp_token.clone()]);
@@ -572,9 +588,6 @@ fn test_outpost_management() {
     assert_eq!(whitelist, [pool.lp_token.clone()]);
 
     // Try to whitelist again
-    helper
-        .mint_tokens(&user, &[helper.whitelisting_fee.clone()])
-        .unwrap();
     helper
         .whitelist(
             &user,
