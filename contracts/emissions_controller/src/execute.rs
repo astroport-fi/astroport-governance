@@ -20,7 +20,7 @@ use astroport_governance::emissions_controller::consts::{
 };
 use astroport_governance::emissions_controller::hub::{
     AstroPoolConfig, HubMsg, InputOutpostParams, OutpostInfo, OutpostParams, OutpostStatus,
-    RouteStep, TuneInfo, UserInfo, VotedPoolInfo, WhitelistValidationInfo,
+    TuneInfo, UserInfo, VotedPoolInfo, WhitelistValidationInfo,
 };
 use astroport_governance::emissions_controller::msg::{ExecuteMsg, VxAstroIbcMsg};
 use astroport_governance::emissions_controller::utils::{
@@ -141,8 +141,8 @@ pub fn execute(
         ExecuteMsg::Custom(hub_msg) => match hub_msg {
             HubMsg::WhitelistPool {
                 lp_token,
-                validation_route,
-            } => whitelist_pool(deps, env, info, lp_token, validation_route),
+                validation_info,
+            } => whitelist_pool(deps, env, info, lp_token, validation_info),
             HubMsg::UnwhitelistIneligiblePool { lp_token } => {
                 // TODO: consider pausing ability
                 todo!("implement unwhitelist_ineligible_pool")
@@ -200,7 +200,7 @@ pub fn whitelist_pool(
     env: Env,
     info: MessageInfo,
     pool: String,
-    route: Vec<RouteStep>,
+    validation_info: WhitelistValidationInfo,
 ) -> Result<Response<NeutronMsg>, ContractError> {
     let deps = deps.into_empty();
     let config = CONFIG.load(deps.storage)?;
@@ -233,14 +233,12 @@ pub fn whitelist_pool(
                 if pending.is_some() {
                     Err(ContractError::PendingWhitelisting(pool.clone()))
                 } else {
-                    Ok(WhitelistValidationInfo {
-                        route: route.clone(),
-                    })
+                    Ok(validation_info.clone())
                 }
             })?;
 
             // Revert early if the route is invalid
-            let route_len = route.len();
+            let route_len = validation_info.route.len();
             ensure!(
                 route_len > 0 && route_len <= WHITELIST_VALIDATION_MAX_ROUTE_LENGTH,
                 StdError::generic_err(format!("Route length must be between 0 and {WHITELIST_VALIDATION_MAX_ROUTE_LENGTH}, got {route_len}"))
@@ -249,7 +247,7 @@ pub fn whitelist_pool(
             Ok(vec![prepare_ibc_packet(
                 &env,
                 &pool,
-                route,
+                validation_info,
                 config.liquidity_percent,
                 config.allowed_spread_per_step,
                 outpost_params.voting_channel,
@@ -265,11 +263,12 @@ pub fn whitelist_pool(
                 config.liquidity_percent,
                 config.allowed_spread_per_step,
                 &pair_info,
-                &route,
+                &validation_info,
+                &config.astro_denom,
             )?;
 
             // If validation passed, save to the whitelist
-            POOLS_WHITELIST.save(deps.storage, &pool, &WhitelistValidationInfo { route })?;
+            POOLS_WHITELIST.save(deps.storage, &pool, &validation_info)?;
 
             Ok(vec![])
         }

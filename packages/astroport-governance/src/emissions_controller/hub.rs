@@ -90,7 +90,7 @@ pub enum HubMsg {
     /// Outpost lp token is added to the whitelist only if outpost confirms in IBC callback that the pool is valid.
     WhitelistPool {
         lp_token: String,
-        validation_route: Vec<RouteStep>,
+        validation_info: WhitelistValidationInfo,
     },
     /// Checks that a pool is still eligible for whitelisting.
     /// If a pool doesn't meet the criteria, it will be removed from the whitelist.
@@ -346,7 +346,7 @@ pub struct AstroPoolConfig {
 #[cw_serde]
 pub struct OutpostInfo {
     /// Outpost params contain all necessary information to interact with the remote outpost.
-    /// This field also serves as marker whether it is The hub (params: None) or
+    /// This field also serves as a marker whether it is The hub (params: None) or
     /// remote outpost (Some(params))
     pub params: Option<OutpostParams>,
     /// ASTRO token denom
@@ -447,24 +447,22 @@ pub struct EmissionsState {
 }
 
 #[cw_serde]
-pub struct RouteStep {
-    /// The address of the pair contract.
-    /// Must be registered in the factory.
-    pub pair_address: String,
-    /// Information about the asset being swapped
+pub struct WhitelistValidationInfo {
+    /// Information about the start asset being swapped. Must match one of the pool's assets.
     pub offer_asset_info: AssetInfo,
-    /// Information about the asset we swap to
-    pub ask_asset_info: AssetInfo,
+    /// Contains a list of pair addresses that form a swap route to ASTRO.
+    /// Each pair must be registered in the factory.
+    /// The route length is capped by [`consts::WHITELIST_VALIDATION_MAX_ROUTE_LENGTH`].
+    pub route: Vec<String>,
 }
 
-#[cw_serde]
-pub struct WhitelistValidationInfo {
-    /// Contains the swap route which must lead to ASTRO.
-    /// The route length is capped by [`consts::WHITELIST_VALIDATION_MAX_ROUTE_LENGTH`].
-    /// `offer_asset_info` of the first step must match either of pool's assets.
-    /// `ask_asset_info` of the last step must be ASTRO.
-    /// Intermediate steps must be valid Astroport pools.
-    pub route: Vec<RouteStep>,
+impl WhitelistValidationInfo {
+    pub fn mocked() -> Self {
+        Self {
+            offer_asset_info: AssetInfo::native("utest"),
+            route: vec![],
+        }
+    }
 }
 
 #[cfg(test)]

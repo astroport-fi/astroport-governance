@@ -120,7 +120,7 @@ pub fn do_packet_receive(
         }
         VxAstroIbcMsg::CheckWhitelistEligibility {
             lp_token,
-            route,
+            validation_info,
             liq_percent,
             allowed_spread,
         } => {
@@ -131,7 +131,8 @@ pub fn do_packet_receive(
                 liq_percent,
                 allowed_spread,
                 &pair_info,
-                &route,
+                &validation_info,
+                &config.astro_denom,
             )?;
         }
         _ => unreachable!("Outpost can't receive these messages"),

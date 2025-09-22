@@ -297,9 +297,6 @@ pub fn ibc_channel_close(
 
 #[cfg(test)]
 mod unit_tests {
-    use std::collections::HashMap;
-    use std::marker::PhantomData;
-
     use cosmwasm_std::testing::{mock_dependencies, mock_env, MockQuerier, MockStorage};
     use cosmwasm_std::{
         attr, coins, to_json_binary, Addr, Decimal, IbcChannel, IbcEndpoint, IbcOrder, IbcPacket,
@@ -307,6 +304,8 @@ mod unit_tests {
     };
     use cw_multi_test::MockApiBech32;
     use neutron_sdk::bindings::query::NeutronQuery;
+    use std::collections::HashMap;
+    use std::marker::PhantomData;
 
     use astroport_governance::assembly::ProposalVoteOption;
     use astroport_governance::emissions_controller::hub::{
@@ -528,7 +527,7 @@ mod unit_tests {
             .save(
                 deps.as_mut().storage,
                 "osmo1pool1",
-                &WhitelistValidationInfo { route: vec![] },
+                &WhitelistValidationInfo::mocked(),
             )
             .unwrap();
 

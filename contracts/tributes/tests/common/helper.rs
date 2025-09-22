@@ -4,7 +4,9 @@ use astroport::factory;
 use astroport::factory::{PairConfig, PairType};
 use astroport::token::Logo;
 use astroport_governance::emissions_controller::consts::EPOCHS_START;
-use astroport_governance::emissions_controller::hub::{HubInstantiateMsg, HubMsg, RouteStep};
+use astroport_governance::emissions_controller::hub::{
+    HubInstantiateMsg, HubMsg, WhitelistValidationInfo,
+};
 use astroport_governance::tributes::{ExecuteMsg, TributeFeeInfo, TributeInfo};
 use astroport_governance::voting_escrow::UpdateMarketingInfo;
 use astroport_governance::{emissions_controller, tributes, voting_escrow};
@@ -309,11 +311,10 @@ impl Helper {
             self.emission_controller.clone(),
             &emissions_controller::msg::ExecuteMsg::Custom(HubMsg::WhitelistPool {
                 lp_token,
-                validation_route: vec![RouteStep {
-                    pair_address: pair_info.contract_addr.to_string(),
+                validation_info: WhitelistValidationInfo {
                     offer_asset_info: pair_info.asset_infos[0].clone(),
-                    ask_asset_info: pair_info.asset_infos[1].clone(),
-                }],
+                    route: vec![pair_info.contract_addr.to_string()],
+                },
             }),
             &fee,
         )

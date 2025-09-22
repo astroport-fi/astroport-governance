@@ -3,7 +3,7 @@ use astroport::common::LP_SUBDENOM;
 use astroport::factory::{PairConfig, PairType};
 use astroport::incentives::RewardInfo;
 use astroport::token::Logo;
-use astroport::{factory, incentives, staking};
+use astroport::{factory, incentives, pair, staking};
 use astroport_governance::assembly::{
     ExecuteMsg, UpdateConfig, DELAY_INTERVAL, DEPOSIT_INTERVAL, EXPIRATION_PERIOD_INTERVAL,
     MINIMUM_PROPOSAL_REQUIRED_QUORUM_PERCENTAGE, MINIMUM_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE,
@@ -11,8 +11,8 @@ use astroport_governance::assembly::{
 };
 use astroport_governance::emissions_controller::consts::EPOCHS_START;
 use astroport_governance::emissions_controller::hub::{
-    EmissionsState, HubInstantiateMsg, HubMsg, InputOutpostParams, OutpostInfo, RouteStep,
-    SimulateTuneResponse, TuneInfo, UserInfoResponse, VotedPoolInfo,
+    EmissionsState, HubInstantiateMsg, HubMsg, InputOutpostParams, OutpostInfo,
+    SimulateTuneResponse, TuneInfo, UserInfoResponse, VotedPoolInfo, WhitelistValidationInfo,
 };
 use astroport_governance::emissions_controller::msg::{IbcAckResult, VxAstroIbcMsg};
 use astroport_governance::voting_escrow::UpdateMarketingInfo;
@@ -93,6 +93,7 @@ pub struct ControllerHelper {
     pub whitelisting_fee: Coin,
     pub emission_controller: Addr,
     pub incentives: Addr,
+    pub xyk_code_id: u64,
 }
 
 impl ControllerHelper {
@@ -332,15 +333,20 @@ impl ControllerHelper {
             emission_controller,
             incentives,
             assembly,
+            xyk_code_id,
         };
 
         helper
     }
 
-    pub fn mint_tokens(&mut self, user: &Addr, coins: &[Coin]) -> AnyResult<AppResponse> {
+    pub fn mint_tokens(
+        &mut self,
+        user: impl Into<String>,
+        coins: &[Coin],
+    ) -> AnyResult<AppResponse> {
         self.app.sudo(
             BankSudo::Mint {
-                to_address: user.to_string(),
+                to_address: user.into(),
                 amount: coins.to_vec(),
             }
             .into(),
@@ -461,6 +467,57 @@ impl ControllerHelper {
         )
     }
 
+    pub fn create_empty_pair(&mut self, denom1: &str, denom2: &str) -> PairData {
+        let asset_infos = vec![AssetInfo::native(denom1), AssetInfo::native(denom2)];
+
+        self.app
+            .execute_contract(
+                self.owner.clone(),
+                self.factory.clone(),
+                &factory::ExecuteMsg::CreatePair {
+                    pair_type: PairType::Xyk {},
+                    asset_infos: asset_infos.clone(),
+                    init_params: None,
+                },
+                &[],
+            )
+            .map(|resp| {
+                let pair_addr = &resp.custom_attrs(7)[1].value;
+                PairData {
+                    pair_addr: pair_addr.clone(),
+                    lp_token: format!("factory/{pair_addr}/{LP_SUBDENOM}"),
+                    asset_infos,
+                }
+            })
+            .unwrap()
+    }
+
+    pub fn create_unverified_pair(&mut self, denom1: &str, denom2: &str) -> PairData {
+        let asset_infos = vec![AssetInfo::native(denom1), AssetInfo::native(denom2)];
+
+        self.app
+            .instantiate_contract(
+                self.xyk_code_id,
+                self.owner.clone(),
+                &pair::InstantiateMsg {
+                    pair_type: PairType::Xyk {},
+                    asset_infos: asset_infos.clone(),
+                    token_code_id: 0,
+                    factory_addr: self.factory.to_string(),
+                    init_params: None,
+                },
+                &[],
+                "label",
+                None,
+            )
+            .map(|pair_addr| PairData {
+                pair_addr: pair_addr.to_string(),
+                lp_token: format!("factory/{pair_addr}/{LP_SUBDENOM}"),
+                asset_infos,
+            })
+            .unwrap()
+    }
+
     pub fn create_and_seed_pair(&mut self, initial_liquidity: [Coin; 2]) -> PairData {
         let owner = self.owner.clone();
 
@@ -473,7 +530,7 @@ impl ControllerHelper {
 
         self.app
             .execute_contract(
-                owner.clone(),
+                owner,
                 self.factory.clone(),
                 &factory::ExecuteMsg::CreatePair {
                     pair_type: PairType::Xyk {},
@@ -519,31 +576,28 @@ impl ControllerHelper {
             self.emission_controller.clone(),
             &emissions_controller::msg::ExecuteMsg::Custom(HubMsg::WhitelistPool {
                 lp_token: pool_data.lp_token.clone(),
-                validation_route: vec![RouteStep {
-                    pair_address: pool_data.pair_addr.clone(),
+                validation_info: WhitelistValidationInfo {
                     offer_asset_info: pool_data.asset_infos[0].clone(),
-                    ask_asset_info: pool_data.asset_infos[1].clone(),
-                }],
+                    route: vec![pool_data.pair_addr.clone()],
+                },
             }),
             fees,
         )
     }
 
-    pub fn whitelist_full(
+    pub fn whitelist_with_route(
         &mut self,
-        user: &Addr,
         pool: impl Into<String>,
-        validation_route: Vec<RouteStep>,
-        fees: &[Coin],
+        validation_info: WhitelistValidationInfo,
     ) -> AnyResult<AppResponse> {
         self.app.execute_contract(
-            user.clone(),
+            self.owner.clone(),
             self.emission_controller.clone(),
             &emissions_controller::msg::ExecuteMsg::Custom(HubMsg::WhitelistPool {
                 lp_token: pool.into(),
-                validation_route,
+                validation_info,
             }),
-            fees,
+            &[self.whitelisting_fee.clone()],
         )
     }
 

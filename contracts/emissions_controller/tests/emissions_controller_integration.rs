@@ -13,7 +13,7 @@ use astroport_governance::assembly::{ProposalVoteOption, ProposalVoterResponse};
 use astroport_governance::emissions_controller::consts::{DAY, EPOCH_LENGTH};
 use astroport_governance::emissions_controller::hub::{
     AstroPoolConfig, EmissionsState, HubMsg, OutpostInfo, OutpostParams, OutpostStatus, TuneInfo,
-    UserInfoResponse, VotedPoolInfo,
+    UserInfoResponse, VotedPoolInfo, WhitelistValidationInfo,
 };
 use astroport_governance::emissions_controller::msg::{ExecuteMsg, VxAstroIbcMsg};
 use astroport_governance::emissions_controller::utils::get_epoch_start;
@@ -28,6 +28,7 @@ mod common;
 #[test]
 pub fn voting_test() {
     let mut helper = ControllerHelper::new();
+    let astro = helper.astro.clone();
 
     let user = helper.app.api().addr_make("user");
 
@@ -41,8 +42,8 @@ pub fn voting_test() {
 
     helper.lock(&user, 1000).unwrap();
 
-    let pool1 = helper.create_pair("token1", "token2");
-    let pool2 = helper.create_pair("token1", "token3");
+    let pool1 = helper.create_pair("token1", &astro);
+    let pool2 = helper.create_pair("token2", &astro);
     let lp_token1 = pool1.lp_token.clone();
     let lp_token2 = pool2.lp_token.clone();
 
@@ -139,8 +140,9 @@ fn test_whitelist_blacklist() {
     let mut helper = ControllerHelper::new();
     let owner = helper.owner.clone();
     let whitelist_fee = helper.whitelisting_fee.clone();
+    let astro = helper.astro.clone();
 
-    let pool = helper.create_pair("token1", "token2");
+    let pool = helper.create_pair("token1", &astro);
     let lp_token = pool.lp_token.clone();
 
     let err = helper.whitelist(&owner, &pool, &[]).unwrap_err();
@@ -168,7 +170,7 @@ fn test_whitelist_blacklist() {
         ContractError::NoOutpostForPool(lp_token.to_string())
     );
 
-    let astro_pool = helper.create_pair(helper.astro.clone().as_str(), "uusd");
+    let astro_pool = helper.create_pair("uusd", helper.astro.clone().as_str());
     let neutron = OutpostInfo {
         astro_denom: helper.astro.clone(),
         params: None,
@@ -234,7 +236,7 @@ fn test_whitelist_blacklist() {
         ContractError::PoolAlreadyWhitelisted(lp_token.to_string())
     );
 
-    let pool2 = helper.create_pair("token1", "token3");
+    let pool2 = helper.create_pair("token2", &astro);
     helper
         .mint_tokens(&owner, &[whitelist_fee.clone()])
         .unwrap();
@@ -379,6 +381,7 @@ fn test_whitelist_blacklist() {
 #[test]
 fn test_outpost_management() {
     let mut helper = ControllerHelper::new();
+    let astro = helper.astro.clone();
 
     let mut neutron = OutpostInfo {
         astro_denom: helper.astro.clone(),
@@ -524,7 +527,7 @@ fn test_outpost_management() {
     helper
         .mint_tokens(&user, &[helper.whitelisting_fee.clone()])
         .unwrap();
-    let pool = helper.create_pair("token1", "token3");
+    let pool = helper.create_pair("token1", &astro);
     helper
         .whitelist(&user, &pool, &[helper.whitelisting_fee.clone()])
         .unwrap();
@@ -575,7 +578,7 @@ fn test_outpost_management() {
         .mock_ibc_ack(
             VxAstroIbcMsg::CheckWhitelistEligibility {
                 lp_token: osmosis_astro_pool.lp_token.clone(),
-                route: vec![],
+                validation_info: WhitelistValidationInfo::mocked(),
                 liq_percent: Default::default(),
                 allowed_spread: Default::default(),
             },
@@ -600,7 +603,7 @@ fn test_outpost_management() {
     helper
         .mock_ibc_timeout(VxAstroIbcMsg::CheckWhitelistEligibility {
             lp_token: osmosis_astro_pool.lp_token.clone(),
-            route: vec![],
+            validation_info: WhitelistValidationInfo::mocked(),
             liq_percent: Default::default(),
             allowed_spread: Default::default(),
         })
@@ -626,7 +629,7 @@ fn test_outpost_management() {
         .mock_ibc_ack(
             VxAstroIbcMsg::CheckWhitelistEligibility {
                 lp_token: osmosis_astro_pool.lp_token.clone(),
-                route: vec![],
+                validation_info: WhitelistValidationInfo::mocked(),
                 liq_percent: Default::default(),
                 allowed_spread: Default::default(),
             },
@@ -857,6 +860,7 @@ fn test_outpost_management() {
 fn test_tune_only_hub() {
     let mut helper = ControllerHelper::new();
     let owner = helper.owner.clone();
+    let astro = helper.astro.clone();
 
     let epoch_start = get_epoch_start(helper.app.block_info().time.seconds());
 
@@ -866,11 +870,11 @@ fn test_tune_only_hub() {
         ContractError::TuneCooldown(epoch_start + EPOCH_LENGTH)
     );
 
-    let pool1 = helper.create_pair("token1", "token2");
-    let pool2 = helper.create_pair("token1", "token3");
+    let pool1 = helper.create_pair("token1", &astro);
+    let pool2 = helper.create_pair("token2", &astro);
     let lp_token1 = pool1.lp_token.clone();
     let lp_token2 = pool2.lp_token.clone();
-    let astro_pool = helper.create_pair(helper.astro.clone().as_str(), "uusd");
+    let astro_pool = helper.create_pair(&astro, "uusd");
 
     let neutron = OutpostInfo {
         astro_denom: helper.astro.clone(),
@@ -1132,7 +1136,7 @@ fn test_tune_outpost() {
             .mock_ibc_ack(
                 VxAstroIbcMsg::CheckWhitelistEligibility {
                     lp_token: pool.lp_token.clone(),
-                    route: vec![],
+                    validation_info: WhitelistValidationInfo::mocked(),
                     liq_percent: Default::default(),
                     allowed_spread: Default::default(),
                 },
@@ -1311,6 +1315,7 @@ fn test_tune_outpost() {
 #[test]
 fn test_lock_unlock_vxastro() {
     let mut helper = ControllerHelper::new();
+    let astro = helper.astro.clone();
 
     // Ensure nobody but vxASTRO can call UpdateUserVotes endpoint
     let err = helper
@@ -1360,11 +1365,11 @@ fn test_lock_unlock_vxastro() {
         )
         .unwrap();
 
-    let pool1 = helper.create_pair("token1", "token2");
+    let pool1 = helper.create_pair("token1", &astro);
     helper
         .whitelist(&owner, &pool1, &[whitelisting_fee.clone()])
         .unwrap();
-    let pool2 = helper.create_pair("token1", "token3");
+    let pool2 = helper.create_pair("token2", &astro);
     helper
         .whitelist(&owner, &pool2, &[whitelisting_fee.clone()])
         .unwrap();
@@ -1675,7 +1680,7 @@ fn test_some_epochs() {
         .mock_ibc_ack(
             VxAstroIbcMsg::CheckWhitelistEligibility {
                 lp_token: pool1.lp_token.clone(),
-                route: vec![],
+                validation_info: WhitelistValidationInfo::mocked(),
                 liq_percent: Default::default(),
                 allowed_spread: Default::default(),
             },
@@ -1686,7 +1691,7 @@ fn test_some_epochs() {
         .mock_ibc_ack(
             VxAstroIbcMsg::CheckWhitelistEligibility {
                 lp_token: pool2.lp_token.clone(),
-                route: vec![],
+                validation_info: WhitelistValidationInfo::mocked(),
                 liq_percent: Default::default(),
                 allowed_spread: Default::default(),
             },
@@ -1794,7 +1799,7 @@ fn test_some_epochs() {
         .mock_ibc_ack(
             VxAstroIbcMsg::CheckWhitelistEligibility {
                 lp_token: pool2.lp_token.clone(),
-                route: vec![],
+                validation_info: WhitelistValidationInfo::mocked(),
                 liq_percent: Default::default(),
                 allowed_spread: Default::default(),
             },
@@ -2125,4 +2130,170 @@ fn test_update_config() {
             allowed_spread_per_step: Decimal::percent(5),
         }
     );
+}
+
+#[test]
+fn test_whitelisting_validation() {
+    let mut helper = ControllerHelper::new();
+    let owner = helper.owner.clone();
+    let whitelisting_fee = helper.whitelisting_fee.clone();
+    let astro = AssetInfo::native(&helper.astro);
+
+    // Mint some astro for whitelisting
+    helper
+        .mint_tokens(&owner, &[coin(u128::MAX / 2, &helper.astro)])
+        .unwrap();
+
+    helper
+        .add_outpost(
+            "neutron",
+            OutpostInfo {
+                astro_denom: helper.astro.clone(),
+                params: None,
+                astro_pool_config: None,
+                jailed: false,
+            },
+        )
+        .unwrap();
+
+    let pool = helper.create_empty_pair("token1", "token2");
+
+    // Try to whitelist an empty pool
+    let err = helper
+        .whitelist(&owner, &pool, &[whitelisting_fee.clone()])
+        .unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Generic error: Querier contract error: Generic error: One of the pools is empty"
+    );
+
+    // Seed pool with some liquidity
+    helper
+        .mint_tokens(
+            &pool.pair_addr,
+            &[coin(1000000, "token1"), coin(1000000, "token2")],
+        )
+        .unwrap();
+
+    // Try to whitelist a pool with empty route
+    let err = helper
+        .whitelist_with_route(
+            &pool.lp_token,
+            WhitelistValidationInfo {
+                offer_asset_info: AssetInfo::native("tokenX"),
+                route: vec![],
+            },
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Generic error: Route length must be between 0 and 5, got 0"
+    );
+
+    // Try to whitelist a pool with invalid route (not starting with pool asset)
+    let err = helper
+        .whitelist_with_route(
+            &pool.lp_token,
+            WhitelistValidationInfo {
+                offer_asset_info: AssetInfo::native("tokenX"),
+                route: vec![pool.pair_addr.clone()],
+            },
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Generic error: The first pair in the route must start with one of the pool's assets"
+    );
+
+    let err = helper
+        .whitelist_with_route(
+            &pool.lp_token,
+            WhitelistValidationInfo {
+                offer_asset_info: AssetInfo::native("token1"),
+                route: vec![pool.pair_addr.clone()],
+            },
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Generic error: Last step of the route must lead to ASTRO. Got token2"
+    );
+
+    // Try to use unverified pair contract in the route
+    let unverified_pair = helper.create_unverified_pair("token1", &astro.to_string());
+    let err = helper
+        .whitelist_with_route(
+            &pool.lp_token,
+            WhitelistValidationInfo {
+                offer_asset_info: AssetInfo::native("token1"),
+                route: vec![unverified_pair.pair_addr.clone()],
+            },
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Generic error: Querier contract error: Generic error: Pair not found"
+    );
+
+    // Create a pair that leads to astro
+    let pair_to_astro = helper.create_empty_pair("token2", &astro.to_string());
+    let err = helper
+        .whitelist_with_route(
+            &pool.lp_token,
+            WhitelistValidationInfo {
+                offer_asset_info: AssetInfo::native("token1"),
+                route: vec![pool.pair_addr.clone(), pair_to_astro.pair_addr.clone()],
+            },
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Generic error: Querier contract error: Generic error: One of the pools is empty"
+    );
+
+    // Seed the 2nd pool with some liquidity
+    helper
+        .mint_tokens(
+            &pair_to_astro.pair_addr,
+            &[coin(1_000000, "token2"), coin(1_000000, &helper.astro)],
+        )
+        .unwrap();
+
+    // Try to whitelist while having too high spread
+    let err = helper
+        .whitelist_with_route(
+            &pool.lp_token,
+            WhitelistValidationInfo {
+                offer_asset_info: AssetInfo::native("token1"),
+                route: vec![pool.pair_addr.clone(), pair_to_astro.pair_addr.clone()],
+            },
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Generic error: Spread 0.166671333370666965 is too high for step with pair neutron1hw5n2l4v5vz8lk4sj69j7pwdaut0kkn90mw09snlkdd3f7ckld0scs6taz. Max allowed is 0.05"
+    );
+
+    // Seed the 2nd pool with more liquidity to reduce the spread
+    helper
+        .mint_tokens(
+            &pair_to_astro.pair_addr,
+            &[coin(10_000000, "token2"), coin(10_000000, &helper.astro)],
+        )
+        .unwrap();
+
+    // Finally, whitelist the pool
+    helper
+        .whitelist_with_route(
+            &pool.lp_token,
+            WhitelistValidationInfo {
+                offer_asset_info: AssetInfo::native("token1"),
+                route: vec![pool.pair_addr.clone(), pair_to_astro.pair_addr.clone()],
+            },
+        )
+        .unwrap();
+
+    // Confirm the pool is whitelisted
+    let whitelist = helper.query_whitelist().unwrap();
+    assert_eq!(whitelist, vec![pool.lp_token.clone()])
 }
