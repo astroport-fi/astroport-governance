@@ -5,9 +5,9 @@ use crate::emissions_controller::consts::{
     SPREAD_PER_STEP_MIN,
 };
 use crate::voting_escrow::UpdateMarketingInfo;
-use astroport::asset::{validate_native_denom, AssetInfo};
+use astroport::asset::validate_native_denom;
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::{ensure, Addr, Coin, Decimal, StdError, StdResult, Uint128};
+use cosmwasm_std::{ensure, Addr, Coin, Decimal, Empty, StdError, StdResult, Uint128};
 
 /// This structure describes the basic settings for creating a contract.
 #[cw_serde]
@@ -88,14 +88,11 @@ pub enum HubMsg {
     /// If the pool belongs to an outpost,
     /// this endpoint launches an IBC message to validate the pool on the outpost.
     /// Outpost lp token is added to the whitelist only if outpost confirms in IBC callback that the pool is valid.
-    WhitelistPool {
-        lp_token: String,
-        validation_info: WhitelistValidationInfo,
-    },
+    WhitelistPool { lp_token: String },
     /// Checks that a pool is still eligible for whitelisting.
     /// If a pool doesn't meet the criteria, it will be removed from the whitelist.
     /// If a pool still meets the criteria, nothing happens.
-    /// Outpost pools are bundled into a single IBC message to each outpost.
+    /// Outpost pool is unwhitelisted only if outpost confirms in IBC callback that the pool is no longer eligible.
     /// Note that unwhitelisting a pool doesn't mean blacklisting.
     /// A pool can be whitelisted again by calling WhitelistPool endpoint.
     UnwhitelistIneligiblePool { lp_token: String },
@@ -200,15 +197,21 @@ pub enum QueryMsg {
     /// emissions state and next pools grouped by outpost prefix.
     #[returns(SimulateTuneResponse)]
     SimulateTune {},
-    /// Checks all the pools in the list and returns whether they are eligible for whitelisting.
-    /// This query can only check pools belonging to the Hub.
+    /// Checks if a whitelisted pool is still eligible for whitelisting.
+    /// Runs the same checks as when whitelisting a pool.
+    /// If a pool doesn't meet the criteria, this query throws an error.
+    /// If a pool still meets the criteria, it returns an empty response.
+    /// This query can only check a pool belonging to the Hub.
     /// Outpost pools can only be checked by calling this query on the respective outpost.
     /// A pool is eligible if:
     /// 1. It is a valid Astroport pool
     /// 2. It has a valid swap route to ASTRO
-    /// Returns array of tuples (LP token, is_eligible).
-    #[returns(Vec<(String, bool)>)]
-    CheckWhitelistEligibility { lp_tokens: Vec<String> },
+    #[returns(Empty)]
+    CheckWhitelistEligibility {
+        lp_token: String,
+        liquidity_percent: Decimal,
+        allowed_spread_per_step: Decimal,
+    },
 }
 
 /// General contract configuration
@@ -444,25 +447,6 @@ pub struct EmissionsState {
     pub ema: Uint128,
     /// Amount of ASTRO to be emitted in the current epoch
     pub emissions_amount: Uint128,
-}
-
-#[cw_serde]
-pub struct WhitelistValidationInfo {
-    /// Information about the start asset being swapped. Must match one of the pool's assets.
-    pub offer_asset_info: AssetInfo,
-    /// Contains a list of pair addresses that form a swap route to ASTRO.
-    /// Each pair must be registered in the factory.
-    /// The route length is capped by [`consts::WHITELIST_VALIDATION_MAX_ROUTE_LENGTH`].
-    pub route: Vec<String>,
-}
-
-impl WhitelistValidationInfo {
-    pub fn mocked() -> Self {
-        Self {
-            offer_asset_info: AssetInfo::native("utest"),
-            route: vec![],
-        }
-    }
 }
 
 #[cfg(test)]

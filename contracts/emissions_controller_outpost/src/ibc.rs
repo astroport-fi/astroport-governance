@@ -1,3 +1,4 @@
+use astroport::asset::AssetInfo;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
@@ -7,19 +8,18 @@ use cosmwasm_std::{
     Storage,
 };
 
+use crate::error::ContractError;
+use crate::state::{
+    CONFIG, PENDING_MESSAGES, PROPOSAL_VOTERS, REGISTERED_PROPOSALS, USER_IBC_ERROR,
+};
 use astroport_governance::emissions_controller::consts::{IBC_APP_VERSION, IBC_ORDERING};
 use astroport_governance::emissions_controller::msg::{
     ack_fail, ack_ok, IbcAckResult, VxAstroIbcMsg,
 };
 use astroport_governance::emissions_controller::outpost::UserIbcError;
-use astroport_governance::emissions_controller::utils::{
-    get_pair_info, validate_whitelist_eligibility,
-};
+use astroport_governance::emissions_controller::router::RoutesBuilder;
+use astroport_governance::emissions_controller::utils::get_pair_info;
 use astroport_governance::voting_escrow;
-
-use crate::state::{
-    CONFIG, PENDING_MESSAGES, PROPOSAL_VOTERS, REGISTERED_PROPOSALS, USER_IBC_ERROR,
-};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn ibc_channel_open(
@@ -88,7 +88,7 @@ pub fn do_packet_receive(
     deps: DepsMut,
     _env: Env,
     msg: IbcPacketReceiveMsg,
-) -> StdResult<IbcReceiveResponse> {
+) -> Result<IbcReceiveResponse, ContractError> {
     // Accept messages only from the trusted channel
     let config = CONFIG.load(deps.storage)?;
     ensure!(
@@ -120,20 +120,15 @@ pub fn do_packet_receive(
         }
         VxAstroIbcMsg::CheckWhitelistEligibility {
             lp_token,
-            validation_info,
             liq_percent,
             allowed_spread,
         } => {
             let pair_info = get_pair_info(deps.as_ref(), &config.factory, &lp_token)?;
-            validate_whitelist_eligibility(
-                deps.querier,
-                &config.factory,
-                liq_percent,
-                allowed_spread,
-                &pair_info,
-                &validation_info,
-                &config.astro_denom,
-            )?;
+            let mut routes_builder =
+                RoutesBuilder::new(deps.storage, &config.factory, liq_percent, allowed_spread)?;
+
+            let astro = AssetInfo::native(config.astro_denom);
+            routes_builder.validate_whitelisting_pool(deps.as_ref(), &astro, &pair_info)?;
         }
         _ => unreachable!("Outpost can't receive these messages"),
     }

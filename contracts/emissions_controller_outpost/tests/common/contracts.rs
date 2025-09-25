@@ -1,7 +1,7 @@
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
     DepsMut, Empty, Env, IbcBasicResponse, IbcPacketAckMsg, IbcPacketReceiveMsg,
-    IbcPacketTimeoutMsg, Response, StdResult,
+    IbcPacketTimeoutMsg, Response, StdError, StdResult,
 };
 use cw_multi_test::{Contract, ContractWrapper};
 
@@ -66,11 +66,13 @@ fn sudo(deps: DepsMut, env: Env, msg: TestSudoMsg) -> StdResult<Response> {
     match msg {
         TestSudoMsg::Ack(packet) => ibc_packet_ack(deps, env, packet),
         TestSudoMsg::Timeout(packet) => ibc_packet_timeout(deps, env, packet),
-        TestSudoMsg::IbcRecv(packet) => do_packet_receive(deps, env, packet).map(|ibc_response| {
-            IbcBasicResponse::default()
-                .add_attributes(ibc_response.attributes)
-                .add_submessages(ibc_response.messages)
-        }),
+        TestSudoMsg::IbcRecv(packet) => do_packet_receive(deps, env, packet)
+            .map_err(|err| StdError::generic_err(err.to_string()))
+            .map(|ibc_response| {
+                IbcBasicResponse::default()
+                    .add_attributes(ibc_response.attributes)
+                    .add_submessages(ibc_response.messages)
+            }),
     }
     .map(|ibc_response| {
         Response::default()

@@ -12,7 +12,7 @@ use astroport_governance::assembly::{
 use astroport_governance::emissions_controller::consts::EPOCHS_START;
 use astroport_governance::emissions_controller::hub::{
     EmissionsState, HubInstantiateMsg, HubMsg, InputOutpostParams, OutpostInfo,
-    SimulateTuneResponse, TuneInfo, UserInfoResponse, VotedPoolInfo, WhitelistValidationInfo,
+    SimulateTuneResponse, TuneInfo, UserInfoResponse, VotedPoolInfo,
 };
 use astroport_governance::emissions_controller::msg::{IbcAckResult, VxAstroIbcMsg};
 use astroport_governance::voting_escrow::UpdateMarketingInfo;
@@ -69,13 +69,6 @@ fn mock_ntrn_app() -> NeutronApp {
             chain_id: "cw-multitest-1".to_string(),
         })
         .build(no_init)
-}
-
-#[derive(Clone)]
-pub struct PairData {
-    pub pair_addr: String,
-    pub lp_token: String,
-    pub asset_infos: Vec<AssetInfo>,
 }
 
 #[derive(Derivative)]
@@ -467,7 +460,7 @@ impl ControllerHelper {
         )
     }
 
-    pub fn create_empty_pair(&mut self, denom1: &str, denom2: &str) -> PairData {
+    pub fn create_empty_pair(&mut self, denom1: &str, denom2: &str) -> (String, String) {
         let asset_infos = vec![AssetInfo::native(denom1), AssetInfo::native(denom2)];
 
         self.app
@@ -483,16 +476,15 @@ impl ControllerHelper {
             )
             .map(|resp| {
                 let pair_addr = &resp.custom_attrs(7)[1].value;
-                PairData {
-                    pair_addr: pair_addr.clone(),
-                    lp_token: format!("factory/{pair_addr}/{LP_SUBDENOM}"),
-                    asset_infos,
-                }
+                (
+                    pair_addr.clone(),
+                    format!("factory/{pair_addr}/{LP_SUBDENOM}"),
+                )
             })
             .unwrap()
     }
 
-    pub fn create_unverified_pair(&mut self, denom1: &str, denom2: &str) -> PairData {
+    pub fn create_unverified_pair(&mut self, denom1: &str, denom2: &str) -> String {
         let asset_infos = vec![AssetInfo::native(denom1), AssetInfo::native(denom2)];
 
         self.app
@@ -510,15 +502,11 @@ impl ControllerHelper {
                 "label",
                 None,
             )
-            .map(|pair_addr| PairData {
-                pair_addr: pair_addr.to_string(),
-                lp_token: format!("factory/{pair_addr}/{LP_SUBDENOM}"),
-                asset_infos,
-            })
+            .map(|pair_addr| format!("factory/{pair_addr}/{LP_SUBDENOM}"))
             .unwrap()
     }
 
-    pub fn create_and_seed_pair(&mut self, initial_liquidity: [Coin; 2]) -> PairData {
+    pub fn create_and_seed_pair(&mut self, initial_liquidity: [Coin; 2]) -> String {
         let owner = self.owner.clone();
 
         self.mint_tokens(&owner, &initial_liquidity).unwrap();
@@ -539,18 +527,14 @@ impl ControllerHelper {
                 },
                 &initial_liquidity,
             )
-            .and_then(|resp| {
+            .map(|resp| {
                 let pair_addr = &resp.custom_attrs(7)[1].value;
-                Ok(PairData {
-                    pair_addr: pair_addr.clone(),
-                    lp_token: format!("factory/{pair_addr}/{LP_SUBDENOM}"),
-                    asset_infos,
-                })
+                format!("factory/{pair_addr}/{LP_SUBDENOM}")
             })
             .unwrap()
     }
 
-    pub fn create_pair(&mut self, denom1: &str, denom2: &str) -> PairData {
+    pub fn create_pair(&mut self, denom1: &str, denom2: &str) -> String {
         self.create_and_seed_pair([coin(1_000000, denom1), coin(1_000000, denom2)])
     }
 
@@ -568,36 +552,16 @@ impl ControllerHelper {
     pub fn whitelist(
         &mut self,
         user: &Addr,
-        pool_data: &PairData,
+        lp_token: impl Into<String>,
         fees: &[Coin],
     ) -> AnyResult<AppResponse> {
         self.app.execute_contract(
             user.clone(),
             self.emission_controller.clone(),
             &emissions_controller::msg::ExecuteMsg::Custom(HubMsg::WhitelistPool {
-                lp_token: pool_data.lp_token.clone(),
-                validation_info: WhitelistValidationInfo {
-                    offer_asset_info: pool_data.asset_infos[0].clone(),
-                    route: vec![pool_data.pair_addr.clone()],
-                },
+                lp_token: lp_token.into(),
             }),
             fees,
-        )
-    }
-
-    pub fn whitelist_with_route(
-        &mut self,
-        pool: impl Into<String>,
-        validation_info: WhitelistValidationInfo,
-    ) -> AnyResult<AppResponse> {
-        self.app.execute_contract(
-            self.owner.clone(),
-            self.emission_controller.clone(),
-            &emissions_controller::msg::ExecuteMsg::Custom(HubMsg::WhitelistPool {
-                lp_token: pool.into(),
-                validation_info,
-            }),
-            &[self.whitelisting_fee.clone()],
         )
     }
 

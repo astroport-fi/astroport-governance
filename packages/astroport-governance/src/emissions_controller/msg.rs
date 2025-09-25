@@ -5,7 +5,6 @@ use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{to_json_binary, Binary, Decimal, Uint128};
 
 use crate::assembly::ProposalVoteOption;
-use crate::emissions_controller::hub::WhitelistValidationInfo;
 
 #[cw_serde]
 pub enum ExecuteMsg<T> {
@@ -81,7 +80,6 @@ pub enum VxAstroIbcMsg {
     /// Sender: Hub
     CheckWhitelistEligibility {
         lp_token: String,
-        validation_info: WhitelistValidationInfo,
         liq_percent: Decimal,
         allowed_spread: Decimal,
     },

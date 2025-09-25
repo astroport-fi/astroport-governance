@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use astroport::asset::validate_native_denom;
+use astroport::asset::{validate_native_denom, AssetInfo};
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::incentives;
 #[cfg(not(feature = "library"))]
@@ -15,22 +15,6 @@ use itertools::Itertools;
 use neutron_sdk::bindings::msg::NeutronMsg;
 use neutron_sdk::bindings::query::NeutronQuery;
 
-use astroport_governance::emissions_controller::consts::{
-    EPOCH_LENGTH, IBC_TIMEOUT, WHITELIST_VALIDATION_MAX_ROUTE_LENGTH,
-};
-use astroport_governance::emissions_controller::hub::{
-    AstroPoolConfig, HubMsg, InputOutpostParams, OutpostInfo, OutpostParams, OutpostStatus,
-    TuneInfo, UserInfo, VotedPoolInfo, WhitelistValidationInfo,
-};
-use astroport_governance::emissions_controller::msg::{ExecuteMsg, VxAstroIbcMsg};
-use astroport_governance::emissions_controller::utils::{
-    get_epoch_start, get_pair_info, get_voting_power, validate_whitelist_eligibility,
-};
-use astroport_governance::utils::{
-    check_contract_supports_channel, determine_ics20_escrow_address,
-};
-use astroport_governance::{assembly, voting_escrow};
-
 use crate::error::ContractError;
 use crate::state::{
     get_active_outposts, CONFIG, OUTPOSTS, OWNERSHIP_PROPOSAL, PENDING_WHITELIST, POOLS_BLACKLIST,
@@ -40,6 +24,20 @@ use crate::utils::{
     build_emission_ibc_msg, get_outpost_prefix, jail_outpost, min_ntrn_ibc_fee, prepare_ibc_packet,
     raw_emissions_to_schedules, simulate_tune, validate_outpost_prefix, TuneResult,
 };
+use astroport_governance::emissions_controller::consts::{EPOCH_LENGTH, IBC_TIMEOUT};
+use astroport_governance::emissions_controller::hub::{
+    AstroPoolConfig, HubMsg, InputOutpostParams, OutpostInfo, OutpostParams, OutpostStatus,
+    TuneInfo, UserInfo, VotedPoolInfo,
+};
+use astroport_governance::emissions_controller::msg::{ExecuteMsg, VxAstroIbcMsg};
+use astroport_governance::emissions_controller::router::RoutesBuilder;
+use astroport_governance::emissions_controller::utils::{
+    get_epoch_start, get_pair_info, get_voting_power,
+};
+use astroport_governance::utils::{
+    check_contract_supports_channel, determine_ics20_escrow_address,
+};
+use astroport_governance::{assembly, voting_escrow};
 
 /// Exposes all the execute functions available in the contract.
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -139,10 +137,7 @@ pub fn execute(
             .map_err(Into::into)
         }
         ExecuteMsg::Custom(hub_msg) => match hub_msg {
-            HubMsg::WhitelistPool {
-                lp_token,
-                validation_info,
-            } => whitelist_pool(deps, env, info, lp_token, validation_info),
+            HubMsg::WhitelistPool { lp_token } => whitelist_pool(deps, env, info, lp_token),
             HubMsg::UnwhitelistIneligiblePool { lp_token } => {
                 // TODO: consider pausing ability
                 todo!("implement unwhitelist_ineligible_pool")
@@ -200,7 +195,6 @@ pub fn whitelist_pool(
     env: Env,
     info: MessageInfo,
     pool: String,
-    validation_info: WhitelistValidationInfo,
 ) -> Result<Response<NeutronMsg>, ContractError> {
     let deps = deps.into_empty();
     let config = CONFIG.load(deps.storage)?;
@@ -222,59 +216,7 @@ pub fn whitelist_pool(
         ContractError::PoolAlreadyWhitelisted(pool.clone())
     );
 
-    // Perform LP token validation. Ensure the outpost exists.
     let outposts = get_active_outposts(deps.storage)?;
-    let mut messages: Vec<CosmosMsg<NeutronMsg>> = if let Some(prefix) =
-        get_outpost_prefix(&pool, &outposts)
-    {
-        if let Some(outpost_params) = outposts.get(&prefix).cloned().unwrap().params {
-            // Remote pools are validated async and saved to the whitelist by IBC acknowledgement
-            PENDING_WHITELIST.update(deps.storage, &pool, |pending| {
-                if pending.is_some() {
-                    Err(ContractError::PendingWhitelisting(pool.clone()))
-                } else {
-                    Ok(validation_info.clone())
-                }
-            })?;
-
-            // Revert early if the route is invalid
-            let route_len = validation_info.route.len();
-            ensure!(
-                route_len > 0 && route_len <= WHITELIST_VALIDATION_MAX_ROUTE_LENGTH,
-                StdError::generic_err(format!("Route length must be between 0 and {WHITELIST_VALIDATION_MAX_ROUTE_LENGTH}, got {route_len}"))
-            );
-
-            Ok(vec![prepare_ibc_packet(
-                &env,
-                &pool,
-                validation_info,
-                config.liquidity_percent,
-                config.allowed_spread_per_step,
-                outpost_params.voting_channel,
-            )?
-            .into()])
-        } else {
-            // Validate LP token on the Hub
-            let pair_info = get_pair_info(deps.as_ref(), &config.factory, &pool)?;
-
-            validate_whitelist_eligibility(
-                deps.querier,
-                &config.factory,
-                config.liquidity_percent,
-                config.allowed_spread_per_step,
-                &pair_info,
-                &validation_info,
-                &config.astro_denom,
-            )?;
-
-            // If validation passed, save to the whitelist
-            POOLS_WHITELIST.save(deps.storage, &pool, &validation_info)?;
-
-            Ok(vec![])
-        }
-    } else {
-        Err(ContractError::NoOutpostForPool(pool.clone()))
-    }?;
 
     // Astro pools receive flat emissions hence we don't allow people to vote for them
     ensure!(
@@ -288,16 +230,59 @@ pub fn whitelist_pool(
         ContractError::IsAstroPool {}
     );
 
-    // Starting the voting process from scratch for this pool
-    VOTED_POOLS.save(
-        deps.storage,
-        &pool,
-        &VotedPoolInfo {
-            init_ts: env.block.time.seconds(),
-            voting_power: Uint128::zero(),
-        },
-        env.block.time.seconds(),
-    )?;
+    // Perform LP token validation. Ensure the outpost exists.
+    let mut messages: Vec<CosmosMsg<NeutronMsg>> =
+        if let Some(prefix) = get_outpost_prefix(&pool, &outposts) {
+            if let Some(outpost_params) = outposts.get(&prefix).cloned().unwrap().params {
+                // Remote pools are validated async and saved to the whitelist by IBC acknowledgement
+                PENDING_WHITELIST.update(deps.storage, &pool, |pending| {
+                    if pending.is_some() {
+                        Err(ContractError::PendingWhitelisting(pool.clone()))
+                    } else {
+                        Ok(())
+                    }
+                })?;
+
+                Ok(vec![prepare_ibc_packet(
+                    &env,
+                    &pool,
+                    config.liquidity_percent,
+                    config.allowed_spread_per_step,
+                    outpost_params.voting_channel,
+                )?
+                .into()])
+            } else {
+                // Validate LP token on the Hub
+                let pair_info = get_pair_info(deps.as_ref(), &config.factory, &pool)?;
+                let mut routes_builder = RoutesBuilder::new(
+                    deps.storage,
+                    &config.factory,
+                    config.liquidity_percent,
+                    config.allowed_spread_per_step,
+                )?;
+
+                let astro = AssetInfo::native(config.astro_denom);
+                routes_builder.validate_whitelisting_pool(deps.as_ref(), &astro, &pair_info)?;
+
+                // If validation passed, save to the whitelist
+                POOLS_WHITELIST.save(deps.storage, &pool, &())?;
+
+                // Starting the voting process from scratch for this pool
+                VOTED_POOLS.save(
+                    deps.storage,
+                    &pool,
+                    &VotedPoolInfo {
+                        init_ts: env.block.time.seconds(),
+                        voting_power: Uint128::zero(),
+                    },
+                    env.block.time.seconds(),
+                )?;
+
+                Ok(vec![])
+            }
+        } else {
+            Err(ContractError::NoOutpostForPool(pool.clone()))
+        }?;
 
     messages.push(
         BankMsg::Send {

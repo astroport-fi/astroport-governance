@@ -648,7 +648,7 @@ fn test_interchain_governance() {
         .unwrap_err();
     assert_eq!(
         err.root_cause().to_string(),
-        "Generic error: Invalid channel"
+        "Generic error: Generic error: Invalid channel"
     );
 
     helper
@@ -677,7 +677,7 @@ fn test_interchain_governance() {
         .unwrap_err();
     assert_eq!(
         err.root_cause().to_string(),
-        "Generic error: Proposal already registered"
+        "Generic error: Generic error: Proposal already registered"
     );
 
     let err = helper.cast_vote(&user, 1).unwrap_err();

@@ -9,14 +9,14 @@ use cosmwasm_std::{
 
 use astroport_governance::assembly;
 use astroport_governance::emissions_controller::consts::{IBC_APP_VERSION, IBC_ORDERING};
-use astroport_governance::emissions_controller::hub::OutpostInfo;
+use astroport_governance::emissions_controller::hub::{OutpostInfo, VotedPoolInfo};
 use astroport_governance::emissions_controller::msg::{
     ack_fail, ack_ok, IbcAckResult, VxAstroIbcMsg,
 };
 
 use crate::error::ContractError;
 use crate::execute::{handle_update_user, handle_vote};
-use crate::state::{get_all_outposts, CONFIG, PENDING_WHITELIST, POOLS_WHITELIST};
+use crate::state::{get_all_outposts, CONFIG, PENDING_WHITELIST, POOLS_WHITELIST, VOTED_POOLS};
 use crate::utils::jail_outpost;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -228,7 +228,7 @@ pub fn do_packet_receive(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn ibc_packet_ack(
     deps: DepsMut,
-    _env: Env,
+    env: Env,
     msg: IbcPacketAckMsg,
 ) -> StdResult<IbcBasicResponse> {
     let orig_msg: VxAstroIbcMsg = from_json(&msg.original_packet.data)?;
@@ -239,11 +239,20 @@ pub fn ibc_packet_ack(
                 VxAstroIbcMsg::RegisterProposal { .. } => {}
                 VxAstroIbcMsg::CheckWhitelistEligibility { lp_token, .. } => {
                     // Move the pool from pending to the actual whitelist if it was approved
-                    if let Some(validation_info) =
-                        PENDING_WHITELIST.may_load(deps.storage, &lp_token)?
-                    {
+                    if PENDING_WHITELIST.has(deps.storage, &lp_token) {
                         PENDING_WHITELIST.remove(deps.storage, &lp_token);
-                        POOLS_WHITELIST.save(deps.storage, &lp_token, &validation_info)?;
+                        POOLS_WHITELIST.save(deps.storage, &lp_token, &())?;
+
+                        // Starting the voting process from scratch for this pool
+                        VOTED_POOLS.save(
+                            deps.storage,
+                            &lp_token,
+                            &VotedPoolInfo {
+                                init_ts: env.block.time.seconds(),
+                                voting_power: Uint128::zero(),
+                            },
+                            env.block.time.seconds(),
+                        )?;
                     }
                 }
                 _ => unreachable!("Hub can't receive these messages"),
@@ -309,7 +318,7 @@ mod unit_tests {
 
     use astroport_governance::assembly::ProposalVoteOption;
     use astroport_governance::emissions_controller::hub::{
-        Config, OutpostInfo, OutpostParams, VotedPoolInfo, WhitelistValidationInfo,
+        Config, OutpostInfo, OutpostParams, VotedPoolInfo,
     };
     use astroport_governance::emissions_controller::msg::IbcAckResult;
     use astroport_governance::utils::determine_ics20_escrow_address;
@@ -524,11 +533,7 @@ mod unit_tests {
             )
             .unwrap();
         POOLS_WHITELIST
-            .save(
-                deps.as_mut().storage,
-                "osmo1pool1",
-                &WhitelistValidationInfo::mocked(),
-            )
+            .save(deps.as_mut().storage, "osmo1pool1", &())
             .unwrap();
 
         let mut env = mock_env();

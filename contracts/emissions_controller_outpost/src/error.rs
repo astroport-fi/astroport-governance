@@ -3,6 +3,7 @@ use cw_utils::{ParseReplyError, PaymentError};
 use thiserror::Error;
 
 use astroport_governance::emissions_controller::consts::MAX_POOLS_TO_VOTE;
+use astroport_governance::emissions_controller::router::RouterError;
 
 /// This enum describes contract errors
 #[derive(Error, Debug, PartialEq)]
@@ -18,6 +19,9 @@ pub enum ContractError {
 
     #[error("{0}")]
     ParseReplyError(#[from] ParseReplyError),
+
+    #[error("{0}")]
+    RouterError(#[from] RouterError),
 
     #[error("Unauthorized")]
     Unauthorized {},

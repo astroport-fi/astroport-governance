@@ -1,15 +1,9 @@
-use crate::emissions_controller::consts::{
-    EPOCHS_START, EPOCH_LENGTH, WHITELIST_VALIDATION_MAX_ROUTE_LENGTH,
-};
-use crate::emissions_controller::hub::WhitelistValidationInfo;
+use crate::emissions_controller::consts::{EPOCHS_START, EPOCH_LENGTH};
 use crate::voting_escrow;
-use astroport::asset::{pair_info_by_pool, AssetInfo, AssetInfoExt, PairInfo};
+use astroport::asset::{pair_info_by_pool, AssetInfo, PairInfo};
 use astroport::common::LP_SUBDENOM;
-use astroport::pair::SimulationResponse;
 use astroport::{factory, pair};
-use cosmwasm_std::{
-    ensure, ensure_eq, Addr, Decimal, Deps, QuerierWrapper, StdError, StdResult, Uint128,
-};
+use cosmwasm_std::{Addr, Deps, QuerierWrapper, StdError, StdResult, Uint128};
 use itertools::Itertools;
 
 /// Queries pair info corresponding to given LP token.
@@ -49,111 +43,6 @@ pub fn get_pair_info(deps: Deps, factory: &Addr, maybe_lp: &str) -> StdResult<Pa
             lp_token: maybe_lp.to_string(),
         },
     )
-}
-
-/// Validates if the given pool with validation swap route is eligible for whitelist.
-/// - liq_percent - percentage of whitelisted pool's liquidity
-///   to be used as the offer amount in the first step.
-/// - allowed_spread_per_step - maximum allowed spread per step.
-/// - pair_info - the pair info of the pool to be whitelisted.
-/// - validation_info - contains the route and the offer asset info.
-///   The route is a list of pair addresses to swap through.
-///   Must start with one of the pool's assets and lead to ASTRO.
-///   The route length must be between 1 and WHITELIST_VALIDATION_MAX_ROUTE_LENGTH.
-pub fn validate_whitelist_eligibility(
-    querier: QuerierWrapper,
-    factory: &Addr,
-    liq_percent: Decimal,
-    allowed_spread_per_step: Decimal,
-    pair_info: &PairInfo,
-    validation_info: &WhitelistValidationInfo,
-    astro_denom: &str,
-) -> StdResult<()> {
-    let route_len = validation_info.route.len();
-    ensure!(
-        route_len > 0 && route_len <= WHITELIST_VALIDATION_MAX_ROUTE_LENGTH,
-        StdError::generic_err(format!(
-            "Route length must be between 0 and {WHITELIST_VALIDATION_MAX_ROUTE_LENGTH}, got {route_len}",
-        ))
-    );
-
-    ensure!(
-        validation_info.offer_asset_info == pair_info.asset_infos[0]
-            || validation_info.offer_asset_info == pair_info.asset_infos[1],
-        StdError::generic_err(
-            "The first pair in the route must start with one of the pool's assets"
-        )
-    );
-
-    let init_amount = liq_percent
-        * validation_info
-            .offer_asset_info
-            .query_pool(&querier, &pair_info.contract_addr)?;
-    let mut step_offer_asset = validation_info.offer_asset_info.with_balance(init_amount);
-
-    for (i, pair_addr) in validation_info.route.iter().enumerate() {
-        let step_pair_info: PairInfo =
-            querier.query_wasm_smart(pair_addr, &pair::QueryMsg::Pair {})?;
-
-        // Verify that the pair is registered in the factory
-        let step_pair_info_factory: PairInfo = querier.query_wasm_smart(
-            factory,
-            &factory::QueryMsg::PairByLpToken {
-                lp_token: step_pair_info.liquidity_token,
-            },
-        )?;
-
-        let pair_addr = Addr::unchecked(pair_addr);
-
-        ensure!(
-            pair_addr == step_pair_info_factory.contract_addr,
-            StdError::generic_err(format!(
-                "Step pair address {pair_addr} does not match the one in the factory {}",
-                step_pair_info.contract_addr
-            ))
-        );
-
-        let res: SimulationResponse = querier.query_wasm_smart(
-            &pair_addr,
-            &pair::QueryMsg::Simulation {
-                offer_asset: step_offer_asset.clone(),
-                ask_asset_info: None,
-            },
-        )?;
-
-        let allowed_spread = if i == 0 && pair_addr == pair_info.contract_addr {
-            // If the first step is the pool to be whitelisted, we allow a spread liq_percent + allowed_spread_per_step,
-            // since we are simulating with a fraction of the pool's liquidity.
-            liq_percent + allowed_spread_per_step
-        } else {
-            allowed_spread_per_step
-        };
-
-        let spread = Decimal::from_ratio(res.spread_amount, res.return_amount);
-        ensure!(
-            spread <= allowed_spread,
-            StdError::generic_err(format!("Spread {spread} is too high for step with pair {pair_addr}. Max allowed is {allowed_spread}"))
-        );
-
-        let ask_asset_info = if step_offer_asset.info == step_pair_info_factory.asset_infos[0] {
-            &step_pair_info.asset_infos[1]
-        } else {
-            &step_pair_info.asset_infos[0]
-        };
-        step_offer_asset = ask_asset_info.with_balance(res.return_amount);
-    }
-
-    // Validate that route led to ASTRO
-    ensure_eq!(
-        step_offer_asset.info,
-        AssetInfo::native(astro_denom),
-        StdError::generic_err(format!(
-            "Last step of the route must lead to ASTRO. Got {}",
-            step_offer_asset.info
-        ))
-    );
-
-    Ok(())
 }
 
 #[inline]

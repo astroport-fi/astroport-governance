@@ -263,9 +263,11 @@ dependencies = [
  "astroport 5.12.0 (git+https://github.com/astroport-fi/astroport-core?branch=feat/factory_remove_restriction)",
  "cosmwasm-schema",
  "cosmwasm-std",
+ "cw-storage-plus 1.2.0",
  "cw20 1.1.2",
  "itertools 0.12.1",
  "sha2 0.10.8",
+ "thiserror",
 ]
 
 [[package]]

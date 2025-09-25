@@ -4,9 +4,7 @@ use astroport::factory;
 use astroport::factory::{PairConfig, PairType};
 use astroport::token::Logo;
 use astroport_governance::emissions_controller::consts::EPOCHS_START;
-use astroport_governance::emissions_controller::hub::{
-    HubInstantiateMsg, HubMsg, WhitelistValidationInfo,
-};
+use astroport_governance::emissions_controller::hub::{HubInstantiateMsg, HubMsg};
 use astroport_governance::tributes::{ExecuteMsg, TributeFeeInfo, TributeInfo};
 use astroport_governance::voting_escrow::UpdateMarketingInfo;
 use astroport_governance::{emissions_controller, tributes, voting_escrow};
@@ -293,29 +291,13 @@ impl Helper {
 
     pub fn whitelist(&mut self, lp_token: impl Into<String>) -> AnyResult<AppResponse> {
         let lp_token = lp_token.into();
-        let pair_info: PairInfo = self
-            .app
-            .wrap()
-            .query_wasm_smart(
-                self.factory.clone(),
-                &factory::QueryMsg::PairByLpToken {
-                    lp_token: lp_token.clone(),
-                },
-            )
-            .unwrap();
 
         let fee = [self.fee.clone()];
         self.mint_tokens(&self.owner.clone(), &fee)?;
         self.app.execute_contract(
             self.owner.clone(),
             self.emission_controller.clone(),
-            &emissions_controller::msg::ExecuteMsg::Custom(HubMsg::WhitelistPool {
-                lp_token,
-                validation_info: WhitelistValidationInfo {
-                    offer_asset_info: pair_info.asset_infos[0].clone(),
-                    route: vec![pair_info.contract_addr.to_string()],
-                },
-            }),
+            &emissions_controller::msg::ExecuteMsg::Custom(HubMsg::WhitelistPool { lp_token }),
             &fee,
         )
     }

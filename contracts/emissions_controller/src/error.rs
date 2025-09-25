@@ -1,3 +1,4 @@
+use astroport_governance::emissions_controller::router::RouterError;
 use cosmwasm_std::{CheckedFromRatioError, Coin, StdError};
 use cw_utils::{ParseReplyError, PaymentError};
 use neutron_sdk::NeutronError;
@@ -20,6 +21,9 @@ pub enum ContractError {
 
     #[error("{0}")]
     CheckedFromRatioError(#[from] CheckedFromRatioError),
+
+    #[error("{0}")]
+    RouterError(#[from] RouterError),
 
     #[error("Unauthorized")]
     Unauthorized {},

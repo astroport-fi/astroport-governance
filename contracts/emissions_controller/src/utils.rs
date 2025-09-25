@@ -17,7 +17,7 @@ use neutron_sdk::sudo::msg::RequestPacketTimeoutHeight;
 
 use astroport_governance::emissions_controller::consts::{FEE_DENOM, IBC_TIMEOUT};
 use astroport_governance::emissions_controller::hub::{
-    Config, EmissionsState, OutpostInfo, OutpostParams, WhitelistValidationInfo,
+    Config, EmissionsState, OutpostInfo, OutpostParams,
 };
 use astroport_governance::emissions_controller::msg::VxAstroIbcMsg;
 use astroport_governance::emissions_controller::outpost::OutpostMsg;
@@ -348,7 +348,6 @@ pub fn simulate_tune(
 pub fn prepare_ibc_packet(
     env: &Env,
     lp_token: &str,
-    validation_info: WhitelistValidationInfo,
     liq_percent: Decimal,
     allowed_spread: Decimal,
     channel_id: String,
@@ -357,7 +356,6 @@ pub fn prepare_ibc_packet(
         channel_id,
         data: to_json_binary(&VxAstroIbcMsg::CheckWhitelistEligibility {
             lp_token: lp_token.to_string(),
-            validation_info,
             liq_percent,
             allowed_spread,
         })?,
