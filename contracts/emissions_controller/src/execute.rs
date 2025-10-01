@@ -99,6 +99,27 @@ pub fn execute(
             ensure!(!voting_power.is_zero(), ContractError::ZeroVotingPower {});
             handle_update_user(deps.storage, env, info.sender.as_str(), voting_power)
         }
+        ExecuteMsg::SetPoolRoutes(routes) => {
+            let config = CONFIG.load(deps.storage)?;
+            ensure_eq!(info.sender, config.owner, ContractError::Unauthorized {});
+
+            Ok(RoutesBuilder::default().set_routes(
+                deps.into_empty(),
+                routes,
+                &config.astro_denom,
+                &config.factory,
+            )?)
+        }
+        ExecuteMsg::SetDefaultAssets(default_assets) => {
+            let config = CONFIG.load(deps.storage)?;
+            ensure_eq!(info.sender, config.owner, ContractError::Unauthorized {});
+
+            Ok(RoutesBuilder::default().set_default_assets(
+                deps.storage,
+                default_assets,
+                &config.astro_denom,
+            )?)
+        }
         ExecuteMsg::ProposeNewOwner {
             new_owner,
             expires_in,
@@ -256,13 +277,17 @@ pub fn whitelist_pool(
                 let pair_info = get_pair_info(deps.as_ref(), &config.factory, &pool)?;
                 let mut routes_builder = RoutesBuilder::new(
                     deps.storage,
-                    &config.factory,
                     config.liquidity_percent,
                     config.allowed_spread_per_step,
                 )?;
 
                 let astro = AssetInfo::native(config.astro_denom);
-                routes_builder.validate_whitelisting_pool(deps.as_ref(), &astro, &pair_info)?;
+                routes_builder.validate_whitelisting_pool(
+                    deps.as_ref(),
+                    &config.factory,
+                    &astro,
+                    &pair_info,
+                )?;
 
                 // If validation passed, save to the whitelist
                 POOLS_WHITELIST.save(deps.storage, &pool, &())?;

@@ -1,3 +1,4 @@
+use crate::emissions_controller::router::RouteStepVerbose;
 use astroport::incentives::InputSchedule;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Addr, Decimal, Empty};
@@ -106,6 +107,11 @@ pub enum QueryMsg {
         lp_token: String,
         liquidity_percent: Decimal,
         allowed_spread_per_step: Decimal,
+    },
+    #[returns(Vec<RouteStepVerbose>)]
+    WhitelistingRoutes {
+        start_after: Option<String>,
+        limit: Option<u32>,
     },
 }
 

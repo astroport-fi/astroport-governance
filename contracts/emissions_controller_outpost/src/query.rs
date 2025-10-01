@@ -1,17 +1,19 @@
+use astroport::asset::AssetInfo;
 use astroport_governance::emissions_controller::consts::MAX_PAGE_LIMIT;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{to_json_binary, Binary, Deps, Env, Order, StdResult};
+use cosmwasm_std::{to_json_binary, Binary, Deps, Empty, Env, Order, StdError, StdResult};
 use cw_storage_plus::Bound;
 use itertools::Itertools;
-
-use astroport_governance::emissions_controller::outpost::{
-    QueryMsg, RegisteredProposal, UserIbcStatus,
-};
 
 use crate::state::{
     CONFIG, PENDING_MESSAGES, PROPOSAL_VOTERS, REGISTERED_PROPOSALS, USER_IBC_ERROR,
 };
+use astroport_governance::emissions_controller::outpost::{
+    QueryMsg, RegisteredProposal, UserIbcStatus,
+};
+use astroport_governance::emissions_controller::router::{query_routes, RoutesBuilder};
+use astroport_governance::emissions_controller::utils::get_pair_info;
 
 /// Expose available contract queries.
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -56,7 +58,23 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             liquidity_percent,
             allowed_spread_per_step,
         } => {
-            todo!()
+            let deps = deps.into_empty();
+            let config = CONFIG.load(deps.storage)?;
+            let pair_info = get_pair_info(deps, &config.factory, &lp_token)?;
+
+            let mut routes_builder =
+                RoutesBuilder::new(deps.storage, liquidity_percent, allowed_spread_per_step)?;
+
+            let astro = AssetInfo::native(config.astro_denom);
+            routes_builder
+                .validate_whitelisting_pool(deps, &config.factory, &astro, &pair_info)
+                .map_err(|err| StdError::generic_err(err.to_string()))?;
+
+            to_json_binary(&Empty {})
+        }
+        QueryMsg::WhitelistingRoutes { start_after, limit } => {
+            let res = query_routes(deps.into_empty(), start_after, limit)?;
+            to_json_binary(&res)
         }
     }
 }

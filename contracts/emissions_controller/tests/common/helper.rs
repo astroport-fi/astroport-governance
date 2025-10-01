@@ -1,3 +1,7 @@
+use crate::common::contracts::*;
+use crate::common::ibc_module::IbcMockModule;
+use crate::common::neutron_module::MockNeutronModule;
+use crate::common::stargate::StargateModule;
 use astroport::asset::AssetInfo;
 use astroport::common::LP_SUBDENOM;
 use astroport::factory::{PairConfig, PairType};
@@ -15,6 +19,7 @@ use astroport_governance::emissions_controller::hub::{
     SimulateTuneResponse, TuneInfo, UserInfoResponse, VotedPoolInfo,
 };
 use astroport_governance::emissions_controller::msg::{IbcAckResult, VxAstroIbcMsg};
+use astroport_governance::emissions_controller::router::RouteStepVerbose;
 use astroport_governance::voting_escrow::UpdateMarketingInfo;
 use astroport_governance::{assembly, emissions_controller, voting_escrow};
 use cosmwasm_std::{
@@ -31,11 +36,6 @@ use derivative::Derivative;
 use itertools::Itertools;
 use neutron_sdk::bindings::msg::NeutronMsg;
 use neutron_sdk::bindings::query::NeutronQuery;
-
-use crate::common::contracts::*;
-use crate::common::ibc_module::IbcMockModule;
-use crate::common::neutron_module::MockNeutronModule;
-use crate::common::stargate::StargateModule;
 
 pub const PROPOSAL_REQUIRED_DEPOSIT: Uint128 = Uint128::new(*DEPOSIT_INTERVAL.start());
 pub const PROPOSAL_VOTING_PERIOD: u64 = *VOTING_PERIOD_INTERVAL.start();
@@ -565,6 +565,45 @@ impl ControllerHelper {
         )
     }
 
+    pub fn easy_whitelist(&mut self, lp_token: impl Into<String>) -> AnyResult<AppResponse> {
+        self.mint_tokens(self.owner.clone(), &[self.whitelisting_fee.clone()])
+            .unwrap();
+        self.app.execute_contract(
+            self.owner.clone(),
+            self.emission_controller.clone(),
+            &emissions_controller::msg::ExecuteMsg::Custom(HubMsg::WhitelistPool {
+                lp_token: lp_token.into(),
+            }),
+            &[self.whitelisting_fee.clone()],
+        )
+    }
+
+    pub fn set_pool_routes(
+        &mut self,
+        sender: &Addr,
+        routes: Vec<RouteStepVerbose>,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            sender.clone(),
+            self.emission_controller.clone(),
+            &emissions_controller::msg::ExecuteMsg::<Empty>::SetPoolRoutes(routes),
+            &[],
+        )
+    }
+
+    pub fn set_default_assets(
+        &mut self,
+        sender: &Addr,
+        defaults: Vec<AssetInfo>,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            sender.clone(),
+            self.emission_controller.clone(),
+            &emissions_controller::msg::ExecuteMsg::<Empty>::SetDefaultAssets(defaults),
+            &[],
+        )
+    }
+
     pub fn update_blacklist(
         &mut self,
         user: &Addr,
@@ -668,6 +707,27 @@ impl ControllerHelper {
         self.app.wrap().query_wasm_smart(
             &self.emission_controller,
             &emissions_controller::hub::QueryMsg::CheckWhitelist { lp_tokens },
+        )
+    }
+
+    pub fn check_eligibility(&self, lp_token: &str) -> StdResult<Empty> {
+        self.app.wrap().query_wasm_smart(
+            &self.emission_controller,
+            &emissions_controller::hub::QueryMsg::CheckWhitelistEligibility {
+                lp_token: lp_token.to_string(),
+                liquidity_percent: Default::default(),
+                allowed_spread_per_step: Default::default(),
+            },
+        )
+    }
+
+    pub fn query_routes(&self) -> StdResult<Vec<RouteStepVerbose>> {
+        self.app.wrap().query_wasm_smart(
+            &self.emission_controller,
+            &emissions_controller::hub::QueryMsg::WhitelistingRoutes {
+                start_after: None,
+                limit: None,
+            },
         )
     }
 
@@ -860,4 +920,12 @@ impl ControllerHelper {
             &TestSudoMsg::BasicTimeout(packet),
         )
     }
+}
+
+pub fn get_pair_addr_from_lp_token(lp_token: &str) -> String {
+    lp_token
+        .strip_prefix("factory/")
+        .and_then(|s| s.strip_suffix(&format!("/{LP_SUBDENOM}")))
+        .unwrap()
+        .to_string()
 }

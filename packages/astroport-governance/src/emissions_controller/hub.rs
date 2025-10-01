@@ -4,6 +4,7 @@ use crate::emissions_controller::consts::{
     LIQUIDITY_PERCENT_MAX, LIQUIDITY_PERCENT_MIN, POOL_NUMBER_LIMIT, SPREAD_PER_STEP_MAX,
     SPREAD_PER_STEP_MIN,
 };
+use crate::emissions_controller::router::RouteStepVerbose;
 use crate::voting_escrow::UpdateMarketingInfo;
 use astroport::asset::validate_native_denom;
 use cosmwasm_schema::{cw_serde, QueryResponses};
@@ -79,6 +80,7 @@ pub enum HubMsg {
         liquidity_percent: Option<Decimal>,
         allowed_spread_per_step: Option<Decimal>,
     },
+    /// Permissionless endpoint.
     /// Whitelists a pool to receive ASTRO emissions.
     /// Requires fee payment.
     /// Runs eligibility checks for the pool.
@@ -89,6 +91,7 @@ pub enum HubMsg {
     /// this endpoint launches an IBC message to validate the pool on the outpost.
     /// Outpost lp token is added to the whitelist only if outpost confirms in IBC callback that the pool is valid.
     WhitelistPool { lp_token: String },
+    /// Permissionless endpoint.
     /// Checks that a pool is still eligible for whitelisting.
     /// If a pool doesn't meet the criteria, it will be removed from the whitelist.
     /// If a pool still meets the criteria, nothing happens.
@@ -211,6 +214,11 @@ pub enum QueryMsg {
         lp_token: String,
         liquidity_percent: Decimal,
         allowed_spread_per_step: Decimal,
+    },
+    #[returns(Vec<RouteStepVerbose>)]
+    WhitelistingRoutes {
+        start_after: Option<String>,
+        limit: Option<u32>,
     },
 }
 

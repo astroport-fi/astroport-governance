@@ -3,12 +3,13 @@ use astroport::pair::SimulationResponse;
 use astroport::{factory, pair};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
-    attr, ensure, ensure_eq, ensure_ne, Addr, Decimal, Deps, DepsMut, Order, QuerierWrapper,
-    Response, StdError, StdResult, Storage,
+    attr, ensure, ensure_eq, ensure_ne, Addr, CustomMsg, Decimal, Deps, DepsMut, Order,
+    QuerierWrapper, Response, StdError, StdResult, Storage,
 };
 use cw_storage_plus::{Bound, Item, Map};
 use itertools::Itertools;
 use std::collections::{HashMap, HashSet};
+use std::iter::once;
 use thiserror::Error;
 
 pub const MAX_SWAPS_DEPTH: usize = 10;
@@ -20,14 +21,20 @@ pub enum RouterError {
     Std(#[from] StdError),
     #[error("No registered route for {asset}")]
     RouteNotFound { asset: String },
-    #[error("Failed to build route for {asset} with the max multi-hop depth {MAX_SWAPS_DEPTH}")]
-    FailedToBuildRoute { asset: String },
+    #[error("Failed to build a route for {asset}. Max multi-hop depth is {MAX_SWAPS_DEPTH}. Liquidity percent of one token of the whitelisting pool: {liq_percent}, allowed spread per step: {allowed_spread_per_step}")]
+    FailedToBuildRoute {
+        asset: String,
+        liq_percent: Decimal,
+        allowed_spread_per_step: Decimal,
+    },
     #[error("Empty routes")]
     EmptyRoutes {},
     #[error("Route cannot contain ASTRO as intermediate asset")]
     AstroInRoute {},
     #[error("Message contains duplicated routes for asset {asset}")]
     DuplicatedRoutes { asset: String },
+    #[error("ASTRO can't be used as a default asset")]
+    AstroInDefaultAssets {},
 }
 
 #[cw_serde]
@@ -53,30 +60,17 @@ pub const ROUTES: Map<&[u8], RouteStep> = Map::new("routes");
 /// If there is a saved route to a target asset, default assets are not used.
 pub const DEFAULT_ASSETS: Item<Vec<AssetInfo>> = Item::new("default_assets");
 
+#[derive(Default)]
 pub struct RoutesBuilder {
     routes_cache: HashMap<AssetInfo, RouteStep>,
     liq_percent: Decimal,
     allowed_spread_per_step: Decimal,
     default_assets: Vec<AssetInfo>,
-    factory: Addr,
-}
-
-impl Default for RoutesBuilder {
-    fn default() -> Self {
-        Self {
-            routes_cache: HashMap::new(),
-            liq_percent: Decimal::zero(),
-            allowed_spread_per_step: Decimal::zero(),
-            default_assets: vec![],
-            factory: Addr::unchecked(""),
-        }
-    }
 }
 
 impl RoutesBuilder {
     pub fn new(
         storage: &dyn Storage,
-        factory: &Addr,
         liq_percent: Decimal,
         allowed_spread_per_step: Decimal,
     ) -> StdResult<Self> {
@@ -84,7 +78,6 @@ impl RoutesBuilder {
             liq_percent,
             allowed_spread_per_step,
             default_assets: DEFAULT_ASSETS.may_load(storage)?.unwrap_or_default(),
-            factory: factory.clone(),
             ..Default::default()
         })
     }
@@ -124,7 +117,7 @@ impl RoutesBuilder {
         ensure_eq!(
             &prev_asset,
             target_asset_info,
-            RouterError::FailedToBuildRoute {
+            RouterError::RouteNotFound {
                 asset: asset_in.to_string(),
             }
         );
@@ -135,21 +128,22 @@ impl RoutesBuilder {
     pub fn validate_whitelisting_pool(
         &mut self,
         deps: Deps,
+        factory: &Addr,
         target_asset_info: &AssetInfo,
         pair_info: &PairInfo,
     ) -> Result<Asset, RouterError> {
         let balances = pair_info.query_pools(&deps.querier, &pair_info.contract_addr)?;
 
         let asset_in = pair_info.asset_infos[0].with_balance(self.liq_percent * balances[0].amount);
-        self.try_swap_into_target(deps, asset_in, target_asset_info, pair_info)
+        self.try_swap_into_target(deps, factory, asset_in, target_asset_info, pair_info)
             .or_else(|_| {
                 let asset_in =
                     pair_info.asset_infos[1].with_balance(self.liq_percent * balances[1].amount);
-                self.try_swap_into_target(deps, asset_in, target_asset_info, pair_info)
+                self.try_swap_into_target(deps, factory, asset_in, target_asset_info, pair_info)
             })
     }
 
-    fn get_cached_or_read_route(
+    fn cached_read(
         &mut self,
         storage: &dyn Storage,
         asset_in: &AssetInfo,
@@ -167,6 +161,7 @@ impl RoutesBuilder {
     pub fn try_swap_into_target(
         &mut self,
         deps: Deps,
+        factory: &Addr,
         asset_in: Asset,
         target_asset_info: &AssetInfo,
         pair_info: &PairInfo,
@@ -178,9 +173,7 @@ impl RoutesBuilder {
                 break;
             }
 
-            prev_asset = if let Some(step) =
-                self.get_cached_or_read_route(deps.storage, &prev_asset.info)?
-            {
+            prev_asset = if let Some(step) = self.cached_read(deps.storage, &prev_asset.info)? {
                 let res: SimulationResponse = deps.querier.query_wasm_smart(
                     &step.pool_addr,
                     &pair::QueryMsg::Simulation {
@@ -209,14 +202,16 @@ impl RoutesBuilder {
                 step.asset_out.with_balance(res.return_amount)
             } else {
                 let mut ret_asset = None;
-                for def_asset in &self.default_assets {
+                // After checking default assets, we always check the target asset as well,
+                // which is always ASTRO in our case.
+                for def_asset in self.default_assets.iter().chain(once(target_asset_info)) {
                     // Closure that finds an asset_out with an acceptable spread for a given pair
                     // Returns Some((asset_out, pool_addr)) if found, None otherwise
                     let yield_ret_asset_if_low_spread = |pi: &PairInfo| {
                         let res: SimulationResponse = deps
                             .querier
                             .query_wasm_smart(
-                                &pair_info.contract_addr,
+                                &pi.contract_addr,
                                 &pair::QueryMsg::Simulation {
                                     offer_asset: prev_asset.clone(),
                                     ask_asset_info: None,
@@ -250,7 +245,7 @@ impl RoutesBuilder {
 
                     loop {
                         let pairs: Vec<PairInfo> = deps.querier.query_wasm_smart(
-                            &self.factory,
+                            factory,
                             &factory::QueryMsg::PairsByAssetInfos {
                                 asset_infos: asset_infos.clone(),
                                 start_after: start_after.clone(),
@@ -280,8 +275,10 @@ impl RoutesBuilder {
                     }
                 }
 
-                ret_asset.ok_or_else(|| RouterError::RouteNotFound {
-                    asset: prev_asset.to_string(),
+                ret_asset.ok_or_else(|| RouterError::FailedToBuildRoute {
+                    asset: prev_asset.info.to_string(),
+                    liq_percent: self.liq_percent,
+                    allowed_spread_per_step: self.allowed_spread_per_step,
                 })?
             };
         }
@@ -291,18 +288,21 @@ impl RoutesBuilder {
             target_asset_info,
             RouterError::FailedToBuildRoute {
                 asset: asset_in.to_string(),
+                liq_percent: self.liq_percent,
+                allowed_spread_per_step: self.allowed_spread_per_step,
             }
         );
 
         Ok(prev_asset)
     }
 
-    pub fn set_routes(
+    pub fn set_routes<T: CustomMsg>(
         &mut self,
         deps: DepsMut,
-        routes: Vec<RouteStep>,
+        routes: Vec<RouteStepVerbose>,
         astro_denom: &str,
-    ) -> Result<Response, RouterError> {
+        factory: &Addr,
+    ) -> Result<Response<T>, RouterError> {
         ensure!(!routes.is_empty(), RouterError::EmptyRoutes {});
 
         let mut attrs = vec![attr("action", "set_routes")];
@@ -311,25 +311,20 @@ impl RoutesBuilder {
         let mut assets_in_set = HashSet::new();
 
         for route in &routes {
-            let (pair_info, asset_in) = get_validated_pair_info(
-                deps.querier,
-                &self.factory,
-                &route.pool_addr,
-                &route.asset_out,
-            )?;
+            let pair_info = get_validated_pair_info(deps.querier, factory, route)?;
 
             ensure!(
-                assets_in_set.insert(asset_in.clone()),
+                assets_in_set.insert(route.asset_in.clone()),
                 RouterError::DuplicatedRoutes {
-                    asset: asset_in.to_string()
+                    asset: route.asset_in.to_string()
                 }
             );
 
-            ensure_ne!(asset_in, astro, RouterError::AstroInRoute {});
+            ensure_ne!(route.asset_in, astro, RouterError::AstroInRoute {});
 
-            let route_key = asset_info_key(&asset_in);
+            let route_key = asset_info_key(&route.asset_in);
             if ROUTES.has(deps.storage, &route_key) {
-                attrs.push(attr("updated_route", asset_in.to_string()));
+                attrs.push(attr("updated_route", route.asset_in.to_string()));
             }
 
             let route_step = RouteStep {
@@ -340,7 +335,7 @@ impl RoutesBuilder {
             // If route exists then this iteration updates the route.
             ROUTES.save(deps.storage, &route_key, &route_step)?;
 
-            self.routes_cache.insert(asset_in.clone(), route_step);
+            self.routes_cache.insert(route.asset_in.clone(), route_step);
         }
 
         // Check all updated routes lead to ASTRO. It also checks for possible loops.
@@ -352,16 +347,18 @@ impl RoutesBuilder {
         Ok(Response::new().add_attributes(attrs))
     }
 
-    pub fn set_default_assets(
+    pub fn set_default_assets<T: CustomMsg>(
         &mut self,
         storage: &mut dyn Storage,
         assets: Vec<AssetInfo>,
         astro_denom: &str,
-    ) -> Result<Response, RouterError> {
+    ) -> Result<Response<T>, RouterError> {
         let astro = AssetInfo::native(astro_denom);
 
-        // Check all default assets lead to ASTRO
+        // Check all default assets lead to ASTRO.
+        // Blocks setting ASTRO as a default asset.
         for asset_in in &assets {
+            ensure_ne!(asset_in, &astro, RouterError::AstroInDefaultAssets {});
             self.build_route(storage, asset_in, &astro).map(|_| ())?;
         }
 
@@ -407,17 +404,14 @@ pub fn query_routes(
 }
 
 /// Validates that pair was registered using the official Astroport factory.
-/// Ensures target asset is one of the pair's assets.
-/// Returns the pair info from the factory and the other asset (not target).
+/// Returns the pair info from the factory.
 pub fn get_validated_pair_info(
     querier: QuerierWrapper,
-    factory: impl Into<String>,
-    pool_addr: impl Into<String>,
-    target_asset_info: &AssetInfo,
-) -> StdResult<(PairInfo, AssetInfo)> {
-    let pool_addr = pool_addr.into();
+    factory: &Addr,
+    route_step: &RouteStepVerbose,
+) -> StdResult<PairInfo> {
     let pool_pair_info: PairInfo =
-        querier.query_wasm_smart(&pool_addr, &pair::QueryMsg::Pair {})?;
+        querier.query_wasm_smart(&route_step.pool_addr, &pair::QueryMsg::Pair {})?;
 
     let factory_pair_info: PairInfo = querier.query_wasm_smart(
         factory,
@@ -426,29 +420,34 @@ pub fn get_validated_pair_info(
         },
     )?;
 
-    ensure_eq!(
-        pool_pair_info.contract_addr,
-        factory_pair_info.contract_addr,
+    ensure!(
+        factory_pair_info.asset_infos.contains(&route_step.asset_in),
         StdError::generic_err(format!(
-            "Pool address mismatch: {pool_addr} != {}",
-            factory_pair_info.contract_addr
+            "Asset {} not found in pool {}",
+            route_step.asset_in, route_step.pool_addr
         ))
     );
 
     ensure!(
-        factory_pair_info.asset_infos.contains(target_asset_info),
+        factory_pair_info
+            .asset_infos
+            .contains(&route_step.asset_out),
         StdError::generic_err(format!(
-            "Invalid pool asset: pool {pool_addr} doesn't contain asset {target_asset_info}"
+            "Asset {} not found in pool {}",
+            route_step.asset_out, route_step.pool_addr
         ))
     );
 
-    let asset_in = if &factory_pair_info.asset_infos[0] == target_asset_info {
-        factory_pair_info.asset_infos[1].clone()
-    } else {
-        factory_pair_info.asset_infos[0].clone()
-    };
+    ensure_eq!(
+        pool_pair_info.contract_addr,
+        factory_pair_info.contract_addr,
+        StdError::generic_err(format!(
+            "Pool address mismatch: {} != {}",
+            route_step.pool_addr, factory_pair_info.contract_addr
+        ))
+    );
 
-    Ok((factory_pair_info, asset_in))
+    Ok(factory_pair_info)
 }
 
 pub fn asset_info_key(asset_info: &AssetInfo) -> Vec<u8> {

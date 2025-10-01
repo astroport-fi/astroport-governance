@@ -17,7 +17,7 @@ use astroport_governance::emissions_controller::consts::MAX_PAGE_LIMIT;
 use astroport_governance::emissions_controller::hub::{
     QueryMsg, SimulateTuneResponse, UserInfoResponse,
 };
-use astroport_governance::emissions_controller::router::RoutesBuilder;
+use astroport_governance::emissions_controller::router::{query_routes, RoutesBuilder};
 use astroport_governance::emissions_controller::utils::get_pair_info;
 
 /// Expose available contract queries.
@@ -158,15 +158,18 @@ pub fn query(deps: Deps<NeutronQuery>, env: Env, msg: QueryMsg) -> Result<Binary
 
             let mut routes_builder = RoutesBuilder::new(
                 deps.storage,
-                &config.factory,
                 config.liquidity_percent,
                 config.allowed_spread_per_step,
             )?;
 
             let astro = AssetInfo::native(config.astro_denom);
-            routes_builder.validate_whitelisting_pool(deps, &astro, &pair_info)?;
+            routes_builder.validate_whitelisting_pool(deps, &config.factory, &astro, &pair_info)?;
 
             Ok(to_json_binary(&Empty {})?)
+        }
+        QueryMsg::WhitelistingRoutes { start_after, limit } => {
+            let res = query_routes(deps.into_empty(), start_after, limit)?;
+            Ok(to_json_binary(&res)?)
         }
     }
 }

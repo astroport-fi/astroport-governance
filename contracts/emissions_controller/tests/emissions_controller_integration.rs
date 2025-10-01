@@ -16,12 +16,15 @@ use astroport_governance::emissions_controller::hub::{
     UserInfoResponse, VotedPoolInfo,
 };
 use astroport_governance::emissions_controller::msg::{ExecuteMsg, VxAstroIbcMsg};
+use astroport_governance::emissions_controller::router::RouteStepVerbose;
 use astroport_governance::emissions_controller::utils::get_epoch_start;
 use astroport_governance::utils::determine_ics20_escrow_address;
 use astroport_governance::{assembly, emissions_controller, voting_escrow};
 use astroport_voting_escrow::state::UNLOCK_PERIOD;
 
-use crate::common::helper::{ControllerHelper, PROPOSAL_VOTING_PERIOD};
+use crate::common::helper::{
+    get_pair_addr_from_lp_token, ControllerHelper, PROPOSAL_VOTING_PERIOD,
+};
 
 mod common;
 
@@ -2088,105 +2091,250 @@ fn test_update_config() {
     );
 }
 
-// #[test]
-// fn test_whitelisting_validation() {
-//     let mut helper = ControllerHelper::new();
-//     let owner = helper.owner.clone();
-//     let whitelisting_fee = helper.whitelisting_fee.clone();
-//     let astro = AssetInfo::native(&helper.astro);
-//
-//     // Mint some astro for whitelisting
-//     helper
-//         .mint_tokens(&owner, &[coin(u128::MAX / 2, &helper.astro)])
-//         .unwrap();
-//
-//     helper
-//         .add_outpost(
-//             "neutron",
-//             OutpostInfo {
-//                 astro_denom: helper.astro.clone(),
-//                 params: None,
-//                 astro_pool_config: None,
-//                 jailed: false,
-//             },
-//         )
-//         .unwrap();
-//
-//     let (pair_addr, lp_token) = helper.create_empty_pair("token1", "token2");
-//
-//     // Try to whitelist an empty pool
-//     let err = helper
-//         .whitelist(&owner, &lp_token, &[whitelisting_fee.clone()])
-//         .unwrap_err();
-//     assert_eq!(
-//         err.root_cause().to_string(),
-//         "Generic error: Querier contract error: Generic error: One of the pools is empty"
-//     );
-//
-//     // Seed pool with some liquidity
-//     helper
-//         .mint_tokens(
-//             &pair_addr,
-//             &[coin(1000000, "token1"), coin(1000000, "token2")],
-//         )
-//         .unwrap();
-//
-//     // Try to whitelist a pool with invalid route (not starting with pool asset)
-//     let err = helper.whitelist(&lp_token).unwrap_err();
-//     assert_eq!(
-//         err.root_cause().to_string(),
-//         "Generic error: The first pair in the route must start with one of the pool's assets"
-//     );
-//
-//     let err = helper.whitelist(&lp_token).unwrap_err();
-//     assert_eq!(
-//         err.root_cause().to_string(),
-//         "Generic error: Last step of the route must lead to ASTRO. Got token2"
-//     );
-//
-//     // Try to use unverified pair contract in the route
-//     let unverified_pair = helper.create_unverified_pair("token1", &astro.to_string());
-//     let err = helper.whitelist(&lp_token).unwrap_err();
-//     assert_eq!(
-//         err.root_cause().to_string(),
-//         "Generic error: Querier contract error: Generic error: Pair not found"
-//     );
-//
-//     // Create a pair that leads to astro
-//     let (pair_to_astro, astro_lp_token) = helper.create_empty_pair("token2", &astro.to_string());
-//     let err = helper.whitelist(&astro_lp_token).unwrap_err();
-//     assert_eq!(
-//         err.root_cause().to_string(),
-//         "Generic error: Querier contract error: Generic error: One of the pools is empty"
-//     );
-//
-//     // Seed the 2nd pool with some liquidity
-//     helper
-//         .mint_tokens(
-//             &pair_to_astro,
-//             &[coin(1_000000, "token2"), coin(1_000000, &helper.astro)],
-//         )
-//         .unwrap();
-//
-//     // Try to whitelist while having too high spread
-//     let err = helper.whitelist(&lp_token).unwrap_err();
-//     assert_eq!(
-//         err.root_cause().to_string(),
-//         "Generic error: Spread 0.166671333370666965 is too high for step with pair neutron1hw5n2l4v5vz8lk4sj69j7pwdaut0kkn90mw09snlkdd3f7ckld0scs6taz. Max allowed is 0.05"
-//     );
-//
-//     // Seed the 2nd pool with more liquidity to reduce the spread
-//     helper
-//         .mint_tokens(
-//             &pair_to_astro,
-//             &[coin(10_000000, "token2"), coin(10_000000, &helper.astro)],
-//         )
-//         .unwrap();
-//
-//     // Finally, whitelist the pool
-//     helper.whitelist(&lp_token).unwrap();
-//
-//     // Confirm the pool is whitelisted
-//     let whitelist = helper.query_whitelist().unwrap();
-//     assert_eq!(whitelist, [lp_token.clone()])
-// }
+#[test]
+fn test_whitelisting_validation() {
+    let mut helper = ControllerHelper::new();
+    let owner = helper.owner.clone();
+    let whitelisting_fee = helper.whitelisting_fee.clone();
+    let astro = AssetInfo::native(&helper.astro);
+
+    // Mint some astro for whitelisting
+    helper
+        .mint_tokens(&owner, &[coin(u128::MAX / 2, &helper.astro)])
+        .unwrap();
+
+    helper
+        .add_outpost(
+            "neutron",
+            OutpostInfo {
+                astro_denom: helper.astro.clone(),
+                params: None,
+                astro_pool_config: None,
+                jailed: false,
+            },
+        )
+        .unwrap();
+
+    let (pair_addr, lp_token) = helper.create_empty_pair("token1", "token2");
+
+    // Try to whitelist a pool not connected to ASTRO
+    let err = helper
+        .whitelist(&owner, &lp_token, &[whitelisting_fee.clone()])
+        .unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Failed to build route for token2. Max multi-hop depth is 10. Liquidity percent of one token of the whitelisting pool: 0.2, allowed spread per step: 0.05"
+    );
+
+    let usdc_asset = AssetInfo::native("uusdc");
+    let astro_pair_addr = get_pair_addr_from_lp_token(
+        &helper.create_and_seed_pair([coin(100_000000, "uusdc"), coin(100_000000, &helper.astro)]),
+    );
+
+    let err = helper
+        .set_pool_routes(
+            &Addr::unchecked("random"),
+            vec![RouteStepVerbose {
+                asset_in: usdc_asset.clone(),
+                asset_out: astro.clone(),
+                pool_addr: astro_pair_addr.to_string(),
+            }],
+        )
+        .unwrap_err();
+    assert_eq!(ContractError::Unauthorized {}, err.downcast().unwrap());
+
+    helper
+        .set_pool_routes(
+            &owner,
+            vec![RouteStepVerbose {
+                asset_in: usdc_asset.clone(),
+                asset_out: astro.clone(),
+                pool_addr: astro_pair_addr.to_string(),
+            }],
+        )
+        .unwrap();
+
+    let unverified_astro_pair_addr = helper.create_unverified_pair("uusdc", &astro.to_string());
+    let err = helper
+        .set_pool_routes(
+            &owner,
+            vec![RouteStepVerbose {
+                asset_in: usdc_asset.clone(),
+                asset_out: astro.clone(),
+                pool_addr: unverified_astro_pair_addr.to_string(),
+            }],
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Generic error: Querier contract error: Generic error: Invalid input"
+    );
+
+    let err = helper
+        .set_default_assets(&Addr::unchecked("random"), vec![usdc_asset.clone()])
+        .unwrap_err();
+    assert_eq!(ContractError::Unauthorized {}, err.downcast().unwrap());
+
+    let err = helper
+        .set_default_assets(&owner, vec![astro.clone()])
+        .unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        "ASTRO can't be used as a default asset"
+    );
+
+    helper
+        .set_default_assets(&owner, vec![usdc_asset.clone()])
+        .unwrap();
+
+    // Mimicking connection to ASTRO via USDC without liquidity
+    let (usdc_pair_addr, _) = helper.create_empty_pair("token2", "uusdc");
+
+    let err = helper.easy_whitelist(&lp_token).unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Failed to build route for token2. Max multi-hop depth is 10. Liquidity percent of one token of the whitelisting pool: 0.2, allowed spread per step: 0.05"
+    );
+
+    // Seed token2-usdc pool with some liquidity
+    helper
+        .mint_tokens(
+            &usdc_pair_addr,
+            &[coin(1_000000, "token2"), coin(1_000000, "uusdc")],
+        )
+        .unwrap();
+
+    // Same error as main token1-token2 pool is still empty
+    let err = helper.easy_whitelist(&lp_token).unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Failed to build route for token2. Max multi-hop depth is 10. Liquidity percent of one token of the whitelisting pool: 0.2, allowed spread per step: 0.05"
+    );
+
+    // Seed token1-token2 pool with some liquidity
+    helper
+        .mint_tokens(
+            &pair_addr,
+            &[coin(1_000000, "token1"), coin(1_000000, "token2")],
+        )
+        .unwrap();
+
+    // Again same error as token2-usdc doesn't have enough liquidity
+    // to satisfy the 5% spread requirement
+    let err = helper.easy_whitelist(&lp_token).unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Failed to build route for token2. Max multi-hop depth is 10. Liquidity percent of one token of the whitelisting pool: 0.2, allowed spread per step: 0.05"
+    );
+
+    // Seed more liquidity in token2-usdc pool
+    helper
+        .mint_tokens(
+            &usdc_pair_addr,
+            &[coin(10_000000, "token2"), coin(10_000000, "uusdc")],
+        )
+        .unwrap();
+
+    helper.easy_whitelist(&lp_token).unwrap();
+
+    // Confirm the pool is whitelisted
+    let whitelist = helper.query_whitelist().unwrap();
+    assert_eq!(whitelist, [lp_token.clone()]);
+
+    let err = helper.easy_whitelist(&lp_token).unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        format!("Pool {lp_token} is already whitelisted")
+    );
+
+    // Try to whitelist unverified pool (not created via factory)
+    let unverified_pair = helper.create_unverified_pair("token1", &astro.to_string());
+    let err = helper.easy_whitelist(&unverified_pair).unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Generic error: Querier contract error: Generic error: Pair not found"
+    );
+
+    // Try to set duplicated routes
+    let another_astro_pair = get_pair_addr_from_lp_token(
+        &helper.create_and_seed_pair([coin(10, "uusdc"), coin(10, &helper.astro)]),
+    );
+    let err = helper
+        .set_pool_routes(
+            &owner,
+            vec![
+                RouteStepVerbose {
+                    asset_in: usdc_asset.clone(),
+                    asset_out: astro.clone(),
+                    pool_addr: astro_pair_addr.to_string(),
+                },
+                RouteStepVerbose {
+                    asset_in: usdc_asset.clone(),
+                    asset_out: astro.clone(),
+                    pool_addr: another_astro_pair.to_string(),
+                },
+            ],
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Message contains duplicated routes for asset uusdc"
+    );
+
+    // Change astro-usdc pool in router
+    helper
+        .set_pool_routes(
+            &owner,
+            vec![RouteStepVerbose {
+                asset_in: usdc_asset.clone(),
+                asset_out: astro.clone(),
+                pool_addr: another_astro_pair.to_string(),
+            }],
+        )
+        .unwrap();
+
+    // Before valid pool becomes invalid due to a changed route with illiquid astro pool
+    let err = helper.check_eligibility(&lp_token).unwrap_err();
+    assert_eq!(err.to_string(), format!("Generic error: Querier contract error: Generic error: Spread 21824.333333333333333333 is too high for step with pair {another_astro_pair}. Max allowed is 0.05"));
+
+    // Query all routes
+    assert_eq!(
+        helper.query_routes().unwrap(),
+        [RouteStepVerbose {
+            asset_in: usdc_asset.clone(),
+            asset_out: astro.clone(),
+            pool_addr: another_astro_pair.to_string(),
+        }]
+    );
+
+    // Try to set a pool with invalid assets
+    let err = helper
+        .set_pool_routes(
+            &owner,
+            vec![RouteStepVerbose {
+                asset_in: AssetInfo::native("invalid"),
+                asset_out: astro.clone(),
+                pool_addr: another_astro_pair.to_string(),
+            }],
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        format!("Generic error: Asset invalid not found in pool {another_astro_pair}")
+    );
+
+    let err = helper
+        .set_pool_routes(
+            &owner,
+            vec![RouteStepVerbose {
+                asset_in: usdc_asset.clone(),
+                asset_out: AssetInfo::native("invalid"),
+                pool_addr: another_astro_pair.to_string(),
+            }],
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        format!("Generic error: Asset invalid not found in pool {another_astro_pair}")
+    );
+}
