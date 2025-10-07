@@ -593,6 +593,23 @@ impl ControllerHelper {
         )
     }
 
+    pub fn toggle_pinned_pool(
+        &mut self,
+        user: &Addr,
+        lp_token: impl Into<String>,
+        pin: bool,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            user.clone(),
+            self.emission_controller.clone(),
+            &emissions_controller::msg::ExecuteMsg::Custom(HubMsg::TogglePinnedPool {
+                lp_token: lp_token.into(),
+                pin,
+            }),
+            &[],
+        )
+    }
+
     pub fn set_pool_routes(
         &mut self,
         sender: &Addr,

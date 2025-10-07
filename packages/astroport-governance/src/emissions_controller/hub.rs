@@ -100,6 +100,11 @@ pub enum HubMsg {
     /// Note that unwhitelisting a pool doesn't mean blacklisting.
     /// A pool can be whitelisted again by calling WhitelistPool endpoint.
     UnwhitelistIneligiblePool { lp_token: String },
+    /// Permissioned to the contract owner.
+    /// Pins or unpins a pool in the whitelist.
+    /// Pinned pools can't be unwhitelisted by permissionless endpoint for being ineligible.
+    /// However, pinned pools can be unwhitelisted naturally through vxASTRO voting process.
+    TogglePinnedPool { lp_token: String, pin: bool },
     /// Manages pool blacklist.
     /// Blacklisting prevents voting for it.
     /// If the pool is whitelisted, it will be removed from the whitelist.

@@ -160,6 +160,9 @@ pub fn execute(
         ExecuteMsg::Custom(hub_msg) => match hub_msg {
             HubMsg::WhitelistPool { lp_token } => whitelist_pool(deps, env, info, lp_token),
             HubMsg::UnwhitelistIneligiblePool { lp_token } => unwhitelist_pool(deps, env, lp_token),
+            HubMsg::TogglePinnedPool { lp_token, pin } => {
+                toggle_pinned_pool(deps, info, lp_token, pin)
+            }
             HubMsg::UpdateBlacklist { add, remove } => {
                 update_blacklist(deps, info, env, add, remove)
             }
@@ -395,6 +398,30 @@ pub fn unwhitelist_pool(
     Ok(Response::default()
         .add_messages(messages)
         .add_attributes(attrs))
+}
+
+pub fn toggle_pinned_pool(
+    deps: DepsMut<NeutronQuery>,
+    info: MessageInfo,
+    lp_token: String,
+    pin: bool,
+) -> Result<Response<NeutronMsg>, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+    ensure_eq!(info.sender, config.owner, ContractError::Unauthorized {});
+
+    POOLS_WHITELIST.update(deps.storage, &lp_token, |stored_data| {
+        if stored_data.is_some() {
+            Ok(pin)
+        } else {
+            Err(ContractError::PoolIsNotWhitelisted(lp_token.clone()))
+        }
+    })?;
+
+    Ok(Response::default().add_attributes([
+        attr("action", "toggle_pinned_pool"),
+        attr("lp_token", lp_token),
+        attr("pinned", pin.to_string()),
+    ]))
 }
 
 pub fn update_blacklist(

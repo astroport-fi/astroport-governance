@@ -634,6 +634,48 @@ fn test_outpost_management() {
         .collect_vec();
     assert_eq!(whitelist, [pool.clone(), osmosis_astro_pool.clone()]);
 
+    // Enable unwhitelisting
+    helper
+        .app
+        .execute_contract(
+            helper.owner.clone(),
+            helper.emission_controller.clone(),
+            &ExecuteMsg::Custom(HubMsg::UpdateConfig {
+                pools_per_outpost: None,
+                whitelisting_fee: None,
+                fee_receiver: None,
+                emissions_multiple: None,
+                max_astro: None,
+                liquidity_percent: None,
+                allowed_spread_per_step: None,
+                enable_unwhitelisting: Some(true),
+            }),
+            &[],
+        )
+        .unwrap();
+
+    // Initiate whitelisting check for a remote pool
+    helper.unwhitelist(&user, &osmosis_astro_pool).unwrap();
+
+    // We can't initiate one more check while there is one pending
+    let err = helper.unwhitelist(&user, &osmosis_astro_pool).unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::PendingWhitelisting(osmosis_astro_pool.clone())
+    );
+
+    // Ack the check
+    helper
+        .mock_ibc_ack(
+            VxAstroIbcMsg::CheckWhitelistEligibility {
+                lp_token: osmosis_astro_pool.clone(),
+                liq_percent: Default::default(),
+                allowed_spread: Default::default(),
+            },
+            None,
+        )
+        .unwrap();
+
     // Mark 'osmosis_astro_pool' as ASTRO pool
     osmosis.astro_pool_config = Some(AstroPoolConfig {
         astro_pool: osmosis_astro_pool.clone(),
@@ -2364,6 +2406,35 @@ fn test_whitelisting_validation() {
         .unwrap();
 
     helper.easy_whitelist(&lp_token).unwrap();
+
+    let user = Addr::unchecked("random_user");
+    let err = helper
+        .toggle_pinned_pool(&user, &lp_token, true)
+        .unwrap_err();
+    assert_eq!(ContractError::Unauthorized {}, err.downcast().unwrap());
+
+    let err = helper
+        .toggle_pinned_pool(&owner, "random_lp_token", true)
+        .unwrap_err();
+    assert_eq!(
+        ContractError::PoolIsNotWhitelisted("random_lp_token".to_string()),
+        err.downcast().unwrap()
+    );
+
+    helper.toggle_pinned_pool(&owner, &lp_token, true).unwrap();
+
+    let err = helper.check_eligibility(&lp_token).unwrap_err();
+    assert_eq!(
+        err.to_string(),
+        format!("Generic error: Querier contract error: Pool {lp_token} is pinned to the whitelist and can't be removed via unwhitelist endpoint")
+    );
+
+    // Now try to unwhitelist the pinned pool
+    let err = helper.unwhitelist(&user, &lp_token).unwrap_err();
+    assert_eq!(
+        ContractError::PinnedPool(lp_token.clone()),
+        err.downcast().unwrap()
+    );
 
     // Query all routes
     assert_eq!(
