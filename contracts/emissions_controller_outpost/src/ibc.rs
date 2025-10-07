@@ -123,16 +123,12 @@ pub fn do_packet_receive(
             liq_percent,
             allowed_spread,
         } => {
-            let pair_info = get_pair_info(deps.as_ref(), &config.factory, &lp_token)?;
+            let deps = deps.as_ref();
+            let pair_info = get_pair_info(deps, &config.factory, &lp_token)?;
             let mut routes_builder = RoutesBuilder::new(deps.storage, liq_percent, allowed_spread)?;
 
             let astro = AssetInfo::native(config.astro_denom);
-            routes_builder.validate_whitelisting_pool(
-                deps.as_ref(),
-                &config.factory,
-                &astro,
-                &pair_info,
-            )?;
+            routes_builder.validate_whitelisting_pool(deps, &config.factory, &astro, &pair_info)?;
         }
         _ => unreachable!("Outpost can't receive these messages"),
     }

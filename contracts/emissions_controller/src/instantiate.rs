@@ -70,6 +70,7 @@ pub fn instantiate(
         staking,
         xastro_denom: msg.xastro_denom.clone(),
         allowed_spread_per_step: msg.allowed_spread_per_step,
+        unwhitelisting_enabled: false,
     };
     config.validate()?;
 

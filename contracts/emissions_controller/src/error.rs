@@ -93,4 +93,13 @@ pub enum ContractError {
 
     #[error("Pool {0} is pending whitelisting. Wait until relayer acknowledges the IBC packet")]
     PendingWhitelisting(String),
+
+    #[error("Pool {0} is pinned to the whitelist and can't be removed via unwhitelist endpoint")]
+    PinnedPool(String),
+
+    #[error("Unwhitelisting is disabled")]
+    UnwhitelistingDisabled {},
+
+    #[error("Pool {0} is still eligible for the whitelist and can't be unwhitelisted")]
+    PoolIsStillEligible(String),
 }

@@ -240,19 +240,23 @@ pub fn ibc_packet_ack(
                 VxAstroIbcMsg::CheckWhitelistEligibility { lp_token, .. } => {
                     // Move the pool from pending to the actual whitelist if it was approved
                     if PENDING_WHITELIST.has(deps.storage, &lp_token) {
-                        PENDING_WHITELIST.remove(deps.storage, &lp_token);
-                        POOLS_WHITELIST.save(deps.storage, &lp_token, &())?;
+                        // Start voting from scratch if the pool is not whitelisted yet.
+                        if !POOLS_WHITELIST.has(deps.storage, &lp_token) {
+                            POOLS_WHITELIST.save(deps.storage, &lp_token, &false)?;
 
-                        // Starting the voting process from scratch for this pool
-                        VOTED_POOLS.save(
-                            deps.storage,
-                            &lp_token,
-                            &VotedPoolInfo {
-                                init_ts: env.block.time.seconds(),
-                                voting_power: Uint128::zero(),
-                            },
-                            env.block.time.seconds(),
-                        )?;
+                            // Starting the voting process from scratch for this pool
+                            VOTED_POOLS.save(
+                                deps.storage,
+                                &lp_token,
+                                &VotedPoolInfo {
+                                    init_ts: env.block.time.seconds(),
+                                    voting_power: Uint128::zero(),
+                                },
+                                env.block.time.seconds(),
+                            )?;
+                        }
+
+                        PENDING_WHITELIST.remove(deps.storage, &lp_token);
                     }
                 }
                 _ => unreachable!("Hub can't receive these messages"),
@@ -476,6 +480,7 @@ mod unit_tests {
                     max_astro: Default::default(),
                     liquidity_percent: Default::default(),
                     allowed_spread_per_step: Default::default(),
+                    unwhitelisting_enabled: false,
                 },
             )
             .unwrap();
@@ -533,7 +538,7 @@ mod unit_tests {
             )
             .unwrap();
         POOLS_WHITELIST
-            .save(deps.as_mut().storage, "osmo1pool1", &())
+            .save(deps.as_mut().storage, "osmo1pool1", &false)
             .unwrap();
 
         let mut env = mock_env();

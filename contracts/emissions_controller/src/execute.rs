@@ -159,10 +159,7 @@ pub fn execute(
         }
         ExecuteMsg::Custom(hub_msg) => match hub_msg {
             HubMsg::WhitelistPool { lp_token } => whitelist_pool(deps, env, info, lp_token),
-            HubMsg::UnwhitelistIneligiblePool { lp_token } => {
-                // TODO: consider pausing ability
-                todo!("implement unwhitelist_ineligible_pool")
-            }
+            HubMsg::UnwhitelistIneligiblePool { lp_token } => unwhitelist_pool(deps, env, lp_token),
             HubMsg::UpdateBlacklist { add, remove } => {
                 update_blacklist(deps, info, env, add, remove)
             }
@@ -192,6 +189,7 @@ pub fn execute(
                 max_astro,
                 liquidity_percent,
                 allowed_spread_per_step,
+                enable_unwhitelisting,
             } => update_config(
                 deps,
                 info,
@@ -202,6 +200,7 @@ pub fn execute(
                 max_astro,
                 liquidity_percent,
                 allowed_spread_per_step,
+                enable_unwhitelisting,
             ),
             HubMsg::RegisterProposal { proposal_id } => register_proposal(deps, env, proposal_id),
         },
@@ -290,7 +289,7 @@ pub fn whitelist_pool(
                 )?;
 
                 // If validation passed, save to the whitelist
-                POOLS_WHITELIST.save(deps.storage, &pool, &())?;
+                POOLS_WHITELIST.save(deps.storage, &pool, &false)?;
 
                 // Starting the voting process from scratch for this pool
                 VOTED_POOLS.save(
@@ -320,6 +319,82 @@ pub fn whitelist_pool(
     Ok(Response::default()
         .add_messages(messages)
         .add_attributes([attr("action", "whitelist_pool"), attr("pool", &pool)]))
+}
+
+pub fn unwhitelist_pool(
+    deps: DepsMut<NeutronQuery>,
+    env: Env,
+    lp_token: String,
+) -> Result<Response<NeutronMsg>, ContractError> {
+    let deps = deps.into_empty();
+    let config = CONFIG.load(deps.storage)?;
+
+    ensure!(
+        config.unwhitelisting_enabled,
+        ContractError::UnwhitelistingDisabled {}
+    );
+
+    match POOLS_WHITELIST.may_load(deps.storage, &lp_token)? {
+        Some(false) => Ok(()),
+        Some(true) => Err(ContractError::PinnedPool(lp_token.clone())),
+        None => Err(ContractError::PoolIsNotWhitelisted(lp_token.clone())),
+    }?;
+
+    let outposts = get_active_outposts(deps.storage)?;
+    // Whitelisted pools can't exist without an outpost
+    let prefix = get_outpost_prefix(&lp_token, &outposts).unwrap();
+
+    let mut attrs = vec![];
+    let messages: Vec<CosmosMsg<NeutronMsg>> =
+        if let Some(outpost_params) = outposts.get(&prefix).cloned().unwrap().params {
+            // Remote pools are validated async and saved to the whitelist by IBC acknowledgement
+            PENDING_WHITELIST.update(deps.storage, &lp_token, |pending| {
+                if pending.is_some() {
+                    Err(ContractError::PendingWhitelisting(lp_token.clone()))
+                } else {
+                    Ok(())
+                }
+            })?;
+
+            vec![prepare_ibc_packet(
+                &env,
+                &lp_token,
+                config.liquidity_percent,
+                config.allowed_spread_per_step,
+                outpost_params.voting_channel,
+            )?
+            .into()]
+        } else {
+            // Validate LP token on the Hub
+            let pair_info = get_pair_info(deps.as_ref(), &config.factory, &lp_token)?;
+            let mut routes_builder = RoutesBuilder::new(
+                deps.storage,
+                config.liquidity_percent,
+                config.allowed_spread_per_step,
+            )?;
+
+            let astro = AssetInfo::native(config.astro_denom);
+
+            if let Err(err) = routes_builder.validate_whitelisting_pool(
+                deps.as_ref(),
+                &config.factory,
+                &astro,
+                &pair_info,
+            ) {
+                attrs.push(attr("result", "unwhitelisted"));
+                attrs.push(attr("reason", err.to_string()));
+
+                POOLS_WHITELIST.remove(deps.storage, &lp_token);
+            } else {
+                return Err(ContractError::PoolIsStillEligible(lp_token));
+            }
+
+            vec![]
+        };
+
+    Ok(Response::default()
+        .add_messages(messages)
+        .add_attributes(attrs))
 }
 
 pub fn update_blacklist(
@@ -855,6 +930,7 @@ pub fn update_config(
     max_astro: Option<Uint128>,
     liquidity_percent: Option<Decimal>,
     allowed_spread_per_step: Option<Decimal>,
+    enable_unwhitelisting: Option<bool>,
 ) -> Result<Response<NeutronMsg>, ContractError> {
     nonpayable(&info)?;
     let mut config = CONFIG.load(deps.storage)?;
@@ -902,6 +978,14 @@ pub fn update_config(
             allowed_spread_per_step.to_string(),
         ));
         config.allowed_spread_per_step = allowed_spread_per_step;
+    }
+
+    if let Some(enable_unwhitelisting) = enable_unwhitelisting {
+        attrs.push(attr(
+            "enable_unwhitelisting",
+            enable_unwhitelisting.to_string(),
+        ));
+        config.unwhitelisting_enabled = enable_unwhitelisting;
     }
 
     config.validate()?;

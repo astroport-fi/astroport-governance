@@ -11,8 +11,11 @@ use astroport_governance::emissions_controller::hub::{
 pub const CONFIG: Item<Config> = Item::new("config");
 /// Contains a proposal to change contract ownership
 pub const OWNERSHIP_PROPOSAL: Item<OwnershipProposal> = Item::new("ownership_proposal");
-/// Map of pools eligible for voting. Key lp token, value - validation parameters.
-pub const POOLS_WHITELIST: Map<&str, ()> = Map::new("pools_whitelist");
+/// Map of pools eligible for voting.
+/// Key lp token, value - whether a pool is pinned.
+/// Pinned pools can't be unwhitelisted via permissionless endpoint.
+/// Although, such pools can be removed during a natural vxASTRO voting process.
+pub const POOLS_WHITELIST: Map<&str, bool> = Map::new("pools_whitelist");
 /// Set of outpost pools with pending IBC acknowledgement.
 pub const PENDING_WHITELIST: Map<&str, ()> = Map::new("pending_whitelist");
 pub const POOLS_BLACKLIST: Map<&str, ()> = Map::new("pools_blacklist");

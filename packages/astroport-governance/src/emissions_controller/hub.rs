@@ -79,6 +79,7 @@ pub enum HubMsg {
         max_astro: Option<Uint128>,
         liquidity_percent: Option<Decimal>,
         allowed_spread_per_step: Option<Decimal>,
+        enable_unwhitelisting: Option<bool>,
     },
     /// Permissionless endpoint.
     /// Whitelists a pool to receive ASTRO emissions.
@@ -272,6 +273,10 @@ pub struct Config {
     /// then the total allowed spread for the entire route is approximately 3%.
     /// This parameter protects against whitelisting pools which don't generate fees for protocol.
     pub allowed_spread_per_step: Decimal,
+    /// Enables or disables the permissionless unwhitelisting of ineligible pools.
+    /// Can be used to temporarily disable the feature in case of a certain pool's
+    /// liquidity is being moved to another pool.
+    pub unwhitelisting_enabled: bool,
 }
 
 impl Config {
@@ -482,6 +487,7 @@ mod unit_tests {
             max_astro: 1_400_000_000_000u128.into(),
             liquidity_percent: Decimal::percent(10),
             allowed_spread_per_step: Decimal::percent(5),
+            unwhitelisting_enabled: false,
         };
         assert_eq!(
             config.validate().unwrap_err(),

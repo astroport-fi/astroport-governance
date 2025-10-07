@@ -153,6 +153,11 @@ pub fn query(deps: Deps<NeutronQuery>, env: Env, msg: QueryMsg) -> Result<Binary
         }
         QueryMsg::CheckWhitelistEligibility { lp_token, .. } => {
             let deps = deps.into_empty();
+
+            if let Some(true) = POOLS_WHITELIST.may_load(deps.storage, &lp_token)? {
+                return Err(ContractError::PinnedPool(lp_token));
+            }
+
             let config = CONFIG.load(deps.storage)?;
             let pair_info = get_pair_info(deps, &config.factory, &lp_token)?;
 

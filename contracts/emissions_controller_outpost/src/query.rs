@@ -58,7 +58,6 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             liquidity_percent,
             allowed_spread_per_step,
         } => {
-            let deps = deps.into_empty();
             let config = CONFIG.load(deps.storage)?;
             let pair_info = get_pair_info(deps, &config.factory, &lp_token)?;
 
@@ -73,7 +72,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             to_json_binary(&Empty {})
         }
         QueryMsg::WhitelistingRoutes { start_after, limit } => {
-            let res = query_routes(deps.into_empty(), start_after, limit)?;
+            let res = query_routes(deps, start_after, limit)?;
             to_json_binary(&res)
         }
     }

@@ -70,7 +70,7 @@ pub fn execute(
             ensure_eq!(info.sender, config.owner, ContractError::Unauthorized {});
 
             Ok(RoutesBuilder::default().set_routes(
-                deps.into_empty(),
+                deps,
                 routes,
                 &config.astro_denom,
                 &config.factory,

@@ -578,6 +578,21 @@ impl ControllerHelper {
         )
     }
 
+    pub fn unwhitelist(
+        &mut self,
+        user: &Addr,
+        lp_token: impl Into<String>,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            user.clone(),
+            self.emission_controller.clone(),
+            &emissions_controller::msg::ExecuteMsg::Custom(HubMsg::UnwhitelistIneligiblePool {
+                lp_token: lp_token.into(),
+            }),
+            &[],
+        )
+    }
+
     pub fn set_pool_routes(
         &mut self,
         sender: &Addr,

@@ -1729,6 +1729,7 @@ fn test_some_epochs() {
                 max_astro: None,
                 liquidity_percent: None,
                 allowed_spread_per_step: None,
+                enable_unwhitelisting: None,
             }),
             &[],
         )
@@ -2040,6 +2041,7 @@ fn test_update_config() {
         max_astro: Some(1_000_000u128.into()),
         liquidity_percent: None,
         allowed_spread_per_step: None,
+        enable_unwhitelisting: None,
     });
 
     let err = helper
@@ -2087,6 +2089,7 @@ fn test_update_config() {
             max_astro: 1_000_000u128.into(),
             liquidity_percent: Decimal::percent(20),
             allowed_spread_per_step: Decimal::percent(5),
+            unwhitelisting_enabled: false,
         }
     );
 }
@@ -2123,7 +2126,7 @@ fn test_whitelisting_validation() {
         .unwrap_err();
     assert_eq!(
         err.root_cause().to_string(),
-        "Failed to build route for token2. Max multi-hop depth is 10. Liquidity percent of one token of the whitelisting pool: 0.2, allowed spread per step: 0.05"
+        "Failed to build a route for token2. Max multi-hop depth is 10. Liquidity percent of one token of the whitelisting pool: 0.2, allowed spread per step: 0.05"
     );
 
     let usdc_asset = AssetInfo::native("uusdc");
@@ -2193,7 +2196,7 @@ fn test_whitelisting_validation() {
     let err = helper.easy_whitelist(&lp_token).unwrap_err();
     assert_eq!(
         err.root_cause().to_string(),
-        "Failed to build route for token2. Max multi-hop depth is 10. Liquidity percent of one token of the whitelisting pool: 0.2, allowed spread per step: 0.05"
+        "Failed to build a route for token2. Max multi-hop depth is 10. Liquidity percent of one token of the whitelisting pool: 0.2, allowed spread per step: 0.05"
     );
 
     // Seed token2-usdc pool with some liquidity
@@ -2208,7 +2211,7 @@ fn test_whitelisting_validation() {
     let err = helper.easy_whitelist(&lp_token).unwrap_err();
     assert_eq!(
         err.root_cause().to_string(),
-        "Failed to build route for token2. Max multi-hop depth is 10. Liquidity percent of one token of the whitelisting pool: 0.2, allowed spread per step: 0.05"
+        "Failed to build a route for token2. Max multi-hop depth is 10. Liquidity percent of one token of the whitelisting pool: 0.2, allowed spread per step: 0.05"
     );
 
     // Seed token1-token2 pool with some liquidity
@@ -2224,7 +2227,7 @@ fn test_whitelisting_validation() {
     let err = helper.easy_whitelist(&lp_token).unwrap_err();
     assert_eq!(
         err.root_cause().to_string(),
-        "Failed to build route for token2. Max multi-hop depth is 10. Liquidity percent of one token of the whitelisting pool: 0.2, allowed spread per step: 0.05"
+        "Failed to build a route for token2. Max multi-hop depth is 10. Liquidity percent of one token of the whitelisting pool: 0.2, allowed spread per step: 0.05"
     );
 
     // Seed more liquidity in token2-usdc pool
@@ -2281,6 +2284,47 @@ fn test_whitelisting_validation() {
         "Message contains duplicated routes for asset uusdc"
     );
 
+    // Try to unwhitelist while unwhitelisting is disabled
+    let err = helper.unwhitelist(&owner, &lp_token).unwrap_err();
+    assert_eq!(
+        ContractError::UnwhitelistingDisabled {},
+        err.downcast().unwrap()
+    );
+
+    // Enable unwhitelisting
+    helper
+        .app
+        .execute_contract(
+            owner.clone(),
+            helper.emission_controller.clone(),
+            &ExecuteMsg::Custom(HubMsg::UpdateConfig {
+                pools_per_outpost: None,
+                whitelisting_fee: None,
+                fee_receiver: None,
+                emissions_multiple: None,
+                max_astro: None,
+                liquidity_percent: None,
+                allowed_spread_per_step: None,
+                enable_unwhitelisting: Some(true),
+            }),
+            &[],
+        )
+        .unwrap();
+
+    // Try to unwhitelist a pool that is not in the whitelist
+    let err = helper.unwhitelist(&owner, "random_lp").unwrap_err();
+    assert_eq!(
+        ContractError::PoolIsNotWhitelisted("random_lp".to_string()),
+        err.downcast().unwrap()
+    );
+
+    // Try to unwhitelist still eligible pool
+    let err = helper.unwhitelist(&owner, &lp_token).unwrap_err();
+    assert_eq!(
+        ContractError::PoolIsStillEligible(lp_token.clone()),
+        err.downcast().unwrap()
+    );
+
     // Change astro-usdc pool in router
     helper
         .set_pool_routes(
@@ -2296,6 +2340,30 @@ fn test_whitelisting_validation() {
     // Before valid pool becomes invalid due to a changed route with illiquid astro pool
     let err = helper.check_eligibility(&lp_token).unwrap_err();
     assert_eq!(err.to_string(), format!("Generic error: Querier contract error: Generic error: Spread 21824.333333333333333333 is too high for step with pair {another_astro_pair}. Max allowed is 0.05"));
+
+    // Now we can unwhitelist the pool
+    helper.unwhitelist(&owner, &lp_token).unwrap();
+
+    // Confirm the pool is unwhitelisted
+    let whitelist = helper.query_whitelist().unwrap();
+    assert_eq!(whitelist, Vec::<String>::new());
+
+    // Until the new astro pool has enough liquidity, whitelisting will fail
+    let err = helper.easy_whitelist(&lp_token).unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        format!("Generic error: Spread 21824.333333333333333333 is too high for step with pair {another_astro_pair}. Max allowed is 0.05")
+    );
+
+    // Seed some liquidity in the new astro pool
+    helper
+        .mint_tokens(
+            &another_astro_pair,
+            &[coin(100_000000, "uusdc"), coin(100_000000, &helper.astro)],
+        )
+        .unwrap();
+
+    helper.easy_whitelist(&lp_token).unwrap();
 
     // Query all routes
     assert_eq!(
