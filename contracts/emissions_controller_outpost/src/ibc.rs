@@ -96,9 +96,7 @@ pub fn do_packet_receive(
         StdError::generic_err("Invalid channel")
     );
 
-    let mut response = IbcReceiveResponse::new()
-        .set_ack(ack_ok())
-        .add_attribute("action", "register_proposal");
+    let mut response = IbcReceiveResponse::new().set_ack(ack_ok());
 
     match from_json(msg.packet.data)? {
         VxAstroIbcMsg::RegisterProposal {
@@ -114,6 +112,7 @@ pub fn do_packet_receive(
             REGISTERED_PROPOSALS.save(deps.storage, proposal_id, &start_time)?;
 
             response = response.add_attributes([
+                ("action", "register_proposal".to_string()),
                 ("proposal_id", proposal_id.to_string()),
                 ("start_time", start_time.to_string()),
             ]);
@@ -129,6 +128,8 @@ pub fn do_packet_receive(
 
             let astro = AssetInfo::native(config.astro_denom);
             routes_builder.validate_whitelisting_pool(deps, &config.factory, &astro, &pair_info)?;
+
+            response = response.add_attribute("action", "check_whitelist_eligibility");
         }
         _ => unreachable!("Outpost can't receive these messages"),
     }

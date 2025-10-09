@@ -467,6 +467,12 @@ pub struct EmissionsState {
     pub emissions_amount: Uint128,
 }
 
+#[cw_serde]
+pub struct MigrateMsg {
+    pub liquidity_percent: Decimal,
+    pub allowed_spread_per_step: Decimal,
+}
+
 #[cfg(test)]
 mod unit_tests {
     use cosmwasm_std::coin;

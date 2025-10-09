@@ -1,4 +1,4 @@
-use astroport::asset::{Asset, AssetInfo, AssetInfoExt, PairInfo};
+use astroport::asset::{Asset, AssetInfo, AssetInfoExt};
 use astroport::common::LP_SUBDENOM;
 use astroport::factory;
 use astroport::factory::{PairConfig, PairType};
