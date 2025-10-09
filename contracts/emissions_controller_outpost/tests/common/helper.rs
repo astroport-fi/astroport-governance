@@ -1,8 +1,21 @@
+use crate::common::contracts::*;
+use crate::common::ibc_module::IbcMockModule;
+use crate::common::stargate::StargateModule;
 use astroport::asset::{AssetInfo, PairInfo};
+use astroport::common::LP_SUBDENOM;
 use astroport::factory::{PairConfig, PairType};
 use astroport::incentives::{InputSchedule, RewardInfo};
 use astroport::token::Logo;
-use astroport::{factory, incentives};
+use astroport::{factory, incentives, pair};
+use astroport_governance::assembly::ProposalVoteOption;
+use astroport_governance::emissions_controller::consts::{EPOCHS_START, EPOCH_LENGTH};
+use astroport_governance::emissions_controller::msg::{ExecuteMsg, IbcAckResult, VxAstroIbcMsg};
+use astroport_governance::emissions_controller::outpost::{
+    OutpostInstantiateMsg, OutpostMsg, RegisteredProposal,
+};
+use astroport_governance::emissions_controller::router::RouteStepVerbose;
+use astroport_governance::voting_escrow::{LockInfoResponse, UpdateMarketingInfo};
+use astroport_governance::{emissions_controller, voting_escrow};
 use cosmwasm_std::{
     coin, coins, to_json_binary, Addr, BlockInfo, Coin, Decimal, Empty, IbcAcknowledgement,
     IbcEndpoint, IbcPacket, IbcPacketAckMsg, IbcPacketReceiveMsg, IbcPacketTimeoutMsg,
@@ -14,19 +27,7 @@ use cw_multi_test::{
     FailingModule, GovFailingModule, MockAddressGenerator, MockApiBech32, StakeKeeper, WasmKeeper,
 };
 use derivative::Derivative;
-
-use astroport_governance::assembly::ProposalVoteOption;
-use astroport_governance::emissions_controller::consts::{EPOCHS_START, EPOCH_LENGTH};
-use astroport_governance::emissions_controller::msg::{ExecuteMsg, IbcAckResult, VxAstroIbcMsg};
-use astroport_governance::emissions_controller::outpost::{
-    OutpostInstantiateMsg, OutpostMsg, RegisteredProposal,
-};
-use astroport_governance::voting_escrow::{LockInfoResponse, UpdateMarketingInfo};
-use astroport_governance::{emissions_controller, voting_escrow};
-
-use crate::common::contracts::*;
-use crate::common::ibc_module::IbcMockModule;
-use crate::common::stargate::StargateModule;
+use itertools::Itertools;
 
 pub type OutpostApp = App<
     BankKeeper,
@@ -79,6 +80,7 @@ pub struct ControllerHelper {
     pub vxastro: Addr,
     pub emission_controller: Addr,
     pub incentives: Addr,
+    pub xyk_code_id: u64,
 }
 
 impl ControllerHelper {
@@ -201,13 +203,18 @@ impl ControllerHelper {
             vxastro,
             emission_controller,
             incentives,
+            xyk_code_id,
         }
     }
 
-    pub fn mint_tokens(&mut self, user: &Addr, coins: &[Coin]) -> AnyResult<AppResponse> {
+    pub fn mint_tokens(
+        &mut self,
+        user: impl Into<String>,
+        coins: &[Coin],
+    ) -> AnyResult<AppResponse> {
         self.app.sudo(
             BankSudo::Mint {
-                to_address: user.to_string(),
+                to_address: user.into(),
                 amount: coins.to_vec(),
             }
             .into(),
@@ -345,6 +352,127 @@ impl ControllerHelper {
             self.vxastro.clone(),
             &voting_escrow::ExecuteMsg::Withdraw {},
             &[],
+        )
+    }
+
+    pub fn set_pool_routes(
+        &mut self,
+        sender: &Addr,
+        routes: Vec<RouteStepVerbose>,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            sender.clone(),
+            self.emission_controller.clone(),
+            &ExecuteMsg::<Empty>::SetPoolRoutes(routes),
+            &[],
+        )
+    }
+
+    pub fn set_default_assets(
+        &mut self,
+        sender: &Addr,
+        defaults: Vec<AssetInfo>,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            sender.clone(),
+            self.emission_controller.clone(),
+            &ExecuteMsg::<Empty>::SetDefaultAssets(defaults),
+            &[],
+        )
+    }
+
+    pub fn create_unverified_pair(&mut self, denom1: &str, denom2: &str) -> String {
+        let asset_infos = vec![AssetInfo::native(denom1), AssetInfo::native(denom2)];
+
+        self.app
+            .instantiate_contract(
+                self.xyk_code_id,
+                self.owner.clone(),
+                &pair::InstantiateMsg {
+                    pair_type: PairType::Xyk {},
+                    asset_infos: asset_infos.clone(),
+                    token_code_id: 0,
+                    factory_addr: self.factory.to_string(),
+                    init_params: None,
+                },
+                &[],
+                "label",
+                None,
+            )
+            .map(|pair_addr| format!("factory/{pair_addr}/{LP_SUBDENOM}"))
+            .unwrap()
+    }
+
+    pub fn create_empty_pair(&mut self, denom1: &str, denom2: &str) -> (String, String) {
+        let asset_infos = vec![AssetInfo::native(denom1), AssetInfo::native(denom2)];
+
+        self.app
+            .execute_contract(
+                self.owner.clone(),
+                self.factory.clone(),
+                &factory::ExecuteMsg::CreatePair {
+                    pair_type: PairType::Xyk {},
+                    asset_infos: asset_infos.clone(),
+                    init_params: None,
+                },
+                &[],
+            )
+            .map(|resp| {
+                let pair_addr = &resp.custom_attrs(7)[1].value;
+                (
+                    pair_addr.clone(),
+                    format!("factory/{pair_addr}/{LP_SUBDENOM}"),
+                )
+            })
+            .unwrap()
+    }
+
+    pub fn create_and_seed_pair(&mut self, initial_liquidity: [Coin; 2]) -> String {
+        let owner = self.owner.clone();
+
+        self.mint_tokens(&owner, &initial_liquidity).unwrap();
+
+        let asset_infos = initial_liquidity
+            .iter()
+            .map(|c| AssetInfo::native(&c.denom))
+            .collect_vec();
+
+        self.app
+            .execute_contract(
+                owner,
+                self.factory.clone(),
+                &factory::ExecuteMsg::CreatePair {
+                    pair_type: PairType::Xyk {},
+                    asset_infos: asset_infos.clone(),
+                    init_params: None,
+                },
+                &initial_liquidity,
+            )
+            .map(|resp| {
+                let pair_addr = &resp.custom_attrs(7)[1].value;
+                format!("factory/{pair_addr}/{LP_SUBDENOM}")
+            })
+            .unwrap()
+    }
+
+    pub fn check_eligibility(&self, lp_token: &str) -> StdResult<Empty> {
+        self.app.wrap().query_wasm_smart(
+            &self.emission_controller,
+            &emissions_controller::outpost::QueryMsg::CheckWhitelistEligibility {
+                lp_token: lp_token.to_string(),
+                liquidity_percent: Decimal::percent(20),
+                allowed_spread_per_step: Decimal::percent(5),
+            },
+        )
+    }
+
+    pub fn query_routes(&self) -> StdResult<Vec<RouteStepVerbose>> {
+        self.app.wrap().query_wasm_smart(
+            &self.emission_controller,
+            &emissions_controller::hub::QueryMsg::WhitelistingRoutes {
+                start_after: None,
+                limit: None,
+            },
         )
     }
 
@@ -526,4 +654,12 @@ impl ControllerHelper {
             .map(|proposals| proposals.iter().any(|p| p.id == proposal_id))
             .unwrap()
     }
+}
+
+pub fn get_pair_addr_from_lp_token(lp_token: &str) -> String {
+    lp_token
+        .strip_prefix("factory/")
+        .and_then(|s| s.strip_suffix(&format!("/{LP_SUBDENOM}")))
+        .unwrap()
+        .to_string()
 }

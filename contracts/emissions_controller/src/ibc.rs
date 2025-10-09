@@ -269,6 +269,7 @@ pub fn ibc_packet_ack(
                 VxAstroIbcMsg::RegisterProposal { .. } => {}
                 VxAstroIbcMsg::CheckWhitelistEligibility { lp_token, .. } => {
                     PENDING_WHITELIST.remove(deps.storage, &lp_token);
+                    VOTED_POOLS.remove(deps.storage, &lp_token, env.block.time.seconds())?;
                     POOLS_WHITELIST.remove(deps.storage, &lp_token);
                 }
                 _ => unreachable!("Hub can't receive these messages"),

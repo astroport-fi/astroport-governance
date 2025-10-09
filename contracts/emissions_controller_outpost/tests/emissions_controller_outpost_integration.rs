@@ -1,6 +1,6 @@
-use astroport::asset::{Asset, AssetInfo};
+use astroport::asset::{Asset, AssetInfo, AssetInfoExt};
 use astroport::incentives::{InputSchedule, RewardType};
-use cosmwasm_std::{attr, coin, coins, Decimal, Decimal256, Empty, Event};
+use cosmwasm_std::{attr, coin, coins, Addr, Decimal, Decimal256, Empty, Event};
 use cw_multi_test::Executor;
 use cw_utils::PaymentError;
 
@@ -9,11 +9,12 @@ use astroport_governance::assembly::ProposalVoteOption;
 use astroport_governance::emissions_controller::consts::{EPOCH_LENGTH, IBC_TIMEOUT};
 use astroport_governance::emissions_controller::msg::{ExecuteMsg, VxAstroIbcMsg};
 use astroport_governance::emissions_controller::outpost::{UserIbcError, UserIbcStatus};
+use astroport_governance::emissions_controller::router::RouteStepVerbose;
 use astroport_governance::voting_escrow::LockInfoResponse;
 use astroport_governance::{emissions_controller, voting_escrow};
 use astroport_voting_escrow::state::UNLOCK_PERIOD;
 
-use crate::common::helper::{get_epoch_start, ControllerHelper};
+use crate::common::helper::{get_epoch_start, get_pair_addr_from_lp_token, ControllerHelper};
 
 mod common;
 
@@ -977,4 +978,133 @@ fn test_change_ownership() {
         .unwrap();
 
     assert_eq!(helper.query_config().unwrap().owner.to_string(), new_owner)
+}
+
+#[test]
+fn test_whitelisting_routes() {
+    let mut helper = ControllerHelper::new();
+    helper.set_voting_channel();
+    let owner = helper.owner.clone();
+    let astro = AssetInfo::native(&helper.astro);
+
+    let usdc_asset = AssetInfo::native("uusdc");
+    let astro_pair_addr = get_pair_addr_from_lp_token(
+        &helper.create_and_seed_pair([coin(100_000000, "uusdc"), coin(100_000000, &helper.astro)]),
+    );
+
+    let err = helper
+        .set_pool_routes(
+            &Addr::unchecked("random"),
+            vec![RouteStepVerbose {
+                asset_in: usdc_asset.clone(),
+                asset_out: astro.clone(),
+                pool_addr: astro_pair_addr.to_string(),
+            }],
+        )
+        .unwrap_err();
+    assert_eq!(ContractError::Unauthorized {}, err.downcast().unwrap());
+
+    helper
+        .set_pool_routes(
+            &owner,
+            vec![RouteStepVerbose {
+                asset_in: usdc_asset.clone(),
+                asset_out: astro.clone(),
+                pool_addr: astro_pair_addr.to_string(),
+            }],
+        )
+        .unwrap();
+
+    // Query all routes
+    assert_eq!(
+        helper.query_routes().unwrap(),
+        [RouteStepVerbose {
+            asset_in: usdc_asset.clone(),
+            asset_out: astro.clone(),
+            pool_addr: astro_pair_addr.to_string(),
+        }]
+    );
+
+    let unverified_astro_pair_addr = helper.create_unverified_pair("uusdc", &astro.to_string());
+    let err = helper
+        .set_pool_routes(
+            &owner,
+            vec![RouteStepVerbose {
+                asset_in: usdc_asset.clone(),
+                asset_out: astro.clone(),
+                pool_addr: unverified_astro_pair_addr.to_string(),
+            }],
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Generic error: Querier contract error: Generic error: Invalid input"
+    );
+
+    let err = helper
+        .set_default_assets(&Addr::unchecked("random"), vec![usdc_asset.clone()])
+        .unwrap_err();
+    assert_eq!(ContractError::Unauthorized {}, err.downcast().unwrap());
+
+    let err = helper
+        .set_default_assets(&owner, vec![astro.clone()])
+        .unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        "ASTRO can't be used as a default asset"
+    );
+
+    helper
+        .set_default_assets(&owner, vec![usdc_asset.clone()])
+        .unwrap();
+
+    let (pair_addr, lp_token) = helper.create_empty_pair("token1", &usdc_asset.to_string());
+    let err = helper.check_eligibility(&lp_token).unwrap_err();
+    assert_eq!(
+        err.to_string(),
+        "Generic error: Querier contract error: Generic error: Generic error: Querier contract error: Generic error: Swap amount must not be zero"
+    );
+
+    // Check that ibc msg throws the same error as well
+    let err = helper
+        .mock_packet_receive(
+            VxAstroIbcMsg::CheckWhitelistEligibility {
+                lp_token: lp_token.clone(),
+                liq_percent: Decimal::percent(20),
+                allowed_spread: Decimal::percent(5),
+            },
+            "channel-1",
+        )
+        .unwrap_err();
+
+    assert_eq!(
+        err.to_string(),
+        "Generic error: Generic error: Querier contract error: Generic error: Swap amount must not be zero"
+    );
+
+    // Seed pair to make it eligible
+    helper
+        .mint_tokens(
+            &pair_addr,
+            &[
+                coin(1_000000, "token1"),
+                usdc_asset.with_balance(1_000000u128).as_coin().unwrap(),
+            ],
+        )
+        .unwrap();
+
+    // Response is empty, so we just check that it doesn't return an error
+    helper.check_eligibility(&lp_token).unwrap();
+
+    // Check that ibc msg works as well
+    helper
+        .mock_packet_receive(
+            VxAstroIbcMsg::CheckWhitelistEligibility {
+                lp_token: lp_token.clone(),
+                liq_percent: Decimal::percent(20),
+                allowed_spread: Decimal::percent(5),
+            },
+            "channel-1",
+        )
+        .unwrap();
 }

@@ -350,7 +350,7 @@ pub fn unwhitelist_pool(
     let mut attrs = vec![];
     let messages: Vec<CosmosMsg<NeutronMsg>> =
         if let Some(outpost_params) = outposts.get(&prefix).cloned().unwrap().params {
-            // Remote pools are validated async and saved to the whitelist by IBC acknowledgement
+            // Remote pools are validated async and removed from the whitelist by IBC acknowledgement
             PENDING_WHITELIST.update(deps.storage, &lp_token, |pending| {
                 if pending.is_some() {
                     Err(ContractError::PendingWhitelisting(lp_token.clone()))
@@ -387,6 +387,7 @@ pub fn unwhitelist_pool(
                 attrs.push(attr("result", "unwhitelisted"));
                 attrs.push(attr("reason", err.to_string()));
 
+                VOTED_POOLS.remove(deps.storage, &lp_token, env.block.time.seconds())?;
                 POOLS_WHITELIST.remove(deps.storage, &lp_token);
             } else {
                 return Err(ContractError::PoolIsStillEligible(lp_token));
