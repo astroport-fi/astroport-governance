@@ -243,6 +243,71 @@
         }
       },
       "additionalProperties": false
+    },
+    {
+      "description": "Checks if a whitelisted pool is still eligible for whitelisting. Runs the same checks as when whitelisting a pool. If a pool doesn't meet the criteria, this query throws an error. If a pool still meets the criteria, it returns an empty response. This query can only check a pool belonging to the Hub. Outpost pools can only be checked by calling this query on the respective outpost. A pool is eligible if: 1. It is a valid Astroport pool 2. It has a valid swap route to ASTRO",
+      "type": "object",
+      "required": [
+        "check_whitelist_eligibility"
+      ],
+      "properties": {
+        "check_whitelist_eligibility": {
+          "type": "object",
+          "required": [
+            "allowed_spread_per_step",
+            "liquidity_percent",
+            "lp_token"
+          ],
+          "properties": {
+            "allowed_spread_per_step": {
+              "$ref": "#/definitions/Decimal"
+            },
+            "liquidity_percent": {
+              "$ref": "#/definitions/Decimal"
+            },
+            "lp_token": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "whitelisting_routes"
+      ],
+      "properties": {
+        "whitelisting_routes": {
+          "type": "object",
+          "properties": {
+            "limit": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint32",
+              "minimum": 0.0
+            },
+            "start_after": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
     }
-  ]
+  ],
+  "definitions": {
+    "Decimal": {
+      "description": "A fixed-point decimal value with 18 fractional digits, i.e. Decimal(1_000_000_000_000_000_000) == 1.0\n\nThe greatest possible value that can be represented is 340282366920938463463.374607431768211455 (which is (2^128 - 1) / 10^18)",
+      "type": "string"
+    }
+  }
 }

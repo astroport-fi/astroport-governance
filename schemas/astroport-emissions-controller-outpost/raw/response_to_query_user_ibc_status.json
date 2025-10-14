@@ -187,6 +187,36 @@
           "additionalProperties": false
         },
         {
+          "description": "Sender: Hub",
+          "type": "object",
+          "required": [
+            "check_whitelist_eligibility"
+          ],
+          "properties": {
+            "check_whitelist_eligibility": {
+              "type": "object",
+              "required": [
+                "allowed_spread",
+                "liq_percent",
+                "lp_token"
+              ],
+              "properties": {
+                "allowed_spread": {
+                  "$ref": "#/definitions/Decimal"
+                },
+                "liq_percent": {
+                  "$ref": "#/definitions/Decimal"
+                },
+                "lp_token": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        },
+        {
           "description": "Sender: Outpost",
           "type": "object",
           "required": [

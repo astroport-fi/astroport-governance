@@ -1,6 +1,6 @@
 {
   "contract_name": "astroport-emissions-controller",
-  "contract_version": "1.3.0",
+  "contract_version": "1.4.0",
   "idl_version": "1.0.0",
   "instantiate": {
     "$schema": "http://json-schema.org/draft-07/schema#",
@@ -8,6 +8,7 @@
     "description": "This structure describes the basic settings for creating a contract.",
     "type": "object",
     "required": [
+      "allowed_spread_per_step",
       "assembly",
       "astro_denom",
       "collected_astro",
@@ -15,6 +16,7 @@
       "emissions_multiple",
       "factory",
       "fee_receiver",
+      "liquidity_percent",
       "max_astro",
       "owner",
       "pools_per_outpost",
@@ -25,6 +27,14 @@
       "xastro_denom"
     ],
     "properties": {
+      "allowed_spread_per_step": {
+        "description": "When adding a new pool to the whitelist, the contract checks that the spread is within acceptable limits by simulating a swap along the provided route. This parameter defines the maximum allowed spread per swap step in the route. For example, if the route has 3 steps, and the allowed_spread_per_step is 1%, then the total allowed spread for the entire route is approximately 3%. This parameter protects against whitelisting pools which don't generate fees for protocol.",
+        "allOf": [
+          {
+            "$ref": "#/definitions/Decimal"
+          }
+        ]
+      },
       "assembly": {
         "description": "Astroport Assembly contract address",
         "type": "string"
@@ -64,6 +74,14 @@
       "fee_receiver": {
         "description": "Address that receives the whitelisting fee",
         "type": "string"
+      },
+      "liquidity_percent": {
+        "description": "Whitelist eligibility check requires a pool to have a valid swap route to ASTRO. This parameter defines what percentage of the whitelisted pool's total liquidity to be used in swap simulations.",
+        "allOf": [
+          {
+            "$ref": "#/definitions/Decimal"
+          }
+        ]
       },
       "max_astro": {
         "description": "Max ASTRO allowed per epoch. Parameter of the dynamic emissions curve.",
@@ -330,6 +348,38 @@
         "additionalProperties": false
       },
       {
+        "description": "Permissioned to the contract owner. Configures specific pool addresses for swapping asset_in to asset_out. If a route already exists, it will be overwritten. Routes are used to verify that a pool has a valid swap path to ASTRO when whitelisting a pool. Each step in the route must be an Astroport pool. The last step in the route must have ASTRO as asset_out.",
+        "type": "object",
+        "required": [
+          "set_pool_routes"
+        ],
+        "properties": {
+          "set_pool_routes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/definitions/RouteStepVerbose"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      {
+        "description": "Permissioned to the contract owner. Set default assets for swap routes. Default assets are used when a pool doesn't have a custom route defined. For example, if a pool has USDC and NTRN, and there is no custom route for it, the contract will try to use the default asset (e.g., USDC) to swap NTRN to USDC, and then USDC to ASTRO.",
+        "type": "object",
+        "required": [
+          "set_default_assets"
+        ],
+        "properties": {
+          "set_default_assets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/definitions/AssetInfo"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      {
         "description": "ProposeNewOwner proposes a new owner for the contract",
         "type": "object",
         "required": [
@@ -402,6 +452,59 @@
       }
     ],
     "definitions": {
+      "Addr": {
+        "description": "A human readable address.\n\nIn Cosmos, this is typically bech32 encoded. But for multi-chain smart contracts no assumptions should be made other than being UTF-8 encoded and of reasonable length.\n\nThis type represents a validated address. It can be created in the following ways 1. Use `Addr::unchecked(input)` 2. Use `let checked: Addr = deps.api.addr_validate(input)?` 3. Use `let checked: Addr = deps.api.addr_humanize(canonical_addr)?` 4. Deserialize from JSON. This must only be done from JSON that was validated before such as a contract's state. `Addr` must not be used in messages sent by the user because this would result in unvalidated instances.\n\nThis type is immutable. If you really need to mutate it (Really? Are you sure?), create a mutable copy using `let mut mutable = Addr::to_string()` and operate on that `String` instance.",
+        "type": "string"
+      },
+      "AssetInfo": {
+        "description": "This enum describes available Token types. ## Examples ``` # use cosmwasm_std::Addr; # use astroport::asset::AssetInfo::{NativeToken, Token}; Token { contract_addr: Addr::unchecked(\"stake...\") }; NativeToken { denom: String::from(\"uluna\") }; ```",
+        "oneOf": [
+          {
+            "description": "Non-native Token",
+            "type": "object",
+            "required": [
+              "token"
+            ],
+            "properties": {
+              "token": {
+                "type": "object",
+                "required": [
+                  "contract_addr"
+                ],
+                "properties": {
+                  "contract_addr": {
+                    "$ref": "#/definitions/Addr"
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "description": "Native token",
+            "type": "object",
+            "required": [
+              "native_token"
+            ],
+            "properties": {
+              "native_token": {
+                "type": "object",
+                "required": [
+                  "denom"
+                ],
+                "properties": {
+                  "denom": {
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            "additionalProperties": false
+          }
+        ]
+      },
       "AstroPoolConfig": {
         "description": "Each outpost may have one pool that receives flat ASTRO emissions. This pools doesn't participate in the voting process.",
         "type": "object",
@@ -484,6 +587,16 @@
               "update_config": {
                 "type": "object",
                 "properties": {
+                  "allowed_spread_per_step": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/definitions/Decimal"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
                   "emissions_multiple": {
                     "anyOf": [
                       {
@@ -494,10 +607,26 @@
                       }
                     ]
                   },
+                  "enable_unwhitelisting": {
+                    "type": [
+                      "boolean",
+                      "null"
+                    ]
+                  },
                   "fee_receiver": {
                     "type": [
                       "string",
                       "null"
+                    ]
+                  },
+                  "liquidity_percent": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/definitions/Decimal"
+                      },
+                      {
+                        "type": "null"
+                      }
                     ]
                   },
                   "max_astro": {
@@ -535,7 +664,7 @@
             "additionalProperties": false
           },
           {
-            "description": "Whitelists a pool to receive ASTRO emissions. Requires fee payment",
+            "description": "Permissionless endpoint. Whitelists a pool to receive ASTRO emissions. Requires fee payment. Runs eligibility checks for the pool. A pool is eligible if: 1. It is a valid Astroport pool 2. It has a valid swap route to ASTRO If the pool belongs to an outpost, this endpoint launches an IBC message to validate the pool on the outpost. Outpost lp token is added to the whitelist only if outpost confirms in IBC callback that the pool is valid.",
             "type": "object",
             "required": [
               "whitelist_pool"
@@ -549,6 +678,54 @@
                 "properties": {
                   "lp_token": {
                     "type": "string"
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "description": "Permissionless endpoint. Checks that a pool is still eligible for whitelisting. If a pool doesn't meet the criteria, it will be removed from the whitelist. If a pool still meets the criteria, nothing happens. Outpost pool is unwhitelisted only if outpost confirms in IBC callback that the pool is no longer eligible. Note that unwhitelisting a pool doesn't mean blacklisting. A pool can be whitelisted again by calling WhitelistPool endpoint.",
+            "type": "object",
+            "required": [
+              "unwhitelist_ineligible_pool"
+            ],
+            "properties": {
+              "unwhitelist_ineligible_pool": {
+                "type": "object",
+                "required": [
+                  "lp_token"
+                ],
+                "properties": {
+                  "lp_token": {
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "description": "Permissioned to the contract owner. Pins or unpins a pool in the whitelist. Pinned pools can't be unwhitelisted by permissionless endpoint for being ineligible. However, pinned pools can be unwhitelisted naturally through vxASTRO voting process.",
+            "type": "object",
+            "required": [
+              "toggle_pinned_pool"
+            ],
+            "properties": {
+              "toggle_pinned_pool": {
+                "type": "object",
+                "required": [
+                  "lp_token",
+                  "pin"
+                ],
+                "properties": {
+                  "lp_token": {
+                    "type": "string"
+                  },
+                  "pin": {
+                    "type": "boolean"
                   }
                 },
                 "additionalProperties": false
@@ -724,6 +901,26 @@
           },
           "voting_channel": {
             "description": "wasm<>wasm IBC channel for voting",
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RouteStepVerbose": {
+        "type": "object",
+        "required": [
+          "asset_in",
+          "asset_out",
+          "pool_addr"
+        ],
+        "properties": {
+          "asset_in": {
+            "$ref": "#/definitions/AssetInfo"
+          },
+          "asset_out": {
+            "$ref": "#/definitions/AssetInfo"
+          },
+          "pool_addr": {
             "type": "string"
           }
         },
@@ -980,8 +1177,73 @@
           }
         },
         "additionalProperties": false
+      },
+      {
+        "description": "Checks if a whitelisted pool is still eligible for whitelisting. Runs the same checks as when whitelisting a pool. If a pool doesn't meet the criteria, this query throws an error. If a pool still meets the criteria, it returns an empty response. This query can only check a pool belonging to the Hub. Outpost pools can only be checked by calling this query on the respective outpost. A pool is eligible if: 1. It is a valid Astroport pool 2. It has a valid swap route to ASTRO",
+        "type": "object",
+        "required": [
+          "check_whitelist_eligibility"
+        ],
+        "properties": {
+          "check_whitelist_eligibility": {
+            "type": "object",
+            "required": [
+              "allowed_spread_per_step",
+              "liquidity_percent",
+              "lp_token"
+            ],
+            "properties": {
+              "allowed_spread_per_step": {
+                "$ref": "#/definitions/Decimal"
+              },
+              "liquidity_percent": {
+                "$ref": "#/definitions/Decimal"
+              },
+              "lp_token": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      {
+        "type": "object",
+        "required": [
+          "whitelisting_routes"
+        ],
+        "properties": {
+          "whitelisting_routes": {
+            "type": "object",
+            "properties": {
+              "limit": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "format": "uint32",
+                "minimum": 0.0
+              },
+              "start_after": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
       }
-    ]
+    ],
+    "definitions": {
+      "Decimal": {
+        "description": "A fixed-point decimal value with 18 fractional digits, i.e. Decimal(1_000_000_000_000_000_000) == 1.0\n\nThe greatest possible value that can be represented is 340282366920938463463.374607431768211455 (which is (2^128 - 1) / 10^18)",
+        "type": "string"
+      }
+    }
   },
   "migrate": null,
   "sudo": null,
@@ -1004,28 +1266,45 @@
         "minItems": 2
       }
     },
+    "check_whitelist_eligibility": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Empty",
+      "description": "An empty struct that serves as a placeholder in different places, such as contracts that don't set a custom message.\n\nIt is designed to be expressable in correct JSON and JSON Schema but contains no meaningful data. Previously we used enums without cases, but those cannot represented as valid JSON Schema (https://github.com/CosmWasm/cosmwasm/issues/451)",
+      "type": "object"
+    },
     "config": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Config",
       "description": "General contract configuration",
       "type": "object",
       "required": [
+        "allowed_spread_per_step",
         "assembly",
         "astro_denom",
         "emissions_multiple",
         "factory",
         "fee_receiver",
         "incentives_addr",
+        "liquidity_percent",
         "max_astro",
         "owner",
         "pools_per_outpost",
         "staking",
+        "unwhitelisting_enabled",
         "vxastro",
         "whitelist_threshold",
         "whitelisting_fee",
         "xastro_denom"
       ],
       "properties": {
+        "allowed_spread_per_step": {
+          "description": "When adding a new pool to the whitelist, the contract checks that the spread is within acceptable limits by simulating a swap along the provided route. This parameter defines the maximum allowed spread per swap step in the route. For example, if the route has 3 steps, and the allowed_spread_per_step is 1%, then the total allowed spread for the entire route is approximately 3%. This parameter protects against whitelisting pools which don't generate fees for protocol.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Decimal"
+            }
+          ]
+        },
         "assembly": {
           "description": "Astroport Assembly contract address",
           "allOf": [
@@ -1070,6 +1349,14 @@
             }
           ]
         },
+        "liquidity_percent": {
+          "description": "Whitelist eligibility check requires a pool to have a valid swap route to ASTRO. This parameter defines what percentage of the whitelisted pool's total liquidity to be used in swap simulations.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Decimal"
+            }
+          ]
+        },
         "max_astro": {
           "description": "Max ASTRO allowed per epoch. Parameter of the dynamic emissions curve.",
           "allOf": [
@@ -1099,6 +1386,10 @@
               "$ref": "#/definitions/Addr"
             }
           ]
+        },
+        "unwhitelisting_enabled": {
+          "description": "Enables or disables the permissionless unwhitelisting of ineligible pools. Can be used to temporarily disable the feature in case of a certain pool's liquidity is being moved to another pool.",
+          "type": "boolean"
         },
         "vxastro": {
           "description": "vxASTRO contract address",
@@ -1232,7 +1523,7 @@
               "type": "boolean"
             },
             "params": {
-              "description": "Outpost params contain all necessary information to interact with the remote outpost. This field also serves as marker whether it is The hub (params: None) or remote outpost (Some(params))",
+              "description": "Outpost params contain all necessary information to interact with the remote outpost. This field also serves as a marker whether it is The hub (params: None) or remote outpost (Some(params))",
               "anyOf": [
                 {
                   "$ref": "#/definitions/OutpostParams"
@@ -1630,6 +1921,89 @@
                   "$ref": "#/definitions/Uint128"
                 }
               ]
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    "whitelisting_routes": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Array_of_RouteStepVerbose",
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/RouteStepVerbose"
+      },
+      "definitions": {
+        "Addr": {
+          "description": "A human readable address.\n\nIn Cosmos, this is typically bech32 encoded. But for multi-chain smart contracts no assumptions should be made other than being UTF-8 encoded and of reasonable length.\n\nThis type represents a validated address. It can be created in the following ways 1. Use `Addr::unchecked(input)` 2. Use `let checked: Addr = deps.api.addr_validate(input)?` 3. Use `let checked: Addr = deps.api.addr_humanize(canonical_addr)?` 4. Deserialize from JSON. This must only be done from JSON that was validated before such as a contract's state. `Addr` must not be used in messages sent by the user because this would result in unvalidated instances.\n\nThis type is immutable. If you really need to mutate it (Really? Are you sure?), create a mutable copy using `let mut mutable = Addr::to_string()` and operate on that `String` instance.",
+          "type": "string"
+        },
+        "AssetInfo": {
+          "description": "This enum describes available Token types. ## Examples ``` # use cosmwasm_std::Addr; # use astroport::asset::AssetInfo::{NativeToken, Token}; Token { contract_addr: Addr::unchecked(\"stake...\") }; NativeToken { denom: String::from(\"uluna\") }; ```",
+          "oneOf": [
+            {
+              "description": "Non-native Token",
+              "type": "object",
+              "required": [
+                "token"
+              ],
+              "properties": {
+                "token": {
+                  "type": "object",
+                  "required": [
+                    "contract_addr"
+                  ],
+                  "properties": {
+                    "contract_addr": {
+                      "$ref": "#/definitions/Addr"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "additionalProperties": false
+            },
+            {
+              "description": "Native token",
+              "type": "object",
+              "required": [
+                "native_token"
+              ],
+              "properties": {
+                "native_token": {
+                  "type": "object",
+                  "required": [
+                    "denom"
+                  ],
+                  "properties": {
+                    "denom": {
+                      "type": "string"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "additionalProperties": false
+            }
+          ]
+        },
+        "RouteStepVerbose": {
+          "type": "object",
+          "required": [
+            "asset_in",
+            "asset_out",
+            "pool_addr"
+          ],
+          "properties": {
+            "asset_in": {
+              "$ref": "#/definitions/AssetInfo"
+            },
+            "asset_out": {
+              "$ref": "#/definitions/AssetInfo"
+            },
+            "pool_addr": {
+              "type": "string"
             }
           },
           "additionalProperties": false

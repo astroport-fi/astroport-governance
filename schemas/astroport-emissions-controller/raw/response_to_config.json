@@ -4,22 +4,33 @@
   "description": "General contract configuration",
   "type": "object",
   "required": [
+    "allowed_spread_per_step",
     "assembly",
     "astro_denom",
     "emissions_multiple",
     "factory",
     "fee_receiver",
     "incentives_addr",
+    "liquidity_percent",
     "max_astro",
     "owner",
     "pools_per_outpost",
     "staking",
+    "unwhitelisting_enabled",
     "vxastro",
     "whitelist_threshold",
     "whitelisting_fee",
     "xastro_denom"
   ],
   "properties": {
+    "allowed_spread_per_step": {
+      "description": "When adding a new pool to the whitelist, the contract checks that the spread is within acceptable limits by simulating a swap along the provided route. This parameter defines the maximum allowed spread per swap step in the route. For example, if the route has 3 steps, and the allowed_spread_per_step is 1%, then the total allowed spread for the entire route is approximately 3%. This parameter protects against whitelisting pools which don't generate fees for protocol.",
+      "allOf": [
+        {
+          "$ref": "#/definitions/Decimal"
+        }
+      ]
+    },
     "assembly": {
       "description": "Astroport Assembly contract address",
       "allOf": [
@@ -64,6 +75,14 @@
         }
       ]
     },
+    "liquidity_percent": {
+      "description": "Whitelist eligibility check requires a pool to have a valid swap route to ASTRO. This parameter defines what percentage of the whitelisted pool's total liquidity to be used in swap simulations.",
+      "allOf": [
+        {
+          "$ref": "#/definitions/Decimal"
+        }
+      ]
+    },
     "max_astro": {
       "description": "Max ASTRO allowed per epoch. Parameter of the dynamic emissions curve.",
       "allOf": [
@@ -93,6 +112,10 @@
           "$ref": "#/definitions/Addr"
         }
       ]
+    },
+    "unwhitelisting_enabled": {
+      "description": "Enables or disables the permissionless unwhitelisting of ineligible pools. Can be used to temporarily disable the feature in case of a certain pool's liquidity is being moved to another pool.",
+      "type": "boolean"
     },
     "vxastro": {
       "description": "vxASTRO contract address",
