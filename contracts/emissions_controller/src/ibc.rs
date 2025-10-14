@@ -287,7 +287,7 @@ pub fn ibc_packet_timeout(
     _env: Env,
     msg: IbcPacketTimeoutMsg,
 ) -> StdResult<IbcBasicResponse> {
-    let orig_msg: VxAstroIbcMsg = from_json(&msg.packet.data)?;
+    let orig_msg: VxAstroIbcMsg = from_json(msg.packet.data)?;
     match orig_msg {
         VxAstroIbcMsg::RegisterProposal { .. } => {}
         VxAstroIbcMsg::CheckWhitelistEligibility { lp_token, .. } => {
