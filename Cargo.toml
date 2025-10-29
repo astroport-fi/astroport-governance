@@ -13,7 +13,7 @@ thiserror = "1.0"
 itertools = "0.12"
 cosmwasm-schema = "1.5"
 cw-utils = "1"
-astroport = { git = "https://github.com/astroport-fi/astroport-core" }
+astroport = { git = "https://github.com/astroport-fi/astroport-core", branch = "feat/factory_remove_restriction" }
 
 [profile.release]
 opt-level = "z"
@@ -25,3 +25,4 @@ codegen-units = 1
 panic = 'abort'
 incremental = false
 overflow-checks = true
+strip = true

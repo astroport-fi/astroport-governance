@@ -1,3 +1,4 @@
+use astroport::asset::AssetInfo;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
@@ -7,16 +8,18 @@ use cosmwasm_std::{
     Storage,
 };
 
+use crate::error::ContractError;
+use crate::state::{
+    CONFIG, PENDING_MESSAGES, PROPOSAL_VOTERS, REGISTERED_PROPOSALS, USER_IBC_ERROR,
+};
 use astroport_governance::emissions_controller::consts::{IBC_APP_VERSION, IBC_ORDERING};
 use astroport_governance::emissions_controller::msg::{
     ack_fail, ack_ok, IbcAckResult, VxAstroIbcMsg,
 };
 use astroport_governance::emissions_controller::outpost::UserIbcError;
+use astroport_governance::emissions_controller::router::RoutesBuilder;
+use astroport_governance::emissions_controller::utils::get_pair_info;
 use astroport_governance::voting_escrow;
-
-use crate::state::{
-    CONFIG, PENDING_MESSAGES, PROPOSAL_VOTERS, REGISTERED_PROPOSALS, USER_IBC_ERROR,
-};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn ibc_channel_open(
@@ -85,13 +88,15 @@ pub fn do_packet_receive(
     deps: DepsMut,
     _env: Env,
     msg: IbcPacketReceiveMsg,
-) -> StdResult<IbcReceiveResponse> {
+) -> Result<IbcReceiveResponse, ContractError> {
     // Accept messages only from the trusted channel
     let config = CONFIG.load(deps.storage)?;
     ensure!(
         msg.packet.dest.channel_id == config.voting_ibc_channel,
         StdError::generic_err("Invalid channel")
     );
+
+    let mut response = IbcReceiveResponse::new().set_ack(ack_ok());
 
     match from_json(msg.packet.data)? {
         VxAstroIbcMsg::RegisterProposal {
@@ -106,15 +111,30 @@ pub fn do_packet_receive(
             // Save proposal in state
             REGISTERED_PROPOSALS.save(deps.storage, proposal_id, &start_time)?;
 
-            let response = IbcReceiveResponse::new()
-                .set_ack(ack_ok())
-                .add_attribute("action", "register_proposal")
-                .add_attribute("proposal_id", proposal_id.to_string())
-                .add_attribute("start_time", start_time.to_string());
-            Ok(response)
+            response = response.add_attributes([
+                ("action", "register_proposal".to_string()),
+                ("proposal_id", proposal_id.to_string()),
+                ("start_time", start_time.to_string()),
+            ]);
         }
-        _ => Err(StdError::generic_err("Invalid IBC message type")),
+        VxAstroIbcMsg::CheckWhitelistEligibility {
+            lp_token,
+            liq_percent,
+            allowed_spread,
+        } => {
+            let deps = deps.as_ref();
+            let pair_info = get_pair_info(deps, &config.factory, &lp_token)?;
+            let mut routes_builder = RoutesBuilder::new(deps.storage, liq_percent, allowed_spread)?;
+
+            let astro = AssetInfo::native(config.astro_denom);
+            routes_builder.validate_whitelisting_pool(deps, &config.factory, &astro, &pair_info)?;
+
+            response = response.add_attribute("action", "check_whitelist_eligibility");
+        }
+        _ => unreachable!("Outpost can't receive these messages"),
     }
+
+    Ok(response)
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -149,8 +169,9 @@ pub fn ibc_packet_ack(
                 }
                 VxAstroIbcMsg::UpdateUserVotes { voter, .. }
                 | VxAstroIbcMsg::EmissionsVote { voter, .. } => voter,
-                VxAstroIbcMsg::RegisterProposal { .. } => {
-                    unreachable!("Outpost can't send RegisterProposal ibc msg")
+                VxAstroIbcMsg::RegisterProposal { .. }
+                | VxAstroIbcMsg::CheckWhitelistEligibility { .. } => {
+                    unreachable!("Outpost can't send these messages")
                 }
                 VxAstroIbcMsg::GovernanceVote {
                     voter, proposal_id, ..
@@ -221,8 +242,9 @@ pub fn process_ibc_error(
         VxAstroIbcMsg::EmissionsVote { voter, .. }
         | VxAstroIbcMsg::UpdateUserVotes { voter, .. }
         | VxAstroIbcMsg::GovernanceVote { voter, .. } => voter.clone(),
-        VxAstroIbcMsg::RegisterProposal { .. } => {
-            unreachable!("Outpost can't send RegisterProposal ibc msg")
+        VxAstroIbcMsg::RegisterProposal { .. }
+        | VxAstroIbcMsg::CheckWhitelistEligibility { .. } => {
+            unreachable!("Outpost can't send these messages")
         }
     };
 

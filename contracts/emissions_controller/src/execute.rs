@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use astroport::asset::{determine_asset_info, validate_native_denom};
+use astroport::asset::{validate_native_denom, AssetInfo};
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::incentives;
 #[cfg(not(feature = "library"))]
@@ -15,29 +15,29 @@ use itertools::Itertools;
 use neutron_sdk::bindings::msg::NeutronMsg;
 use neutron_sdk::bindings::query::NeutronQuery;
 
+use crate::error::ContractError;
+use crate::state::{
+    get_active_outposts, CONFIG, OUTPOSTS, OWNERSHIP_PROPOSAL, PENDING_WHITELIST, POOLS_BLACKLIST,
+    POOLS_WHITELIST, TUNE_INFO, USER_INFO, VOTED_POOLS,
+};
+use crate::utils::{
+    build_emission_ibc_msg, get_outpost_prefix, jail_outpost, min_ntrn_ibc_fee, prepare_ibc_packet,
+    raw_emissions_to_schedules, simulate_tune, validate_outpost_prefix, TuneResult,
+};
 use astroport_governance::emissions_controller::consts::{EPOCH_LENGTH, IBC_TIMEOUT};
 use astroport_governance::emissions_controller::hub::{
     AstroPoolConfig, HubMsg, InputOutpostParams, OutpostInfo, OutpostParams, OutpostStatus,
     TuneInfo, UserInfo, VotedPoolInfo,
 };
 use astroport_governance::emissions_controller::msg::{ExecuteMsg, VxAstroIbcMsg};
+use astroport_governance::emissions_controller::router::RoutesBuilder;
 use astroport_governance::emissions_controller::utils::{
-    check_lp_token, get_epoch_start, get_voting_power,
+    get_epoch_start, get_pair_info, get_voting_power,
 };
 use astroport_governance::utils::{
     check_contract_supports_channel, determine_ics20_escrow_address,
 };
 use astroport_governance::{assembly, voting_escrow};
-
-use crate::error::ContractError;
-use crate::state::{
-    get_active_outposts, CONFIG, OUTPOSTS, OWNERSHIP_PROPOSAL, POOLS_BLACKLIST, POOLS_WHITELIST,
-    TUNE_INFO, USER_INFO, VOTED_POOLS,
-};
-use crate::utils::{
-    build_emission_ibc_msg, get_outpost_prefix, jail_outpost, min_ntrn_ibc_fee,
-    raw_emissions_to_schedules, simulate_tune, validate_outpost_prefix, TuneResult,
-};
 
 /// Exposes all the execute functions available in the contract.
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -99,6 +99,27 @@ pub fn execute(
             ensure!(!voting_power.is_zero(), ContractError::ZeroVotingPower {});
             handle_update_user(deps.storage, env, info.sender.as_str(), voting_power)
         }
+        ExecuteMsg::SetPoolRoutes(routes) => {
+            let config = CONFIG.load(deps.storage)?;
+            ensure_eq!(info.sender, config.owner, ContractError::Unauthorized {});
+
+            Ok(RoutesBuilder::default().set_routes(
+                deps.into_empty(),
+                routes,
+                &config.astro_denom,
+                &config.factory,
+            )?)
+        }
+        ExecuteMsg::SetDefaultAssets(default_assets) => {
+            let config = CONFIG.load(deps.storage)?;
+            ensure_eq!(info.sender, config.owner, ContractError::Unauthorized {});
+
+            Ok(RoutesBuilder::default().set_default_assets(
+                deps.storage,
+                default_assets,
+                &config.astro_denom,
+            )?)
+        }
         ExecuteMsg::ProposeNewOwner {
             new_owner,
             expires_in,
@@ -137,7 +158,11 @@ pub fn execute(
             .map_err(Into::into)
         }
         ExecuteMsg::Custom(hub_msg) => match hub_msg {
-            HubMsg::WhitelistPool { lp_token: pool } => whitelist_pool(deps, env, info, pool),
+            HubMsg::WhitelistPool { lp_token } => whitelist_pool(deps, env, info, lp_token),
+            HubMsg::UnwhitelistIneligiblePool { lp_token } => unwhitelist_pool(deps, env, lp_token),
+            HubMsg::TogglePinnedPool { lp_token, pin } => {
+                toggle_pinned_pool(deps, info, lp_token, pin)
+            }
             HubMsg::UpdateBlacklist { add, remove } => {
                 update_blacklist(deps, info, env, add, remove)
             }
@@ -165,6 +190,9 @@ pub fn execute(
                 fee_receiver,
                 emissions_multiple,
                 max_astro,
+                liquidity_percent,
+                allowed_spread_per_step,
+                enable_unwhitelisting,
             } => update_config(
                 deps,
                 info,
@@ -173,6 +201,9 @@ pub fn execute(
                 fee_receiver,
                 emissions_multiple,
                 max_astro,
+                liquidity_percent,
+                allowed_spread_per_step,
+                enable_unwhitelisting,
             ),
             HubMsg::RegisterProposal { proposal_id } => register_proposal(deps, env, proposal_id),
         },
@@ -202,17 +233,13 @@ pub fn whitelist_pool(
         ContractError::PoolIsBlacklisted(pool.clone())
     );
 
-    // Perform basic LP token validation. Ensure the outpost exists.
+    // Ensure that LP token is not whitelisted yet
+    ensure!(
+        !POOLS_WHITELIST.has(deps.storage, &pool),
+        ContractError::PoolAlreadyWhitelisted(pool.clone())
+    );
+
     let outposts = get_active_outposts(deps.storage)?;
-    if let Some(prefix) = get_outpost_prefix(&pool, &outposts) {
-        if outposts.get(&prefix).unwrap().params.is_none() {
-            // Validate LP token on the Hub
-            determine_asset_info(&pool, deps.api)
-                .and_then(|maybe_lp| check_lp_token(deps.as_ref(), &config.factory, &maybe_lp))?
-        }
-    } else {
-        return Err(ContractError::NoOutpostForPool(pool));
-    }
 
     // Astro pools receive flat emissions hence we don't allow people to vote for them
     ensure!(
@@ -226,33 +253,176 @@ pub fn whitelist_pool(
         ContractError::IsAstroPool {}
     );
 
-    POOLS_WHITELIST.update(deps.storage, |v| {
-        let mut pools: HashSet<_> = v.into_iter().collect();
-        if !pools.insert(pool.clone()) {
-            return Err(ContractError::PoolAlreadyWhitelisted(pool.clone()));
-        };
-        Ok(pools.into_iter().collect())
-    })?;
+    // Perform LP token validation. Ensure the outpost exists.
+    let mut messages: Vec<CosmosMsg<NeutronMsg>> =
+        if let Some(prefix) = get_outpost_prefix(&pool, &outposts) {
+            if let Some(outpost_params) = outposts.get(&prefix).cloned().unwrap().params {
+                // Remote pools are validated async and saved to the whitelist by IBC acknowledgement
+                PENDING_WHITELIST.update(deps.storage, &pool, |pending| {
+                    if pending.is_some() {
+                        Err(ContractError::PendingWhitelisting(pool.clone()))
+                    } else {
+                        Ok(())
+                    }
+                })?;
 
-    // Starting the voting process from scratch for this pool
-    VOTED_POOLS.save(
-        deps.storage,
-        &pool,
-        &VotedPoolInfo {
-            init_ts: env.block.time.seconds(),
-            voting_power: Uint128::zero(),
-        },
-        env.block.time.seconds(),
-    )?;
+                Ok(vec![prepare_ibc_packet(
+                    &env,
+                    &pool,
+                    config.liquidity_percent,
+                    config.allowed_spread_per_step,
+                    outpost_params.voting_channel,
+                )?
+                .into()])
+            } else {
+                // Validate LP token on the Hub
+                let pair_info = get_pair_info(deps.as_ref(), &config.factory, &pool)?;
+                let mut routes_builder = RoutesBuilder::new(
+                    deps.storage,
+                    config.liquidity_percent,
+                    config.allowed_spread_per_step,
+                )?;
 
-    let send_fee_msg = BankMsg::Send {
-        to_address: config.fee_receiver.to_string(),
-        amount: info.funds,
-    };
+                let astro = AssetInfo::native(config.astro_denom);
+                routes_builder.validate_whitelisting_pool(
+                    deps.as_ref(),
+                    &config.factory,
+                    &astro,
+                    &pair_info,
+                )?;
+
+                // If validation passed, save to the whitelist
+                POOLS_WHITELIST.save(deps.storage, &pool, &false)?;
+
+                // Starting the voting process from scratch for this pool
+                VOTED_POOLS.save(
+                    deps.storage,
+                    &pool,
+                    &VotedPoolInfo {
+                        init_ts: env.block.time.seconds(),
+                        voting_power: Uint128::zero(),
+                    },
+                    env.block.time.seconds(),
+                )?;
+
+                Ok(vec![])
+            }
+        } else {
+            Err(ContractError::NoOutpostForPool(pool.clone()))
+        }?;
+
+    messages.push(
+        BankMsg::Send {
+            to_address: config.fee_receiver.to_string(),
+            amount: info.funds,
+        }
+        .into(),
+    );
 
     Ok(Response::default()
-        .add_message(send_fee_msg)
+        .add_messages(messages)
         .add_attributes([attr("action", "whitelist_pool"), attr("pool", &pool)]))
+}
+
+pub fn unwhitelist_pool(
+    deps: DepsMut<NeutronQuery>,
+    env: Env,
+    lp_token: String,
+) -> Result<Response<NeutronMsg>, ContractError> {
+    let deps = deps.into_empty();
+    let config = CONFIG.load(deps.storage)?;
+
+    ensure!(
+        config.unwhitelisting_enabled,
+        ContractError::UnwhitelistingDisabled {}
+    );
+
+    match POOLS_WHITELIST.may_load(deps.storage, &lp_token)? {
+        Some(false) => Ok(()),
+        Some(true) => Err(ContractError::PinnedPool(lp_token.clone())),
+        None => Err(ContractError::PoolIsNotWhitelisted(lp_token.clone())),
+    }?;
+
+    let outposts = get_active_outposts(deps.storage)?;
+    // Whitelisted pools can't exist without an outpost
+    let prefix = get_outpost_prefix(&lp_token, &outposts).unwrap();
+
+    let mut attrs = vec![];
+    let messages: Vec<CosmosMsg<NeutronMsg>> =
+        if let Some(outpost_params) = outposts.get(&prefix).cloned().unwrap().params {
+            // Remote pools are validated async and removed from the whitelist by IBC acknowledgement
+            PENDING_WHITELIST.update(deps.storage, &lp_token, |pending| {
+                if pending.is_some() {
+                    Err(ContractError::PendingWhitelisting(lp_token.clone()))
+                } else {
+                    Ok(())
+                }
+            })?;
+
+            vec![prepare_ibc_packet(
+                &env,
+                &lp_token,
+                config.liquidity_percent,
+                config.allowed_spread_per_step,
+                outpost_params.voting_channel,
+            )?
+            .into()]
+        } else {
+            // Validate LP token on the Hub
+            let pair_info = get_pair_info(deps.as_ref(), &config.factory, &lp_token)?;
+            let mut routes_builder = RoutesBuilder::new(
+                deps.storage,
+                config.liquidity_percent,
+                config.allowed_spread_per_step,
+            )?;
+
+            let astro = AssetInfo::native(config.astro_denom);
+
+            if let Err(err) = routes_builder.validate_whitelisting_pool(
+                deps.as_ref(),
+                &config.factory,
+                &astro,
+                &pair_info,
+            ) {
+                attrs.push(attr("result", "unwhitelisted"));
+                attrs.push(attr("reason", err.to_string()));
+
+                VOTED_POOLS.remove(deps.storage, &lp_token, env.block.time.seconds())?;
+                POOLS_WHITELIST.remove(deps.storage, &lp_token);
+            } else {
+                return Err(ContractError::PoolIsStillEligible(lp_token));
+            }
+
+            vec![]
+        };
+
+    Ok(Response::default()
+        .add_messages(messages)
+        .add_attributes(attrs))
+}
+
+pub fn toggle_pinned_pool(
+    deps: DepsMut<NeutronQuery>,
+    info: MessageInfo,
+    lp_token: String,
+    pin: bool,
+) -> Result<Response<NeutronMsg>, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+    ensure_eq!(info.sender, config.owner, ContractError::Unauthorized {});
+
+    POOLS_WHITELIST.update(deps.storage, &lp_token, |stored_data| {
+        if stored_data.is_some() {
+            Ok(pin)
+        } else {
+            Err(ContractError::PoolIsNotWhitelisted(lp_token.clone()))
+        }
+    })?;
+
+    Ok(Response::default().add_attributes([
+        attr("action", "toggle_pinned_pool"),
+        attr("lp_token", lp_token),
+        attr("pinned", pin.to_string()),
+    ]))
 }
 
 pub fn update_blacklist(
@@ -295,10 +465,9 @@ pub fn update_blacklist(
     }
 
     // And remove pools from the whitelist if they are there
-    POOLS_WHITELIST.update::<_, StdError>(deps.storage, |mut whitelist| {
-        whitelist.retain(|pool| !add.contains(pool));
-        Ok(whitelist)
-    })?;
+    add.iter().for_each(|lp_token| {
+        POOLS_WHITELIST.remove(deps.storage, lp_token);
+    });
 
     let mut attrs = vec![attr("action", "update_blacklist")];
 
@@ -337,11 +506,8 @@ pub fn update_outpost(
             ContractError::ZeroAstroEmissions {}
         );
 
-        // Remove this pool from whitelist
-        POOLS_WHITELIST.update::<_, StdError>(deps.storage, |mut pools| {
-            pools.retain(|pool| pool != &conf.astro_pool);
-            Ok(pools)
-        })?;
+        // Remove this pool from the whitelist
+        POOLS_WHITELIST.remove(deps.storage, &conf.astro_pool);
 
         // And remove from votable pools
         VOTED_POOLS.remove(deps.storage, &conf.astro_pool, env.block.time.seconds())?;
@@ -364,8 +530,7 @@ pub fn update_outpost(
         );
     } else {
         if let Some(conf) = &astro_pool_config {
-            let maybe_lp_token = determine_asset_info(&conf.astro_pool, deps.api)?;
-            check_lp_token(deps.as_ref(), &config.factory, &maybe_lp_token)?;
+            get_pair_info(deps.as_ref(), &config.factory, &conf.astro_pool)?;
         }
         ensure!(
             astro_denom == config.astro_denom,
@@ -532,10 +697,9 @@ pub fn handle_vote(
     );
 
     let mut total_weight = Decimal::zero();
-    let whitelist: HashSet<_> = POOLS_WHITELIST.load(deps.storage)?.into_iter().collect();
     for (pool, weight) in &votes {
         ensure!(
-            whitelist.contains(pool),
+            POOLS_WHITELIST.has(deps.storage, pool),
             ContractError::PoolIsNotWhitelisted(pool.clone())
         );
 
@@ -551,7 +715,7 @@ pub fn handle_vote(
     let mut cache = user_info
         .votes
         .into_iter()
-        .filter(|(pool, _)| whitelist.contains(pool))
+        .filter(|(pool, _)| POOLS_WHITELIST.has(deps.storage, pool))
         .map(|(pool, weight)| {
             let pool_info = VOTED_POOLS.load(deps.storage, &pool)?;
             // Subtract old vote from pool voting power if pool wasn't reset to 0
@@ -618,11 +782,12 @@ pub fn handle_update_user(
     if let Some(user_info) = USER_INFO.may_load(store, voter)? {
         let block_ts = env.block.time.seconds();
 
-        let whitelist: HashSet<_> = POOLS_WHITELIST.load(store)?.into_iter().collect();
         user_info
             .votes
             .iter()
-            .filter(|(pool, _)| whitelist.contains(pool.as_str()))
+            .filter(|(pool, _)| POOLS_WHITELIST.has(store, pool))
+            .collect::<HashMap<_, _>>()
+            .into_iter()
             .try_for_each(|(pool, weight)| {
                 let pool_info = VOTED_POOLS.load(store, pool)?;
                 // Subtract old vote from pool voting power if pool wasn't reset to 0
@@ -725,9 +890,10 @@ pub fn tune_pools(
         // Remove all non-whitelisted pools
         voted_pools
             .difference(&new_whitelist)
-            .try_for_each(|pool| VOTED_POOLS.remove(deps.storage, pool, block_ts))?;
-
-        POOLS_WHITELIST.save(deps.storage, &new_whitelist.into_iter().collect())?;
+            .try_for_each(|pool| {
+                POOLS_WHITELIST.remove(deps.storage, pool);
+                VOTED_POOLS.remove(deps.storage, pool, block_ts)
+            })?;
     }
 
     let mut attrs = vec![attr("action", "tune_pools")];
@@ -781,6 +947,7 @@ pub fn tune_pools(
 
 /// Permissioned to the contract owner.
 /// Updates the contract configuration.
+#[allow(clippy::too_many_arguments)]
 pub fn update_config(
     deps: DepsMut<NeutronQuery>,
     info: MessageInfo,
@@ -789,6 +956,9 @@ pub fn update_config(
     fee_receiver: Option<String>,
     emissions_multiple: Option<Decimal>,
     max_astro: Option<Uint128>,
+    liquidity_percent: Option<Decimal>,
+    allowed_spread_per_step: Option<Decimal>,
+    enable_unwhitelisting: Option<bool>,
 ) -> Result<Response<NeutronMsg>, ContractError> {
     nonpayable(&info)?;
     let mut config = CONFIG.load(deps.storage)?;
@@ -823,6 +993,27 @@ pub fn update_config(
     if let Some(max_astro) = max_astro {
         attrs.push(attr("new_max_astro", max_astro.to_string()));
         config.max_astro = max_astro;
+    }
+
+    if let Some(liquidity_percent) = liquidity_percent {
+        attrs.push(attr("new_liquidity_percent", liquidity_percent.to_string()));
+        config.liquidity_percent = liquidity_percent;
+    }
+
+    if let Some(allowed_spread_per_step) = allowed_spread_per_step {
+        attrs.push(attr(
+            "new_allowed_spread_per_step",
+            allowed_spread_per_step.to_string(),
+        ));
+        config.allowed_spread_per_step = allowed_spread_per_step;
+    }
+
+    if let Some(enable_unwhitelisting) = enable_unwhitelisting {
+        attrs.push(attr(
+            "enable_unwhitelisting",
+            enable_unwhitelisting.to_string(),
+        ));
+        config.unwhitelisting_enabled = enable_unwhitelisting;
     }
 
     config.validate()?;

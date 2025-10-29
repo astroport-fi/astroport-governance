@@ -1,13 +1,12 @@
 use std::collections::HashMap;
 
-use astroport::asset::determine_asset_info;
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::incentives;
 use astroport::incentives::{IncentivesSchedule, InputSchedule};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, coin, coins, ensure, wasm_execute, Addr, Coin, Decimal, DepsMut, Env, IbcMsg,
+    attr, coin, coins, ensure, ensure_eq, wasm_execute, Addr, Coin, Decimal, DepsMut, Env, IbcMsg,
     MessageInfo, Response, StdError, Uint128,
 };
 use cw_utils::{must_pay, nonpayable};
@@ -18,8 +17,9 @@ use astroport_governance::emissions_controller::consts::{IBC_TIMEOUT, MAX_POOLS_
 use astroport_governance::emissions_controller::msg::ExecuteMsg;
 use astroport_governance::emissions_controller::msg::VxAstroIbcMsg;
 use astroport_governance::emissions_controller::outpost::{Config, OutpostMsg};
+use astroport_governance::emissions_controller::router::RoutesBuilder;
 use astroport_governance::emissions_controller::utils::{
-    check_lp_token, get_total_voting_power, get_voting_power,
+    get_pair_info, get_total_voting_power, get_voting_power,
 };
 use astroport_governance::utils::check_contract_supports_channel;
 use astroport_governance::voting_escrow;
@@ -64,6 +64,27 @@ pub fn execute(
             // Potentially reduces IBC spam attack vector
             ensure!(!voting_power.is_zero(), ContractError::ZeroVotingPower {});
             handle_update_user(deps, env, info.sender, voting_power, false, config)
+        }
+        ExecuteMsg::SetPoolRoutes(routes) => {
+            let config = CONFIG.load(deps.storage)?;
+            ensure_eq!(info.sender, config.owner, ContractError::Unauthorized {});
+
+            Ok(RoutesBuilder::default().set_routes(
+                deps,
+                routes,
+                &config.astro_denom,
+                &config.factory,
+            )?)
+        }
+        ExecuteMsg::SetDefaultAssets(default_assets) => {
+            let config = CONFIG.load(deps.storage)?;
+            ensure_eq!(info.sender, config.owner, ContractError::Unauthorized {});
+
+            Ok(RoutesBuilder::default().set_default_assets(
+                deps.storage,
+                default_assets,
+                &config.astro_denom,
+            )?)
         }
         ExecuteMsg::ProposeNewOwner {
             new_owner,
@@ -202,8 +223,7 @@ pub fn execute_emissions(
     let schedules = schedules
         .into_iter()
         .filter(|(pool, schedule)| {
-            determine_asset_info(pool, deps.api)
-                .and_then(|maybe_lp| check_lp_token(deps.as_ref(), &config.factory, &maybe_lp))
+            get_pair_info(deps.as_ref(), &config.factory, pool)
                 .and_then(|_| IncentivesSchedule::from_input(&env, schedule))
                 .map(|_| {
                     expected_amount += schedule.reward.amount.u128();

@@ -1,6 +1,7 @@
+use crate::emissions_controller::router::RouteStepVerbose;
 use astroport::incentives::InputSchedule;
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::Addr;
+use cosmwasm_std::{Addr, Decimal, Empty};
 
 use crate::assembly::ProposalVoteOption;
 use crate::emissions_controller::msg::VxAstroIbcMsg;
@@ -86,6 +87,31 @@ pub enum QueryMsg {
         proposal_id: u64,
         limit: Option<u8>,
         start_after: Option<String>,
+    },
+    /// Checks if a whitelisted pool is still eligible for whitelisting.
+    /// Runs the same checks as when whitelisting a pool.
+    /// If a pool doesn't meet the criteria, this query throws an error.
+    /// If a pool still meets the criteria, it returns an empty response.
+    /// This query can only check pools belonging to an outpost.
+    /// Hub pools can be checked on the Hub directly.
+    /// The query requires the following parameters:
+    /// - lp_token - the LP token address/denom of the pool to be checked.
+    /// - liquidity_percent - percentage of the pool's liquidity
+    ///   to be used as the offer amount in the first step.
+    /// - allowed_spread_per_step - maximum allowed spread per step.
+    /// A pool is eligible if:
+    /// 1. It is a valid Astroport pool
+    /// 2. It has a valid swap route to ASTRO
+    #[returns(Empty)]
+    CheckWhitelistEligibility {
+        lp_token: String,
+        liquidity_percent: Decimal,
+        allowed_spread_per_step: Decimal,
+    },
+    #[returns(Vec<RouteStepVerbose>)]
+    WhitelistingRoutes {
+        start_after: Option<String>,
+        limit: Option<u32>,
     },
 }
 

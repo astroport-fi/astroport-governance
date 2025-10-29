@@ -1,22 +1,13 @@
-use astroport::asset::{AssetInfo, PairInfo};
+use crate::common::contracts::*;
+use crate::common::ibc_module::IbcMockModule;
+use crate::common::neutron_module::MockNeutronModule;
+use crate::common::stargate::StargateModule;
+use astroport::asset::AssetInfo;
+use astroport::common::LP_SUBDENOM;
 use astroport::factory::{PairConfig, PairType};
 use astroport::incentives::RewardInfo;
 use astroport::token::Logo;
-use astroport::{factory, incentives, staking};
-use cosmwasm_std::{
-    coin, coins, from_json, to_json_binary, Addr, BlockInfo, Coin, Decimal, Empty, IbcEndpoint,
-    IbcPacket, IbcPacketReceiveMsg, MemoryStorage, StdResult, Timestamp, Uint128,
-};
-use cw_multi_test::error::AnyResult;
-use cw_multi_test::{
-    no_init, App, AppBuilder, AppResponse, BankKeeper, BankSudo, DistributionKeeper, Executor,
-    GovFailingModule, MockAddressGenerator, MockApiBech32, StakeKeeper, WasmKeeper,
-};
-use derivative::Derivative;
-use itertools::Itertools;
-use neutron_sdk::bindings::msg::NeutronMsg;
-use neutron_sdk::bindings::query::NeutronQuery;
-
+use astroport::{factory, incentives, pair, staking};
 use astroport_governance::assembly::{
     ExecuteMsg, UpdateConfig, DELAY_INTERVAL, DEPOSIT_INTERVAL, EXPIRATION_PERIOD_INTERVAL,
     MINIMUM_PROPOSAL_REQUIRED_QUORUM_PERCENTAGE, MINIMUM_PROPOSAL_REQUIRED_THRESHOLD_PERCENTAGE,
@@ -27,14 +18,24 @@ use astroport_governance::emissions_controller::hub::{
     EmissionsState, HubInstantiateMsg, HubMsg, InputOutpostParams, OutpostInfo,
     SimulateTuneResponse, TuneInfo, UserInfoResponse, VotedPoolInfo,
 };
-use astroport_governance::emissions_controller::msg::VxAstroIbcMsg;
+use astroport_governance::emissions_controller::msg::{IbcAckResult, VxAstroIbcMsg};
+use astroport_governance::emissions_controller::router::RouteStepVerbose;
 use astroport_governance::voting_escrow::UpdateMarketingInfo;
 use astroport_governance::{assembly, emissions_controller, voting_escrow};
-
-use crate::common::contracts::*;
-use crate::common::ibc_module::IbcMockModule;
-use crate::common::neutron_module::MockNeutronModule;
-use crate::common::stargate::StargateModule;
+use cosmwasm_std::{
+    coin, coins, from_json, to_json_binary, Addr, BlockInfo, Coin, Decimal, Empty,
+    IbcAcknowledgement, IbcEndpoint, IbcPacket, IbcPacketAckMsg, IbcPacketReceiveMsg,
+    IbcPacketTimeoutMsg, MemoryStorage, StdResult, Timestamp, Uint128,
+};
+use cw_multi_test::error::AnyResult;
+use cw_multi_test::{
+    no_init, App, AppBuilder, AppResponse, BankKeeper, BankSudo, DistributionKeeper, Executor,
+    GovFailingModule, MockAddressGenerator, MockApiBech32, StakeKeeper, WasmKeeper,
+};
+use derivative::Derivative;
+use itertools::Itertools;
+use neutron_sdk::bindings::msg::NeutronMsg;
+use neutron_sdk::bindings::query::NeutronQuery;
 
 pub const PROPOSAL_REQUIRED_DEPOSIT: Uint128 = Uint128::new(*DEPOSIT_INTERVAL.start());
 pub const PROPOSAL_VOTING_PERIOD: u64 = *VOTING_PERIOD_INTERVAL.start();
@@ -85,6 +86,7 @@ pub struct ControllerHelper {
     pub whitelisting_fee: Coin,
     pub emission_controller: Addr,
     pub incentives: Addr,
+    pub xyk_code_id: u64,
 }
 
 impl ControllerHelper {
@@ -123,9 +125,8 @@ impl ControllerHelper {
                     fee_address: None,
                     generator_address: None,
                     owner: owner.to_string(),
-                    whitelist_code_id: 0,
                     coin_registry_address: app.api().addr_make("coin_registry").to_string(),
-                    tracker_config: None,
+                    creation_fee: None,
                 },
                 &[],
                 "label",
@@ -158,8 +159,8 @@ impl ControllerHelper {
                 token_code_id: None,
                 fee_address: None,
                 generator_address: Some(incentives.to_string()),
-                whitelist_code_id: None,
                 coin_registry_address: None,
+                creation_fee: None,
             },
             &[],
         )
@@ -275,6 +276,8 @@ impl ControllerHelper {
                     max_astro: 1_400_000_000_000u128.into(),
                     collected_astro: 334_000_000_000u128.into(),
                     ema: 300_000_000_000u128.into(),
+                    liquidity_percent: Decimal::percent(20),
+                    allowed_spread_per_step: Decimal::percent(5),
                 },
                 &[],
                 "label",
@@ -323,16 +326,20 @@ impl ControllerHelper {
             emission_controller,
             incentives,
             assembly,
+            xyk_code_id,
         };
-        dbg!(&helper);
 
         helper
     }
 
-    pub fn mint_tokens(&mut self, user: &Addr, coins: &[Coin]) -> AnyResult<AppResponse> {
+    pub fn mint_tokens(
+        &mut self,
+        user: impl Into<String>,
+        coins: &[Coin],
+    ) -> AnyResult<AppResponse> {
         self.app.sudo(
             BankSudo::Mint {
-                to_address: user.to_string(),
+                to_address: user.into(),
                 amount: coins.to_vec(),
             }
             .into(),
@@ -453,8 +460,9 @@ impl ControllerHelper {
         )
     }
 
-    pub fn create_pair(&mut self, denom1: &str, denom2: &str) -> String {
+    pub fn create_empty_pair(&mut self, denom1: &str, denom2: &str) -> (String, String) {
         let asset_infos = vec![AssetInfo::native(denom1), AssetInfo::native(denom2)];
+
         self.app
             .execute_contract(
                 self.owner.clone(),
@@ -466,13 +474,68 @@ impl ControllerHelper {
                 },
                 &[],
             )
-            .unwrap();
+            .map(|resp| {
+                let pair_addr = &resp.custom_attrs(7)[1].value;
+                (
+                    pair_addr.clone(),
+                    format!("factory/{pair_addr}/{LP_SUBDENOM}"),
+                )
+            })
+            .unwrap()
+    }
+
+    pub fn create_unverified_pair(&mut self, denom1: &str, denom2: &str) -> String {
+        let asset_infos = vec![AssetInfo::native(denom1), AssetInfo::native(denom2)];
 
         self.app
-            .wrap()
-            .query_wasm_smart::<PairInfo>(&self.factory, &factory::QueryMsg::Pair { asset_infos })
+            .instantiate_contract(
+                self.xyk_code_id,
+                self.owner.clone(),
+                &pair::InstantiateMsg {
+                    pair_type: PairType::Xyk {},
+                    asset_infos: asset_infos.clone(),
+                    token_code_id: 0,
+                    factory_addr: self.factory.to_string(),
+                    init_params: None,
+                },
+                &[],
+                "label",
+                None,
+            )
+            .map(|pair_addr| format!("factory/{pair_addr}/{LP_SUBDENOM}"))
             .unwrap()
-            .liquidity_token
+    }
+
+    pub fn create_and_seed_pair(&mut self, initial_liquidity: [Coin; 2]) -> String {
+        let owner = self.owner.clone();
+
+        self.mint_tokens(&owner, &initial_liquidity).unwrap();
+
+        let asset_infos = initial_liquidity
+            .iter()
+            .map(|c| AssetInfo::native(&c.denom))
+            .collect_vec();
+
+        self.app
+            .execute_contract(
+                owner,
+                self.factory.clone(),
+                &factory::ExecuteMsg::CreatePair {
+                    pair_type: PairType::Xyk {},
+                    asset_infos: asset_infos.clone(),
+                    init_params: None,
+                },
+                &initial_liquidity,
+            )
+            .map(|resp| {
+                let pair_addr = &resp.custom_attrs(7)[1].value;
+                format!("factory/{pair_addr}/{LP_SUBDENOM}")
+            })
+            .unwrap()
+    }
+
+    pub fn create_pair(&mut self, denom1: &str, denom2: &str) -> String {
+        self.create_and_seed_pair([coin(1_000000, denom1), coin(1_000000, denom2)])
     }
 
     pub fn vote(&mut self, user: &Addr, votes: &[(String, Decimal)]) -> AnyResult<AppResponse> {
@@ -489,16 +552,87 @@ impl ControllerHelper {
     pub fn whitelist(
         &mut self,
         user: &Addr,
-        pool: impl Into<String>,
+        lp_token: impl Into<String>,
         fees: &[Coin],
     ) -> AnyResult<AppResponse> {
         self.app.execute_contract(
             user.clone(),
             self.emission_controller.clone(),
             &emissions_controller::msg::ExecuteMsg::Custom(HubMsg::WhitelistPool {
-                lp_token: pool.into(),
+                lp_token: lp_token.into(),
             }),
             fees,
+        )
+    }
+
+    pub fn easy_whitelist(&mut self, lp_token: impl Into<String>) -> AnyResult<AppResponse> {
+        self.mint_tokens(self.owner.clone(), &[self.whitelisting_fee.clone()])
+            .unwrap();
+        self.app.execute_contract(
+            self.owner.clone(),
+            self.emission_controller.clone(),
+            &emissions_controller::msg::ExecuteMsg::Custom(HubMsg::WhitelistPool {
+                lp_token: lp_token.into(),
+            }),
+            &[self.whitelisting_fee.clone()],
+        )
+    }
+
+    pub fn unwhitelist(
+        &mut self,
+        user: &Addr,
+        lp_token: impl Into<String>,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            user.clone(),
+            self.emission_controller.clone(),
+            &emissions_controller::msg::ExecuteMsg::Custom(HubMsg::UnwhitelistIneligiblePool {
+                lp_token: lp_token.into(),
+            }),
+            &[],
+        )
+    }
+
+    pub fn toggle_pinned_pool(
+        &mut self,
+        user: &Addr,
+        lp_token: impl Into<String>,
+        pin: bool,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            user.clone(),
+            self.emission_controller.clone(),
+            &emissions_controller::msg::ExecuteMsg::Custom(HubMsg::TogglePinnedPool {
+                lp_token: lp_token.into(),
+                pin,
+            }),
+            &[],
+        )
+    }
+
+    pub fn set_pool_routes(
+        &mut self,
+        sender: &Addr,
+        routes: Vec<RouteStepVerbose>,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            sender.clone(),
+            self.emission_controller.clone(),
+            &emissions_controller::msg::ExecuteMsg::<Empty>::SetPoolRoutes(routes),
+            &[],
+        )
+    }
+
+    pub fn set_default_assets(
+        &mut self,
+        sender: &Addr,
+        defaults: Vec<AssetInfo>,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            sender.clone(),
+            self.emission_controller.clone(),
+            &emissions_controller::msg::ExecuteMsg::<Empty>::SetDefaultAssets(defaults),
+            &[],
         )
     }
 
@@ -579,13 +713,16 @@ impl ControllerHelper {
     }
 
     pub fn query_whitelist(&self) -> StdResult<Vec<String>> {
-        self.app.wrap().query_wasm_smart(
-            &self.emission_controller,
-            &emissions_controller::hub::QueryMsg::QueryWhitelist {
-                limit: Some(100),
-                start_after: None,
-            },
-        )
+        self.app
+            .wrap()
+            .query_wasm_smart(
+                &self.emission_controller,
+                &emissions_controller::hub::QueryMsg::QueryWhitelist {
+                    limit: Some(100),
+                    start_after: None,
+                },
+            )
+            .map(|list: Vec<String>| list.into_iter().sorted().collect_vec())
     }
 
     pub fn query_blacklist(&self) -> StdResult<Vec<String>> {
@@ -602,6 +739,27 @@ impl ControllerHelper {
         self.app.wrap().query_wasm_smart(
             &self.emission_controller,
             &emissions_controller::hub::QueryMsg::CheckWhitelist { lp_tokens },
+        )
+    }
+
+    pub fn check_eligibility(&self, lp_token: &str) -> StdResult<Empty> {
+        self.app.wrap().query_wasm_smart(
+            &self.emission_controller,
+            &emissions_controller::hub::QueryMsg::CheckWhitelistEligibility {
+                lp_token: lp_token.to_string(),
+                liquidity_percent: Default::default(),
+                allowed_spread_per_step: Default::default(),
+            },
+        )
+    }
+
+    pub fn query_routes(&self) -> StdResult<Vec<RouteStepVerbose>> {
+        self.app.wrap().query_wasm_smart(
+            &self.emission_controller,
+            &emissions_controller::hub::QueryMsg::WhitelistingRoutes {
+                start_after: None,
+                limit: None,
+            },
         )
     }
 
@@ -740,4 +898,66 @@ impl ControllerHelper {
             )
             .map(|x| x.rewards)
     }
+
+    pub fn mock_ibc_ack(
+        &mut self,
+        ibc_msg: VxAstroIbcMsg,
+        error: Option<&str>,
+    ) -> AnyResult<AppResponse> {
+        let ack_result = if let Some(err) = error {
+            IbcAckResult::Error(err.to_string())
+        } else {
+            IbcAckResult::Ok(b"null".into())
+        };
+        let packet = IbcPacketAckMsg::new(
+            IbcAcknowledgement::encode_json(&ack_result).unwrap(),
+            IbcPacket::new(
+                to_json_binary(&ibc_msg).unwrap(),
+                IbcEndpoint {
+                    port_id: "".to_string(),
+                    channel_id: "".to_string(),
+                },
+                IbcEndpoint {
+                    port_id: "".to_string(),
+                    channel_id: "".to_string(),
+                },
+                0,
+                Timestamp::from_seconds(0).into(),
+            ),
+            Addr::unchecked("relayer"),
+        );
+        self.app
+            .wasm_sudo(self.emission_controller.clone(), &TestSudoMsg::Ack(packet))
+    }
+
+    pub fn mock_ibc_timeout(&mut self, ibc_msg: VxAstroIbcMsg) -> AnyResult<AppResponse> {
+        let packet = IbcPacketTimeoutMsg::new(
+            IbcPacket::new(
+                to_json_binary(&ibc_msg).unwrap(),
+                IbcEndpoint {
+                    port_id: "".to_string(),
+                    channel_id: "".to_string(),
+                },
+                IbcEndpoint {
+                    port_id: "".to_string(),
+                    channel_id: "".to_string(),
+                },
+                0,
+                Timestamp::from_seconds(0).into(),
+            ),
+            Addr::unchecked("relayer"),
+        );
+        self.app.wasm_sudo(
+            self.emission_controller.clone(),
+            &TestSudoMsg::BasicTimeout(packet),
+        )
+    }
+}
+
+pub fn get_pair_addr_from_lp_token(lp_token: &str) -> String {
+    lp_token
+        .strip_prefix("factory/")
+        .and_then(|s| s.strip_suffix(&format!("/{LP_SUBDENOM}")))
+        .unwrap()
+        .to_string()
 }

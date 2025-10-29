@@ -1,16 +1,11 @@
-use std::collections::HashSet;
-
+use astroport::asset::AssetInfo;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{to_json_binary, Binary, Deps, Env, Order, StdError, StdResult};
+use cosmwasm_std::{to_json_binary, Binary, Deps, Empty, Env, Order, StdError, StdResult};
 use cw_storage_plus::Bound;
 use itertools::Itertools;
 use neutron_sdk::bindings::query::NeutronQuery;
-
-use astroport_governance::emissions_controller::consts::MAX_PAGE_LIMIT;
-use astroport_governance::emissions_controller::hub::{
-    QueryMsg, SimulateTuneResponse, UserInfoResponse,
-};
+use std::collections::HashSet;
 
 use crate::error::ContractError;
 use crate::state::{
@@ -18,6 +13,12 @@ use crate::state::{
     USER_INFO, VOTED_POOLS,
 };
 use crate::utils::simulate_tune;
+use astroport_governance::emissions_controller::consts::MAX_PAGE_LIMIT;
+use astroport_governance::emissions_controller::hub::{
+    QueryMsg, SimulateTuneResponse, UserInfoResponse,
+};
+use astroport_governance::emissions_controller::router::{query_routes, RoutesBuilder};
+use astroport_governance::emissions_controller::utils::get_pair_info;
 
 /// Expose available contract queries.
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -101,26 +102,13 @@ pub fn query(deps: Deps<NeutronQuery>, env: Env, msg: QueryMsg) -> Result<Binary
         }
         QueryMsg::QueryWhitelist { limit, start_after } => {
             let limit = limit.unwrap_or(MAX_PAGE_LIMIT) as usize;
+            let start_after = start_after.as_ref().map(|s| Bound::exclusive(s.as_str()));
             let pools_whitelist = POOLS_WHITELIST
-                .load(deps.storage)?
-                .into_iter()
-                .skip_while(|pool| {
-                    if let Some(start_after) = &start_after {
-                        pool != start_after
-                    } else {
-                        false
-                    }
-                })
+                .keys(deps.storage, start_after, None, Order::Ascending)
                 .take(limit)
-                .collect_vec();
+                .collect::<StdResult<Vec<_>>>()?;
 
-            let pools_whitelist = if start_after.is_some() {
-                &pools_whitelist[1..]
-            } else {
-                &pools_whitelist
-            };
-
-            Ok(to_json_binary(pools_whitelist)?)
+            Ok(to_json_binary(&pools_whitelist)?)
         }
         QueryMsg::QueryBlacklist { limit, start_after } => {
             let limit = limit.unwrap_or(MAX_PAGE_LIMIT) as usize;
@@ -133,11 +121,10 @@ pub fn query(deps: Deps<NeutronQuery>, env: Env, msg: QueryMsg) -> Result<Binary
             Ok(to_json_binary(&pools_blacklist)?)
         }
         QueryMsg::CheckWhitelist { lp_tokens } => {
-            let whitelist = POOLS_WHITELIST.load(deps.storage)?;
             let is_whitelisted = lp_tokens
-                .into_iter()
+                .iter()
                 .map(|lp_token| {
-                    let is_whitelisted = whitelist.contains(&lp_token);
+                    let is_whitelisted = POOLS_WHITELIST.has(deps.storage, lp_token);
                     (lp_token, is_whitelisted)
                 })
                 .collect_vec();
@@ -163,6 +150,31 @@ pub fn query(deps: Deps<NeutronQuery>, env: Env, msg: QueryMsg) -> Result<Binary
                 new_emissions_state: tune_result.new_emissions_state,
                 next_pools_grouped: tune_result.next_pools_grouped,
             })?)
+        }
+        QueryMsg::CheckWhitelistEligibility { lp_token, .. } => {
+            let deps = deps.into_empty();
+
+            if let Some(true) = POOLS_WHITELIST.may_load(deps.storage, &lp_token)? {
+                return Err(ContractError::PinnedPool(lp_token));
+            }
+
+            let config = CONFIG.load(deps.storage)?;
+            let pair_info = get_pair_info(deps, &config.factory, &lp_token)?;
+
+            let mut routes_builder = RoutesBuilder::new(
+                deps.storage,
+                config.liquidity_percent,
+                config.allowed_spread_per_step,
+            )?;
+
+            let astro = AssetInfo::native(config.astro_denom);
+            routes_builder.validate_whitelisting_pool(deps, &config.factory, &astro, &pair_info)?;
+
+            Ok(to_json_binary(&Empty {})?)
+        }
+        QueryMsg::WhitelistingRoutes { start_after, limit } => {
+            let res = query_routes(deps.into_empty(), start_after, limit)?;
+            Ok(to_json_binary(&res)?)
         }
     }
 }

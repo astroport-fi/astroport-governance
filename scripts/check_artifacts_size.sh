@@ -11,9 +11,10 @@ docker run -v "$projectPath":/code \
   cosmwasm/workspace-optimizer:0.15.1
 
 
-# terra: https://github.com/terra-money/wasmd/blob/2308975f45eac299bdf246737674482eaa51051c/x/wasm/types/validation.go#L12
+# terra: https://github.com/CosmWasm/wasmd/blob/a2e48b757b896a2a149b00e9b33e0d1b440d6fac/x/wasm/types/validation.go#L25
 # injective: https://github.com/InjectiveLabs/wasmd/blob/e087f275712b5f0a798791495dee0e453d67cad3/x/wasm/types/validation.go#L19
-maximum_size=800
+# neutron: https://github.com/neutron-org/neutron/blob/dd3b27211b32ef085056f5e9e3211e124f15674b/app/app.go#L1641
+maximum_size=900 # in kB
 
 for artifact in artifacts/*.wasm; do
   artifactsize=$(du -k "$artifact" | cut -f 1)

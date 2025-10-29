@@ -1,11 +1,14 @@
 use std::collections::HashMap;
 
+use crate::emissions_controller::consts::{
+    LIQUIDITY_PERCENT_MAX, LIQUIDITY_PERCENT_MIN, POOL_NUMBER_LIMIT, SPREAD_PER_STEP_MAX,
+    SPREAD_PER_STEP_MIN,
+};
+use crate::emissions_controller::router::RouteStepVerbose;
+use crate::voting_escrow::UpdateMarketingInfo;
 use astroport::asset::validate_native_denom;
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::{ensure, Addr, Coin, Decimal, StdError, StdResult, Uint128};
-
-use crate::emissions_controller::consts::POOL_NUMBER_LIMIT;
-use crate::voting_escrow::UpdateMarketingInfo;
+use cosmwasm_std::{ensure, Addr, Coin, Decimal, Empty, StdError, StdResult, Uint128};
 
 /// This structure describes the basic settings for creating a contract.
 #[cw_serde]
@@ -48,6 +51,17 @@ pub struct HubInstantiateMsg {
     pub collected_astro: Uint128,
     /// EMA of the collected ASTRO from the previous epoch
     pub ema: Uint128,
+    /// Whitelist eligibility check requires a pool to have a valid swap route to ASTRO.
+    /// This parameter defines what percentage of the whitelisted pool's total liquidity to be
+    /// used in swap simulations.
+    pub liquidity_percent: Decimal,
+    /// When adding a new pool to the whitelist, the contract checks that the spread
+    /// is within acceptable limits by simulating a swap along the provided route.
+    /// This parameter defines the maximum allowed spread per swap step in the route.
+    /// For example, if the route has 3 steps, and the allowed_spread_per_step is 1%,
+    /// then the total allowed spread for the entire route is approximately 3%.
+    /// This parameter protects against whitelisting pools which don't generate fees for protocol.
+    pub allowed_spread_per_step: Decimal,
 }
 
 #[cw_serde]
@@ -63,9 +77,34 @@ pub enum HubMsg {
         fee_receiver: Option<String>,
         emissions_multiple: Option<Decimal>,
         max_astro: Option<Uint128>,
+        liquidity_percent: Option<Decimal>,
+        allowed_spread_per_step: Option<Decimal>,
+        enable_unwhitelisting: Option<bool>,
     },
-    /// Whitelists a pool to receive ASTRO emissions. Requires fee payment
+    /// Permissionless endpoint.
+    /// Whitelists a pool to receive ASTRO emissions.
+    /// Requires fee payment.
+    /// Runs eligibility checks for the pool.
+    /// A pool is eligible if:
+    /// 1. It is a valid Astroport pool
+    /// 2. It has a valid swap route to ASTRO
+    /// If the pool belongs to an outpost,
+    /// this endpoint launches an IBC message to validate the pool on the outpost.
+    /// Outpost lp token is added to the whitelist only if outpost confirms in IBC callback that the pool is valid.
     WhitelistPool { lp_token: String },
+    /// Permissionless endpoint.
+    /// Checks that a pool is still eligible for whitelisting.
+    /// If a pool doesn't meet the criteria, it will be removed from the whitelist.
+    /// If a pool still meets the criteria, nothing happens.
+    /// Outpost pool is unwhitelisted only if outpost confirms in IBC callback that the pool is no longer eligible.
+    /// Note that unwhitelisting a pool doesn't mean blacklisting.
+    /// A pool can be whitelisted again by calling WhitelistPool endpoint.
+    UnwhitelistIneligiblePool { lp_token: String },
+    /// Permissioned to the contract owner.
+    /// Pins or unpins a pool in the whitelist.
+    /// Pinned pools can't be unwhitelisted by permissionless endpoint for being ineligible.
+    /// However, pinned pools can be unwhitelisted naturally through vxASTRO voting process.
+    TogglePinnedPool { lp_token: String, pin: bool },
     /// Manages pool blacklist.
     /// Blacklisting prevents voting for it.
     /// If the pool is whitelisted, it will be removed from the whitelist.
@@ -167,6 +206,26 @@ pub enum QueryMsg {
     /// emissions state and next pools grouped by outpost prefix.
     #[returns(SimulateTuneResponse)]
     SimulateTune {},
+    /// Checks if a whitelisted pool is still eligible for whitelisting.
+    /// Runs the same checks as when whitelisting a pool.
+    /// If a pool doesn't meet the criteria, this query throws an error.
+    /// If a pool still meets the criteria, it returns an empty response.
+    /// This query can only check a pool belonging to the Hub.
+    /// Outpost pools can only be checked by calling this query on the respective outpost.
+    /// A pool is eligible if:
+    /// 1. It is a valid Astroport pool
+    /// 2. It has a valid swap route to ASTRO
+    #[returns(Empty)]
+    CheckWhitelistEligibility {
+        lp_token: String,
+        liquidity_percent: Decimal,
+        allowed_spread_per_step: Decimal,
+    },
+    #[returns(Vec<RouteStepVerbose>)]
+    WhitelistingRoutes {
+        start_after: Option<String>,
+        limit: Option<u32>,
+    },
 }
 
 /// General contract configuration
@@ -208,6 +267,21 @@ pub struct Config {
     pub emissions_multiple: Decimal,
     /// Max ASTRO allowed per epoch. Parameter of the dynamic emissions curve.
     pub max_astro: Uint128,
+    /// Whitelist eligibility check requires a pool to have a valid swap route to ASTRO.
+    /// This parameter defines what percentage of the whitelisted pool's total liquidity to be
+    /// used in swap simulations.
+    pub liquidity_percent: Decimal,
+    /// When adding a new pool to the whitelist, the contract checks that the spread
+    /// is within acceptable limits by simulating a swap along the provided route.
+    /// This parameter defines the maximum allowed spread per swap step in the route.
+    /// For example, if the route has 3 steps, and the allowed_spread_per_step is 1%,
+    /// then the total allowed spread for the entire route is approximately 3%.
+    /// This parameter protects against whitelisting pools which don't generate fees for protocol.
+    pub allowed_spread_per_step: Decimal,
+    /// Enables or disables the permissionless unwhitelisting of ineligible pools.
+    /// Can be used to temporarily disable the feature in case of a certain pool's
+    /// liquidity is being moved to another pool.
+    pub unwhitelisting_enabled: bool,
 }
 
 impl Config {
@@ -236,6 +310,22 @@ impl Config {
         ensure!(
             !self.max_astro.is_zero(),
             StdError::generic_err("max_astro must be greater than 0")
+        );
+
+        ensure!(
+            self.liquidity_percent >= LIQUIDITY_PERCENT_MIN
+                && self.liquidity_percent <= LIQUIDITY_PERCENT_MAX,
+            StdError::generic_err(format!(
+                "liquidity_percent must be within [{LIQUIDITY_PERCENT_MIN}, {LIQUIDITY_PERCENT_MAX}] range"
+            ))
+        );
+
+        ensure!(
+            self.allowed_spread_per_step >= SPREAD_PER_STEP_MIN
+                && self.allowed_spread_per_step <= SPREAD_PER_STEP_MAX,
+            StdError::generic_err(format!(
+                "allowed_spread_per_step must be within [{SPREAD_PER_STEP_MIN}, {SPREAD_PER_STEP_MAX}] range"
+            ))
         );
 
         Ok(())
@@ -277,7 +367,7 @@ pub struct AstroPoolConfig {
 #[cw_serde]
 pub struct OutpostInfo {
     /// Outpost params contain all necessary information to interact with the remote outpost.
-    /// This field also serves as marker whether it is The hub (params: None) or
+    /// This field also serves as a marker whether it is The hub (params: None) or
     /// remote outpost (Some(params))
     pub params: Option<OutpostParams>,
     /// ASTRO token denom
@@ -377,6 +467,12 @@ pub struct EmissionsState {
     pub emissions_amount: Uint128,
 }
 
+#[cw_serde]
+pub struct MigrateMsg {
+    pub liquidity_percent: Decimal,
+    pub allowed_spread_per_step: Decimal,
+}
+
 #[cfg(test)]
 mod unit_tests {
     use cosmwasm_std::coin;
@@ -400,6 +496,9 @@ mod unit_tests {
             whitelist_threshold: Decimal::percent(10),
             emissions_multiple: Decimal::percent(80),
             max_astro: 1_400_000_000_000u128.into(),
+            liquidity_percent: Decimal::percent(10),
+            allowed_spread_per_step: Decimal::percent(5),
+            unwhitelisting_enabled: false,
         };
         assert_eq!(
             config.validate().unwrap_err(),
@@ -447,6 +546,22 @@ mod unit_tests {
         );
 
         config.max_astro = 1_400_000_000_000u128.into();
+
+        config.liquidity_percent = Decimal::zero();
+        assert_eq!(
+            config.validate().unwrap_err(),
+            StdError::generic_err("liquidity_percent must be within [0.01, 0.5] range")
+        );
+
+        config.liquidity_percent = Decimal::percent(10);
+        config.allowed_spread_per_step = Decimal::zero();
+
+        assert_eq!(
+            config.validate().unwrap_err(),
+            StdError::generic_err("allowed_spread_per_step must be within [0.01, 0.5] range")
+        );
+
+        config.allowed_spread_per_step = Decimal::percent(5);
 
         config.validate().unwrap();
     }

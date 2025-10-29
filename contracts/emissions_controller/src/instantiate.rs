@@ -16,7 +16,7 @@ use astroport_governance::emissions_controller::utils::{get_epoch_start, query_i
 use astroport_governance::voting_escrow;
 
 use crate::error::ContractError;
-use crate::state::{CONFIG, POOLS_WHITELIST, TUNE_INFO};
+use crate::state::{CONFIG, TUNE_INFO};
 use crate::utils::get_xastro_rate_and_share;
 
 /// Contract name that is used for migration.
@@ -66,8 +66,11 @@ pub fn instantiate(
         whitelist_threshold: msg.whitelist_threshold,
         emissions_multiple: msg.emissions_multiple,
         max_astro: msg.max_astro,
+        liquidity_percent: msg.liquidity_percent,
         staking,
         xastro_denom: msg.xastro_denom.clone(),
+        allowed_spread_per_step: msg.allowed_spread_per_step,
+        unwhitelisting_enabled: false,
     };
     config.validate()?;
 
@@ -105,8 +108,6 @@ pub fn instantiate(
         funds: vec![],
         label: "Vote Escrowed xASTRO".to_string(),
     };
-
-    POOLS_WHITELIST.save(deps.storage, &vec![])?;
 
     Ok(Response::default()
         .add_attribute("action", "instantiate_emissions_controller")

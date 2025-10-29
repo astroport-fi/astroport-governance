@@ -9,14 +9,14 @@ use cosmwasm_std::{
 
 use astroport_governance::assembly;
 use astroport_governance::emissions_controller::consts::{IBC_APP_VERSION, IBC_ORDERING};
-use astroport_governance::emissions_controller::hub::OutpostInfo;
+use astroport_governance::emissions_controller::hub::{OutpostInfo, VotedPoolInfo};
 use astroport_governance::emissions_controller::msg::{
     ack_fail, ack_ok, IbcAckResult, VxAstroIbcMsg,
 };
 
 use crate::error::ContractError;
 use crate::execute::{handle_update_user, handle_vote};
-use crate::state::{get_all_outposts, CONFIG};
+use crate::state::{get_all_outposts, CONFIG, PENDING_WHITELIST, POOLS_WHITELIST, VOTED_POOLS};
 use crate::utils::jail_outpost;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -113,8 +113,9 @@ fn is_outpost_valid(
         | VxAstroIbcMsg::GovernanceVote {
             total_voting_power, ..
         } => Ok(*total_voting_power <= escrow_balance),
-        VxAstroIbcMsg::RegisterProposal { .. } => {
-            unreachable!("Hub can't receive RegisterProposal message")
+        VxAstroIbcMsg::RegisterProposal { .. }
+        | VxAstroIbcMsg::CheckWhitelistEligibility { .. } => {
+            unreachable!("Hub can't receive these messages")
         }
     }
 }
@@ -216,36 +217,86 @@ pub fn do_packet_receive(
                     .add_message(cast_vote_msg)
                     .set_ack(ack_ok()))
             }
-            VxAstroIbcMsg::RegisterProposal { .. } => {
-                unreachable!("Hub can't receive RegisterProposal message")
+            VxAstroIbcMsg::RegisterProposal { .. }
+            | VxAstroIbcMsg::CheckWhitelistEligibility { .. } => {
+                unreachable!("Hub can't receive these messages")
             }
         }
     }
 }
 
-#[cfg(not(tarpaulin_include))]
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn ibc_packet_ack(
-    _deps: DepsMut,
-    _env: Env,
+    deps: DepsMut,
+    env: Env,
     msg: IbcPacketAckMsg,
 ) -> StdResult<IbcBasicResponse> {
-    match from_json(msg.acknowledgement.data)? {
+    let orig_msg: VxAstroIbcMsg = from_json(&msg.original_packet.data)?;
+    match from_json(&msg.acknowledgement.data)? {
         IbcAckResult::Ok(_) => {
-            Ok(IbcBasicResponse::default().add_attribute("action", "ibc_packet_ack"))
+            let response = IbcBasicResponse::new().add_attribute("action", "ibc_packet_ack");
+            match orig_msg {
+                VxAstroIbcMsg::RegisterProposal { .. } => {}
+                VxAstroIbcMsg::CheckWhitelistEligibility { lp_token, .. } => {
+                    // Move the pool from pending to the actual whitelist if it was approved
+                    if PENDING_WHITELIST.has(deps.storage, &lp_token) {
+                        // Start voting from scratch if the pool is not whitelisted yet.
+                        if !POOLS_WHITELIST.has(deps.storage, &lp_token) {
+                            POOLS_WHITELIST.save(deps.storage, &lp_token, &false)?;
+
+                            // Starting the voting process from scratch for this pool
+                            VOTED_POOLS.save(
+                                deps.storage,
+                                &lp_token,
+                                &VotedPoolInfo {
+                                    init_ts: env.block.time.seconds(),
+                                    voting_power: Uint128::zero(),
+                                },
+                                env.block.time.seconds(),
+                            )?;
+                        }
+
+                        PENDING_WHITELIST.remove(deps.storage, &lp_token);
+                    }
+                }
+                _ => unreachable!("Hub can't receive these messages"),
+            }
+
+            Ok(response)
         }
-        IbcAckResult::Error(err) => Ok(IbcBasicResponse::default().add_attribute("error", err)),
+        IbcAckResult::Error(err) => {
+            match orig_msg {
+                VxAstroIbcMsg::RegisterProposal { .. } => {}
+                VxAstroIbcMsg::CheckWhitelistEligibility { lp_token, .. } => {
+                    PENDING_WHITELIST.remove(deps.storage, &lp_token);
+                    VOTED_POOLS.remove(deps.storage, &lp_token, env.block.time.seconds())?;
+                    POOLS_WHITELIST.remove(deps.storage, &lp_token);
+                }
+                _ => unreachable!("Hub can't receive these messages"),
+            }
+
+            Ok(IbcBasicResponse::default().add_attribute("error", err))
+        }
     }
 }
 
 #[cfg(not(tarpaulin_include))]
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn ibc_packet_timeout(
-    _deps: DepsMut,
+    deps: DepsMut,
     _env: Env,
-    _msg: IbcPacketTimeoutMsg,
+    msg: IbcPacketTimeoutMsg,
 ) -> StdResult<IbcBasicResponse> {
-    Ok(IbcBasicResponse::default().add_attribute("action", "ibc_packet_timeout"))
+    let orig_msg: VxAstroIbcMsg = from_json(msg.packet.data)?;
+    match orig_msg {
+        VxAstroIbcMsg::RegisterProposal { .. } => {}
+        VxAstroIbcMsg::CheckWhitelistEligibility { lp_token, .. } => {
+            PENDING_WHITELIST.remove(deps.storage, &lp_token);
+        }
+        _ => unreachable!("Hub can't receive these messages"),
+    }
+
+    Ok(IbcBasicResponse::default().add_attribute("error", "ibc_timeout"))
 }
 
 #[cfg(not(tarpaulin_include))]
@@ -260,9 +311,6 @@ pub fn ibc_channel_close(
 
 #[cfg(test)]
 mod unit_tests {
-    use std::collections::HashMap;
-    use std::marker::PhantomData;
-
     use cosmwasm_std::testing::{mock_dependencies, mock_env, MockQuerier, MockStorage};
     use cosmwasm_std::{
         attr, coins, to_json_binary, Addr, Decimal, IbcChannel, IbcEndpoint, IbcOrder, IbcPacket,
@@ -270,6 +318,8 @@ mod unit_tests {
     };
     use cw_multi_test::MockApiBech32;
     use neutron_sdk::bindings::query::NeutronQuery;
+    use std::collections::HashMap;
+    use std::marker::PhantomData;
 
     use astroport_governance::assembly::ProposalVoteOption;
     use astroport_governance::emissions_controller::hub::{
@@ -429,6 +479,9 @@ mod unit_tests {
                     whitelist_threshold: Default::default(),
                     emissions_multiple: Default::default(),
                     max_astro: Default::default(),
+                    liquidity_percent: Default::default(),
+                    allowed_spread_per_step: Default::default(),
+                    unwhitelisting_enabled: false,
                 },
             )
             .unwrap();
@@ -486,7 +539,7 @@ mod unit_tests {
             )
             .unwrap();
         POOLS_WHITELIST
-            .save(deps.as_mut().storage, &vec!["osmo1pool1".to_string()])
+            .save(deps.as_mut().storage, "osmo1pool1", &false)
             .unwrap();
 
         let mut env = mock_env();
